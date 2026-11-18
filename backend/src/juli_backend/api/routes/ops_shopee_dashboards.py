@@ -21,32 +21,19 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.routes.ops import MaskedRoute, OpsContext, _shop, viewer
+from juli_backend.api.capability_gate import require_ops_capability
+from juli_backend.api.routes.ops import MaskedRoute, OpsContext, viewer
 from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services.ops import shopee_dashboards as dash
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
 
+_gate = require_ops_capability("read_shop_totals")
+
 OrderType = Literal["placed", "paid", "confirmed"]
 FromDay = Annotated[date | None, Query(alias="from")]
 ToDay = Annotated[date | None, Query(alias="to")]
-
-
-async def _shopee_shop(session: AsyncSession, shop_id: uuid.UUID) -> str:
-    """404 for an unknown shop, 409 unless it is a Shopee shop; returns the shop's name.
-
-    The platform comes from the Ops listing, not from a read under ``shops.user_id``: since
-    P93 that user may be a removed member, and ``shops`` RLS then hides the shop from them.
-    """
-    listing = await _shop(session, shop_id)
-    await session.commit()
-    if listing.platform != dash.PLATFORM:
-        raise HTTPException(
-            status_code=409,
-            detail={"code": "not_a_shopee_shop", "message": "this shop is not on Shopee"},
-        )
-    return listing.shop_name
 
 
 def _window(start: date | None, end: date | None, latest: date | None) -> dash.DateRange:
@@ -67,12 +54,12 @@ async def ops_shopee_products(
     limit: Annotated[int, Query(ge=1, le=dash.MAX_PRODUCTS)] = 50,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     if (period_from is None) != (period_to is None) or (
         period_from is not None and period_to is not None and period_from > period_to
     ):
         raise HTTPException(status_code=422, detail={"code": "invalid_range"})
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id, transaction_ends_after=True):
         return await dash.products(
             session,
@@ -92,8 +79,8 @@ async def ops_shopee_flows(
     order_type: OrderType = "confirmed",
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id, transaction_ends_after=True):
         window = _window(start, end, await dash.latest_day(session, shop_id, "traffic_overview"))
         return await dash.flows(session, shop_id, window, order_type)
@@ -107,8 +94,8 @@ async def ops_shopee_ads(
     order_type: OrderType = "placed",
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id, transaction_ends_after=True):
         window = _window(start, end, await dash.latest_day(session, shop_id, "traffic_overview"))
         return await dash.ads(session, shop_id, window, order_type)
@@ -122,8 +109,8 @@ async def ops_shopee_promotions(
     order_type: OrderType = "confirmed",
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id, transaction_ends_after=True):
         window = _window(start, end, await dash.latest_day(session, shop_id, "promotion_daily"))
         return await dash.promotions(session, shop_id, window, order_type)

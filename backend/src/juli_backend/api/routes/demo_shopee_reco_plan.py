@@ -26,8 +26,8 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop, require_writable_shop
-from juli_backend.api.routes.demo_shopee_analytics import _shopee
+from juli_backend.api.capability_gate import require_capability
+from juli_backend.api.dependencies import require_writable_shop
 from juli_backend.api.routes.shopee_reco_plan_common import (
     AddCardBody,
     ChangeSetStatus,
@@ -50,6 +50,9 @@ from juli_backend.services.shopee_recommendations import change_sets, manual, mo
 
 router = APIRouter(prefix="/demo/shopee/recommendations", tags=["demo-shopee"])
 
+_gate_r = require_capability(None)
+_gate_w = require_capability(None, shop_dependency=require_writable_shop)
+
 
 def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
@@ -57,22 +60,20 @@ def _now() -> datetime:
 
 @router.get("/plan")
 async def get_plan(
-    shop: Shop = Depends(get_active_shop), session: AsyncSession = Depends(get_session)
+    shop: Shop = Depends(_gate_r), session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
     try:
-        return await month_plan.plan_with_month(
-            session, _shopee(shop), now=_now(), audience="seller"
-        )
+        return await month_plan.plan_with_month(session, shop.id, now=_now(), audience="seller")
     except ProposalError as exc:
         raise refused(exc) from None
 
 
 @router.get("/plan/aggregate")
 async def get_aggregate(
-    shop: Shop = Depends(get_active_shop), session: AsyncSession = Depends(get_session)
+    shop: Shop = Depends(_gate_r), session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
     try:
-        out = await plans.get_plan(session, _shopee(shop), now=_now(), audience="seller")
+        out = await plans.get_plan(session, shop.id, now=_now(), audience="seller")
     except ProposalError as exc:
         raise refused(exc) from None
     return {"plan": out["plan"], "aggregate": out["aggregate"], "windows": out["windows"]}
@@ -80,19 +81,19 @@ async def get_aggregate(
 
 @router.get("/plans")
 async def list_plans(
-    shop: Shop = Depends(get_active_shop), session: AsyncSession = Depends(get_session)
+    shop: Shop = Depends(_gate_r), session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
-    return {"plans": await plans.list_plans(session, _shopee(shop))}
+    return {"plans": await plans.list_plans(session, shop.id)}
 
 
 @router.get("/plans/code/{code}")
 async def plan_by_code(
     code: str,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     try:
-        return await plans.plan_by_code(session, _shopee(shop), code, now=_now(), audience="seller")
+        return await plans.plan_by_code(session, shop.id, code, now=_now(), audience="seller")
     except ProposalError as exc:
         raise refused(exc) from None
 
@@ -100,11 +101,11 @@ async def plan_by_code(
 @router.get("/plans/{plan_id}")
 async def get_plan_by_id(
     plan_id: uuid.UUID,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     try:
-        return await plans.get_plan(session, _shopee(shop), plan_id, now=_now(), audience="seller")
+        return await plans.get_plan(session, shop.id, plan_id, now=_now(), audience="seller")
     except ProposalError as exc:
         raise refused(exc) from None
 
@@ -125,14 +126,14 @@ async def _write(session: AsyncSession, call: Any, *args: Any, **kwargs: Any) ->
 @router.post("/plan/cards", status_code=201)
 async def add_card(
     body: AddCardBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     return await _write(
         session,
         plans.add_card,
-        _shopee(shop),
+        shop.id,
         body.card_id,
         chosen_version=body.chosen_version,
         actor=manual.Actor("seller", user.id),
@@ -143,7 +144,7 @@ async def add_card(
 
 @router.post("/plan/refresh-base")
 async def refresh_base(
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
@@ -151,7 +152,7 @@ async def refresh_base(
     return await _write(
         session,
         plans.refresh_base,
-        _shopee(shop),
+        shop.id,
         actor=manual.Actor("seller", user.id),
         now=_now(),
     )
@@ -160,14 +161,14 @@ async def refresh_base(
 @router.post("/plan/cards/{card_id}/remove")
 async def remove_card(
     card_id: uuid.UUID,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     return await _write(
         session,
         plans.remove_card,
-        _shopee(shop),
+        shop.id,
         card_id,
         actor=manual.Actor("seller", user.id),
         now=_now(),
@@ -178,14 +179,14 @@ async def remove_card(
 async def move_card(
     card_id: uuid.UUID,
     body: MoveCardBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     return await _write(
         session,
         plans.move_card,
-        _shopee(shop),
+        shop.id,
         card_id,
         body.position,
         actor=manual.Actor("seller", user.id),
@@ -197,14 +198,14 @@ async def move_card(
 async def switch_version(
     card_id: uuid.UUID,
     body: SwitchVersionBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     return await _write(
         session,
         plans.switch_version,
-        _shopee(shop),
+        shop.id,
         card_id,
         body.version,
         actor=manual.Actor("seller", user.id),
@@ -216,14 +217,14 @@ async def switch_version(
 async def plan_whatif(
     card_id: uuid.UUID,
     body: PlanWhatIfBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     return await _write(
         session,
         plans.whatif,
-        _shopee(shop),
+        shop.id,
         card_id,
         body.inputs,
         actor=manual.Actor("seller", user.id),
@@ -234,7 +235,7 @@ async def plan_whatif(
 @router.post("/plan/groups", status_code=201)
 async def create_group(
     body: CreateGroupBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
@@ -242,7 +243,7 @@ async def create_group(
     return await _write(
         session,
         plans.run_together,
-        _shopee(shop),
+        shop.id,
         [(m.card_id, m.version) for m in body.members],
         days=body.days,
         start=body.start,
@@ -257,13 +258,13 @@ async def create_group(
 async def group_period(
     group_id: uuid.UUID,
     body: GroupPeriodBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     return await _write(
         session,
         plans.set_group_period,
-        _shopee(shop),
+        shop.id,
         group_id,
         days=body.days,
         start=body.start,
@@ -277,13 +278,13 @@ async def group_period(
 async def group_remove_member(
     group_id: uuid.UUID,
     body: GroupMemberBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     return await _write(
         session,
         plans.remove_group_member,
-        _shopee(shop),
+        shop.id,
         group_id,
         body.card_id,
         body.version,
@@ -295,13 +296,13 @@ async def group_remove_member(
 @router.post("/plan/groups/{group_id}/cancel")
 async def group_cancel(
     group_id: uuid.UUID,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     return await _write(
         session,
         plans.cancel_group,
-        _shopee(shop),
+        shop.id,
         group_id,
         now=_now(),
         audience="seller",
@@ -310,11 +311,11 @@ async def group_cancel(
 
 @router.get("/plan/export")
 async def export_plan(
-    shop: Shop = Depends(get_active_shop), session: AsyncSession = Depends(get_session)
+    shop: Shop = Depends(_gate_r), session: AsyncSession = Depends(get_session)
 ) -> Response:
     """The plan as an Excel file: group, versions and period, one row per version."""
     try:
-        name, data = await plans.export_workbook(session, _shopee(shop), None, now=_now())
+        name, data = await plans.export_workbook(session, shop.id, None, now=_now())
     except ProposalError as exc:
         raise refused(exc) from None
     return Response(
@@ -327,14 +328,14 @@ async def export_plan(
 @router.post("/plan/confirm")
 async def confirm_plan(
     body: ConfirmBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     return await _write(
         session,
         plans.confirm,
-        _shopee(shop),
+        shop.id,
         actor=manual.Actor("seller", user.id),
         now=_now(),
         acknowledge_breaches=body.acknowledge_breaches,
@@ -346,13 +347,13 @@ async def confirm_plan(
 @router.post("/plan/window")
 async def plan_window(
     body: WindowBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     return await _write(
         session,
         plans.set_window,
-        _shopee(shop),
+        shop.id,
         days=body.days,
         product_id=body.product_id,
         now=_now(),
@@ -363,12 +364,12 @@ async def plan_window(
 async def list_change_sets(
     product_id: Annotated[str | None, Query(max_length=64)] = None,
     status: ChangeSetStatus = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     now = _now()
     rows = await change_sets.sets_for(
-        session, _shopee(shop), status=None if status is None else [status], product_id=product_id
+        session, shop.id, status=None if status is None else [status], product_id=product_id
     )
     return {"change_sets": [change_sets.to_json(r, now=now) for r in rows]}
 
@@ -377,12 +378,12 @@ async def list_change_sets(
 async def change_set_window(
     set_id: uuid.UUID,
     body: SetWindowBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     now = _now()
     try:
-        cs = await change_sets.set_window(session, _shopee(shop), set_id, body.days, now=now)
+        cs = await change_sets.set_window(session, shop.id, set_id, body.days, now=now)
         out = change_sets.to_json(cs, now=now)
         await session.commit()
     except ProposalError as exc:

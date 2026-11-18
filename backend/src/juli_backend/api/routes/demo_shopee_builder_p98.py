@@ -16,9 +16,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.capability_gate import require_capability
 from juli_backend.api.routes import shopee_builder_common as common
-from juli_backend.api.routes.demo_shopee_analytics import _shopee
 from juli_backend.database import Shop, get_session
 from juli_backend.services.shopee_builder import (
     ads_builder,
@@ -29,6 +28,8 @@ from juli_backend.services.shopee_builder import (
 )
 
 router = APIRouter(prefix="/demo/shopee", tags=["demo-shopee"])
+
+_gate_r = require_capability(None)
 
 
 def _now() -> datetime:
@@ -42,11 +43,11 @@ def _refused(exc: specs_p98.BuilderInputError) -> HTTPException:
 @router.post("/builder/combo/options")
 async def combo_options(
     body: specs_p98.ComboRequest,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     try:
-        return await combo_builder.build(session, _shopee(shop), body, now=_now())
+        return await combo_builder.build(session, shop.id, body, now=_now())
     except service.NoShopeeData:
         raise common.no_data() from None
     except specs_p98.BuilderInputError as exc:
@@ -56,11 +57,11 @@ async def combo_options(
 @router.post("/builder/kol/setup")
 async def kol_setup(
     body: specs_p98.KolRequest,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     try:
-        return await kol_builder.build(session, _shopee(shop), body, now=_now())
+        return await kol_builder.build(session, shop.id, body, now=_now())
     except service.NoShopeeData:
         raise common.no_data() from None
     except specs_p98.BuilderInputError as exc:
@@ -70,11 +71,11 @@ async def kol_setup(
 @router.post("/builder/ads/setup")
 async def ads_setup(
     body: specs_p98.AdsRequest,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     try:
-        return await ads_builder.build(session, _shopee(shop), body, now=_now())
+        return await ads_builder.build(session, shop.id, body, now=_now())
     except service.NoShopeeData:
         raise common.no_data() from None
     except specs_p98.BuilderInputError as exc:

@@ -15,13 +15,15 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.api.capability_gate import require_ops_capability
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, viewer
-from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
 from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services.shopee_analytics import fee_backtest
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
+
+_gate = require_ops_capability(None)
 
 
 @router.get("/shops/{shop_id}/shopee/fee-backtest")
@@ -31,8 +33,8 @@ async def ops_fee_backtest(
     as_of: Annotated[date | None, Query()] = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             return await fee_backtest.run(session, shop_id, as_of=as_of, days=days)

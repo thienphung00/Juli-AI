@@ -37,8 +37,8 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.api.capability_gate import require_ops_capability
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, operator, viewer
-from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
 from juli_backend.api.routes.shopee_recommendations_common import (
     ExecutedBody,
     RevertedBody,
@@ -52,6 +52,8 @@ from juli_backend.services.ops import audit
 from juli_backend.services.shop_proposals import ProposalError
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
+
+_gate = require_ops_capability(None)
 BASE = "/shops/{shop_id}/shopee/recommendations"
 
 ACTION_GENERATE = "reco_generate"
@@ -117,8 +119,8 @@ async def ops_list_recommendations(
     audience: Annotated[str, Query(pattern="^(ops|seller)$")] = "ops",
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             return await reco.list_cards(
@@ -141,8 +143,8 @@ async def ops_learning(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await reco.learning_overview(session, shop_id)
 
@@ -152,8 +154,8 @@ async def ops_sim_priors(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await reco.sim_summary(session, shop_id)
 
@@ -164,10 +166,10 @@ async def ops_card_by_code(
     code: Annotated[str, Path(max_length=32)],
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     """One card by its code (``JC-2611-0007`` or ``JC-2611-0007-V2``): versions, chosen version,
     inputs before / after, status history and verification state."""
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             return await reco.card_by_code(session, shop_id, code, audience="ops")
@@ -182,9 +184,9 @@ async def ops_recommendation_detail(
     audience: Annotated[str, Query(pattern="^(ops|seller)$")] = "ops",
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     """``audience=seller`` is "Xem như shop": the card as the seller gets it (404 for a draft)."""
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             return await reco.card_detail(session, shop_id, card_id, audience=audience)
@@ -198,8 +200,8 @@ async def ops_generate(
     body: GenerateBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     mega = None if body.mega is None else reco.MegaWindow(body.mega.start, body.mega.end)
     try:
         async with with_shop_scope(session, shop_id):
@@ -235,8 +237,8 @@ async def ops_publish(
     body: PublishBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             sent = await reco.publish(session, shop_id, body.card_ids, now=_now())
@@ -252,9 +254,9 @@ async def ops_requeue(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     """Idempotent: renumber every product's queue (a measurement window may have ended)."""
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         changed = await reco.requeue(session, shop_id, now=_now())
     await _audited(session, ctx, shop_id, ACTION_REQUEUE, {"changed": changed})
@@ -266,9 +268,9 @@ async def ops_backfill_codes(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     """Idempotent: give the Shopee proposals that predate migration 116 their card codes."""
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         coded = await reco.backfill_codes(session, shop_id, now=_now())
     await _audited(session, ctx, shop_id, ACTION_BACKFILL_CODES, {"coded": coded})
@@ -280,8 +282,8 @@ async def ops_rerun_stale(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         counts = await reco.rerun_stale(session, shop_id, now=_now())
     await _audited(session, ctx, shop_id, ACTION_RERUN_STALE, counts)
@@ -295,8 +297,8 @@ async def ops_whatif(
     body: WhatIfBody,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             card = await reco.recompute(
@@ -331,9 +333,9 @@ async def ops_withdraw_many(
     body: BulkWithdrawBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     """Bulk "Gỡ thẻ": each card closes on its own; one that cannot is listed, the rest go."""
-    await _shopee_shop(session, shop_id)
     if body.reason_code not in reco.WITHDRAW_REASONS:
         raise HTTPException(422, f"reason_code must be one of {list(reco.WITHDRAW_REASONS)}")
     done: list[str] = []
@@ -376,8 +378,8 @@ async def ops_withdraw(
     body: WithdrawBody | None = None,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     body = body or WithdrawBody()
     try:
         async with with_shop_scope(session, shop_id):
@@ -410,8 +412,8 @@ async def ops_executed(
     body: ExecutedBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             out = await reco.mark_executed(
@@ -445,8 +447,8 @@ async def ops_reverted(
     body: RevertedBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             out = await reco.mark_reverted(
@@ -465,8 +467,8 @@ async def ops_import_sim(
     body: SimImportBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         priors = reco.parse_priors(body.document, gate_overrides=body.gate_overrides)
     except reco.SimImportError as exc:
@@ -511,8 +513,8 @@ async def ops_learning_run(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         report = await reco.run_learning(session, shop_id, now=_now())
     out = report.json()
@@ -525,8 +527,8 @@ async def ops_backfill(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         report = await reco.apply_backfill(session, shop_id, now=_now())
     out = report.json()

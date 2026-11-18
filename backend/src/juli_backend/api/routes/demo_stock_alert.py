@@ -18,7 +18,6 @@ Public, no sign-in (the signed link of the e-mail is the credential):
 from __future__ import annotations
 
 import logging
-import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -26,7 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.capability_gate import require_capability
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.database.tenant_context import with_shop_scope
@@ -43,6 +42,8 @@ from juli_backend.services.stock_alert import stock_basis as sb
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/demo/shopee/stock", tags=["demo-shopee"])
+
+_gate_r = require_capability(None)
 public_router = APIRouter(prefix="/stock-alert", tags=["stock-alert"])
 
 SKU_KEY = r"^[0-9]{1,64}(:[0-9]{1,64})?$"
@@ -50,15 +51,6 @@ SKU_KEY = r"^[0-9]{1,64}(:[0-9]{1,64})?$"
 
 def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
-
-
-def _shopee(shop: Shop) -> uuid.UUID:
-    if shop.platform != "shopee":
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            detail={"code": "not_a_shopee_shop", "message": "this shop is not on Shopee"},
-        )
-    return shop.id
 
 
 def _row(
@@ -94,10 +86,10 @@ def _row(
 
 @router.get("")
 async def stock_list(
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     conf = await settings.load_settings(session, shop_id)
     if conf.sample:
         return {"data": {"enabled": False, "rows": []}}
@@ -123,10 +115,10 @@ async def set_tracking(
     body: TrackingBody,
     sku_key: str = Path(pattern=SKU_KEY),
     user: User = Depends(get_current_user),
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     if (await settings.load_settings(session, shop_id)).sample:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail={"code": "sample_shop"})
     now = _now()

@@ -22,14 +22,13 @@ numbers 409 ``no_shopee_data``. The logic is ``services/shopee_analytics``.
 
 from __future__ import annotations
 
-import uuid
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Path, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.capability_gate import require_capability
 from juli_backend.api.reviewer import reviewer_context
 from juli_backend.api.routes.shopee_analytics_common import (
     REFUSALS,
@@ -51,16 +50,9 @@ from juli_backend.services.shopee_analytics import channel_split, metric_view, q
 
 router = APIRouter(prefix="/demo/shopee", tags=["demo-shopee"])
 
+_gate_r = require_capability("read_shop_totals")
+
 PLATFORM = "shopee"
-
-
-def _shopee(shop: Shop) -> uuid.UUID:
-    if shop.platform != PLATFORM:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            detail={"code": "not_a_shopee_shop", "message": "this shop is not on Shopee"},
-        )
-    return shop.id
 
 
 @router.get("/overview")
@@ -70,10 +62,10 @@ async def shopee_overview(
     start: Annotated[date | None, Query(alias="from")] = None,
     end: Annotated[date | None, Query(alias="to")] = None,
     as_of: DateQ = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         return await queries.overview(
             session, shop_id, **window_args(period, month, start, end, as_of)
@@ -91,10 +83,10 @@ async def shopee_matrix(
     as_of: DateQ = None,
     sort: Annotated[str, Query(pattern="^(gmv|bien|orders|profit)$")] = "gmv",
     limit: Annotated[int | None, Query(ge=1, le=500)] = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         body = await queries.matrix(
             session,
@@ -115,10 +107,10 @@ async def shopee_critical(
     start: Annotated[date | None, Query(alias="from")] = None,
     end: Annotated[date | None, Query(alias="to")] = None,
     as_of: DateQ = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         body = await queries.critical(
             session, shop_id, **window_args(period, month, start, end, as_of)
@@ -141,10 +133,10 @@ async def shopee_ranking(
     start: Annotated[date | None, Query(alias="from")] = None,
     end: Annotated[date | None, Query(alias="to")] = None,
     as_of: DateQ = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         body = await queries.ranking(
             session,
@@ -165,10 +157,10 @@ async def shopee_product(
     item_id: Annotated[str, Path(pattern=r"^[0-9A-Za-z:_\-]{1,64}$")],
     period: Annotated[str, Query(pattern="^(7d|30d|90d)$")] = "30d",
     as_of: DateQ = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         body = await queries.product_page(session, shop_id, item_id, period=period, as_of=as_of)
         return await reco.attach_card_refs(session, shop_id, "product", body, audience="seller")
@@ -193,11 +185,11 @@ async def shopee_kols(
     kol: Annotated[str | None, Query(max_length=120)] = None,
     sort: KolSortQ = "net_profit",
     limit: Annotated[int | None, Query(ge=1, le=1000)] = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Phân tích › KOL: KOL x sản phẩm x kênh."""
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         body = await queries.kol_table(
             session,
@@ -225,11 +217,11 @@ async def shopee_kols_compare(
     start: Annotated[date | None, Query(alias="from")] = None,
     end: Annotated[date | None, Query(alias="to")] = None,
     as_of: DateQ = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Phân tích › KOL › So sánh (P100)."""
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         return await queries.kol_compare(
             session, shop_id, group=group, **window_args(period, month, start, end, as_of)
@@ -246,11 +238,11 @@ async def shopee_product_kols(
     start: Annotated[date | None, Query(alias="from")] = None,
     end: Annotated[date | None, Query(alias="to")] = None,
     as_of: DateQ = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Sản phẩm › Tiếp thị liên kết: the product's KOLs."""
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         body = await queries.kol_product_tab(
             session, shop_id, item_id, **window_args(period, month, start, end, as_of)
@@ -268,11 +260,11 @@ async def shopee_channel_split(
     end: Annotated[date | None, Query(alias="to")] = None,
     as_of: DateQ = None,
     product_id: Annotated[str | None, Query(max_length=64)] = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """P100 Tổng quan: Organic / Quảng cáo / Tiếp thị liên kết of the shop or one product."""
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         return await channel_split.channel_split(
             session,
@@ -291,10 +283,10 @@ async def shopee_channel_split_products(
     start: Annotated[date | None, Query(alias="from")] = None,
     end: Annotated[date | None, Query(alias="to")] = None,
     as_of: DateQ = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         return await channel_split.channel_split_products(
             session, shop_id, **window_args(period, month, start, end, as_of)
@@ -316,11 +308,11 @@ async def shopee_metric_view(
     as_of: DateQ = None,
     channel: Annotated[str | None, Query(max_length=32)] = None,
     product_id: Annotated[str | None, Query(max_length=64)] = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """P100 Phân tích: one metric by luồng and by sản phẩm, now vs the previous period."""
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         return await metric_view.metric_view(
             session,
@@ -342,11 +334,11 @@ async def shopee_kol_section(
     start: Annotated[date | None, Query(alias="from")] = None,
     end: Annotated[date | None, Query(alias="to")] = None,
     as_of: DateQ = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """P100 Phân tích: Tiếp thị liên kết theo KOL, with the previous period."""
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         return await metric_view.kol_section(
             session, shop_id, audience="seller", **window_args(period, month, start, end, as_of)
@@ -365,7 +357,7 @@ async def shopee_export_tong_quan(
     as_of: DateQ = None,
     product_id: Annotated[str | None, Query(max_length=64)] = None,
     all_shops: Annotated[bool, Query()] = False,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
@@ -378,7 +370,7 @@ async def shopee_export_tong_quan(
             )
         except REFUSALS as exc:
             raise refusal(exc) from None
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         return await export_tong_quan(
             session, shop_id, shop.shop_name, product_id=product_id,
@@ -394,7 +386,7 @@ async def shopee_export_ke_hoach(
     start: Annotated[date | None, Query(alias="from")] = None,
     end: Annotated[date | None, Query(alias="to")] = None,
     all_shops: Annotated[bool, Query()] = False,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
@@ -405,7 +397,7 @@ async def shopee_export_ke_hoach(
             return await export_ke_hoach_all(session, user.id, start, end)
         except REFUSALS as exc:
             raise refusal(exc) from None
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         return await export_ke_hoach(session, shop_id, shop.shop_name, start, end)
     except REFUSALS as exc:

@@ -30,8 +30,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.api.capability_gate import require_ops_capability
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, operator, viewer
-from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
 from juli_backend.api.routes.shopee_analytics_common import (
     REFUSALS,
     DateQ,
@@ -49,6 +49,8 @@ from juli_backend.services.shopee_analytics import orders as order_view
 from juli_backend.services.shopee_analytics import queries
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
+
+_gate = require_ops_capability("read_orders")
 
 PLATFORM = "shopee"
 DATASET = "order_lines"
@@ -87,8 +89,8 @@ async def ops_order_ref_key(
     response: Response,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     now = _now()
     try:
         issued = order_ref.issue(shop_id, now)
@@ -122,8 +124,8 @@ async def ops_upload_order_lines(
     body: OrderLinesUpload,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     start, end = _period(body.lines)
     now = _now()
     posted = ingest_service.IngestBody.model_validate(
@@ -174,9 +176,9 @@ async def ops_orders(
     offset: Annotated[int, Query(ge=0)] = 0,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     """Đơn hàng, the same read the seller has: hashed keys, no buyer data."""
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             return await queries.orders(

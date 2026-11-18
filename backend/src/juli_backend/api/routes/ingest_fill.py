@@ -18,8 +18,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop, require_writable_shop
-from juli_backend.api.routes.demo_shopee_analytics import _shopee
+from juli_backend.api.capability_gate import require_capability
+from juli_backend.api.dependencies import require_writable_shop
 from juli_backend.api.routes.ingest import get_ingest_principal
 from juli_backend.database import Shop, get_session
 from juli_backend.database.tenant_context import with_shop_scope
@@ -35,6 +35,9 @@ def _utc_now() -> datetime:
 
 
 router = APIRouter(prefix="/ingest/fill", tags=["ingest"])
+
+_gate_r = require_capability(None)
+_gate_w = require_capability(None, shop_dependency=require_writable_shop)
 
 
 @router.get("/{code}")
@@ -189,11 +192,11 @@ seller_router = APIRouter(prefix="/demo/shopee/fill-jobs", tags=["demo-shopee"])
 @seller_router.get("")
 async def seller_fill_jobs(
     card_id: uuid.UUID = Query(),
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """The fill checklist of one approved card: one row per target page."""
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     jobs = await fill_queue.jobs_of_card(session, shop_id, card_id)
     await session.commit()
     return {"data": {"enabled": fill_queue.enabled(), "jobs": jobs}}
@@ -202,10 +205,10 @@ async def seller_fill_jobs(
 @seller_router.post("/{job_id}/cancel")
 async def seller_cancel_fill_job(
     job_id: uuid.UUID,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         out = await fill_queue.cancel(session, shop_id, job_id)
         await session.commit()

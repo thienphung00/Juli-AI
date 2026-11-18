@@ -18,14 +18,17 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop, require_writable_shop
-from juli_backend.api.routes.demo_shopee_analytics import _shopee
+from juli_backend.api.capability_gate import require_capability
+from juli_backend.api.dependencies import require_writable_shop
 from juli_backend.api.routes.shopee_recommendations_common import refused
 from juli_backend.database import Shop, get_session
 from juli_backend.services.shop_proposals import ProposalError
 from juli_backend.services.shopee_recommendations import connector_state, execution_state
 
 router = APIRouter(prefix="/demo/shopee/recommendations", tags=["demo-shopee"])
+
+_gate_r = require_capability(None)
+_gate_w = require_capability(None, shop_dependency=require_writable_shop)
 
 
 def _now() -> datetime:
@@ -34,26 +37,26 @@ def _now() -> datetime:
 
 @router.get("/execution")
 async def get_execution(
-    shop: Shop = Depends(get_active_shop), session: AsyncSession = Depends(get_session)
+    shop: Shop = Depends(_gate_r), session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
-    return await execution_state.execution_states(session, _shopee(shop), now=_now())
+    return await execution_state.execution_states(session, shop.id, now=_now())
 
 
 @router.get("/measurements")
 async def get_measurements(
-    shop: Shop = Depends(get_active_shop), session: AsyncSession = Depends(get_session)
+    shop: Shop = Depends(_gate_r), session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
-    return await execution_state.measurement_states(session, _shopee(shop), now=_now())
+    return await execution_state.measurement_states(session, shop.id, now=_now())
 
 
 @router.post("/execution/reconcile")
 async def post_reconcile(
-    shop: Shop = Depends(require_writable_shop), session: AsyncSession = Depends(get_session)
+    shop: Shop = Depends(_gate_w), session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
     """ "Đối chiếu ngay": ask the Connector to read Seller Centre now (its next poll picks it up).
     Refused inside a reviewer request."""
     try:
-        out = await connector_state.request_reconcile(session, _shopee(shop), now=_now())
+        out = await connector_state.request_reconcile(session, shop.id, now=_now())
     except ProposalError as exc:
         await session.rollback()
         raise refused(exc) from None

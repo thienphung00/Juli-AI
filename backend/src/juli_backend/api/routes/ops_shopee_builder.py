@@ -16,9 +16,9 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.api.capability_gate import require_ops_capability
 from juli_backend.api.routes import shopee_builder_common as common
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, operator, viewer
-from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
 from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services import shop_inputs
@@ -26,6 +26,8 @@ from juli_backend.services.ops import audit
 from juli_backend.services.shopee_recommendations import manual
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
+
+_gate = require_ops_capability(None)
 BASE = "/shops/{shop_id}/shopee"
 ACTION_CHOOSE = "builder_choose"
 ACTION_GROUP = "builder_group"
@@ -50,8 +52,8 @@ async def ops_products(
     as_of: AsOf = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await common.h_products(
             session,
@@ -72,8 +74,8 @@ async def ops_variations(
     as_of: AsOf = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await common.h_variations(session, shop_id, item_id, as_of=as_of, now=_now())
 
@@ -85,8 +87,8 @@ async def ops_co_purchase(
     as_of: AsOf = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await common.h_co_purchase(session, shop_id, item_id, as_of=as_of)
 
@@ -98,8 +100,8 @@ async def ops_keywords(
     as_of: AsOf = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await common.h_keywords(session, shop_id, item_id, as_of=as_of, now=_now())
 
@@ -110,8 +112,8 @@ async def ops_campaigns(
     as_of: AsOf = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await common.h_campaigns(session, shop_id, as_of=as_of, now=_now())
 
@@ -122,8 +124,8 @@ async def ops_evaluate(
     body: common.EvaluateBody,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await common.h_evaluate(session, shop_id, body, now=_now())
 
@@ -134,8 +136,8 @@ async def ops_compare(
     body: common.CompareBody,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await common.h_evaluate(session, shop_id, body, now=_now())
 
@@ -146,8 +148,8 @@ async def ops_choose(
     body: common.ChooseBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             out = await common.h_choose(
@@ -183,9 +185,9 @@ async def ops_group(
     body: common.GroupBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     """ "Chạy cùng nhau" by Ops: the cards are sent and grouped in the shop's draft plan."""
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             out = await common.h_group(
@@ -214,7 +216,6 @@ async def ops_group(
 
 
 async def _draft(shop_id: uuid.UUID, session: AsyncSession, run: Any) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             client = await common.get_client(session, shop_id)
@@ -229,6 +230,7 @@ async def ops_title_drafts(
     body: common.TitleDraftBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _draft(
         shop_id,
@@ -243,6 +245,7 @@ async def ops_cover_drafts(
     body: common.DraftBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _draft(
         shop_id,
@@ -257,6 +260,7 @@ async def ops_description_drafts(
     body: common.DraftBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _draft(
         shop_id,
@@ -273,8 +277,8 @@ async def ops_list_exclusions(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await common.h_exclusions(session, shop_id)
 
@@ -286,8 +290,8 @@ async def ops_add_exclusion(
     body: common.ExclusionBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             row = await shop_inputs.add_exclusion(
@@ -322,8 +326,8 @@ async def ops_undo_exclusion(
     note: Annotated[str | None, Query(max_length=500)] = None,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> Response:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             existed = await shop_inputs.undo_exclusion(

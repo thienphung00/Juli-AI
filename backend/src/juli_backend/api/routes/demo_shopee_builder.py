@@ -20,10 +20,10 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api import reviewer as reviewer_gate
-from juli_backend.api.dependencies import get_active_shop, require_writable_shop
+from juli_backend.api.capability_gate import require_capability
+from juli_backend.api.dependencies import require_writable_shop
 from juli_backend.api.reviewer import reviewer_context
 from juli_backend.api.routes import shopee_builder_common as common
-from juli_backend.api.routes.demo_shopee_analytics import _shopee
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.services import shop_inputs
@@ -32,6 +32,9 @@ from juli_backend.services.shopee_builder import service as builder_service
 from juli_backend.services.shopee_recommendations import manual, seller_view
 
 router = APIRouter(prefix="/demo/shopee", tags=["demo-shopee"])
+
+_gate_r = require_capability(None)
+_gate_w = require_capability(None, shop_dependency=require_writable_shop)
 
 AsOf = Annotated[date | None, Query()]
 
@@ -48,12 +51,12 @@ async def builder_products(
     limit: Annotated[int, Query(ge=1, le=1000)] = 200,
     offset: Annotated[int, Query(ge=0)] = 0,
     as_of: AsOf = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     return await common.h_products(
         session,
-        _shopee(shop),
+        shop.id,
         as_of=as_of,
         q=q,
         include_excluded=include_excluded,
@@ -67,67 +70,67 @@ async def builder_products(
 async def builder_variations(
     item_id: common.ItemPath,
     as_of: AsOf = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    return await common.h_variations(session, _shopee(shop), item_id, as_of=as_of, now=_now())
+    return await common.h_variations(session, shop.id, item_id, as_of=as_of, now=_now())
 
 
 @router.get("/builder/products/{item_id}/co-purchase")
 async def builder_co_purchase(
     item_id: common.ItemPath,
     as_of: AsOf = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    return await common.h_co_purchase(session, _shopee(shop), item_id, as_of=as_of)
+    return await common.h_co_purchase(session, shop.id, item_id, as_of=as_of)
 
 
 @router.get("/builder/products/{item_id}/keywords")
 async def builder_keywords(
     item_id: common.ItemPath,
     as_of: AsOf = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    return await common.h_keywords(session, _shopee(shop), item_id, as_of=as_of, now=_now())
+    return await common.h_keywords(session, shop.id, item_id, as_of=as_of, now=_now())
 
 
 @router.get("/builder/ads/campaigns")
 async def builder_campaigns(
     as_of: AsOf = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    return await common.h_campaigns(session, _shopee(shop), as_of=as_of, now=_now())
+    return await common.h_campaigns(session, shop.id, as_of=as_of, now=_now())
 
 
 @router.post("/builder/evaluate")
 async def builder_evaluate(
     body: common.EvaluateBody,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    return await common.h_evaluate(session, _shopee(shop), body, now=_now())
+    return await common.h_evaluate(session, shop.id, body, now=_now())
 
 
 @router.post("/builder/compare")
 async def builder_compare(
     body: common.CompareBody,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    return await common.h_evaluate(session, _shopee(shop), body, now=_now())
+    return await common.h_evaluate(session, shop.id, body, now=_now())
 
 
 @router.post("/builder/choose", status_code=201)
 async def builder_choose(
     body: common.ChooseBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         out = await common.h_choose(
             session, shop_id, body, manual.Actor("seller", user.id), now=_now()
@@ -143,12 +146,12 @@ async def builder_choose(
 @router.post("/builder/group", status_code=201)
 async def builder_group(
     body: common.GroupBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """ "Chạy cùng nhau": the ticked versions become one group (Nhóm) of the draft plan."""
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         out = await common.h_group(
             session, shop_id, body, manual.Actor("seller", user.id), now=_now(), audience="seller"
@@ -164,11 +167,11 @@ async def builder_group(
 async def builder_title_drafts(
     body: common.TitleDraftBody,
     request: Request,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     context = reviewer_context(request)
     if context is not None and context.pin is not None and context.pin.sample:
         # P100 S2-D: the gate admits a reviewer here only on the sample pin (any other pin is
@@ -194,10 +197,10 @@ async def builder_title_drafts(
 @router.post("/builder/drafts/cover")
 async def builder_cover_drafts(
     body: common.DraftBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     client = await common.get_client(session, shop_id)
     try:
         out = await common.h_cover_drafts(session, shop_id, body, client, now=_now())
@@ -211,14 +214,14 @@ async def builder_banner(
     item_id: common.ItemPath,
     card_id: uuid.UUID | None = None,
     as_of: AsOf = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Ảnh bìa banner editor: the product, the shop's colours, the card's stored banner and the
     values Juli can fill (each with its source). Reads only."""
     try:
         return await banner_store.banner_context(
-            session, _shopee(shop), item_id=item_id, card_id=card_id, as_of=as_of, now=_now()
+            session, shop.id, item_id=item_id, card_id=card_id, as_of=as_of, now=_now()
         )
     except banner_store.BannerRefused as exc:
         raise HTTPException(404, detail=common.detail(exc.code, exc.message)) from None
@@ -238,7 +241,7 @@ class BannerSaveBody(BaseModel):
 @router.post("/builder/banner")
 async def builder_banner_save(
     body: BannerSaveBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
@@ -246,7 +249,7 @@ async def builder_banner_save(
     try:
         out = await banner_store.save_banner(
             session,
-            _shopee(shop),
+            shop.id,
             item_id=body.item_id,
             card_id=body.card_id,
             spec=body.spec,
@@ -264,10 +267,10 @@ async def builder_banner_save(
 @router.post("/builder/drafts/description")
 async def builder_description_drafts(
     body: common.DraftBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     client = await common.get_client(session, shop_id)
     try:
         out = await common.h_description_drafts(session, shop_id, body, client, now=_now())
@@ -281,21 +284,21 @@ async def builder_description_drafts(
 
 @router.get("/exclusions")
 async def list_exclusions(
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    return await common.h_exclusions(session, _shopee(shop))
+    return await common.h_exclusions(session, shop.id)
 
 
 @router.put("/exclusions/{item_id}")
 async def add_exclusion(
     item_id: common.ItemPath,
     body: common.ExclusionBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         row = await shop_inputs.add_exclusion(
             session,
@@ -316,11 +319,11 @@ async def add_exclusion(
 async def undo_exclusion(
     item_id: common.ItemPath,
     note: Annotated[str | None, Query(max_length=500)] = None,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     existed = await shop_inputs.undo_exclusion(
         session, shop_id, item_id, actor=shop_inputs.Actor("seller", user.id), note=note
     )

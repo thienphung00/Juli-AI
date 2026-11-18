@@ -10,8 +10,8 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.api.capability_gate import require_ops_capability
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, operator, viewer
-from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
 from juli_backend.api.routes.shopee_recommendations_common import refused
 from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
@@ -20,6 +20,8 @@ from juli_backend.services.shop_proposals import ProposalError
 from juli_backend.services.shopee_recommendations import connector_state, execution_state
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
+
+_gate = require_ops_capability(None)
 BASE = "/shops/{shop_id}/shopee/recommendations"
 
 
@@ -32,8 +34,8 @@ async def ops_execution(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await execution_state.execution_states(session, shop_id, now=_now())
 
@@ -43,8 +45,8 @@ async def ops_measurements(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await execution_state.measurement_states(session, shop_id, now=_now())
 
@@ -54,8 +56,8 @@ async def ops_reconcile(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             out = await connector_state.request_reconcile(session, shop_id, now=_now())
