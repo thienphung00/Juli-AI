@@ -418,12 +418,25 @@ export function fillActive(shopId: string | undefined): boolean {
 // and its constants are core's (core/jobs/fill-jobs.ts, core/config.ts); the pages are Shopee's.
 
 /** The only Seller Centre pages a job may open (path only; a query string is allowed on vouchers). */
+/** Shopee's anti-bot page ("Trang không khả dụng", /verify/traffic/error, 2026-11-18): a job that lands there stops. */
+export const TRAFFIC_CHECK = "shopee_traffic_check";
+export function trafficCheckUrl(url: string | undefined): boolean {
+  try {
+    return /\/verify\/traffic/.test(new URL(url ?? "").pathname);
+  } catch {
+    return false;
+  }
+}
+
 export const FILL_JOB_PAGES = {
   product_edit: /^\/portal\/product\/(\d{1,20})$/,
   voucher_new: /^\/portal\/marketing\/vouchers\/new$/,
   ads_edit: /^\/portal\/marketing\/pas\/product\/(manual|manual-mpd)\/(\d{1,20})$/,
   affiliate_open: /^\/portal\/web-seller-affiliate\/open_campaign$/,
   bundle_new: /^\/portal\/marketing\/bundle\/new$/,
+  /** 0.3.27: the lists a revert (voucher_end / combo_end) opens and a save lands on. */
+  voucher_list: /^\/portal\/marketing\/vouchers\/list$/,
+  bundle_list: /^\/portal\/marketing\/bundle\/list$/,
 } as const;
 
 // -- market search reader (P92 B-10, Connector 0.3.5) -----------------------------------------

@@ -295,6 +295,22 @@ export class Connector {
     return { ...mapped, rows };
   }
 
+  /**
+   * 0.3.27 (contract D, E20 / E50): what a fill / read-back page showed Shopee holds for its
+   * products (the first line of a description, the name, the open-campaign commission), posted as
+   * `item_catalog` rows. Only these fields of well-formed rows pass; the gateway keeps a stored
+   * name when a row carries none.
+   */
+  async postCurrent(raw: unknown): Promise<CaptureOutcome> {
+    const rows = currentRowsOf(raw);
+    if (rows.length === 0) return "ignored";
+    const now = this.deps.now();
+    return this.submit(
+      { dataset: "item_catalog", endpoint: "page:current_values", date: gmt7Date(Math.floor(now / 1000)), orderType: null, rows, drift: null, granularity: "period" },
+      now,
+    );
+  }
+
   /** One keyword's page-1 search answer -> mapped -> posted (dataset market_search). */
   async postMarket(keyword: string, body: unknown, capturedAt: number): Promise<CaptureOutcome> {
     return this.submit(mapMarketSearch(keyword, body, capturedAt), capturedAt);
@@ -729,4 +745,27 @@ export class Connector {
     });
     return dayDone ? "accepted" : "partial";
   }
+}
+
+const MAX_CURRENT_ROWS = 200;
+
+/** Contract D rows from a page message: digits item_id, bounded text, a 0–100 commission; nothing else. */
+export function currentRowsOf(raw: unknown): Record<string, string | number>[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Record<string, string | number>[] = [];
+  for (const r of raw.slice(0, MAX_CURRENT_ROWS)) {
+    if (typeof r !== "object" || r === null) continue;
+    const x = r as Record<string, unknown>;
+    if (typeof x.item_id !== "string" || !/^\d{1,20}$/.test(x.item_id)) continue;
+    const row: Record<string, string | number> = { item_id: x.item_id };
+    if (typeof x.item_name === "string" && x.item_name.trim()) row.item_name = x.item_name.trim().slice(0, 500);
+    if (typeof x.description_first_line === "string" && x.description_first_line.trim()) {
+      row.description_first_line = x.description_first_line.replace(/[\r\n]+/g, " ").trim().slice(0, 300);
+    }
+    if (typeof x.commission_pct === "number" && Number.isFinite(x.commission_pct) && x.commission_pct >= 0 && x.commission_pct <= 100) {
+      row.commission_pct = x.commission_pct;
+    }
+    if (Object.keys(row).length > 1) out.push(row);
+  }
+  return out;
 }

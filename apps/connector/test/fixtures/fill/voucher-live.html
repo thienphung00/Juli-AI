@@ -1,0 +1,57 @@
+<!-- Connector 0.3.27: /portal/marketing/vouchers/new?usecase=2 (product voucher). The period inputs
+     open Shopee's date-time picker (structure from the read-only capture 2026-11-18, simulated by
+     test/eds-wire.ts wireDatePicker); the product picker is the live `.product-selector` dialog
+     (search type select, picker footer). The smart-switch / display / discount rows were NOT
+     captured live: they follow the 2026-11-09 recon. Synthetic names, ids and numbers. -->
+<form class="eds-form voucher-form" onsubmit="return false">
+  <div class="eds-form-item"><label class="eds-form-item__label">Tên chương trình giảm giá</label>
+    <div class="eds-form-item__control"><div class="eds-input"><input class="eds-input__input" type="text" id="name"></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Mã voucher</label>
+    <div class="eds-form-item__control"><div class="eds-input"><span class="eds-input__prefix">SHOPV</span><input class="eds-input__input" type="text" id="code"></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Thời gian sử dụng mã</label>
+    <div class="eds-form-item__control"><div class="eds-date-picker">
+      <input class="eds-input__input" type="text" id="start" readonly placeholder="Chọn ngày giờ bắt đầu" value="19:57 18-11-2026"> —
+      <input class="eds-input__input" type="text" id="end" readonly placeholder="Chọn ngày giờ kết thúc" value="20:57 18-11-2026"></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Loại Voucher</label>
+    <div class="eds-form-item__control">
+      <label class="eds-radio"><input type="radio" name="vtype" value="promo" checked><span>Khuyến Mãi</span></label>
+      <label class="eds-radio"><input type="radio" name="vtype" value="coin"><span>Hoàn Xu</span></label></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Mã giảm giá thông minh</label>
+    <div class="eds-form-item__control"><button type="button" role="switch" class="eds-switch" aria-checked="false" id="smart"></button></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Loại giảm giá | Mức giảm</label>
+    <div class="eds-form-item__control">
+      <div class="eds-selector" id="dtype" data-options="Theo số tiền|Theo phần trăm"><span class="eds-selector__inner">Theo số tiền</span></div>
+      <div class="eds-input"><input class="eds-input__input" type="text" id="dvalue"></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Giá trị đơn hàng tối thiểu</label>
+    <div class="eds-form-item__control"><div class="eds-input"><input class="eds-input__input" type="text" id="minspend"></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Tổng lượt sử dụng tối đa</label>
+    <div class="eds-form-item__control"><div class="eds-input"><input class="eds-input__input" type="text" id="total"></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Lượt sử dụng tối đa/Người mua</label>
+    <div class="eds-form-item__control"><div class="eds-input"><input class="eds-input__input" type="text" id="perbuyer" value="1"></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Thiết lập hiển thị</label>
+    <div class="eds-form-item__control">
+      <label class="eds-radio"><input type="radio" name="disp" value="multi" checked><span>Hiển thị nhiều nơi</span></label>
+      <label class="eds-radio"><input type="radio" name="disp" value="code"><span>Chia sẻ thông qua mã Voucher</span></label></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Sản phẩm được áp dụng</label>
+    <div class="eds-form-item__control"><button type="button" data-opens="#picker"><span>Thêm sản phẩm</span></button>
+      <table id="chosen-table"><tbody id="chosen"></tbody></table></div></div>
+  <div class="actions"><button type="button" id="cancel" data-forbidden>Hủy</button><button type="button" id="submit" data-forbidden>Xác nhận</button></div>
+</form>
+<div id="picker" class="eds-react-modal productSelector product-selector" hidden>
+  <div class="eds-react-modal__header"><div class="eds-react-modal__title">Chọn Sản Phẩm</div></div>
+  <div class="eds-react-modal__body">
+    <div class="productsPanelHeader"><form class="eds-react-form--inline" onsubmit="return false">
+      <div class="productSearcher product-searcher"><div class="eds-react-input-group">
+        <div class="eds-react-input-group__prepend"><div class="eds-react-select eds-react-select-single" id="ptype" data-select-options="Tên sản phẩm|Mã sản phẩm"><span class="eds-react-select__inner">Tên sản phẩm</span></div></div>
+        <div class="eds-react-input-group__append"><div class="eds-react-input"><input type="text" id="psearch"></div></div>
+      </div></div></form>
+      <div class="actions"><div class="buttons"><button type="button" class="eds-react-button--primary" data-search="#ptable" data-search-input="#psearch" data-search-mode="#ptype"><span>Tìm</span></button><button type="button"><span>Đặt lại</span></button></div></div>
+    </div>
+    <table id="ptable"><tbody>
+      <tr data-id="1001"><td><input type="checkbox"></td><td><span class="name">Sản phẩm mẫu một</span><div>Mã: 1001</div></td><td>12</td></tr>
+      <tr data-id="1002"><td><input type="checkbox"></td><td><span class="name">Sản phẩm mẫu hai 1001</span><div>Mã: 1002</div></td><td>3</td></tr>
+      <tr data-id="1003"><td><input type="checkbox"></td><td><span class="name">Sản phẩm mẫu ba</span><div>Mã: 1003</div></td><td>5</td></tr>
+    </tbody></table>
+  </div>
+  <div class="eds-react-modal__footer with-assist"><button type="button" class="eds-react-button" data-forbidden>Hủy</button><button type="button" class="eds-react-button eds-react-button--primary" id="pconfirm-live" data-picker-confirm="#chosen"><span>Xác nhận</span></button></div>
+</div>

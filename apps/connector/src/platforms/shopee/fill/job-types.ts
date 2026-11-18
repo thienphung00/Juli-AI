@@ -7,7 +7,21 @@ import { DATE_FORMAT } from "./controls";
 import { type FillField, type FillKey } from "../../../core/fill/types";
 import type { CoreJob, JobReply as CoreJobReply } from "../../../core/fill/form";
 
-export type JobKind = "title" | "description_first_line" | "voucher" | "ads_edit" | "affiliate_commission" | "combo";
+export type JobKind =
+  | "title"
+  | "description_first_line"
+  | "voucher"
+  | "ads_edit"
+  | "affiliate_commission"
+  | "combo"
+  /** 0.3.27 (F3.1, contract B): undo of an executed voucher / combo: the list row's Kết thúc / Xóa is shown, never pressed. */
+  | "voucher_end"
+  | "combo_end"
+  /** 0.3.27 (F3.2, contract C): read the object again after a save, read-only. */
+  | "readback";
+
+/** Forward fill, the undo of an executed card (contract B), or a read-back (contract C). */
+export type JobMode = "forward" | "revert" | "readback";
 export type JobStatus = "queued" | "opened" | "filled" | "saved" | "captured" | "failed" | "cancelled";
 
 export interface VoucherPayload {
@@ -22,6 +36,8 @@ export interface VoucherPayload {
   perBuyer: number;
   display: "multi" | "code" | "private";
   productIds: string[];
+  /** "Mã giảm giá thông minh" as the card says (off when the card does not say). */
+  smart: boolean;
 }
 
 export interface AdsPayload {
@@ -49,8 +65,24 @@ export interface ComboPayload {
   productIds: string[];
 }
 
+/** The row a revert ends: by id first, else by the code (its suffix: the shop's prefix is never assumed), else by name. */
+export interface EndTarget {
+  id?: string;
+  code?: string;
+  name?: string;
+}
+
+export type ReadbackDataset = "item_catalog" | "voucher_list" | "combo_list";
+
+export interface ReadbackPayload {
+  target: { itemId?: string; voucherId?: string; comboId?: string; name?: string; productIds?: string[] };
+  datasets: ReadbackDataset[];
+}
+
 export type JobPayload =
   | { kind: "title" | "description_first_line"; fields: FillField[]; itemId: string }
+  | { kind: "voucher_end" | "combo_end"; end: EndTarget }
+  | { kind: "readback"; readback: ReadbackPayload }
   | { kind: "voucher"; voucher: VoucherPayload }
   | { kind: "ads_edit"; ads: AdsPayload }
   | { kind: "affiliate_commission"; affiliate: AffiliatePayload }
@@ -64,6 +96,8 @@ export interface FillJob extends CoreJob {
   version: number;
   groupCode: string | null;
   kind: JobKind;
+  /** 0.3.27: `payload.mode` (forward when absent). */
+  mode: JobMode;
   status: JobStatus;
   /** Path (and query) to open, relative to Seller Centre. */
   openPath: string;
@@ -100,6 +134,8 @@ function voucher(raw: Record<string, unknown>): VoucherPayload | null {
   const display = raw.display === "multi" || raw.display === "code" || raw.display === "private" ? raw.display : undefined;
   const d = raw.discount;
   if (!usecase || !name || !codeSuffix || !startsAt || !endsAt || minSpend === undefined || !usageTotal || !perBuyer || !productIds || !display || !isRecord(d)) return null;
+  if (raw.smart !== undefined && typeof raw.smart !== "boolean") return null;
+  const smart = raw.smart === true;
   if (!/^[A-Z0-9]{1,5}$/.test(codeSuffix) || !DATE_FORMAT.test(startsAt) || !DATE_FORMAT.test(endsAt)) return null;
   if (usecase === 2 && productIds.length === 0) return null;
   if (usecase === 1 && productIds.length > 0) return null;
@@ -120,7 +156,7 @@ function voucher(raw: Record<string, unknown>): VoucherPayload | null {
       discount = { type: "percent", value, max: { mode: "limited", value: cap } };
     }
   } else return null;
-  return { usecase, name, codeSuffix, startsAt, endsAt, discount, minSpend, usageTotal, perBuyer, display, productIds };
+  return { usecase, name, codeSuffix, startsAt, endsAt, discount, minSpend, usageTotal, perBuyer, display, productIds, smart };
 }
 
 function ads(raw: Record<string, unknown>): AdsPayload | null {
@@ -199,10 +235,56 @@ function addressOk(kind: JobKind, openPath: string, payload: JobPayload): boolea
   }
   if (kind === "combo") return payload.kind === "combo" && FILL_JOB_PAGES.bundle_new.test(path) && url.search === "";
   if (kind === "affiliate_commission") return FILL_JOB_PAGES.affiliate_open.test(path);
+  if (kind === "voucher_end") return payload.kind === kind && FILL_JOB_PAGES.voucher_list.test(path);
+  if (kind === "combo_end") return payload.kind === kind && FILL_JOB_PAGES.bundle_list.test(path);
+  if (kind === "readback" && payload.kind === "readback") {
+    const item = FILL_JOB_PAGES.product_edit.exec(path);
+    if (item) return payload.readback.target.itemId === item[1];
+    if (FILL_JOB_PAGES.affiliate_open.test(path)) return (payload.readback.target.productIds?.length ?? 0) > 0;
+    return [FILL_JOB_PAGES.voucher_list, FILL_JOB_PAGES.bundle_list, /^\/portal\/product\/list\/all$/].some((re) => re.test(path));
+  }
   return false;
 }
 
 const TEXT_KEYS: readonly FillKey[] = ["title", "description_first_line"];
+
+const digitsOf = (v: unknown): string | undefined =>
+  typeof v === "string" && /^\d{1,20}$/.test(v) ? v : typeof v === "number" && Number.isSafeInteger(v) && v > 0 ? String(v) : undefined;
+
+function endTarget(p: Record<string, unknown>, idKey: "voucher_id" | "combo_id"): EndTarget | null {
+  const id = digitsOf(p[idKey]);
+  // t2 (2026-11-18): `code_suffix` (the shop's prefix is not Juli's to know, E54); `code` still read
+  const code = str(p.code_suffix, 20) ?? str(p.code, 40);
+  const name = str(p.name, 100);
+  if (p[idKey] !== undefined && p[idKey] !== null && !id) return null;
+  if (code !== undefined && !/^[A-Z0-9]{1,20}$/.test(code)) return null;
+  if (!id && !code && !name) return null;
+  return { ...(id ? { id } : {}), ...(code ? { code } : {}), ...(name ? { name } : {}) };
+}
+
+const READBACK_DATASETS: readonly ReadbackDataset[] = ["item_catalog", "voucher_list", "combo_list"];
+
+function readback(p: Record<string, unknown>): ReadbackPayload | null {
+  const t = p.target;
+  if (!isRecord(t) || !Array.isArray(p.datasets) || p.datasets.length < 1 || p.datasets.length > 3) return null;
+  const datasets = p.datasets.filter((d): d is ReadbackDataset => READBACK_DATASETS.includes(d as ReadbackDataset));
+  if (datasets.length !== p.datasets.length) return null;
+  const target: ReadbackPayload["target"] = {};
+  for (const [key, out] of [["item_id", "itemId"], ["voucher_id", "voucherId"], ["combo_id", "comboId"]] as const) {
+    if (t[key] === undefined || t[key] === null) continue;
+    const id = digitsOf(t[key]);
+    if (!id) return null;
+    target[out] = id;
+  }
+  const name = str(t.name, 100);
+  if (name) target.name = name;
+  if (t.product_ids !== undefined) {
+    const products = ids(t.product_ids);
+    if (!products || products.length === 0) return null;
+    target.productIds = products;
+  }
+  return Object.keys(target).length > 0 ? { target, datasets } : null;
+}
 
 /** One job of the server's answer, or null when anything is off. */
 export function parseFillJob(raw: unknown): FillJob | null {
@@ -214,6 +296,13 @@ export function parseFillJob(raw: unknown): FillJob | null {
   const p = raw.payload;
   if (!id || !FILL_JOB_ID_PATTERN.test(id) || !status || !openPath || !isRecord(p)) return null;
   if (!openPath.startsWith("/") || openPath.startsWith("//")) return null;
+  const mode: JobMode = p.mode === undefined || p.mode === "forward" ? "forward" : p.mode === "revert" ? "revert" : p.mode === "readback" ? "readback" : ("bad" as JobMode);
+  if (!["forward", "revert", "readback"].includes(mode)) return null;
+  // a read-back job is only ever a read-back; an end job only ever a revert
+  if ((kind === "readback") !== (mode === "readback")) return null;
+  if ((kind === "voucher_end" || kind === "combo_end") && mode !== "revert") return null;
+  // what a revert may be (contract B): a text put back, a commission put back, or a row's end
+  if (mode === "revert" && !["title", "description_first_line", "affiliate_commission", "voucher_end", "combo_end"].includes(kind)) return null;
   let payload: JobPayload | null = null;
   if (kind === "title" || kind === "description_first_line") {
     const itemId = /\/portal\/product\/(\d{1,20})$/.exec(openPath.split("?")[0] ?? "")?.[1];
@@ -243,6 +332,12 @@ export function parseFillJob(raw: unknown): FillJob | null {
   } else if (kind === "combo") {
     const c = combo(p);
     payload = c ? { kind, combo: c } : null;
+  } else if (kind === "voucher_end" || kind === "combo_end") {
+    const end = endTarget(p, kind === "voucher_end" ? "voucher_id" : "combo_id");
+    payload = end ? { kind, end } : null;
+  } else if (kind === "readback") {
+    const r = readback(p);
+    payload = r ? { kind, readback: r } : null;
   }
   if (!payload || !addressOk(kind, openPath, payload)) return null;
   const version = int(raw.version, 1, 9) ?? 1;
@@ -254,6 +349,7 @@ export function parseFillJob(raw: unknown): FillJob | null {
     version,
     groupCode: str(raw.group_code, 16) ?? null,
     kind,
+    mode,
     status,
     openPath,
     payload,

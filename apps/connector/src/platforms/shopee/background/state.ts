@@ -183,6 +183,10 @@ export interface ReaderSchedule {
   reread?: { day: string; pages: ReaderId[] };
   /** 0.3.25: re-read starts today (capped, so a dialog that keeps coming back cannot loop). */
   rereadCount?: { day: string; n: number };
+  /** 0.3.27 (contract C): pages a read-back job asked for, read in a run of their own as soon as possible. */
+  readback?: { pages: ReaderId[]; at: string };
+  /** 0.3.27: when each page last finished "done" (ms), for the read-back's captured. */
+  readAt?: Partial<Record<ReaderId, number>>;
   /** A CAPTCHA / login wall stopped the readers: nothing is opened before `until` (ms since epoch). */
   blocked?: { at: string; reason: ReaderBlockReason; page: ReaderId; until: number };
   /** Legacy (≤ 0.3.5): days marked read whether or not their upload landed. No longer read. */

@@ -1,6 +1,7 @@
 // Pairings keyed by shop, each scoped to its platform (T11). Core only, fake platforms.
 import { describe, expect, it } from "vitest";
 import manifest from "../public/manifest.json";
+import pkg from "../package.json";
 import { GatewayError, type TokenInfo } from "../src/core/ingest/client";
 import { PAIRINGS_KEY, Pairings, pairAcross, rotateIfDue, scopedStorage, scopeFor } from "../src/core/pairings";
 import { loadCoreState } from "../src/core/state";
@@ -159,6 +160,7 @@ describe("the manifest", () => {
   it("keeps the Shopee host permissions and adds the TikTok Seller Centre only as an optional host", () => {
     expect(manifest.host_permissions).toEqual(["https://banhang.shopee.vn/*", "https://shopee.vn/*", "__JULI_API_ORIGIN__/*"]);
     expect(manifest.optional_host_permissions).toEqual(["https://seller-vn.tiktok.com/*"]);
-    expect(manifest.version).toBe("0.3.26");
+    expect(manifest.version).toBe("0.3.27");
+    expect(pkg.version).toBe(manifest.version);
   });
 });
