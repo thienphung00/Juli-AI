@@ -7,6 +7,7 @@ import { el, NEVER_NOTE, STYLE } from "./panel";
 
 export type JobPanelInput =
   | { outcome: "filled" | "partial"; job: CoreJob; result: FillOutcome; periodOk?: boolean }
+  | { outcome: "saved"; job: CoreJob; result: FillOutcome }
   | { outcome: "refused"; text: string }
   | { outcome: "halted"; text: string }
   | { outcome: "blocked"; text: string };
@@ -40,6 +41,8 @@ export const bannerPartial = (filled: number, total: number): string =>
 export const BANNER_JOB_NONE = "Juli chưa điền được mục nào. Làm các mục bằng tay theo thẻ trên Juli.";
 /** A time-bound form whose period was not filled: the platform's default period is "now". */
 export const BANNER_NO_PERIOD = "Chưa điền thời gian — đừng bấm Xác nhận";
+/** 0.3.27 (E10): the person's save landed. */
+export const BANNER_SAVED = "Đã lưu — bấm Đã làm trong Juli";
 
 /** The header of a filled / partial job: truthful about how many items were filled. */
 export function jobHeader(result: FillOutcome, labels: JobLabels): { text: string; ok: boolean } {
@@ -58,7 +61,7 @@ export function showJobPanel(doc: Document, input: JobPanelInput, labels: JobLab
   const box = el(doc, "div", { cls: "box" });
   const head = el(doc, "div", { cls: "head" });
   const who = el(doc, "div");
-  const job = input.outcome === "filled" || input.outcome === "partial" ? input.job : undefined;
+  const job = input.outcome === "filled" || input.outcome === "partial" || input.outcome === "saved" ? input.job : undefined;
   who.append(el(doc, "div", { cls: "code", text: job ? `Juli · ${job.code}${job.groupCode ? ` · Nhóm ${job.groupCode}` : ""}` : "Juli" }));
   if (job) who.append(el(doc, "div", { cls: "title", text: job.title }));
   const close = el(doc, "button", { text: "Đóng" });
@@ -68,6 +71,8 @@ export function showJobPanel(doc: Document, input: JobPanelInput, labels: JobLab
   box.append(head);
   if (input.outcome === "refused" || input.outcome === "halted" || input.outcome === "blocked") {
     box.append(el(doc, "div", { cls: "banner", text: input.text }));
+  } else if (input.outcome === "saved") {
+    box.append(el(doc, "div", { cls: "banner ok", text: BANNER_SAVED }));
   } else {
     if (input.periodOk === false) box.append(el(doc, "div", { cls: "banner stop", text: BANNER_NO_PERIOD }));
     const header = jobHeader(input.result, labels);
@@ -87,7 +92,8 @@ export function showJobPanel(doc: Document, input: JobPanelInput, labels: JobLab
       for (const t of input.result.todo) ol.append(el(doc, "li", { text: t }));
       box.append(ol);
     }
-    for (const n of input.result.notes) box.append(el(doc, "div", { cls: "note", text: n }));
+    // each notice once (E21)
+    for (const n of [...new Set(input.result.notes)]) box.append(el(doc, "div", { cls: "note", text: n }));
   }
   box.append(el(doc, "div", { cls: "note", text: NEVER_NOTE }));
   root.append(el(doc, "style", { text: JOB_STYLE }), box);

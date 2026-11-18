@@ -9,6 +9,8 @@ import { findControl } from "../../../core/fill/locate";
 import { fillOne } from "../../../core/fill/settle";
 import { findRow } from "./controls";
 import { COMBO_LABELS, fillAds, fillAffiliate, fillCombo, fillVoucher, VOUCHER_LABELS } from "./fillers";
+import { fillEnd, productCurrent, readProduct } from "./revert";
+import { readAffiliate } from "./fillers";
 import type { FillJob, JobKind } from "./job-types";
 
 /** The job panel's Shopee texts. */
@@ -35,7 +37,10 @@ async function fillText(env: Env, job: FillJob): Promise<FillOutcome> {
   // the sheet's step keys (the revert reads before_values by them): title, first_line
   const key = field.key === "description_first_line" ? "first_line" : field.key;
   const ok = !!control && (await fillOne(env, control, field, until, env.log, key));
+  // contract D: what Shopee holds now (the value kept before Juli typed, the other field as shown)
+  const current = productCurrent(env.doc, job.payload.itemId, env.log?.before ?? {});
   return {
+    ...(current ? { current: [current] } : {}),
     steps: [
       {
         label: `${field.label}: ${field.value}`,
@@ -44,7 +49,7 @@ async function fillText(env: Env, job: FillJob): Promise<FillOutcome> {
         ...(ok ? {} : { note: control ? "Shopee chưa nhận nội dung; dán bằng nút Sao chép." : "Không thấy ô nhập; dán nội dung bằng tay." }),
       },
     ],
-    todo: ["Kiểm tra rồi bấm Cập nhật / Lưu của Shopee."],
+    todo: [job.mode === "revert" ? "Đây là hoàn tác: kiểm tra giá trị cũ rồi bấm Cập nhật / Lưu của Shopee." : "Kiểm tra rồi bấm Cập nhật / Lưu của Shopee."],
     notes: [],
   };
 }
@@ -63,4 +68,12 @@ export const SHOPEE_FORMS: Readonly<Record<JobKind, FormMap<FillJob>>> = {
     fill: async (env, job) => (job.payload.kind === "affiliate_commission" ? fillAffiliate(env, job.payload.affiliate) : NOTHING()),
   },
   combo: { page: FILL_JOB_PAGES.bundle_new, ready: rowReady(COMBO_LABELS.name), fill: async (env, job) => (job.payload.kind === "combo" ? fillCombo(env, job.payload.combo) : NOTHING()) },
+  voucher_end: { page: FILL_JOB_PAGES.voucher_list, fill: fillEnd },
+  combo_end: { page: FILL_JOB_PAGES.bundle_list, fill: fillEnd },
+  // a read-back of a product opens its edit page, an affiliate one the open campaign (the list
+  // read-backs run as the daily readers)
+  readback: {
+    page: FILL_JOB_PAGES.product_edit,
+    fill: (env, job) => (FILL_JOB_PAGES.affiliate_open.test(job.openPath.split("?")[0] ?? "") ? readAffiliate(env, job) : readProduct(env, job)),
+  },
 };

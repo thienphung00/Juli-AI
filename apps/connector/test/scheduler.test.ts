@@ -1667,3 +1667,40 @@ describe("0.3.25: the password re-check dialog is its own block reason, and its 
     expect(ctx.alarms.active.has(READER_KICK_ALARM)).toBe(false);
   });
 });
+
+describe("0.3.27 (contract C): a read-back's pages", () => {
+  it("are read in a run of their own, at once; the day's run and its outcomes are untouched", async () => {
+    const ctx = setup();
+    await runDay(ctx);
+    const day = await ctx.read();
+    expect(day?.lastRunDay).toBeDefined();
+    const since = ctx.clock.now;
+    expect(await ctx.scheduler.readSince(["vouchers"], since)).toBe(false);
+    await ctx.scheduler.readNow(["vouchers"]);
+    expect(ctx.alarms.active.get(READER_KICK_ALARM)).toEqual({ delayInMinutes: 0.1 });
+    await ctx.scheduler.readNow(["vouchers"]); // asked again: still one page
+    expect((await ctx.read())?.readback?.pages).toEqual(["vouchers"]);
+    ctx.clock.now += 60_000;
+    expect(await ctx.scheduler.tick({ trigger: "kick" })).toBe("readback:opened");
+    expect((await ctx.read())?.run?.jobs.map((j) => j.id)).toEqual(["vouchers"]);
+    expect(ctx.tabs.current.url).toContain("/portal/marketing/vouchers/list");
+    await finishPage(ctx);
+    const after = await ctx.read();
+    expect(after?.run).toBeUndefined();
+    expect(after?.readback).toBeUndefined();
+    expect(after?.lastRunDay).toBe(day?.lastRunDay);
+    expect(after?.lastRun).toEqual(day?.lastRun);
+    expect(await ctx.scheduler.readSince(["vouchers"], since)).toBe(true);
+  });
+
+  it("go before today's first run, which still runs in full afterwards", async () => {
+    const ctx = setup();
+    await ctx.scheduler.readNow(["products"]);
+    expect(await ctx.scheduler.tick({ trigger: "kick" })).toBe("readback:opened");
+    await finishPage(ctx, "done", [productList(["1001"], 1)]);
+    expect((await ctx.read())?.lastRunDay).toBeUndefined();
+    ctx.clock.now += GAP;
+    expect(await ctx.scheduler.tick()).toBe("opened");
+    expect((await ctx.read())?.run?.jobs.length).toBeGreaterThan(1);
+  });
+});

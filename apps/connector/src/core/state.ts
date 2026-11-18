@@ -12,13 +12,17 @@ export interface Storage {
 
 /** The fill-job runner's bookkeeping. At most one page is open for a job at a time. */
 export interface FillJobsState {
-  active?: { id: string; tabId?: number; openedAt: number; counted: boolean };
+  active?: { id: string; tabId?: number; openedAt: number; counted: boolean; closeWhenDone?: boolean };
   /** Jobs this browser already opened by itself (never again by the poll; the person re-opens). */
   autoOpened: string[];
   lastPoll?: { at: string; status: string };
   /** The last Juli command this browser ran ("Đối chiếu ngay"), and the one still to acknowledge. */
   lastCommand?: string;
   doneCommand?: string;
+  /** 0.3.27: the platform's anti-bot page showed on a job tab: no job page opens before this (ms). */
+  pausedUntil?: number;
+  /** 0.3.27 (contract C): read-backs handed to the readers, by job id, and when (ms). */
+  readbacks?: Record<string, number>;
 }
 
 /** The shared daily request budget's counter. */

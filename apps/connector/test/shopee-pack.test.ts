@@ -39,7 +39,7 @@ describe("the Shopee pack", () => {
   });
 
   it("has a form for every fill-job action", () => {
-    expect(Object.keys(shopeePack.forms).sort()).toEqual(["ads_edit", "affiliate_commission", "combo", "description_first_line", "title", "voucher"]);
+    expect(Object.keys(shopeePack.forms).sort()).toEqual(["ads_edit", "affiliate_commission", "combo", "combo_end", "description_first_line", "readback", "title", "voucher", "voucher_end"]);
   });
 
   it("sees the person's save of a voucher or a combo in the page's own POST answer", () => {

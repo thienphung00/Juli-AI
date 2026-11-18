@@ -72,6 +72,8 @@ export interface JobHarness {
   reports: [string, string, string | undefined][];
   progress: ({ filled: number; total: number } | undefined)[];
   details: (FillDetail | undefined)[];
+  /** The `captured_ref` of each report (undefined when none). */
+  refs: (string | undefined)[];
   halted: string[];
   clock: { t: number };
 }
@@ -80,6 +82,7 @@ export function jobHarness(raw: Record<string, unknown> | JobReply, over: { prom
   const reports: JobHarness["reports"] = [];
   const progress: JobHarness["progress"] = [];
   const details: JobHarness["details"] = [];
+  const refs: JobHarness["refs"] = [];
   const halted: string[] = [];
   const clock = { t: 0 };
   const reply: JobReply = "ok" in raw ? (raw as JobReply) : (() => {
@@ -91,10 +94,11 @@ export function jobHarness(raw: Record<string, unknown> | JobReply, over: { prom
     doc: document,
     loc: { pathname: path, hash: over.hash ?? `#juli-fill=${JOB_ID}` },
     ask: async () => reply,
-    report: async (id, status, error, extra, detail) => {
+    report: async (id, status, error, extra, detail, ref) => {
       reports.push([id, status, error]);
       progress.push(extra);
       details.push(detail);
+      refs.push(ref);
     },
     halt: async (id) => {
       halted.push(id);
@@ -105,5 +109,5 @@ export function jobHarness(raw: Record<string, unknown> | JobReply, over: { prom
     },
     now: () => clock.t,
   };
-  return { deps, reports, progress, details, halted, clock };
+  return { deps, reports, progress, details, refs, halted, clock };
 }

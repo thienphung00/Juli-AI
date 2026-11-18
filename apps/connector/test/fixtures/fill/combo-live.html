@@ -1,0 +1,50 @@
+<!-- Connector 0.3.27: /portal/marketing/bundle/new as captured read-only 2026-11-18 (structure only;
+     synthetic names, ids and numbers): the tier table whose "Mua … sản phẩm để được giảm" text is
+     split around the boxes ([class*=minAmount] / [class*=discountValue]); "Thêm mức ưu đãi" carries
+     the class `disabled` until the last tier is complete; the period opens the date-time picker;
+     the `.product-selector` dialog with its search-type select and its own footer Xác nhận. -->
+<div class="bundle-form">
+  <div class="eds-react-form-item"><label class="eds-react-form-item__label">Tên Combo Khuyến Mãi</label>
+    <div class="eds-react-form-item__control"><div class="eds-react-input"><input class="eds-react-input__input" type="text" id="name"></div></div></div>
+  <div class="eds-react-form-item"><label class="eds-react-form-item__label">Thời gian chạy Combo</label>
+    <div class="eds-react-form-item__control"><div class="eds-date-picker">
+      <input class="eds-react-input__input" type="text" id="start" readonly placeholder="Select Date" value="21:00 18-11-2026"> —
+      <input class="eds-react-input__input" type="text" id="end" readonly placeholder="Select Date" value="22:00 18-11-2026"></div></div></div>
+  <div class="eds-react-form-item"><label class="eds-react-form-item__label">Loại Combo</label>
+    <div class="eds-react-form-item__control">
+      <label class="eds-radio"><input type="radio" name="ctype" value="pct" checked><span>Giảm giá theo %</span></label>
+      <label class="eds-radio"><input type="radio" name="ctype" value="amount"><span>Giảm giá theo số tiền</span></label>
+      <label class="eds-radio"><input type="radio" name="ctype" value="special"><span>Giảm giá đặc biệt</span></label></div></div>
+  <div class="eds-react-table-content"><table>
+    <thead class="eds-react-table-thead"><tr><th>Mức ưu đãi</th><th></th><th>Thao tác</th></tr></thead>
+    <tbody class="eds-react-table-tbody" id="tiers">
+      <tr class="eds-react-table-row eds-react-table-row-level-0"><td>1</td><td><div class="rule--x1"><div class="_eds-react-form-item"><div class="_eds-react-form-item__control"><div class="_eds-react-form-item__input">Mua <div class="eds-react-input minAmount--a1b2"><div class="eds-react-input__inner"><input class="eds-react-input__input" type="text"></div></div> sản phẩm để được giảm</div></div></div>
+        <div class="_eds-react-form-item"><div class="_eds-react-form-item__control"><div class="eds-react-input discountInput--c3 discountValue--d4"><div class="eds-react-input__inner"><input class="eds-react-input__input" type="text"></div><span class="eds-react-input__suffix">%GIẢM</span></div></div></div></div></td><td></td></tr>
+    </tbody></table></div>
+  <button type="button" class="eds-react-button eds-react-button--link disabled" data-add-row="#tiers" data-needs-filled><span>Thêm mức ưu đãi</span></button>
+  <div class="eds-react-form-item"><label class="eds-react-form-item__label">Giới hạn đặt hàng</label>
+    <div class="eds-react-form-item__control"><div class="eds-react-input"><input class="eds-react-input__input" type="text" id="limit" placeholder="Input"></div></div></div>
+  <div class="eds-react-form-item"><label class="eds-react-form-item__label">Sản phẩm của Combo Khuyến Mãi</label>
+    <div class="eds-react-form-item__control"><button type="button" data-opens="#picker"><span>Thêm sản phẩm</span></button>
+      <table><tbody id="combo-products"></tbody></table></div></div>
+  <div class="actions"><button type="button" id="cancel" data-forbidden>Hủy</button><button type="button" data-forbidden id="save">Xác nhận</button></div>
+</div>
+<div id="picker" class="eds-react-modal productSelector product-selector" hidden>
+  <div class="eds-react-modal__header"><div class="eds-react-modal__title">Chọn Sản Phẩm</div></div>
+  <div class="eds-react-modal__body">
+    <button type="button" class="closeBtn close-btn" data-forbidden></button>
+    <div class="productsPanelHeader"><form class="eds-react-form--inline" onsubmit="return false">
+      <div class="productSearcher product-searcher"><div class="eds-react-input-group">
+        <div class="eds-react-input-group__prepend"><div class="eds-react-select eds-react-select-single" id="ptype" data-select-options="Tên sản phẩm|Mã sản phẩm"><span class="eds-react-select__inner">Tên sản phẩm</span></div></div>
+        <div class="eds-react-input-group__append"><div class="eds-react-input"><input type="text" id="psearch"></div></div>
+      </div></div></form>
+      <div class="actions"><div class="buttons"><button type="button" class="eds-react-button--primary" data-search="#ptable" data-search-input="#psearch" data-search-mode="#ptype"><span>Tìm</span></button></div></div>
+    </div>
+    <table id="ptable"><tbody>
+      <tr data-id="1001"><td><input type="checkbox"></td><td><span class="name">Sản phẩm mẫu một</span><div>Mã: 1001</div></td><td>12</td></tr>
+      <tr data-id="1002"><td><input type="checkbox"></td><td><span class="name">Sản phẩm 1001 hai</span><div>Mã: 1002</div></td><td>3</td></tr>
+      <tr data-id="1003"><td><input type="checkbox"></td><td><span class="name">Sản phẩm mẫu ba</span><div>Mã: 1003</div></td><td>5</td></tr>
+    </tbody></table>
+  </div>
+  <div class="eds-react-modal__footer with-assist"><button type="button" class="eds-react-button" data-forbidden>Hủy</button><button type="button" class="eds-react-button eds-react-button--primary" data-picker-confirm="#combo-products"><span>Xác nhận</span></button></div>
+</div>
