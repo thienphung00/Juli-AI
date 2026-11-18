@@ -404,3 +404,77 @@ def test_zz_migration_114_up_and_down(owner_engine, shopee_tenants):
     finally:
         command.upgrade(cfg, "head")
     insert("not_seen")
+
+
+def _order_line(ref: str, **over):
+    from juli_backend.services.ingest.schemas import ShopeeOrderLineRow
+
+    values = {
+        "order_ref": ref,
+        "ordered_at": datetime(2026, 10, 5, 10, 0),
+        "status": "delivered",
+        "sku": "G1",
+        "qty": 1,
+        "original_price": 100_000,
+        "deal_price": 90_000,
+        **over,
+    }
+    return ShopeeOrderLineRow.model_validate(values)
+
+
+async def _write_lines(shop_id, source, rows):
+    from juli_backend.models.ingest import SOURCE_RANK
+    from juli_backend.services.ingest.writers import write_order_lines
+
+    provenance = {
+        "shop_id": shop_id,
+        "platform": "shopee",
+        "source": source,
+        "source_rank": SOURCE_RANK[source],
+        "source_version": f"{source}-1",
+        "raw_payload_id": None,
+        "updated_at": NOW,
+    }
+    async with juli_app_session() as session:
+        async with with_shop_scope(session, shop_id):
+            await write_order_lines(session, rows, None, provenance)
+        await session.commit()
+
+
+async def test_a_file_line_only_fills_the_gaps_of_a_connector_line(shopee_tenants):
+    """Owner 2026-11-18 on order_lines, as juli_app: (a) a file never replaces a Connector fee;
+    (b) it fills one the Connector left NULL and the source stays the Connector; (c) a file-only
+    order lands in full; (d) the Connector replaces a file line."""
+    a, _ = shopee_tenants
+    kept, filled, alone, replaced = "a" * 32, "b" * 32, "c" * 32, "d" * 32
+    await _write_lines(
+        a.shop_id, "extension", [_order_line(kept, fee_fixed=1_000), _order_line(filled)]
+    )
+    await _write_lines(
+        a.shop_id, "file", [_order_line(replaced, fee_fixed=2_000, status="in_transit")]
+    )
+    await _write_lines(
+        a.shop_id,
+        "file",
+        [
+            _order_line(kept, fee_fixed=2_000, status="cancelled"),
+            _order_line(filled, fee_fixed=2_000),
+            _order_line(alone, fee_fixed=2_000),
+        ],
+    )
+    await _write_lines(a.shop_id, "extension", [_order_line(replaced, fee_fixed=1_000)])
+    got = await _query(
+        a.shop_id,
+        "SELECT order_ref, fee_fixed::int, status, source, source_rank, source_version "
+        "FROM public.order_lines WHERE order_ref IN (:k, :f, :a, :r) ORDER BY order_ref",
+        k=kept,
+        f=filled,
+        a=alone,
+        r=replaced,
+    )
+    assert got == [
+        (kept, 1_000, "delivered", "extension", 3, "extension-1"),  # (a)
+        (filled, 2_000, "delivered", "extension", 3, "extension-1"),  # (b)
+        (alone, 2_000, "delivered", "file", 2, "file-1"),  # (c)
+        (replaced, 1_000, "delivered", "extension", 3, "extension-1"),  # (d)
+    ]

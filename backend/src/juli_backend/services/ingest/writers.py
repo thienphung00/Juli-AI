@@ -34,7 +34,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import SOURCE_RANK
@@ -51,6 +51,7 @@ from juli_backend.models.shopee_profit import (
 )
 from juli_backend.services.ingest.affiliate_commission import seller_commission
 from juli_backend.services.ingest.kol_key import kol_key
+from juli_backend.services.ingest.precedence import count_gap_fills, log_gap_fills, ranked_value
 from juli_backend.services.ingest.schemas import (
     IngestBody,
     ShopeeAdsChangeLogRow,
@@ -88,16 +89,17 @@ def _rank(provenance: dict[str, Any]) -> int:
     return int(rank) if rank is not None else SOURCE_RANK.get(provenance["source"], 0)
 
 
-#: Columns that describe the post, not the order: they follow the row's latest writer.
+#: Columns that describe the post, not the order: they follow the row's highest-ranked writer.
 _PROVENANCE = frozenset(("source", "source_rank", "source_version", "raw_payload_id", "updated_at"))
+_LINE_KEY = ("shop_id", "platform", "order_ref", "line_no")
+_AFFILIATE_KEY = ("shop_id", "platform", "order_ref", "line_no", "item_id", "variation_id")
 
 
 def _kept(stmt: Any, table: Any, column: str) -> Any:
-    """The upsert value of ``column``: the post's, but a NULL keeps the stored value (owner
-    2026-11-18, any source); provenance columns always take the post's."""
-    if column in _PROVENANCE:
-        return stmt.excluded[column]
-    return func.coalesce(stmt.excluded[column], table.c[column])
+    """The upsert value of ``column`` (``precedence.ranked_value``, owner 2026-11-18): a post of
+    the same or a higher rank replaces with its non-null values; a lower-ranked one (a file
+    under the Connector) only fills NULL columns and leaves the provenance to the higher one."""
+    return ranked_value(stmt, table, column, provenance=column in _PROVENANCE)
 
 
 def canonical_status(raw: str, *, paid: bool) -> str:
@@ -229,19 +231,27 @@ async def write_order_lines(
     insert = _insert(session)
     table = ShopeeOrderLine.__table__
     for part in _chunks(values):
+        mutable = tuple(c for c in part[0] if c != "id" and c not in _LINE_KEY)
+        await _log_fills(session, ShopeeOrderLine, _LINE_KEY, part, mutable)
         stmt = insert(ShopeeOrderLine).values(part)
-        # A NULL (not filled yet, or not sent by this source) never erases a stored value
-        # (owner 2026-11-18, any source): fees, times, names, prices alike.
-        updated: dict[str, Any] = {
-            column: _kept(stmt, table, column)
-            for column in part[0]
-            if column not in ("id", "shop_id", "platform", "order_ref", "line_no")
-        }
+        # A NULL never erases a stored value (any source); a lower rank only fills NULLs.
+        updated: dict[str, Any] = {column: _kept(stmt, table, column) for column in mutable}
         await session.execute(
-            stmt.on_conflict_do_update(
-                index_elements=["shop_id", "platform", "order_ref", "line_no"], set_=updated
-            )
+            stmt.on_conflict_do_update(index_elements=list(_LINE_KEY), set_=updated)
         )
+
+
+async def _log_fills(
+    session: AsyncSession,
+    model: Any,
+    key: tuple[str, ...],
+    part: list[dict[str, Any]],
+    mutable: tuple[str, ...],
+) -> None:
+    """One ``ingest_gap_fill`` log line (counts only) when a lower-ranked post fills gaps."""
+    fillable = tuple(c for c in mutable if c not in _PROVENANCE)
+    found = await count_gap_fills(session, model, key, part, fillable)
+    log_gap_fills(model.__tablename__, part[0]["shop_id"], part[0]["source"], found)
 
 
 # -- affiliate order lines ---------------------------------------------------------------
@@ -404,18 +414,12 @@ async def _store_affiliate_lines(
     insert = _insert(session)
     table = ShopeeAffiliateLine.__table__
     for part in _chunks(list(by_key.values())):
+        await _log_fills(session, ShopeeAffiliateLine, _AFFILIATE_KEY, part, _AFFILIATE_MUTABLE)
         stmt = insert(ShopeeAffiliateLine).values(part)
         await session.execute(
             stmt.on_conflict_do_update(
-                index_elements=[
-                    "shop_id",
-                    "platform",
-                    "order_ref",
-                    "line_no",
-                    "item_id",
-                    "variation_id",
-                ],
-                # A NULL never erases a stored value (owner 2026-11-18, any source).
+                index_elements=list(_AFFILIATE_KEY),
+                # A NULL never erases a stored value (any source); a lower rank only fills NULLs.
                 set_={column: _kept(stmt, table, column) for column in _AFFILIATE_MUTABLE},
             )
         )

@@ -1,5 +1,7 @@
 """Owner 2026-11-18 (T5 round 2): the Connector outranks a file, and a NULL or missing value
-never overwrites a stored one, whatever the source.
+never overwrites a stored one, whatever the source. On the line tables a LOWER-ranked post
+(file < Connector < API) only fills the stored row's NULL columns; the provenance stays with
+the higher writer; a key no source wrote lands in full.
 
 The gateway's ranked upsert (``platform_daily_metrics``, flags, promotions), the order-line and
 the affiliate-line writers, on SQLite. ``order_settlements`` already kept stated values
@@ -8,6 +10,7 @@ the affiliate-line writers, on SQLite. ``order_settlements`` already kept stated
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -192,3 +195,85 @@ async def test_an_affiliate_line_null_never_erases_a_stored_value(session):
     stored = (await session.execute(stmt)).scalar_one()
     assert (stored.price, stored.refund_amount) == (Decimal(90_000), Decimal(0))
     assert (stored.kol_handle, stored.status) == ("kol.a", "Đã hoàn thành")
+
+
+# ------------------------------------------------------------------ a lower rank fills gaps only
+
+CONNECTOR = ("extension", 3)
+FILE = ("file", 2)
+
+
+async def test_a_file_never_replaces_a_connector_fee(session):
+    """(a) Connector fee X, then a file with fee Y: X is kept."""
+    _, shop = await make_tenant(session)
+    await write_order_lines(
+        session, [_line(fee_fixed=Decimal(1_000))], None, _provenance(shop.id, *CONNECTOR)
+    )
+    await write_order_lines(
+        session,
+        [_line(fee_fixed=Decimal(2_000), status="cancelled")],
+        None,
+        _provenance(shop.id, *FILE),
+    )
+    stored = await _stored_line(session)
+    assert (stored.fee_fixed, stored.status) == (Decimal(1_000), "delivered")
+    assert (stored.source, stored.source_rank) == CONNECTOR
+
+
+async def test_a_file_fills_a_fee_the_connector_left_null_and_the_source_stays(session, caplog):
+    """(b) Connector fee NULL, then a file with fee Y: Y is filled, the source stays the
+    Connector; the fill is one counts-only log line."""
+    _, shop = await make_tenant(session)
+    await write_order_lines(session, [_line()], None, _provenance(shop.id, *CONNECTOR))
+    file_prov = {**_provenance(shop.id, *FILE), "source_version": "file-2"}
+    with caplog.at_level(logging.INFO, logger="juli_backend.services.ingest.precedence"):
+        await write_order_lines(session, [_line(fee_fixed=Decimal(2_000))], None, file_prov)
+    stored = await _stored_line(session)
+    assert stored.fee_fixed == Decimal(2_000)
+    assert (stored.source, stored.source_rank, stored.source_version) == (*CONNECTOR, "t5")
+    (record,) = [r for r in caplog.records if r.message == "ingest_gap_fill"]
+    assert (record.table, record.rows, record.columns_filled) == ("order_lines", 1, 1)
+
+
+async def test_a_file_only_order_lands_in_full(session):
+    """(c) an order no higher source wrote: the file's row is inserted as it is."""
+    _, shop = await make_tenant(session)
+    await write_order_lines(
+        session,
+        [_line(fee_fixed=Decimal(2_000), status="cancelled")],
+        None,
+        _provenance(shop.id, *FILE),
+    )
+    stored = await _stored_line(session)
+    assert (stored.fee_fixed, stored.status, stored.source) == (Decimal(2_000), "cancelled", "file")
+
+
+async def test_the_connector_replaces_a_file_line(session):
+    """(d) a file line, then the Connector: the Connector's values replace."""
+    _, shop = await make_tenant(session)
+    await write_order_lines(
+        session,
+        [_line(fee_fixed=Decimal(2_000), status="in_transit")],
+        None,
+        _provenance(shop.id, *FILE),
+    )
+    await write_order_lines(
+        session, [_line(fee_fixed=Decimal(1_000))], None, _provenance(shop.id, *CONNECTOR)
+    )
+    stored = await _stored_line(session)
+    assert (stored.fee_fixed, stored.status) == (Decimal(1_000), "delivered")
+    assert (stored.source, stored.source_rank) == CONNECTOR
+
+
+async def test_an_affiliate_file_line_only_fills_the_connectors_gaps(session):
+    _, shop = await make_tenant(session)
+    connector = _affiliate(price=Decimal(90_000))
+    await write_affiliate_lines(session, [connector], None, _provenance(shop.id, *CONNECTOR))
+    file_line = _affiliate(
+        price=Decimal(80_000), refund_amount=Decimal(5_000), order_status="Đã hủy"
+    )
+    await write_affiliate_lines(session, [file_line], None, _provenance(shop.id, *FILE))
+    stmt = select(ShopeeAffiliateLine).execution_options(populate_existing=True)
+    stored = (await session.execute(stmt)).scalar_one()
+    assert (stored.price, stored.status) == (Decimal(90_000), "Đang chờ xử lý")
+    assert (stored.refund_amount, stored.source) == (Decimal(5_000), "extension")

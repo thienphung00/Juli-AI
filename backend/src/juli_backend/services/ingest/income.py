@@ -13,11 +13,11 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import case, func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.ingest import SOURCE_RANK
 from juli_backend.models.shopee_profit import ShopeeOrderIncome
+from juli_backend.services.ingest.precedence import count_gap_fills, log_gap_fills, ranked_value
 from juli_backend.services.ingest.schemas import IngestBody, ShopeeOrderIncomeRow
 
 logger = logging.getLogger(__name__)
@@ -57,6 +57,8 @@ AMOUNT_FIELDS: tuple[str, ...] = (
 COLUMN_OF: dict[str, str] = {"ship_shopee_subsidy": "ship_platform_subsidy"}
 AMOUNT_COLUMNS: tuple[str, ...] = tuple(COLUMN_OF.get(name, name) for name in AMOUNT_FIELDS)
 STATED_COLUMNS: tuple[str, ...] = ("ordered_on", "paid_on", *AMOUNT_COLUMNS)
+#: describe the post: they stay with the highest-ranked writer
+PROVENANCE_COLUMNS = ("source", "source_rank", "source_version", "raw_payload_id", "updated_at")
 
 
 def _insert(session: AsyncSession) -> Any:
@@ -67,13 +69,6 @@ def _insert(session: AsyncSession) -> Any:
     from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
     return sqlite_insert
-
-
-def _stored_rank(table: Any) -> Any:
-    return case(
-        *[(table.c.source == source, rank) for source, rank in SOURCE_RANK.items()],
-        else_=table.c.source_rank,
-    )
 
 
 def income_values(
@@ -150,23 +145,25 @@ async def write_order_income(
     table = ShopeeOrderIncome.__table__
     values = income_values(rows, provenance)
     for start in range(0, len(values), CHUNK):
-        stmt = insert(ShopeeOrderIncome).values(values[start : start + CHUNK])
+        part = values[start : start + CHUNK]
+        found = await count_gap_fills(session, ShopeeOrderIncome, KEY_COLUMNS, part, STATED_COLUMNS)
+        log_gap_fills(
+            ShopeeOrderIncome.__tablename__, provenance["shop_id"], provenance["source"], found
+        )
+        stmt = insert(ShopeeOrderIncome).values(part)
+        # owner 2026-11-18: the same or a higher rank replaces with its stated values (a NULL
+        # keeps the stored one); a lower rank only fills NULL columns and the provenance stays
+        # with the higher writer (``precedence.ranked_value``)
         updated: dict[str, Any] = {
-            column: func.coalesce(stmt.excluded[column], table.c[column])
-            for column in STATED_COLUMNS
+            column: ranked_value(stmt, table, column) for column in STATED_COLUMNS
         }
         updated.update(
             {
-                column: stmt.excluded[column]
-                for column in ("source", "source_rank", "source_version", "raw_payload_id")
+                column: ranked_value(stmt, table, column, provenance=True)
+                for column in PROVENANCE_COLUMNS
             }
         )
-        updated["updated_at"] = stmt.excluded["updated_at"]
         await session.execute(
-            stmt.on_conflict_do_update(
-                index_elements=list(KEY_COLUMNS),
-                set_=updated,
-                where=_stored_rank(table) <= stmt.excluded.source_rank,
-            )
+            stmt.on_conflict_do_update(index_elements=list(KEY_COLUMNS), set_=updated)
         )
     return warnings

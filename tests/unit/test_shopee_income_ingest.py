@@ -5,7 +5,8 @@ lines' variation name.
   ref as the order lines (so the two join);
 - a later post of the same order replaces the row (same rank), a field it does not state never
   erases a stored one; a Connector (extension) post replaces a file row and a file post never
-  replaces a Connector row (API > Connector > file, owner 2026-11-18);
+  replaces a Connector value, it only fills the NULL ones (API > Connector > file, owner
+  2026-11-18);
 - the row model has no field for a buyer: an extra field is refused; the raw copy keeps only the
   allowlisted numbers;
 - variations that share one SKU are told apart by the line's variation name.
@@ -160,7 +161,10 @@ async def test_a_connector_post_replaces_a_file_row(session, tmp_path):
     assert (a.source, a.fee_fixed) == ("extension", Decimal(1))
 
 
-async def test_a_file_post_never_replaces_a_connector_row(session, tmp_path):
+async def test_a_file_post_never_replaces_a_connector_value_and_only_fills_its_gaps(
+    session, tmp_path
+):
+    """Owner 2026-11-18: a lower rank fills only the NULL columns; the provenance stays."""
     shop = await _shop(session)
     body = {
         "source": "extension",
@@ -172,7 +176,9 @@ async def test_a_file_post_never_replaces_a_connector_row(session, tmp_path):
     await _ingest(session, shop, "order_income", body)
     await _ingest(session, shop, "order_income", _income_post(tmp_path))
     a = next(r for r in await _rows(session, ShopeeOrderIncome, shop) if r.order_ref == REF_A)
-    assert (a.source, a.fee_fixed) == ("extension", Decimal(1))
+    assert (a.source, a.fee_fixed, a.payout) == ("extension", Decimal(1), Decimal(1))
+    assert (a.source_version, a.source_rank) == ("connector-1", 3)
+    assert a.fee_service == Decimal(14_000)  # the Connector never stated it: the file fills it
 
 
 def test_the_row_model_has_no_field_for_a_buyer():
