@@ -26,7 +26,7 @@ Every term here was misread by an agent at least once and then corrected by the 
 | **GMV (headline)** | the Seller Centre shop total. **Doanh thu thực** (net) sits beside it. There is one shop-GMV source; screens must not compute their own. |
 | **Biên cuối ở giá hiện tại** vs **Biên thực hiện 30 ngày** | the only two margins. Both are labelled every time and never mixed. Profit and margins use net revenue. |
 | **Δ lợi nhuận / Δ GMV** | totals for the whole period (the plan's or version's days), with "≈ …/ngày" as the secondary figure |
-| **ROI** | Lợi nhuận ÷ (ads + affiliate + ưu đãi cost), shown in points ("5,4"), **never as %** |
+| **ROI** | "ROI (lợi nhuận ÷ chi phí QC + AFF)": profit ÷ (ads + affiliate), shown in points ("5,4"), **never as %**. Ưu đãi is deducted from revenue, never a cost (owner 2026-11-18, option A). |
 | **Tax** | Juli doesn't calculate withheld VAT or PIT. Don't add tax settings or "trước thuế" labels. |
 
 ## Order statuses (owner 2026-11-18, D2; Shopee and TikTok the same)
@@ -46,6 +46,9 @@ Every term here was misread by an agent at least once and then corrected by the 
 | **Kế hoạch** | the plan: totals of the accepted cards over their date ranges, with goal progress |
 | **Juli Connector** | the Chrome extension that reads Seller Centre pages and fills forms. The seller confirms; it syncs status back. |
 | **Sample shop** | the ISV reviewer's mock shop. It copies the real app; sample-only code exists only for safety. |
+| **Reader block** | a Connector page that could not be read on a run; shown on Thực hiện with its section and reason (`reader_blocks`). It clears as soon as that page's data arrives again. |
+| **password_recheck** | Shopee's "vui lòng nhập mật khẩu Shopee của bạn" dialog on Phân tích bán hàng (/datacenter). The owner confirms it once; the Connector never types it. Not a logout (that is `login`). |
+| **Re-read (`reread`)** | the Connector reading again, the same day, the pages a block stopped, right after the block clears. |
 | **Real client shop** | production data. Read-only for agents, and never written without the owner. |
 
 ## Who changed the data?

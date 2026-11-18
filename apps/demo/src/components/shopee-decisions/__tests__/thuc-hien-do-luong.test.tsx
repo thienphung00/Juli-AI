@@ -156,6 +156,25 @@ describe("Đối chiếu ngay", () => {
     ).toBe("Đăng nhập lại Phân tích bán hàng · Xác minh lại Seller Centre");
   });
 
+  it("password_recheck reads \"Xác nhận mật khẩu\" + the section; login and captcha unchanged", async () => {
+    const blocks = [{ section: "phan_tich_ban_hang", reason: "password_recheck", readers: ["shop_totals"] }];
+    renderReco(<ThucHienView />, fakeReco({ execution: line({ reader_blocks: blocks }) }));
+    expect(await screen.findByTestId("sd-th-bar-block")).toHaveTextContent(/^Xác nhận mật khẩu Phân tích bán hàng$/);
+    expect(readerBlockText([{ section: "other", reason: "password_recheck", readers: [] }])).toBe("Xác nhận mật khẩu Seller Centre");
+    expect(
+      readerBlockText([
+        { section: "phan_tich_ban_hang", reason: "login", readers: [] },
+        { section: "phan_tich_ban_hang", reason: "captcha", readers: [] },
+      ]),
+    ).toBe("Đăng nhập lại Phân tích bán hàng · Xác minh lại Phân tích bán hàng");
+  });
+
+  it("no_permission (Connector 0.3.26) reads \"Cần quyền Tài chính Seller Centre\"", async () => {
+    const blocks = [{ section: "seller_centre", reason: "no_permission", readers: ["order_income"] }];
+    renderReco(<ThucHienView />, fakeReco({ execution: line({ reader_blocks: blocks }) }));
+    expect(await screen.findByTestId("sd-th-bar-block")).toHaveTextContent(/^Cần quyền Tài chính Seller Centre$/);
+  });
+
   it("asks the Connector through the host API and reloads", async () => {
     const reco = fakeReco({ execution: line({}) });
     renderReco(<ThucHienView />, reco);

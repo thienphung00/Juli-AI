@@ -267,6 +267,8 @@ export const ORDER_INCOME_FIRST_RUN_DAYS = 3;
 /** Completed orders waiting for their income read are kept at most this long / this many. */
 export const ORDER_INCOME_QUEUE_MAX = 300;
 export const ORDER_INCOME_QUEUE_DAYS = 14;
+/** 0.3.26: an order whose income read failed on this many days is dropped from the queue. */
+export const ORDER_INCOME_MAX_FAILED_DAYS = 3;
 /** Shop totals: the 30 days after pairing, then the last 7 each day (placed / paid settle late). */
 export const SHOP_TOTALS_BACKFILL_DAYS = 30;
 export const SHOP_TOTALS_REFRESH_DAYS = 7;
@@ -300,6 +302,10 @@ export const STOCK_MAX_ATTEMPTS_PER_DAY = 2;
 export const READER_KICK_RETRY_MINUTES = 5;
 /** After pairing / a service-worker start that finds today's run not done: start after this long. */
 export const READER_KICK_DELAY_MINUTES = 1;
+/** 0.3.25: pages blocked by a login / password wall are read again this long after a data call proves the session. */
+export const READER_REREAD_DELAY_MINUTES = 2;
+/** 0.3.25: at most this many re-read starts a day (a dialog that keeps coming back cannot loop). */
+export const READER_REREAD_MAX_PER_DAY = 3;
 
 /** Ads: yesterday plus up to this many earlier finished days not read yet (one day per call). */
 export const ADS_CATCHUP_DAYS = 3;

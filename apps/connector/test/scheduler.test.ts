@@ -4,6 +4,7 @@ import {
   BACKFILL_REQUEST_SHARE,
   DAILY_REQUEST_BUDGET,
   READER_BLOCK_CAPTCHA_MS,
+  READER_BLOCK_LOGIN_MS,
   READER_JOB_TIMEOUT_MS,
   READER_LOAD_GRACE_MS,
   READER_PAGE_GAP_JITTER_MS,
@@ -171,6 +172,19 @@ async function finishPage(
   expect(await ctx.scheduler.onTabReady(tab.id, tab.url)).toBe(true);
   const answers = job?.id === "ads" && responses.length === 0 ? adsReplies(job.days) : responses;
   expect(await ctx.scheduler.onResult(tab.id, { job: job?.id, status, responses: answers })).toBe(true);
+}
+
+/** An income answer with its final amount ("Số tiền cuối cùng"), as the income reader keeps it. */
+function incomeAnswer(orderId: string): ReaderResponse {
+  return {
+    endpoint: "order_income_components",
+    url: "u",
+    status: 200,
+    body: { code: 0, data: { items: [{ name: "Số tiền cuối cùng", amount: 90_000 }] } },
+    capturedAt: T0,
+    source: "page",
+    orderId,
+  };
 }
 
 /** A product_list answer with the given item ids (a normal status), optionally unlisted. */
@@ -429,14 +443,14 @@ describe("a daily run", () => {
     const tab = ctx.tabs.current;
     expect(tab.url).toBe(`${SC}/datacenter/product/traffic`);
     await ctx.scheduler.onTabReady(tab.id, tab.url);
-    await ctx.scheduler.onResult(tab.id, { job: "item_traffic", status: "blocked_login", detail: "password_modal", responses: [] });
+    await ctx.scheduler.onResult(tab.id, { job: "item_traffic", status: "blocked_password_recheck", detail: "password_modal", responses: [] });
     const state = await ctx.read();
     expect(state?.blocked).toBeUndefined();
     expect(state?.run).toBeUndefined();
     expect(state?.lastRun?.blocked).toBeUndefined();
-    expect(state?.lastRun?.outcomes.item_traffic).toBe("blocked:login");
+    expect(state?.lastRun?.outcomes.item_traffic).toBe("blocked:password_recheck");
     expect(ctx.tabs.closed).toContain(tab.id);
-    expect(ctx.events).toEqual([expect.objectContaining({ reader: "item_traffic", status: "login", code: "reader_only:password_modal" })]);
+    expect(ctx.events).toEqual([expect.objectContaining({ reader: "item_traffic", status: "password_recheck", code: "reader_only:password_modal" })]);
     expect(await ctx.scheduler.tick()).toBe("done_today");
     expect(state?.trafficDone ?? []).toEqual([]);
   });
@@ -780,7 +794,7 @@ describe("P97: the day's flow, income queue and bookkeeping", () => {
     const tab = ctx.tabs.current;
     await ctx.scheduler.onTabReady(tab.id, tab.url);
     expect(ctx.tabs.sent.at(-1)?.message).toMatchObject({ type: "reader-job", job: { id: "order_income", orderIds: ["2611010AAA"] } });
-    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", responses: [] });
+    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", responses: [incomeAnswer("2611010AAA")] });
     expect((await ctx.read())?.incomeQueue).toEqual([]);
     expect((await ctx.read())?.incomeDay).toBe("2026-11-03");
   });
@@ -1313,7 +1327,8 @@ describe("0.3.20: the orders outcome is truthful", () => {
     const tab = ctx.tabs.current;
     await ctx.scheduler.onTabReady(tab.id, tab.url);
     await ctx.scheduler.onResult(tab.id, { job: "orders", status: "done", responses: [] });
-    expect((await ctx.read())?.lastRun?.outcomes.orders).toBe("error:orders:0_rows:ignored");
+    // 0.3.26: the step is named (nothing came back from the list page)
+    expect((await ctx.read())?.lastRun?.outcomes.orders).toBe("error:orders:0_rows:no_list_answer");
 
     const empty = setup({ readers: ["orders"] });
     (empty.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async () => ({ order_lines: "ignored" });
@@ -1321,8 +1336,84 @@ describe("0.3.20: the orders outcome is truthful", () => {
     const t2 = empty.tabs.current;
     await empty.scheduler.onTabReady(t2.id, t2.url);
     await empty.scheduler.onResult(t2.id, { job: "orders", status: "done", detail: "no_new_orders", responses: [] });
-    expect((await empty.read())?.lastRun?.outcomes.orders).toBe("no_orders");
+    // 0.3.26: a day with no order is read and empty ("no_orders" stays the income page's outcome)
+    expect((await empty.read())?.lastRun?.outcomes.orders).toBe("done:order_lines=empty");
     expect((await empty.read())?.ordersCoveredDay).toBe("2026-11-03");
+  });
+
+  it("0.3.26: an income read that failed keeps its order for tomorrow, once a day, and drops it after 3 failed days", async () => {
+    const ctx = setup({ readers: ["order_income"] });
+    ctx.storage.data.readers = {
+      adsDone: [],
+      trafficDone: [],
+      incomeQueue: [
+        { id: "26110001", completedAt: T0 - 3000 },
+        { id: "26110002", completedAt: T0 - 2000 },
+        { id: "26110003", completedAt: T0 - 1000, failedDays: 2, failedDay: "2026-11-02" },
+      ],
+    };
+    const refused: ReaderResponse = { endpoint: "order_income_components", url: "u", status: 200, body: { code: 7 }, capturedAt: T0, source: "replay", orderId: "26110002" };
+    const run = async (responses: ReaderResponse[]) => {
+      await ctx.scheduler.tick();
+      const tab = ctx.tabs.current;
+      await ctx.scheduler.onTabReady(tab.id, tab.url);
+      await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", responses });
+    };
+    // read: 0001; refused: 0002 (first failed day) and 0003 (third failed day: dropped)
+    await run([incomeAnswer("26110001"), refused, { ...refused, orderId: "26110003" }]);
+    expect((await ctx.read())?.incomeQueue).toEqual([{ id: "26110002", completedAt: T0 - 2000, failedDays: 1, failedDay: "2026-11-03" }]);
+    // a second run the same day (a manual sync) does not count another failed day
+    ctx.storage.data.readers = { ...(await ctx.read())!, incomeDay: undefined, lastRunDay: undefined, run: undefined };
+    await run([]);
+    expect(ctx.posted.filter((p) => p.job.id === "order_income")).toHaveLength(2);
+    expect((await ctx.read())?.incomeQueue).toEqual([{ id: "26110002", completedAt: T0 - 2000, failedDays: 1, failedDay: "2026-11-03" }]);
+  });
+
+  it("0.3.26: an order never requested (no order key on the page) stays queued unchanged", async () => {
+    const ctx = setup({ readers: ["order_income"] });
+    const queue = [
+      { id: "26110001", completedAt: T0 - 3000 },
+      { id: "26110002", completedAt: T0 - 2000, failedDays: 2, failedDay: "2026-11-02" },
+    ];
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], incomeQueue: queue };
+    // no answer, no row: what the Connector's postReader gives for an income read with nothing in it
+    (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async () => ({ order_income: "ignored" });
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", detail: "no_order_key", responses: [] });
+    expect((await ctx.read())?.incomeQueue).toEqual(queue);
+    expect((await ctx.read())?.lastRun?.outcomes.order_income).toBe("error:order_income:0_rows:no_order_key");
+  });
+
+  it("0.3.26: a post that did not land keeps every sent order queued", async () => {
+    const ctx = setup({ readers: ["order_income"] });
+    (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async () => ({ order_income: "rejected" });
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], incomeQueue: [{ id: "26110001", completedAt: T0 - 3000 }] };
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", responses: [incomeAnswer("26110001")] });
+    expect((await ctx.read())?.incomeQueue).toEqual([{ id: "26110001", completedAt: T0 - 3000, failedDays: 1, failedDay: "2026-11-03" }]);
+  });
+
+  it("0.3.26: an income page without the Tài chính right is blocked:no_permission; the run goes on, the queue is kept", async () => {
+    const ctx = setup({ readers: ["order_income", "vouchers"] });
+    const queue = [{ id: "26110777", completedAt: T0 - 1000 }];
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], incomeQueue: queue };
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "blocked_no_permission", detail: "http_403_code_10013", responses: [] });
+    const after = await ctx.read();
+    expect(after?.run?.outcomes.order_income).toBe("blocked:no_permission|http_403_code_10013");
+    expect(after?.run?.index).toBe(1);
+    expect(after?.blocked).toBeUndefined();
+    expect(after?.incomeQueue).toEqual(queue);
+    expect(after?.incomeDay).toBeUndefined();
+    expect(ctx.events).toEqual([
+      { reader: "order_income", page: "/portal/sale/order/", status: "no_permission", code: "reader_only:http_403_code_10013", at: expect.any(String) },
+    ]);
   });
 });
 
@@ -1439,5 +1530,140 @@ describe("0.3.22: a login wall on one reader blocks that reader, not the run", (
       expect(at("orders")).toBeLessThan(at(id));
       expect(at("order_income")).toBeLessThan(at(id));
     }
+  });
+});
+
+describe("0.3.25: the password re-check dialog is its own block reason, and its pages are read again", () => {
+  const READERS = ["products", "orders", "shop_totals", "traffic", "health"] as const;
+  async function driveRun(ctx: ReturnType<typeof setup>, answers: Partial<Record<ReaderId, string>>): Promise<string> {
+    const ticks: TickReport[] = [];
+    (ctx.scheduler as unknown as { deps: { sink: { reportTick: unknown } } }).deps.sink.reportTick = async (report: TickReport) => {
+      ticks.push(report);
+    };
+    (ctx as unknown as { ticks: TickReport[] }).ticks = ticks;
+    let result = await ctx.scheduler.tick();
+    for (let i = 0; i < 20 && (await ctx.read())?.run; i += 1) {
+      const run = (await ctx.read())?.run;
+      if (run?.current) await finishPage(ctx, answers[run.jobs[run.index]?.id as ReaderId] ?? "done");
+      ctx.clock.now += GAP;
+      result = await ctx.scheduler.tick();
+    }
+    return result;
+  }
+  const ticksOf = (ctx: ReturnType<typeof setup>) => (ctx as unknown as { ticks: TickReport[] }).ticks;
+  const kick = (ctx: ReturnType<typeof setup>) => ctx.scheduler.tick({ trigger: "kick" });
+
+  it("C1/C2: a page-only dialog is blocked:password_recheck, the other readers go on, the stop event says password_recheck", async () => {
+    const ctx = setup({ readers: READERS });
+    await driveRun(ctx, { shop_totals: "blocked_password_recheck" });
+    const state = await ctx.read();
+    expect(state?.blocked).toBeUndefined();
+    expect(state?.lastRun?.outcomes).toMatchObject({ shop_totals: "blocked:password_recheck", traffic: expect.stringMatching(/^done/), health: expect.stringMatching(/^done/) });
+    expect(ctx.events.map((e) => [e.reader, e.status])).toEqual([["shop_totals", "password_recheck"]]);
+  });
+
+  it("C1/C2: the dialog is always this page only, even on the run's first page: no run-wide stop, no cool-down", async () => {
+    const ctx = setup({ readers: READERS });
+    await driveRun(ctx, { products: "blocked_password_recheck" });
+    const state = await ctx.read();
+    expect(state?.blocked).toBeUndefined();
+    expect(state?.lastRun?.blocked).toBeUndefined();
+    expect(state?.lastRun?.outcomes.products).toBe("blocked:password_recheck");
+    expect(state?.lastRun?.outcomes.orders).toMatch(/^done/);
+    expect(ticksOf(ctx).find((t) => t.kind === "run")?.result).toBe("finished");
+    expect(ctx.events.map((e) => e.status)).toEqual(["password_recheck"]);
+  });
+
+  it("C4: a /datacenter data call re-reads only the blocked pages within 10 minutes, as a reread run tick", async () => {
+    const ctx = setup({ readers: READERS });
+    await driveRun(ctx, { shop_totals: "blocked_password_recheck" });
+    const opened = ctx.tabs.opened.length;
+    await ctx.scheduler.sessionSeen("portal"); // another section proves nothing about the dialog
+    expect(ctx.alarms.active.has(READER_KICK_ALARM)).toBe(false);
+    await ctx.scheduler.sessionSeen("datacenter");
+    const info = ctx.alarms.active.get(READER_KICK_ALARM) as { delayInMinutes: number };
+    expect(info.delayInMinutes).toBeLessThanOrEqual(10);
+    ctx.clock.now += info.delayInMinutes * 60_000;
+    expect(await kick(ctx)).toBe("opened");
+    expect(new URL(ctx.tabs.current.url).pathname).toBe("/datacenter/overview");
+    await finishPage(ctx);
+    ctx.clock.now += GAP;
+    await ctx.scheduler.tick();
+    expect(ctx.tabs.opened.length - opened).toBe(1); // only that page
+    const state = await ctx.read();
+    expect(state?.lastRun?.outcomes).toMatchObject({ shop_totals: expect.stringMatching(/^done/), traffic: expect.stringMatching(/^done/) });
+    const reread = ticksOf(ctx).filter((t) => t.kind === "run").at(-1);
+    expect(reread).toMatchObject({ trigger: "reread", result: "finished", outcomes: { shop_totals: expect.stringMatching(/^done/) } });
+    expect(Object.keys(reread?.outcomes ?? {})).toEqual(["shop_totals"]);
+  });
+
+  it("C4: the re-read fires once per clear: more data calls, or the dialog again, never loop", async () => {
+    const ctx = setup({ readers: READERS });
+    await driveRun(ctx, { shop_totals: "blocked_password_recheck" });
+    await ctx.scheduler.sessionSeen("datacenter");
+    await ctx.scheduler.sessionSeen("datacenter"); // an armed re-read is not armed twice
+    expect((await ctx.read())?.reread?.pages).toEqual(["shop_totals"]);
+    ctx.clock.now += 2 * 60_000;
+    await kick(ctx);
+    await finishPage(ctx, "blocked_password_recheck"); // the dialog is back
+    const state = await ctx.read();
+    expect(state?.reread).toBeUndefined();
+    expect(state?.lastRun?.outcomes.shop_totals).toMatch(/^blocked/);
+    expect(await ctx.scheduler.tick({ trigger: "kick" })).not.toBe("opened");
+    // a new clear arms a new one, up to the daily cap
+    for (let i = 0; i < 5; i += 1) {
+      ctx.clock.now += 24 * 60_000;
+      await ctx.scheduler.clearBlock();
+      ctx.clock.now += 2 * 60_000;
+      if ((await kick(ctx)) === "opened") await finishPage(ctx, "blocked_password_recheck");
+    }
+    expect((await ctx.read())?.rereadCount?.n).toBe(3);
+  });
+
+  it("C4: a reread run whose only page hits the dialog is blocked:password_recheck, no block; a later datacenter call re-arms within the cap", async () => {
+    const ctx = setup({ readers: READERS });
+    await driveRun(ctx, { shop_totals: "blocked_password_recheck" });
+    await ctx.scheduler.sessionSeen("datacenter");
+    ctx.clock.now += 2 * 60_000;
+    expect(await kick(ctx)).toBe("opened");
+    expect((await ctx.read())?.run?.jobs.map((j) => j.id)).toEqual(["shop_totals"]);
+    await finishPage(ctx, "blocked_password_recheck"); // still up: the only page of the run
+    const state = await ctx.read();
+    expect(state?.lastRun?.outcomes.shop_totals).toBe("blocked:password_recheck");
+    expect(state?.blocked).toBeUndefined();
+    expect(state?.lastRun?.blocked).toBeUndefined();
+    expect(ticksOf(ctx).filter((t) => t.kind === "run").at(-1)).toMatchObject({ trigger: "reread", result: "finished" });
+    await ctx.scheduler.sessionSeen("datacenter");
+    expect((await ctx.read())?.reread?.pages).toEqual(["shop_totals"]);
+    expect(ctx.alarms.active.has(READER_KICK_ALARM)).toBe(true);
+  });
+
+  it("C4: a login stop lifted by a data call starts again soon, reported as reread", async () => {
+    const ctx = setup({ readers: READERS });
+    await driveRun(ctx, { products: "blocked_login" });
+    expect((await ctx.read())?.blocked).toMatchObject({ reason: "login" });
+    await ctx.scheduler.sessionSeen("datacenter");
+    expect((await ctx.read())?.blocked).toBeUndefined();
+    ctx.clock.now += 2 * 60_000;
+    expect(await kick(ctx)).toBe("opened");
+    expect((await ctx.read())?.run?.trigger).toBe("reread");
+  });
+
+  it("C4: 'Đồng bộ' (clearBlock) re-reads the blocked pages too", async () => {
+    const ctx = setup({ readers: READERS });
+    await driveRun(ctx, { shop_totals: "blocked_password_recheck" });
+    await ctx.scheduler.clearBlock();
+    ctx.clock.now += 2 * 60_000;
+    expect(await kick(ctx)).toBe("opened");
+    expect(new URL(ctx.tabs.current.url).pathname).toBe("/datacenter/overview");
+    expect((await ctx.read())?.run?.jobs.map((j) => j.id)).toEqual(["shop_totals"]);
+  });
+
+  it("C4: another day's blocks are not re-read; nothing blocked means nothing armed", async () => {
+    const ctx = setup({ readers: READERS });
+    await driveRun(ctx, {});
+    await ctx.scheduler.sessionSeen("datacenter");
+    expect((await ctx.read())?.reread).toBeUndefined();
+    expect(ctx.alarms.active.has(READER_KICK_ALARM)).toBe(false);
   });
 });

@@ -27,6 +27,19 @@ export interface Stop {
   missing: string[];
 }
 
+/**
+ * A completed order waiting for its income read. 0.3.26: an order whose income answer failed
+ * (refused, not 2xx, no final amount yet) stays queued; `failedDays` counts the days it failed
+ * (`failedDay` the last one), and it is dropped after ORDER_INCOME_MAX_FAILED_DAYS.
+ */
+export interface IncomeQueued {
+  id: string;
+  sn?: string;
+  completedAt: number;
+  failedDays?: number;
+  failedDay?: string;
+}
+
 export interface Queued {
   dataset: Dataset;
   body: IngestBody;
@@ -114,12 +127,14 @@ export interface ReaderRun {
   outcomes: Record<string, string>;
   /** 0.3.22: Seller Centre sections ("portal", "datacenter") with a page read in this run. */
   live?: string[];
+  /** 0.3.25: "reread" for a run started after a block cleared (reported to Juli as that trigger). */
+  trigger?: string;
   /** 0.3.22: per section, the login / CAPTCHA walls since its last read (two block its other pages). */
   walls?: Record<string, { count: number; reason: ReaderBlockReason }>;
 }
 
 /** `rate_limit`: HTTP 429 / 403 or Shopee wording for "too many requests" (P97). */
-export type ReaderBlockReason = "captcha" | "login" | "rate_limit";
+export type ReaderBlockReason = "captcha" | "login" | "password_recheck" | "rate_limit";
 
 /** One scheduler tick that started from rest: what woke it and how it ended (a skip reason or a start). */
 export interface TickRecord {
@@ -164,6 +179,10 @@ export interface ReaderSchedule {
   lastRunDay?: string;
   lastRun?: { day: string; at: string; outcomes: Record<string, string>; blocked?: ReaderBlockReason };
   run?: ReaderRun;
+  /** 0.3.25: pages blocked today by a login / password wall, to read again once the block clears (once per clear). */
+  reread?: { day: string; pages: ReaderId[] };
+  /** 0.3.25: re-read starts today (capped, so a dialog that keeps coming back cannot loop). */
+  rereadCount?: { day: string; n: number };
   /** A CAPTCHA / login wall stopped the readers: nothing is opened before `until` (ms since epoch). */
   blocked?: { at: string; reason: ReaderBlockReason; page: ReaderId; until: number };
   /** Legacy (≤ 0.3.5): days marked read whether or not their upload landed. No longer read. */
@@ -190,7 +209,7 @@ export interface ReaderSchedule {
    * Per-order income (0.3.11): completed orders waiting for their income read, oldest first. The raw
    * order ids stay in this browser (chrome.storage.local) -- only hashed refs are ever posted.
    */
-  incomeQueue?: { id: string; sn?: string; completedAt: number }[];
+  incomeQueue?: IncomeQueued[];
   /** Orders completing before this time (ms) were queued already: only later ones are added. */
   incomeSince?: number;
   incomeDay?: string;
