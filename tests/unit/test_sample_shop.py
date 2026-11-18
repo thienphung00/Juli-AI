@@ -757,6 +757,31 @@ async def test_the_sample_shop_holds_the_llm_consent_and_a_reload_restores_it(en
         assert await has_consent(session, first.shop_id, "service")
 
 
+async def test_the_sample_shop_is_tagged_sample_on_create_and_a_rerun_retags_a_real_one(engine):
+    """``shops.kind`` defaults to ``'real'``; fleet reads skip only ``sample``/``sandbox`` shops
+    (migration 133), so the loader tags its shop on create, and a shop loaded before the tag
+    existed (``'real'``) is retagged on its next run."""
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    shopee_id = str(SAMPLE_SHOPEE_SHOP_ID_MIN)
+
+    async def kind(shop_id: uuid.UUID) -> str | None:
+        async with factory() as session:
+            return await session.scalar(select(Shop.kind).where(Shop.id == shop_id))
+
+    shop_id, created = await loader.ensure_shop(factory, shopee_id, now=NOW)
+    assert created
+    assert await kind(shop_id) == loader.SAMPLE_SHOP_KIND == "sample"
+
+    async with factory() as session:
+        shop = await session.get(Shop, shop_id)
+        assert shop is not None
+        shop.kind = "real"
+        await session.commit()
+    again, created_again = await loader.ensure_shop(factory, shopee_id, shop_id=shop_id, now=NOW)
+    assert (again, created_again) == (shop_id, False)
+    assert await kind(shop_id) == "sample"
+
+
 async def test_the_s2_d2_strategies_evaluate_on_the_sample_shop(engine):
     """P100 S2-D2 (owner option B): the real Tự tạo works on the sample shop's data -- Combo Khuyến
     Mãi, Deal Sốc (Mua kèm / Mua để nhận quà), Dịch vụ hiển thị (a new campaign and an edit of a

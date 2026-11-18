@@ -58,6 +58,8 @@ COST_REASON = "Dữ liệu mẫu: giá vốn tổng hợp"
 #: P100 S2-D2: ``service`` for the data, ``llm_processing`` so the one live AI title draft per
 #: product (S2-D) passes the LLM gate. Synthetic data only; granted by the Juli operator.
 SAMPLE_CONSENT_SCOPES: tuple[str, ...] = ("service", "llm_processing")
+#: ``shops.kind`` of the sample shop (migration 130's CHECK: real / sandbox / sample).
+SAMPLE_SHOP_KIND = "sample"
 
 
 class SampleShopRefused(Exception):
@@ -138,7 +140,9 @@ async def ensure_shop(
 ) -> tuple[uuid.UUID, bool]:
     """The sample shop's id (created with its user and :data:`SAMPLE_CONSENT_SCOPES` when absent).
 
-    An existing shop gets any scope it lacks (an older load had ``service`` only).
+    An existing shop gets any scope it lacks (an older load had ``service`` only). Both paths tag
+    the shop ``kind = 'sample'``: ``shops.kind`` defaults to ``'real'`` and migration 130 tagged
+    only the sandbox shop, so fleet-wide reads that skip sample shops (migration 133) need it.
     """
     from juli_backend.database import Shop, User
     from juli_backend.services.consent import has_consent
@@ -166,7 +170,10 @@ async def ensure_shop(
             ]
             for scope in missing:
                 await _grant(session, existing.id, now, scope=scope)
-            if missing:
+            retag = existing.kind != SAMPLE_SHOP_KIND
+            if retag:
+                existing.kind = SAMPLE_SHOP_KIND
+            if missing or retag:
                 await session.commit()
             return existing.id, False
         if shop_id is not None:
@@ -177,6 +184,7 @@ async def ensure_shop(
         shop = await connect_shopee_shop(
             session, user_id=user.id, shop_name=SAMPLE_SHOP_NAME, shopee_shop_id=shopee_shop_id
         )
+        shop.kind = SAMPLE_SHOP_KIND
         for scope in SAMPLE_CONSENT_SCOPES:
             await _grant(session, shop.id, now, scope=scope)
         await session.commit()
