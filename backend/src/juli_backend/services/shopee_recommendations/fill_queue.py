@@ -236,6 +236,8 @@ def _voucher_payload(
         "per_buyer": int(_num(inputs.get("per_user_limit")) or 1),
         "display": "private" if product_ids else "multi",
         "product_ids": product_ids,
+        # Mã giảm giá thông minh: off unless the card says so
+        "smart": bool(inputs.get("smart") or card.get("smart")),
     }
 
 
@@ -716,6 +718,11 @@ def _live_tokens(shop_id: uuid.UUID, now: datetime) -> Any:
 SERVABLE_CARD_STATUSES: tuple[str, ...] = (STATUS_APPROVED, STATUS_PLANNED)
 REVERT_PREFIX = "revert:"
 READBACK_PREFIX = "readback:"
+
+
+def is_aux(j: ShopeeFillJob) -> bool:
+    """A revert or read-back job: never part of the forward checklist, progress or state."""
+    return j.target_key.startswith((REVERT_PREFIX, READBACK_PREFIX))
 
 
 def _servable_card_jobs() -> Any:

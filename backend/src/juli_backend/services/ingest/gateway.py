@@ -40,7 +40,6 @@ from typing import Any, TypeVar
 
 from pydantic import ValidationError
 from sqlalchemy import case, func, select
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import (
@@ -621,7 +620,7 @@ async def _verify_now(
                 item_ids=item_ids or (),
                 voucher_ids=voucher_ids or (),
             )
-    except (SQLAlchemyError, KeyError, ValueError):
+    except Exception:  # an evaluator bug must never fail the ingest
         logger.exception("readback_verify_failed", extra={"shop_id": str(shop_id)})
 
 

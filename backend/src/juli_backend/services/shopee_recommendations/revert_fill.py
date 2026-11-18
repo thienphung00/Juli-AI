@@ -66,9 +66,7 @@ _ENDED_WORDS = ("end", "expire", "delete", "finish", "het", "kết thúc", "ket 
 _BEFORE_KEY = {"title": "title", "description_first_line": "first_line"}
 
 
-def is_aux(j: ShopeeFillJob) -> bool:
-    """A revert or read-back job (never part of the forward checklist)."""
-    return j.target_key.startswith((REVERT_PREFIX, READBACK_PREFIX))
+is_aux = fill_queue.is_aux
 
 
 def _naive(now: datetime) -> datetime:
@@ -427,30 +425,38 @@ async def _item_matches(
 
 
 async def _voucher_ended(
-    session: AsyncSession, shop_id: uuid.UUID, voucher_id: str, at: datetime
+    session: AsyncSession, shop_id: uuid.UUID, voucher_id: str, since: datetime
 ) -> bool:
-    rows = [
+    """A voucher list captured AFTER the revert was saved exists and either lacks the voucher or
+    shows it ended. No such capture (or none at all) = not confirmed."""
+    after = [
         p
         for p in (
             await session.scalars(
                 select(PlatformPromotion).where(
                     PlatformPromotion.shop_id == shop_id,
                     PlatformPromotion.promo_type == SHOPEE_PROMO_TYPES["Voucher"],
+                    PlatformPromotion.captured_at >= since,
                 )
             )
         )
-        if str((p.extra or {}).get("voucher_id")) == voucher_id
+        if (p.extra or {}).get("voucher_id") is not None
     ]
-    if not rows:
-        return True  # gone from the list
-    newest = max(rows, key=lambda p: p.captured_at)
+    if not after:
+        return False
+    mine = [p for p in after if str((p.extra or {}).get("voucher_id")) == voucher_id]
+    if not mine:
+        return True  # a list read after the save does not hold it
+    newest = max(mine, key=lambda p: p.captured_at)
     word = str(newest.status or "").lower()
     return any(w in word for w in _ENDED_WORDS) or (
-        newest.ends_at is not None and newest.ends_at <= at
+        newest.ends_at is not None and newest.ends_at <= newest.captured_at
     )
 
 
-async def _affiliate_matches(session: AsyncSession, shop_id: uuid.UUID, job: ShopeeFillJob) -> bool:
+async def _affiliate_matches(
+    session: AsyncSession, shop_id: uuid.UUID, job: ShopeeFillJob, since: datetime
+) -> bool:
     want = _num((job.payload or {}).get("commission_pct"))
     for item_id in (job.payload or {}).get("product_ids") or []:
         row = await session.scalar(
@@ -460,8 +466,12 @@ async def _affiliate_matches(session: AsyncSession, shop_id: uuid.UUID, job: Sho
                 PlatformItem.variation_id == "",
             )
         )
-        seen = _num(((row.extra or {}) if row else {}).get("affiliate_commission_pct"))
+        extra = (row.extra or {}) if row else {}
+        seen = _num(extra.get("affiliate_commission_pct"))
+        read_at = str(extra.get("affiliate_commission_pct_at") or "")
         if want is None or seen is None or abs(seen - want) > 0.01:
+            return False
+        if not read_at or read_at < since.isoformat():  # read before the revert was saved
             return False
     return True
 
@@ -505,7 +515,7 @@ async def _confirmed(
         return await _voucher_ended(
             session, shop_id, str((revert.target or {}).get("voucher_id")), back.updated_at
         )
-    return await _affiliate_matches(session, shop_id, revert)
+    return await _affiliate_matches(session, shop_id, revert, revert.updated_at)
 
 
 __all__ = [
