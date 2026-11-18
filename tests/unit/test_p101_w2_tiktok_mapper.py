@@ -311,26 +311,82 @@ def test_status_vocabulary(raw: str, stored: str) -> None:
     assert stored in ORDER_LINE_STATUSES
 
 
-@pytest.mark.parametrize(
-    ("order_status", "return_status", "stored"),
-    [
-        ("DELIVERED", "RETURN_OR_REFUND_REQUEST_APPLYING", "refunded_accepted"),
-        ("COMPLETED", "AWAITING_BUYER_SHIP", "refunded_accepted"),
-        ("IN_TRANSIT", "BUYER_SHIPPED_ITEM", "refunded_not_received"),
-        ("DELIVERED", "RETURN_IN_TRANSIT", "refunded_not_received"),
-        ("DELIVERED", "RETURN_OR_REFUND_REQUEST_COMPLETE", "returned"),
-        ("DELIVERED", "REFUND_COMPLETE", "returned"),
-        ("DELIVERED", "RETURN_OR_REFUND_REQUEST_REJECT", "delivered"),
-        ("DELIVERED", None, "delivered"),
-        ("CANCELLED", "RETURN_OR_REFUND_REQUEST_COMPLETE", "cancelled"),
-    ],
-)
-def test_return_status_maps_to_the_refund_statuses(
-    order_status: str, return_status: str | None, stored: str
+#: One case per official ``return_status`` value (return_refund 202309) on a delivered order.
+OFFICIAL_RETURN_STATUSES = [
+    ("RETURN_OR_REFUND_REQUEST_PENDING", "refunded_accepted"),
+    ("AWAITING_BUYER_SHIP", "refunded_accepted"),
+    ("AWAITING_BUYER_RESPONSE", "refunded_accepted"),
+    ("BUYER_SHIPPED_ITEM", "refunded_not_received"),
+    ("RETURN_OR_REFUND_REQUEST_SUCCESS", "returned"),
+    ("RETURN_OR_REFUND_REQUEST_COMPLETE", "returned"),
+    ("REPLACEMENT_REQUEST_REFUND_SUCCESS", "returned"),
+    ("REFUND_OR_RETURN_REQUEST_REJECT", "delivered"),
+    ("REJECT_RECEIVE_PACKAGE", "delivered"),
+    ("RETURN_OR_REFUND_REQUEST_CANCEL", "delivered"),
+    ("REPLACEMENT_REQUEST_PENDING", "delivered"),
+    ("REPLACEMENT_REQUEST_COMPLETE", "delivered"),
+    ("REPLACEMENT_REQUEST_CANCEL", "delivered"),
+    ("REPLACEMENT_REQUEST_REJECT", "delivered"),
+]
+
+
+@pytest.mark.parametrize(("return_status", "stored"), OFFICIAL_RETURN_STATUSES)
+def test_official_return_status_maps_to_the_refund_statuses(
+    return_status: str, stored: str
 ) -> None:
-    assert map_status(order_status, return_status=return_status) == (stored, None)
-    mapped = map_order(_order(status=order_status), shop_id=SHOP, return_status=return_status)
-    assert {ln.status for ln in mapped.lines} == {stored}
+    assert map_status("DELIVERED", return_status=return_status) == (stored, None)
+    line_id = _order()["line_items"][0]["id"]
+    mapped = map_order(
+        _order(status="DELIVERED"), shop_id=SHOP, return_statuses={line_id: return_status}
+    )
+    by_id = {ln.variation_sku: ln.status for ln in mapped.lines}
+    assert by_id["SYN-B"] == stored  # the keyed line
+    assert mapped.warnings == ()
+
+
+def test_no_return_status_and_a_cancelled_order_stay_as_they_are() -> None:
+    assert map_status("DELIVERED", return_status=None) == ("delivered", None)
+    assert map_status("CANCELLED", return_status="RETURN_OR_REFUND_REQUEST_COMPLETE") == (
+        "cancelled",
+        None,
+    )
+
+
+def test_an_unknown_return_status_is_no_override_with_a_warning() -> None:
+    line_id = _order()["line_items"][0]["id"]
+    mapped = map_order(
+        _order(status="DELIVERED"), shop_id=SHOP, return_statuses={line_id: "RETURN_ON_MARS"}
+    )
+
+    assert {ln.status for ln in mapped.lines} == {"delivered"}
+    assert mapped.warnings == ("return_status_unrecognised:return_on_mars",)
+
+
+def test_a_partial_return_flips_only_the_returned_line() -> None:
+    order = _order(status="DELIVERED")
+    extra = copy.deepcopy(order["line_items"][0])
+    extra["id"] = "800000000000000030"
+    extra["sku_id"] = "600000000000000003"
+    extra["seller_sku"] = "SYN-C"
+    order["line_items"].append(extra)
+    returned_id = order["line_items"][0]["id"]
+
+    mapped = map_order(
+        order, shop_id=SHOP, return_statuses={returned_id: "RETURN_OR_REFUND_REQUEST_COMPLETE"}
+    )
+
+    statuses = sorted(ln.status for ln in mapped.lines)
+    assert len(mapped.lines) == 3 and statuses == ["delivered", "delivered", "returned"]
+    sold = [ln for ln in mapped.lines if counts_in_sales(ln)]
+    assert len(sold) == 2 and all(ln.status == "delivered" for ln in sold)
+
+
+def test_the_documented_calcelled_typo_is_cancelled() -> None:
+    assert map_status("CALCELLED") == ("cancelled", None)
+    order = _order(status="AWAITING_SHIPMENT")
+    order["line_items"][0]["display_status"] = "CALCELLED"
+    by_sku = {ln.variation_sku: ln.status for ln in map_order(order, shop_id=SHOP).lines}
+    assert by_sku["SYN-B"] == "cancelled" and by_sku["SYN-A"] == "confirmed"
 
 
 def test_unknown_status_is_in_transit_if_paid_else_pending_and_flagged() -> None:
@@ -542,7 +598,10 @@ def test_reported_withheld_tax_is_stored_but_never_changes_profit() -> None:
     assert taxed.fees_total == plain.fees_total
 
 
-@pytest.mark.parametrize("return_status", ["REFUND_COMPLETE", "BUYER_SHIPPED_ITEM", "APPLYING"])
+@pytest.mark.parametrize(
+    "return_status",
+    ["RETURN_OR_REFUND_REQUEST_COMPLETE", "BUYER_SHIPPED_ITEM", "AWAITING_BUYER_SHIP"],
+)
 def test_a_refund_line_is_no_sale_and_costs_the_settlement_deduction(
     return_status: str,
 ) -> None:
@@ -551,7 +610,7 @@ def test_a_refund_line_is_no_sale_and_costs_the_settlement_deduction(
         _order(status="DELIVERED"),
         shop_id=SHOP,
         statement=settled,
-        return_status=return_status,
+        return_statuses={ln["id"]: return_status for ln in _order()["line_items"]},
     )
     assert mapped.settlement is not None
     refunded = replace(mapped.settlement, payout=D("-20000"))

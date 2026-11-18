@@ -316,8 +316,8 @@ async def load_income(
             return_ship_failed=r.return_ship_failed,
             refund_amount=r.refund_amount,
             lost_compensation=r.lost_compensation,
-            vat_withheld=r.vat_withheld,
-            pit_withheld=r.pit_withheld,
+            # vat_withheld / pit_withheld stay stored, never passed to profit (no tax calculation,
+            # owner 2026-11-15)
             seller_coin_borne=r.seller_coin_borne,
             trade_in_bonus_seller=r.trade_in_bonus_seller,
             payout=r.payout,

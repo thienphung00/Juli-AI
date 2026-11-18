@@ -370,7 +370,7 @@ def test_every_part_of_the_income_row_is_split_over_the_lines():
     assert [s.fees_total for s in shares] == [D("20325.00"), D("6775.00")]
     assert sum((s.commission for s in shares), D(0)) == D(2_001)
     assert sum((s.return_shipping for s in shares), D(0)) == D(1_500)
-    assert sum((s.tax_withheld for s in shares), D(0)) == D(40)
+    assert sum((s.tax_withheld for s in shares), D(0)) == D(0)  # no tax calculation
     assert sum((s.payout for s in shares if s.payout is not None), D(0)) == D(50_000)
     assert sum((s.fees_total for s in shares), D(0)) == income.fees_total == D(27_100)
 
@@ -441,9 +441,10 @@ def test_return_shipping_coins_withheld_tax_and_compensation_move_the_contributi
     pb = pairs[0][1]
     costs = dict(pb.income_costs)
     assert costs["van_chuyen_tra_hang"] == D(5_000) and costs["xu_nguoi_ban_chiu"] == D(2_000)
-    assert costs["thue_gtgt_tncn_khau_tru"] == D(1_000) and costs["den_bu_mat_hang"] == D(-6_000)
-    # 90000 - 10000 - 30000 - 2000 - 0 commission - (5000 + 2000 + 1000 - 6000)
-    assert pb.contribution == D(46_000)
+    assert costs["thue_gtgt_tncn_khau_tru"] == D(0) and costs["den_bu_mat_hang"] == D(-6_000)
+    # 90000 - 10000 - 30000 - 2000 - 0 commission - (5000 + 2000 + 0 tax - 6000): the reported
+    # withheld tax (1000) is never a cost (owner 2026-11-15)
+    assert pb.contribution == D(47_000)
 
 
 def test_a_refund_of_a_delivered_line_is_a_cost_and_an_open_refund_window_is_no_outcome_yet():
@@ -536,12 +537,23 @@ def test_a_flag_that_needs_a_rate_the_sku_lacks_makes_the_profit_unknown_not_zer
     assert cost_only.contribution is None and "vat_rate" in cost_only.missing
 
 
-def test_withheld_vat_and_pit_are_a_cost_even_for_a_vat_inclusive_company():
+def test_withheld_vat_and_pit_are_never_a_cost_even_for_a_vat_inclusive_company():
     income = IncomeOrder(order_ref=f"{1:032x}", fee_fixed=D(10_000), vat_withheld=D(500))
     rows = [*RULES, RuleRow("prices_include_vat", "", True), RuleRow("vat_rate", "G1", 8)]
     pb = _profit([_raw(1)], rows, {income.order_ref: income})[2][0][1]
-    assert dict(pb.income_costs)["thue_gtgt_tncn_khau_tru"] == D(500)
+    assert dict(pb.income_costs)["thue_gtgt_tncn_khau_tru"] == D(0)
     assert pb.vat_output == D(6_667)
+
+
+def test_a_settlement_with_withheld_tax_leaves_profit_unchanged():
+    taxed = IncomeOrder(
+        order_ref=f"{1:032x}", fee_fixed=D(10_000), vat_withheld=D(900), pit_withheld=D(100)
+    )
+    plain = IncomeOrder(order_ref=f"{1:032x}", fee_fixed=D(10_000))
+    with_tax = _profit([_raw(1)], RULES, {taxed.order_ref: taxed})[2][0][1]
+    without = _profit([_raw(1)], RULES, {plain.order_ref: plain})[2][0][1]
+    assert with_tax.contribution == without.contribution
+    assert dict(with_tax.income_costs)["thue_gtgt_tncn_khau_tru"] == D(0)
 
 
 def test_rules_summary_counts_the_new_rules():

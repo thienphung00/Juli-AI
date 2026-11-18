@@ -218,3 +218,22 @@ async def test_a_settlement_equal_rank_latest_wins(session) -> None:
 
     (row,) = await _settlements(session)
     assert row.payout == D("120")
+
+
+async def test_load_income_never_passes_withheld_tax_to_profit(session) -> None:
+    from juli_backend.services.shopee_analytics.loaders import load_income
+
+    _, shop = await make_tenant(session, platform="shopee", tiktok_shop_id=None)
+    await DbCanonicalWriter(session).upsert_settlements(
+        shop.id,
+        "shopee",
+        [_settlement(shop.id, platform="shopee", vat_withheld=D("900"), pit_withheld=D("100"))],
+    )
+
+    stored = await _settlements(session)
+    loaded = await load_income(session, shop.id, {"ref-a"})
+
+    assert (stored[0].vat_withheld, stored[0].pit_withheld) == (D("900"), D("100"))
+    income = loaded["ref-a"]
+    assert (income.vat_withheld, income.pit_withheld) == (None, None)
+    assert income.tax_withheld == D("0")

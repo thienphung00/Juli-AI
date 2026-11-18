@@ -43,10 +43,11 @@ Rules:
 - Status (the 9 ``order_lines`` values, T5 Q-T5-3, :func:`map_status`): UNPAID -> ``pending``;
   AWAITING_SHIPMENT / PARTIALLY_SHIPPING / AWAITING_COLLECTION -> ``confirmed``; IN_TRANSIT /
   SHIPPED -> ``in_transit``; DELIVERED / COMPLETED -> ``delivered``; ON_HOLD -> ``on_hold``; any
-  cancellation spelling -> ``cancelled`` (also per line, from ``display_status``, for a partial
-  cancel); RETURNED, or a finished return-refund -> ``returned``; a return parcel on its way back
-  -> ``refunded_not_received``; a refund window still open -> ``refunded_accepted`` (the last two
-  come from the optional ``return_status`` of the reverse-order data). An unknown status is
+  cancellation spelling (also the documented typo CALCELLED) -> ``cancelled`` (also per line,
+  from ``display_status``, for a partial cancel); RETURNED -> ``returned``. A return / refund
+  comes from the reverse-order ``return_status`` (:data:`RETURN_STATUS_MAP`, the official values),
+  given PER LINE ITEM (``return_statuses``: line item id or SKU id -> status): only the returned
+  line changes, the others keep the order's status. An unknown status is
   ``in_transit`` when the order has a payment time, else ``pending``, with warning
   ``status_unrecognised:<raw>``, never a crash.
 - Money is ``Decimal`` from the payload strings; an order or statement whose currency is not
@@ -96,6 +97,7 @@ STATEMENT_SOURCE_VERSION = "tiktok:finance/202501"
 
 WARN_CURRENCY = "currency_not_vnd"
 WARN_STATUS = "status_unrecognised"
+WARN_RETURN_STATUS = "return_status_unrecognised"
 WARN_PRO_RATA = "discount_split_pro_rata"
 WARN_VOUCHER = "price_detail_voucher_not_amount"
 WARN_NO_ID = "order_without_id"
@@ -115,10 +117,26 @@ _STATUS_MAP: dict[str, str] = {
     "ON_HOLD": "on_hold",
     "RETURNED": "returned",
 }
-#: Reverse-order (return / refund) status words. Order matters: the first group that matches wins.
-_RETURN_DONE = ("COMPLETE", "SUCCESS", "REFUNDED", "RECEIVED")
-_RETURN_PARCEL_BACK = ("BUYER_SHIPPED", "SHIPPED_ITEM", "RETURN_IN_TRANSIT", "IN_TRANSIT")
-_RETURN_OPEN = ("APPLYING", "PENDING", "REQUEST", "AWAITING", "APPROVED", "PROCESSING")
+#: The official ``return_status`` values (return_refund 202309) -> refund status. ``None`` = no
+#: override (the request was rejected or cancelled; a replacement is not a refund).
+RETURN_STATUS_MAP: dict[str, str | None] = {
+    "RETURN_OR_REFUND_REQUEST_PENDING": "refunded_accepted",
+    "AWAITING_BUYER_SHIP": "refunded_accepted",
+    "AWAITING_BUYER_RESPONSE": "refunded_accepted",
+    "BUYER_SHIPPED_ITEM": "refunded_not_received",
+    "RETURN_OR_REFUND_REQUEST_SUCCESS": "returned",
+    "RETURN_OR_REFUND_REQUEST_COMPLETE": "returned",
+    "REPLACEMENT_REQUEST_REFUND_SUCCESS": "returned",
+    "REFUND_OR_RETURN_REQUEST_REJECT": None,
+    "REJECT_RECEIVE_PACKAGE": None,
+    "RETURN_OR_REFUND_REQUEST_CANCEL": None,
+    "REPLACEMENT_REQUEST_PENDING": None,
+    "REPLACEMENT_REQUEST_COMPLETE": None,
+    "REPLACEMENT_REQUEST_CANCEL": None,
+    "REPLACEMENT_REQUEST_REJECT": None,
+}
+#: The documented misspelling of CANCELLED in the order API.
+_CANCELLED_TYPO = "CALCELLED"
 
 #: ``fee_tax_breakdown.fee`` keys -> canonical column. Anything not here and not ignored is
 #: ``fee_other``.
@@ -217,24 +235,24 @@ def _currency_ok(*codes: Any) -> bool:
     return all(code == CURRENCY for code in stated)
 
 
-def map_return_status(raw: Any) -> str | None:
-    """The refund status a reverse-order (return / refund) status says, ``None`` when it says
-    none (empty, rejected, cancelled by the buyer)."""
-    key = _key(raw)
-    if not key or "REJECT" in key or "CANCEL" in key:
-        return None
-    for words, status in (
-        (_RETURN_PARCEL_BACK, OrderStatus.REFUNDED_NOT_RECEIVED),
-        (_RETURN_DONE, OrderStatus.RETURNED),
-        (_RETURN_OPEN, OrderStatus.REFUNDED_ACCEPTED),
-    ):
-        if any(word in key for word in words):
-            return status.value
-    return None
-
-
 def _key(value: Any) -> str:
     return _SEPARATORS.sub("_", str(value or "").strip()).upper()
+
+
+def _cancelled(value: Any) -> bool:
+    return is_cancelled_status(value) or _key(value) == _CANCELLED_TYPO
+
+
+def map_return_status(raw: Any) -> tuple[str | None, str | None]:
+    """``(refund status or None, warning or None)`` for an official ``return_status``. An empty
+    value or one that says no refund (rejected, cancelled, a replacement) is ``(None, None)``;
+    an unknown value is no override plus ``return_status_unrecognised:<raw>``."""
+    key = _key(raw)
+    if not key:
+        return None, None
+    if key in RETURN_STATUS_MAP:
+        return RETURN_STATUS_MAP[key], None
+    return None, f"{WARN_RETURN_STATUS}:{_code(raw)}"
 
 
 def map_status(
@@ -242,12 +260,13 @@ def map_status(
 ) -> tuple[str, str | None]:
     """``(order_lines status, warning or None)`` for a TikTok order / line status.
 
-    A return / refund state (``return_status``) wins over a delivered or in-transit order, never
-    over a cancellation. An unknown status is ``in_transit`` when ``paid``, else ``pending``."""
-    if is_cancelled_status(raw):
+    A return / refund state (``return_status``, of this line) wins over a delivered or in-transit
+    order, never over a cancellation or an unpaid / on-hold order. An unknown order status is
+    ``in_transit`` when ``paid``, else ``pending``."""
+    if _cancelled(raw):
         return OrderStatus.CANCELLED.value, None
     key = _key(raw)
-    refund = map_return_status(return_status)
+    refund, _ = map_return_status(return_status)
     if refund is not None and key not in {"UNPAID", "ON_HOLD"}:
         return refund, None
     mapped = _STATUS_MAP.get(key)
@@ -296,7 +315,7 @@ def map_order_lines(
     order_ref: str,
     raw_payload_id: uuid.UUID | None = None,
     price_detail: Mapping[str, Any] | None = None,
-    return_status: Any = None,
+    return_statuses: Mapping[str, Any] | None = None,
 ) -> tuple[list[OrderLine], list[str]]:
     """One order's canonical lines and warnings (the order's currency is checked by the caller)."""
     warnings: list[str] = []
@@ -309,11 +328,10 @@ def map_order_lines(
     items = [it for _, it in sorted(enumerate(raw_items), key=_id_order)]
     payment = _map(order.get("payment"))
     paid_at = _time(order.get("paid_time"))
-    order_status, warning = map_status(
-        order.get("status"), paid=paid_at is not None, return_status=return_status
-    )
+    order_status, warning = map_status(order.get("status"), paid=paid_at is not None)
     if warning:
         warnings.append(warning)
+    returns = {str(k): v for k, v in (return_statuses or {}).items()}
     delivered_at = _time(order.get("delivery_time"))
 
     originals = [
@@ -334,10 +352,17 @@ def map_order_lines(
     voucher_rejected = False
     for line_no, item in enumerate(items):
         status = order_status
-        if order_status != OrderStatus.CANCELLED.value and is_cancelled_status(
-            item.get("display_status")
-        ):
+        if order_status != OrderStatus.CANCELLED.value and _cancelled(item.get("display_status")):
             status = OrderStatus.CANCELLED.value
+        else:
+            raw_return = returns.get(
+                _text(item.get("id")) or "", returns.get(_text(item.get("sku_id")) or "")
+            )
+            refund, return_warning = map_return_status(raw_return)
+            if return_warning and return_warning not in warnings:
+                warnings.append(return_warning)
+            if refund is not None and order_status not in {"pending", "on_hold", "cancelled"}:
+                status = refund
         original, seller_off, platform_off = originals[line_no], seller[line_no], platform[line_no]
         shop_voucher = platform_voucher = ZERO
         detail = details.get(_text(item.get("id")))
@@ -518,7 +543,7 @@ def map_order(
     raw_payload_id: uuid.UUID | None = None,
     price_detail: Mapping[str, Any] | None = None,
     statement: Mapping[str, Any] | None = None,
-    return_status: Any = None,
+    return_statuses: Mapping[str, Any] | None = None,
     statement_raw_payload_id: uuid.UUID | None = None,
     statement_times: Mapping[str, Any] | None = None,
     ref_of: Callable[[str], str] | None = None,
@@ -543,7 +568,7 @@ def map_order(
         order_ref=ref,
         raw_payload_id=raw_payload_id,
         price_detail=price_detail,
-        return_status=return_status,
+        return_statuses=return_statuses,
     )
     if statement is None:
         return MappedOrder(lines=tuple(lines), warnings=tuple(warnings))
