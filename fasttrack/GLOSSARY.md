@@ -32,9 +32,10 @@ Every term here was misread by an agent at least once and then corrected by the 
 ## Order statuses (owner 2026-11-18, D2; Shopee and TikTok the same)
 | Term | Means | Not |
 |---|---|---|
-| **returned** | the goods are back with the seller and the buyer is refunded. Revenue 0, no goods cost; the settlement fees and the packaging are the seller's cost, so the order's profit is −(fees + packaging). Not counted in đơn / GMV / AOV. | an open refund |
+| **returned** | the goods are back with the seller and the buyer is refunded. Revenue 0, no goods cost; the cost is the refund cost below plus the packaging. Not counted in đơn / GMV / AOV. | an open refund |
 | **refunded_accepted** | the refund window is still open (the buyer may still get a refund) | a finished return |
 | **refunded_not_received** | the return parcel is on its way back to the seller | goods already back (that is `returned`) |
+| **Refund cost** (owner 2026-11-18) | for `refunded_accepted`, `refunded_not_received` and `returned`: what the settlement deducted from the seller, max(0, −payout) of the order's settlement row, counted as soon as a settlement row exists whatever the status says; no settlement row = no cost yet. Revenue 0. | the sum of the fee / shipping / return-shipping columns (the payout already nets them; summing double counts) |
 | **Canonical order tables** | `order_lines`, `order_settlements`, `affiliate_lines`, `stock_history` and the `*_metrics_daily` tables (migration 134, T5): one table per fact for every platform; `day` is the GMT+7 day of the order | Shopee-only tables (`shopee_*` names stay as views for one release) |
 
 ## Flow and surfaces
