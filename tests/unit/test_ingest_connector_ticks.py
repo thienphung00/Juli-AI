@@ -165,3 +165,41 @@ async def test_a_daily_run_writes_its_reader_blocks_stock_runs_and_skips_leave_t
         assert (await post(TICK)).status_code == 202
         await session.refresh(row)
         assert row.reader_blocks == []
+
+
+async def test_a_reread_tick_merges_into_the_blocks_and_a_daily_run_still_replaces(session):
+    """B2/B4: trigger ``reread`` is accepted; done readers leave their block, blocked ones join."""
+    user, shop = await _shopee_tenant(session)
+    app, code = await _paired_client(session, shop, user)
+    first = {
+        **TICK,
+        "outcomes": {
+            "shop_totals": "blocked:password_recheck",
+            "product_period": "blocked:password_recheck",
+        },
+    }
+    async with client_for(app) as ext:
+        auth = await _token_headers(ext, code)
+
+        def post(body):
+            return ext.post("/v1/ingest/connector-ticks", json=body, headers=auth)
+
+        assert (await post(first)).status_code == 202
+        reread = {**TICK, "trigger": "reread", "outcomes": {"shop_totals": "done"}}
+        assert (await post(reread)).status_code == 202
+        row = await session.get(ShopeeConnectorState, shop.id)
+        await session.refresh(row)
+        assert row.reader_blocks == [
+            {
+                "section": "phan_tich_ban_hang",
+                "reason": "password_recheck",
+                "readers": ["product_period"],
+            }
+        ]
+        again = {**reread, "outcomes": {"product_period": "done"}}
+        assert (await post(again)).status_code == 202
+        await session.refresh(row)
+        assert row.reader_blocks == []
+        assert (await post({**TICK, "outcomes": {"traffic": "blocked:login"}})).status_code == 202
+        await session.refresh(row)
+        assert [b["readers"] for b in row.reader_blocks] == [["traffic"]]

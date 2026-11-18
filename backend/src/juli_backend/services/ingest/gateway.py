@@ -45,6 +45,7 @@ from juli_backend.models.ingest import (
     DRIFT_DRIFT,
     ORDER_TYPE_NONE,
     SOURCE_CONFIDENCE,
+    SOURCE_EXTENSION,
     SOURCE_RANK,
     IngestDatasetStatus,
     IngestRawPayload,
@@ -842,6 +843,16 @@ async def ingest(
         raw_id=raw_id,
         now=now,
     )
+    if platform == "shopee" and body.source == SOURCE_EXTENSION:
+        # The read succeeded (a duplicate too): a blocked reader of this dataset is unblocked.
+        from juli_backend.services.shopee_recommendations import connector_state
+
+        await connector_state.clear_blocks_for_dataset(
+            session,
+            shop_id,
+            dataset,
+            captured_at=body.captured_at.astimezone(UTC).replace(tzinfo=None),
+        )
     logger.info(
         "ingest_accepted",
         extra={
