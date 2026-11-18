@@ -121,11 +121,11 @@ def test_headers_match_by_folded_text_and_the_old_client_header_still_reads():
 # ------------------------------------------------------------------------- checks (pure)
 
 
-def test_a_title_over_100_characters_is_rejected_with_its_length():
+def test_a_title_over_the_limit_is_rejected_with_its_length():
     assert len(LONG_TITLE) > config.MAX_TITLE_CHARS
     c = _checked(_row(after=LONG_TITLE))
     assert _kinds(c, 2) == ["title_too_long"]
-    exactly = _checked(_row(after="x" * 100))
+    exactly = _checked(_row(after="x" * config.MAX_TITLE_CHARS))
     assert not exactly.rejected
 
 

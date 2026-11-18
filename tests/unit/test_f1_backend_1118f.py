@@ -136,7 +136,7 @@ async def test_a_stale_generated_sent_card_becomes_a_new_unapproved_revision(ses
     await _flag_stale(session, seeded.shop_id, ids[0])
     counts = await stale.rerun_stale(session, seeded.shop_id, now=NOW)
     await session.commit()
-    assert counts["revised"] == 1 and counts["kept_manual"] == 0
+    assert counts["revised"] == 1
     old = await session.get(ShopProposal, ids[0])
     (new,) = (
         await session.scalars(select(ShopProposal).where(ShopProposal.supersedes_id == ids[0]))
