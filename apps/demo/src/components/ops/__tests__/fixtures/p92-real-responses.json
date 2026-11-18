@@ -386,7 +386,7 @@
     "ads_charged": 420000,
     "bridge": {
      "ads_charged": 420000,
-     "ads_label": "QC tính trên ngày có đơn có chi phí: 420.000đ / tổng chi QC 420.000đ; 60.000đ quảng cáo ngày không có đơn",
+     "ads_label": "QC đã tính theo ngày: 420.000đ / tổng chi QC 420.000đ; gồm 60.000đ quảng cáo ngày không có đơn",
      "ads_no_order_days": 60000,
      "ads_no_order_days_label": "Quảng cáo ngày không có đơn",
      "ads_total": 420000,
@@ -946,7 +946,7 @@
     "ads_charged": 210000,
     "bridge": {
      "ads_charged": 210000,
-     "ads_label": "QC tính trên ngày có đơn có chi phí: 210.000đ / tổng chi QC 210.000đ; 30.000đ quảng cáo ngày không có đơn",
+     "ads_label": "QC đã tính theo ngày: 210.000đ / tổng chi QC 210.000đ; gồm 30.000đ quảng cáo ngày không có đơn",
      "ads_no_order_days": 30000,
      "ads_no_order_days_label": "Quảng cáo ngày không có đơn",
      "ads_total": 210000,

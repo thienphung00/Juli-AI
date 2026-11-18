@@ -61,7 +61,7 @@ def test_overview_has_percent_of_revenue_margin_prior_period_and_goal():
         assert ws.cell(r, 3).value == f'=IF(ISNUMBER(B{r}),IFERROR(B{r}/B$4,"—"),"—")'
         assert ws.cell(r, 3).number_format == "0.0%"
     r = tq.OV["margin"]
-    assert ws.cell(r, 1).value == "Biên lợi nhuận (% doanh thu)"
+    assert ws.cell(r, 1).value == "Biên lợi nhuận (% GMV)"
     assert ws.cell(r, 2).value == '=IF(ISNUMBER(B7),IFERROR(B7/B4,"—"),"—")'
     assert ws["D4"].value == 4_950_000 and ws["D7"].value == 810_000  # kỳ trước, as values
     assert ws["F4"].value == 6_000_000.0 and ws["F7"].value == 1_000_000.0
@@ -75,7 +75,9 @@ def test_no_plan_means_the_goal_cells_are_a_dash():
     assert ws["F4"].value == DASH and ws["F7"].value == DASH and ws["F13"].value == DASH
 
 
-def test_the_ratio_of_profit_to_cost_is_not_called_roi_anywhere():
+def test_every_roi_label_states_its_base_qc_plus_aff():
+    """Owner 2026-11-18 (replaces the earlier "never call it ROI"): the ratio is named ROI and
+    always says what it divides by, so no bare "ROI" can be read as return over all costs."""
     wb = tq.build(_data())
     labels = {
         str(c.value)
@@ -84,8 +86,9 @@ def test_the_ratio_of_profit_to_cost_is_not_called_roi_anywhere():
         for c in row
         if isinstance(c.value, str)
     }
-    assert not any(v.strip().upper().startswith("ROI") for v in labels)
-    assert "Lợi nhuận / chi phí" in {c.value for c in wb[tq.SHEET_CHANNEL][3]}
+    rois = [v for v in labels if v.strip().upper().startswith("ROI")]
+    assert rois and all(v.startswith(tq.ROI_LABEL) for v in rois)
+    assert tq.ROI_LABEL in {c.value for c in wb[tq.SHEET_CHANNEL][3]}
 
 
 # ------------------------------------------------------------------------------ R3 Theo tháng
@@ -130,14 +133,15 @@ def test_the_same_basis_keeps_the_change():
 def test_channel_sheet_has_cost_to_revenue_profit_and_ratio_per_channel():
     ws = tq.build(_data())[tq.SHEET_CHANNEL]
     assert [c.value for c in ws[3]][7:] == [
-        "Lợi nhuận / chi phí", "Chi phí / doanh thu", "Lợi nhuận kênh (đ)",
+        tq.ROI_LABEL, "Chi phí / doanh thu", "Lợi nhuận kênh (đ)",
     ]  # fmt: skip
     assert ws["I5"].value == "=IFERROR(G5/'Tổng quan'!$B$4,\"—\")"
     assert ws["H5"].value == '=IF(ISNUMBER(G5),IFERROR(J5/G5,"—"),"—")'
     assert ws["H4"].value == DASH  # Organic has no cost
     assert ws["J5"].value.endswith('-N(G5),"—"),"—")')
-    assert ws["J7"].value == '=IF(ISNUMBER(G7),-G7,"—")'  # ưu đãi is a cost, not a channel
-    assert ws["J8"].value == "=SUM(J4:J7)"  # the channels add up to the shop's profit
+    assert ws["J7"].value == DASH  # ưu đãi is inside the revenue: shown, never a cost again
+    assert ws["J8"].value == "=SUM(J4:J6)"  # the channels add up to the shop's profit
+    assert ws["G8"].value == "=SUM(G4:G6)"
     assert "biên lợi nhuận" in ws["A10"].value
 
 
@@ -338,7 +342,7 @@ def test_day_sheet_never_leaves_a_channel_cell_blank_and_names_its_cost_column()
         for i in range(6)
     ]  # fmt: skip
     ws = tq.build(d)[tq.SHEET_DAY]
-    assert ws.cell(3, 7).value == "Chi phí (quảng cáo + tiếp thị liên kết + ưu đãi)"
+    assert ws.cell(3, 7).value == "Chi phí (quảng cáo + tiếp thị liên kết)"
     for r in range(tq.DAY_FIRST, tq.DAY_FIRST + 6):
         assert [ws.cell(r, c).value for c in (2, 3, 4, 7, 8)] == [DASH] * 5
 

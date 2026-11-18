@@ -48,7 +48,10 @@ def test_r11_ads_of_days_with_no_orders_are_charged_to_their_own_line():
         b["product_profit"] - b["ads_unattributed"] - b["other_marketing"] - b["ads_no_order_days"]
         == b["profit"]
     )
-    assert "20.000đ quảng cáo ngày không có đơn" in b["ads_label"]
+    # the no-order days are part of what was charged, never "on days with orders" only
+    assert b["ads_label"].startswith("QC đã tính theo ngày: ")
+    assert "ngày có đơn có chi phí" not in b["ads_label"]
+    assert b["ads_label"].endswith("; gồm 20.000đ quảng cáo ngày không có đơn")
 
 
 def test_r11_a_day_without_order_data_is_not_charged_missing_is_not_zero():
