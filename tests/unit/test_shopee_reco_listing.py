@@ -49,8 +49,9 @@ def test_the_audit_names_missing_late_and_too_long():
     assert a.placed == ("nước rửa chén",)
     assert a.late == ("tinh dầu sả",)
     assert a.missing == ("túi đay",)
-    # P91 D-4: visible characters = the 100-character limit, so a late keyword means too long too
-    assert a.too_long and a.issue_count == 3
+    # the first 100 characters are the visible part (late), the limit is Shopee's 120 (E7)
+    assert not a.too_long and a.issue_count == 2
+    assert not lst.audit_title("a" * 120, []).too_long
     assert lst.audit_title("a" * 121, []).too_long
 
 

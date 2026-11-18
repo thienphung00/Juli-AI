@@ -5,7 +5,7 @@ facts (a variation's price, its list price, the discount between them, a running
 unit price), every title / line is checked after the model answers, and a draft that breaks a check
 is dropped, never repaired by guessing:
 
-- a title is at most ``MAX_TITLE_CHARS`` (100) characters and holds EVERY ticked keyword;
+- a title is at most ``MAX_TITLE_CHARS`` (120) characters and holds EVERY ticked keyword;
 - no seller banned term, no generic claim pattern (``listing.is_clean``);
 - no certification, ingredient or health claim the product's facts do not state: a claim word is
   allowed only when it already stands in the current title, a ticked keyword or a fact given;
