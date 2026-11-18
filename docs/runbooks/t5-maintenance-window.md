@@ -14,6 +14,10 @@ supervised emergency, never as part of a rollback.
 
 ## Before the window
 
+- Prod is at `135_connector_multi_computer`: batch 1118e (PR #2328, Connector on several
+  computers) is deployed and its additive migration 135 applied. 134 revises 135 (chain
+  `133 -> 135 -> 134`), so the window applies exactly one revision. If prod is still at 133,
+  do not run the window: deploy the 1118e tag first (135 is additive and passes the gate).
 - The batch that carries 134 is merged into `fasttrack/optimize-product`, and
   `fasttrack/gate_status.py` prints VALID for its merge sha (the GitHub gate, including the
   Postgres `check` shards, ran `tests/integration/test_t5_canonical_tables_db.py`).
@@ -45,7 +49,7 @@ supervised emergency, never as part of a rollback.
 
    The sha printed must be the one `gate_status.py` called VALID.
 
-3. Load the environment and check the head is 133.
+3. Load the environment and check the current revision is 135 and the code's head is 134.
 
    ```bash
    set -a; . /etc/juli/api.env; set +a
@@ -53,7 +57,9 @@ supervised emergency, never as part of a rollback.
    PYTHONPATH=/root/Juli-AI-v2/infra/scripts:/root/Juli-AI-v2/backend/src /root/releases/current/.venv/bin/python /root/Juli-AI-v2/infra/scripts/safe_alembic_helpers.py head-revision --alembic-ini /root/Juli-AI-v2/alembic.ini
    ```
 
-   Expect `133_fleet_draws_real_shops`, then `134_canonical_tables`. Stop if either differs.
+   Expect `135_connector_multi_computer`, then `134_canonical_tables`. Stop if either differs:
+   `133_fleet_draws_real_shops` means 1118e is not deployed (deploy it first, then restart the
+   window from step 1); anything else means the chain moved and the batch needs a re-chain.
 
 4. Count the rows before.
 
@@ -111,12 +117,14 @@ times, so on the Shopee screens and ingest endpoints that touch the seven tables
   `model_id` fail with 5xx;
 - order-line and affiliate writes fail (`day` is NOT NULL and the old code does not set it). The
   Connector retries them after the deploy;
-- the rest of the app (TikTok, auth, Ops pages that do not read these tables) is unaffected.
+- the rest of the app (TikTok, auth, Ops pages that do not read these tables) is unaffected,
+  including the 1118e fill-job leases and per-computer Connector state (135's tables are not
+  renamed).
 
 Keep the gap between step 5 and step 7 short: tag right after step 6.
 
 ## If step 5 fails
 
 `safe-alembic-upgrade.sh` stops before or inside the migration's single transaction, so the
-database stays at 133. Restart the workers (step 8 without the tag), leave the clone where it is,
+database stays at 135. Restart the workers (step 8 without the tag), leave the clone where it is,
 and report the output. Do not tag.
