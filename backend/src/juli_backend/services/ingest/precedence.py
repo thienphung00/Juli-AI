@@ -31,7 +31,8 @@ TOLERANCE = Decimal("0.0001")
 class SourceConflicts:
     """What an incoming post meets on keys another source already wrote."""
 
-    #: The stored row outranks the post (a file post over a Connector row): the post is dropped.
+    #: The stored row outranks the post (a file post over a Connector row): the stored values
+    #: are kept; the post only fills the stored row's NULL columns (rank_guard.ranked_set).
     kept_existing: int = 0
     #: The post outranks the stored row (a Connector post over a file row): it is replaced.
     replaced_existing: int = 0
