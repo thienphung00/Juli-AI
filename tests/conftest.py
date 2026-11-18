@@ -253,6 +253,9 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         # at 095 (its data step fills hashes, audit links and attribution),
         # after the two-tenant end-to-end attribution walk.
         "test_change_attribution_db.py",
+        # T5: migration 134 round trip with rows seeded at 133 (naive times, an unknown status),
+        # after its two-tenant RLS tests through the tables and the compat views.
+        "test_t5_canonical_tables_db.py",
     }
 )
 

@@ -57,9 +57,13 @@ def test_additive_only_rls_and_grants():
 def test_tables_are_tenant_direct_and_match_the_orm():
     from juli_backend.database.tenant_scoped_tables import TABLE_CLASSIFICATION_MAP
     from juli_backend.orm_base import Base
+    from tests.support.shopee_analytics import pre_t5_columns
 
+    renamed = {"shopee_stock_history": "stock_history"}  # migration 134 (T5)
+    by_name = {m.class_.__tablename__: m.class_ for m in Base.registry.mappers}
     for table in TABLES:
-        assert TABLE_CLASSIFICATION_MAP[("public", table)] == "tenant_direct"
-        assert table in Base.metadata.tables
-        for column in Base.metadata.tables[table].columns.keys():
+        current = renamed.get(table, table)
+        assert TABLE_CLASSIFICATION_MAP[("public", current)] == "tenant_direct"
+        assert current in Base.metadata.tables
+        for column in pre_t5_columns(by_name[current]):
             assert f'"{column}"' in PATH.read_text("utf-8"), (table, column)

@@ -1,4 +1,5 @@
-"""Writer of the ``order_income`` dataset: ``shopee_order_income`` (migration 119, P91 D-12).
+"""Writer of the ``order_income`` dataset: ``order_settlements`` (migration 119, P91 D-12; named
+``shopee_order_income`` until migration 134).
 
 One row per (shop, platform, order). A later post of the same order replaces the row when its
 source ranks the same or higher (file over extension, as ``gateway._upsert``); a column the
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 CHUNK = 400
 KEY_COLUMNS = ("shop_id", "platform", "order_ref")
-#: Row fields copied to same-named columns.
+#: Row fields copied to the column of the same name (or of :data:`COLUMN_OF`'s name).
 AMOUNT_FIELDS: tuple[str, ...] = (
     "payout",
     "product_price",
@@ -52,7 +53,10 @@ AMOUNT_FIELDS: tuple[str, ...] = (
     "trade_in_bonus_seller",
     "transaction_fee_rate",
 )
-STATED_COLUMNS: tuple[str, ...] = ("ordered_on", "paid_on", *AMOUNT_FIELDS)
+#: Migration 134: a wire field whose column has a platform-neutral name.
+COLUMN_OF: dict[str, str] = {"ship_shopee_subsidy": "ship_platform_subsidy"}
+AMOUNT_COLUMNS: tuple[str, ...] = tuple(COLUMN_OF.get(name, name) for name in AMOUNT_FIELDS)
+STATED_COLUMNS: tuple[str, ...] = ("ordered_on", "paid_on", *AMOUNT_COLUMNS)
 
 
 def _insert(session: AsyncSession) -> Any:
@@ -92,7 +96,7 @@ def income_values(
         }
         for name in AMOUNT_FIELDS:
             amount: Decimal | None = getattr(row, name)
-            value[name] = amount
+            value[COLUMN_OF.get(name, name)] = amount
         out.append(value)
     return out
 

@@ -22,13 +22,13 @@ from __future__ import annotations
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, replace
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.shopee_profit import ShopeeAffiliateLine
+from juli_backend.models.shopee_profit import ORDER_LINE_STATUSES, ShopeeAffiliateLine
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.engine import (
     KolTag,
@@ -47,11 +47,12 @@ PLATFORM = "shopee"
 
 @dataclass(frozen=True)
 class AffiliateLine:
-    """A ``shopee_affiliate_lines`` row, detached from the ORM."""
+    """An ``affiliate_lines`` row, detached from the ORM."""
 
     order_ref: str
     line_no: int
     item_id: str
+    #: ``affiliate_lines.variation_id`` (``model_id`` until migration 134)
     model_id: str
     price: Decimal | None
     qty: int | None
@@ -67,21 +68,21 @@ class AffiliateLine:
     channel: str | None
     campaign_type: str | None
     mcn: bool | None
+    #: Migration 134: the stored GMT+7 day of ``ordered_at``.
+    day: date | None = None
 
 
 async def load_affiliate_lines(
     session: AsyncSession, shop_id: uuid.UUID, start: date, end: date
 ) -> list[AffiliateLine]:
-    """The shop's stored affiliate lines ordered within ``start`` .. ``end`` (inclusive)."""
-    lo = datetime.combine(start, time.min)
-    hi = datetime.combine(end + timedelta(days=1), time.min)
+    """The shop's stored affiliate lines ordered on a GMT+7 day in ``start`` .. ``end``."""
     rows = await session.execute(
         select(ShopeeAffiliateLine)
         .where(
             ShopeeAffiliateLine.shop_id == shop_id,
             ShopeeAffiliateLine.platform == PLATFORM,
-            ShopeeAffiliateLine.ordered_at >= lo,
-            ShopeeAffiliateLine.ordered_at < hi,
+            ShopeeAffiliateLine.day >= start,
+            ShopeeAffiliateLine.day <= end,
         )
         .order_by(ShopeeAffiliateLine.ordered_at, ShopeeAffiliateLine.order_ref)
     )
@@ -90,14 +91,14 @@ async def load_affiliate_lines(
             order_ref=r.order_ref,
             line_no=r.line_no,
             item_id=r.item_id,
-            model_id=r.model_id or "",
+            model_id=r.variation_id or "",
             price=r.price,
             qty=r.qty,
             order_value=r.order_value,
             refund_amount=r.refund_amount,
             commission=r.commission,
             valid=r.valid,
-            order_status=r.order_status,
+            order_status=r.status,
             ordered_at=r.ordered_at,
             completed_at=r.completed_at,
             kol_key=r.kol_key,
@@ -105,14 +106,19 @@ async def load_affiliate_lines(
             channel=r.affiliate_channel,
             campaign_type=r.affiliate_campaign_type,
             mcn=r.affiliate_mcn,
+            day=r.day,
         )
         for r in rows.scalars()
     ]
 
 
 def status_of(line: AffiliateLine) -> OrderStatus:
-    """The report's order status as the profit engine's: only a finished order carries profit."""
+    """The report's order status as the profit engine's: only a finished order carries profit.
+    A canonical value (:data:`ORDER_LINE_STATUSES`, as a TikTok writer stores it) maps
+    directly; the Shopee report's own text is read by its words."""
     text = (line.order_status or "").casefold()
+    if text in _CANONICAL:
+        return _CANONICAL[text]
     if any(w in text for w in ("hủy", "huỷ", "cancel")):
         return OrderStatus.CANCELLED
     refunded = line.refund_amount is not None and line.refund_amount > ZERO
@@ -121,6 +127,14 @@ def status_of(line: AffiliateLine) -> OrderStatus:
     if line.completed_at is not None or any(w in text for w in ("hoàn thành", "complete")):
         return OrderStatus.DELIVERED
     return OrderStatus.IN_TRANSIT
+
+
+#: Canonical statuses the profit engine knows by name; the others (pending, confirmed, on_hold,
+#: in_transit) are not finished: no profit.
+_KNOWN = {s.value: s for s in OrderStatus}
+_CANONICAL: dict[str, OrderStatus] = {
+    status: _KNOWN.get(status, OrderStatus.IN_TRANSIT) for status in ORDER_LINE_STATUSES
+}
 
 
 def _unit_price(line: AffiliateLine) -> Decimal:
@@ -137,8 +151,12 @@ def _raw(line: AffiliateLine) -> RawLine:
         order_ref=line.order_ref,
         line_no=line.line_no,
         ordered_at=line.ordered_at,
-        # to_shop_lines keeps paid lines only; a cancelled order never was a sale.
-        paid_at=None if status is OrderStatus.CANCELLED else line.ordered_at,
+        # to_shop_lines keeps paid lines only; a cancelled or unpaid order never was a sale.
+        paid_at=(
+            None
+            if status is OrderStatus.CANCELLED or (line.order_status or "") == "pending"
+            else line.ordered_at
+        ),
         status=status.value,
         item_id=line.item_id,
         sku=None,
@@ -165,6 +183,7 @@ def _raw(line: AffiliateLine) -> RawLine:
         affiliate_campaign_type=line.campaign_type,
         affiliate_mcn=line.mcn,
         variation_id=line.model_id,
+        day=line.day,
     )
 
 

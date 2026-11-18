@@ -12,7 +12,7 @@ from juli_backend.services.shopee_analytics.windows import Window
 def _h(item, model, at, sellable, status="active", available=None):
     return SimpleNamespace(
         item_id=item,
-        model_id=model,
+        variation_id=model,  # stock_history.variation_id (model_id until 134)
         read_at=at,
         sellable=sellable,
         available=available,

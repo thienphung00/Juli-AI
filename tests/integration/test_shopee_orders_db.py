@@ -1,7 +1,7 @@
 """P90 step 2, migration 113 on real Postgres: RLS, grants, the gateway as ``juli_app``, up / down.
 
 - the two new tables have row-level security on and give ``juli_app`` SELECT, INSERT only
-  (append-only), ``juli_ops`` nothing; ``shopee_order_lines`` keeps SELECT, INSERT, UPDATE;
+  (append-only), ``juli_ops`` nothing; ``order_lines`` keeps SELECT, INSERT, UPDATE;
 - two tenants: a shop sees and writes only its own rows in each new table;
 - the gateway, as the runtime role under each shop's scope, writes order lines (upsert, a NULL
   fee never erases a stored one), marks them from the affiliate lane, appends the ad change log
@@ -36,13 +36,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 VERBS = ("SELECT", "INSERT", "UPDATE", "DELETE")
 NOW = datetime(2026, 11, 3, 3, 0)
 NEW_TABLES = ("shop_health_daily", "ads_change_log")
-LINES = "shopee_order_lines"
+LINES = "order_lines"
 NEW_LINE_COLUMNS = (
     "buyer_shipping_fee",
     "bank_promo",
     "ad_attributed",
     "seller_subsidy",
-    "shopee_subsidy",
+    "platform_subsidy",
     "returned_qty",
     "completed_at",
     "paid_at",
@@ -259,7 +259,7 @@ async def test_the_gateway_writes_the_p90_datasets_as_the_runtime_role(shopee_te
     (line,) = await _scalar(
         a.shop_id,
         "SELECT status, fee_fixed, fee_payment, seller_subsidy, buyer_shipping_fee, "
-        "ad_attributed, item_id, paid_at FROM public.shopee_order_lines",
+        "ad_attributed, item_id, paid_at FROM public.order_lines",
     )
     assert line.status == "refunded_accepted"
     assert (float(line.fee_fixed), float(line.fee_payment)) == (4000.0, 2000.0)
@@ -276,7 +276,7 @@ async def test_the_gateway_writes_the_p90_datasets_as_the_runtime_role(shopee_te
     }
     await _post(a.shop_id, "affiliate_order_lines", _body([affiliate]))
     (marked,) = await _scalar(
-        a.shop_id, "SELECT affiliate, commission, traffic_source FROM public.shopee_order_lines"
+        a.shop_id, "SELECT affiliate, commission, traffic_source FROM public.order_lines"
     )
     assert marked.affiliate is True and float(marked.commission) == 900.0
     assert marked.traffic_source == "affiliate"
@@ -372,17 +372,23 @@ def test_zz_downgrade_drops_and_upgrade_restores(owner_engine):
             }
 
     def line_columns() -> set[str]:
+        """The 113 columns under either name: below 134 the table is ``shopee_order_lines`` and
+        the subsidy ``shopee_subsidy`` (134 renamed both)."""
         with owner_engine.connect() as conn:
-            return set(
+            found = set(
                 conn.execute(
                     text(
                         "SELECT column_name FROM information_schema.columns "
-                        "WHERE table_schema = 'public' AND table_name = :t "
+                        "WHERE table_schema = 'public' AND table_name = ANY(:t) "
                         "AND column_name = ANY(:c)"
                     ),
-                    {"t": LINES, "c": list(NEW_LINE_COLUMNS)},
+                    {
+                        "t": [LINES, "shopee_order_lines"],
+                        "c": [*NEW_LINE_COLUMNS, "shopee_subsidy"],
+                    },
                 ).scalars()
             )
+        return {"platform_subsidy" if c == "shopee_subsidy" else c for c in found}
 
     assert tables() == set(NEW_TABLES) and line_columns() == set(NEW_LINE_COLUMNS)
     command.downgrade(cfg, "112_shopee_profit_and_history")

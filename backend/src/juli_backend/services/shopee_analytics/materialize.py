@@ -656,9 +656,9 @@ async def data_days(session: AsyncSession, shop_id: uuid.UUID) -> list[date]:
     )
     out.update(built.scalars().all())
     lines = await session.execute(
-        select(ShopeeOrderLine.ordered_at).where(ShopeeOrderLine.shop_id == shop_id)
+        select(ShopeeOrderLine.day).where(ShopeeOrderLine.shop_id == shop_id).distinct()
     )
-    out.update(v.date() for v in lines.scalars().all())
+    out.update(lines.scalars().all())
     daily = await session.execute(
         select(PlatformDailyMetric.day)
         .where(

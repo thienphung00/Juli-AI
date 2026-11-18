@@ -144,7 +144,7 @@ async def load_item_days(
         item = catalog.resolve(ln.item_id, ln.sku, ln.variation_sku)
         if not item or item.startswith("sku:"):
             continue
-        d = ln.ordered_at.date()
+        d = ln.day
         a = out[item][d]
         a.gmv += float(ln.deal_price * ln.qty)
         key = (item, d)

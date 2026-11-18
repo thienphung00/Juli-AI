@@ -1,6 +1,6 @@
 """P91 D-9, migration 118 on real Postgres: the KOL columns, the gateway marking, the read model.
 
-- ``shopee_order_lines`` gained five nullable KOL columns and one partial index; RLS and the
+- ``order_lines`` gained five nullable KOL columns and one partial index; RLS and the
   ``juli_app`` grants of the table are unchanged (SELECT, INSERT, UPDATE);
 - the gateway, as the runtime role under a shop's scope, marks an order line from the affiliate
   lane with the hashed KOL key, the public handle, the channel, the campaign type and an MCN
@@ -31,7 +31,7 @@ from tests.support.postgres import requires_postgres
 pytestmark = [requires_postgres]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-LINES = "shopee_order_lines"
+LINES = "order_lines"
 KOL_COLUMNS = (
     "kol_key",
     "kol_handle",
@@ -39,7 +39,7 @@ KOL_COLUMNS = (
     "affiliate_campaign_type",
     "affiliate_mcn",
 )
-INDEX = "ix_shopee_order_lines_kol"
+INDEX = "ix_order_lines_kol"
 REF = "c" * 32
 HANDLE = "kol_alpha"
 NOW = datetime(2026, 11, 3, 3, 0)
@@ -66,10 +66,7 @@ def test_the_columns_are_nullable_and_the_table_keeps_its_rls_and_grants(owner_e
         ).scalar_one()
         assert "kol_key IS NOT NULL" in index
         assert conn.execute(
-            text(
-                "SELECT relrowsecurity FROM pg_class "
-                "WHERE oid = 'public.shopee_order_lines'::regclass"
-            )
+            text("SELECT relrowsecurity FROM pg_class WHERE oid = 'public.order_lines'::regclass")
         ).scalar()
         verbs = {
             v
@@ -100,7 +97,7 @@ async def test_the_gateway_marks_a_line_with_its_kol_and_the_read_model_shows_it
     (row,) = await _scalar(
         a.shop_id,
         "SELECT affiliate, commission, kol_key, kol_handle, affiliate_channel, "
-        "affiliate_campaign_type, affiliate_mcn FROM public.shopee_order_lines",
+        "affiliate_campaign_type, affiliate_mcn FROM public.order_lines",
     )
     assert row.affiliate is True and float(row.commission) == 900.0
     assert (row.kol_key, row.kol_handle) == (kol_key(HANDLE), HANDLE)
@@ -110,9 +107,7 @@ async def test_the_gateway_marks_a_line_with_its_kol_and_the_read_model_shows_it
     )
     assert row.affiliate_mcn is True  # a flag; the MCN's name is stored nowhere
     dump = repr(
-        await _scalar(
-            a.shop_id, "SELECT row_to_json(l)::text AS j FROM public.shopee_order_lines l"
-        )
+        await _scalar(a.shop_id, "SELECT row_to_json(l)::text AS j FROM public.order_lines l")
     )
     assert "Agency X" not in dump
 
@@ -152,13 +147,17 @@ def test_zz_downgrade_drops_the_kol_columns_and_upgrade_restores_them(owner_engi
                 conn.execute(
                     text(
                         "SELECT column_name FROM information_schema.columns "
-                        "WHERE table_schema = 'public' AND table_name = :t "
+                        "WHERE table_schema = 'public' AND table_name = ANY(:t) "
                         "AND column_name = ANY(:c)"
                     ),
-                    {"t": LINES, "c": list(KOL_COLUMNS)},
+                    # migration 134 renamed the table and the index; below 134 the shopee_* names
+                    {"t": [LINES, "shopee_order_lines"], "c": list(KOL_COLUMNS)},
                 ).scalars()
             )
-            idx = conn.execute(text("SELECT to_regclass(:n)"), {"n": f"public.{INDEX}"}).scalar()
+            idx = conn.execute(
+                text("SELECT coalesce(to_regclass(:n), to_regclass(:o))"),
+                {"n": f"public.{INDEX}", "o": "public.ix_shopee_order_lines_kol"},
+            ).scalar()
         return cols, idx is not None
 
     assert state() == (set(KOL_COLUMNS), True)

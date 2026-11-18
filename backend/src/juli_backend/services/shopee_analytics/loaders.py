@@ -286,6 +286,7 @@ async def load_order_lines(
             affiliate_mcn=r.affiliate_mcn,
             variation_id=r.variation_id,
             variation_name=r.variation_name,
+            day=r.day,
         )
         for r in rows
     ]

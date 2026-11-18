@@ -1,11 +1,12 @@
 """The per-variation stock history, written on every ``item_snapshot`` ingest (Part S).
 
 ``record(session, rows, provenance)`` is called from ``ingest.gateway._write`` (one line), inside
-the shop's tenant scope, after the snapshot writer. One ``shopee_stock_history`` row per model row
-(``model_id`` set); an item row is stored too (``model_id`` ""), it is the SKU of a listing
-without variations. A model row carries no listing flag of its own, so it takes its item row's
-(``unlisted`` -> ``unlisted``, else ``active``). The same read posted twice is a no-op (unique on
-shop, item, model, ``read_at``). Nothing commits here.
+the shop's tenant scope, after the snapshot writer. One ``stock_history`` row per model row
+(the wire's ``model_id`` set, stored as ``variation_id``); an item row is stored too
+(``variation_id`` ""), it is the SKU of a listing without variations. A model row carries no
+listing flag of its own, so it takes its item row's (``unlisted`` -> ``unlisted``, else
+``active``). The same read posted twice is a no-op (unique on shop, item, variation,
+``read_at``). Nothing commits here.
 """
 
 from __future__ import annotations
@@ -33,7 +34,8 @@ def _status(unlisted: bool | None) -> str | None:
 def history_values(
     rows: Sequence[ShopeeItemSnapshotRow], provenance: dict[str, Any]
 ) -> list[dict[str, Any]]:
-    """The ``shopee_stock_history`` rows of one post (pure)."""
+    """The ``stock_history`` rows of one post (pure). ``read_at`` is the post's capture time,
+    naive UTC (``stock_history.read_at`` reads a naive value as UTC)."""
     item_flag = {r.item_id: r.unlisted for r in rows if not r.model_id}
     out: dict[tuple[str, str], dict[str, Any]] = {}
     for r in rows:
@@ -44,7 +46,7 @@ def history_values(
             "id": uuid.uuid4(),
             "shop_id": provenance["shop_id"],
             "item_id": r.item_id,
-            "model_id": r.model_id,
+            "variation_id": r.model_id,
             "read_at": provenance["captured_at"],
             "sellable": None if r.sellable_stock is None else int(r.sellable_stock),
             "available": None if r.total_available_stock is None else int(r.total_available_stock),

@@ -1,7 +1,7 @@
 """P91 D-12, migration 119 on real Postgres: RLS, grants, the gateway as ``juli_app``, the engine
 reading the stored rows, up / down.
 
-- ``shopee_order_income`` has row-level security, gives ``juli_app`` SELECT, INSERT, UPDATE (no
+- ``order_settlements`` has row-level security, gives ``juli_app`` SELECT, INSERT, UPDATE (no
   DELETE) and ``juli_ops`` nothing; the purge sweep finds it; ``variation_name`` is nullable;
 - two tenants: a shop sees and writes only its own rows;
 - the gateway, as the runtime role under each shop's scope, writes the income rows (a later post
@@ -48,8 +48,8 @@ pytestmark = [requires_postgres]
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VERBS = ("SELECT", "INSERT", "UPDATE", "DELETE")
 NOW = datetime(2026, 11, 4, 3, 0)
-TABLE = "shopee_order_income"
-LINES = "shopee_order_lines"
+TABLE = "order_settlements"
+LINES = "order_lines"
 REF_1, REF_2, REF_3, REF_X = "1" * 32, "2" * 32, "3" * 32, "e" * 32
 
 
@@ -72,7 +72,7 @@ def _scope(conn, shop_id: uuid.UUID) -> None:
 def _insert(conn, shop_id: uuid.UUID, ref: str) -> None:
     conn.execute(
         text(
-            "INSERT INTO public.shopee_order_income (id, shop_id, platform, order_ref, source, "
+            "INSERT INTO public.order_settlements (id, shop_id, platform, order_ref, source, "
             "source_rank, source_version) VALUES (:id, :shop, 'shopee', :ref, 'file', 3, 't1')"
         ),
         {"id": uuid.uuid4(), "shop": shop_id, "ref": ref},
@@ -84,7 +84,7 @@ def test_the_table_has_row_level_security_and_the_right_grants(owner_engine):
         assert conn.execute(
             text(
                 "SELECT relrowsecurity FROM pg_class "
-                "WHERE oid = 'public.shopee_order_income'::regclass"
+                "WHERE oid = 'public.order_settlements'::regclass"
             )
         ).scalar()
         assert _verbs(conn, RUNTIME_ROLE, TABLE) == {"SELECT", "INSERT", "UPDATE"}
@@ -140,11 +140,11 @@ def test_a_shop_updates_its_own_row_and_cannot_delete_or_touch_another(owner_eng
     with owner_engine.connect() as conn:
         _scope(conn, a.shop_id)
         mine = conn.execute(
-            text("UPDATE public.shopee_order_income SET payout = 1 WHERE order_ref = :r"),
+            text("UPDATE public.order_settlements SET payout = 1 WHERE order_ref = :r"),
             {"r": REF_1},
         ).rowcount
         theirs = conn.execute(
-            text("UPDATE public.shopee_order_income SET payout = 1 WHERE order_ref = :r"),
+            text("UPDATE public.order_settlements SET payout = 1 WHERE order_ref = :r"),
             {"r": REF_2},
         ).rowcount
         assert (mine, theirs) == (1, 0)
@@ -215,7 +215,7 @@ async def test_the_gateway_writes_income_rows_as_the_runtime_role(shopee_tenants
     (row,) = await _rows(
         a.shop_id,
         f"SELECT payout, fee_infra, net_shipping_cost, transaction_fee_rate, paid_on, source_rank "
-        f"FROM public.shopee_order_income WHERE order_ref = '{REF_3}'",
+        f"FROM public.order_settlements WHERE order_ref = '{REF_3}'",
     )
     assert (float(row.payout), float(row.fee_infra), float(row.net_shipping_cost)) == (
         63000.0,
@@ -235,7 +235,7 @@ async def test_the_gateway_writes_income_rows_as_the_runtime_role(shopee_tenants
     )
     (row,) = await _rows(
         a.shop_id,
-        f"SELECT payout, fee_infra FROM public.shopee_order_income WHERE order_ref = '{REF_3}'",
+        f"SELECT payout, fee_infra FROM public.order_settlements WHERE order_ref = '{REF_3}'",
     )
     assert (float(row.payout), float(row.fee_infra)) == (64000.0, 3000.0)
 
@@ -252,13 +252,13 @@ async def test_the_gateway_writes_income_rows_as_the_runtime_role(shopee_tenants
     )
     (row,) = await _rows(
         a.shop_id,
-        f"SELECT payout, source FROM public.shopee_order_income WHERE order_ref = '{REF_3}'",
+        f"SELECT payout, source FROM public.order_settlements WHERE order_ref = '{REF_3}'",
     )
     assert (float(row.payout), row.source) == (64000.0, "file")
 
     # Shop B sees none of it.
     assert not await _rows(
-        b.shop_id, f"SELECT 1 FROM public.shopee_order_income WHERE order_ref = '{REF_X}'"
+        b.shop_id, f"SELECT 1 FROM public.order_settlements WHERE order_ref = '{REF_X}'"
     )
 
 
@@ -334,8 +334,7 @@ async def test_the_engine_costs_combos_by_pack_and_charges_the_income_order_its_
     )
     stored = await _rows(
         a.shop_id,
-        "SELECT order_ref, variation_id, variation_name FROM public.shopee_order_lines "
-        "ORDER BY order_ref",
+        "SELECT order_ref, variation_id, variation_name FROM public.order_lines ORDER BY order_ref",
     )
     assert [
         (r.variation_id, r.variation_name) for r in stored if r.order_ref in (REF_1, REF_2)
@@ -385,11 +384,18 @@ def test_zz_downgrade_drops_and_upgrade_restores(owner_engine):
 
     def present() -> tuple[bool, bool]:
         with owner_engine.connect() as conn:
-            table = conn.execute(text("SELECT to_regclass('public.shopee_order_income')")).scalar()
+            # migration 134 renamed both tables; below 134 they carry the shopee_* names
+            table = conn.execute(
+                text(
+                    "SELECT coalesce(to_regclass('public.order_settlements'), "
+                    "to_regclass('public.shopee_order_income'))"
+                )
+            ).scalar()
             col = conn.execute(
                 text(
                     "SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' "
-                    "AND table_name = 'shopee_order_lines' AND column_name = 'variation_name'"
+                    "AND table_name IN ('order_lines', 'shopee_order_lines') "
+                    "AND column_name = 'variation_name' LIMIT 1"
                 )
             ).scalar()
             return table is not None, col is not None

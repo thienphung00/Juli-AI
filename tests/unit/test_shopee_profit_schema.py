@@ -48,6 +48,7 @@ from juli_backend.models.shopee_profit import (
     ShopeeOrderLine,
 )
 from juli_backend.orm_base import Base
+from tests.support.shopee_analytics import pre_t5_columns
 
 REPO = Path(__file__).resolve().parents[2]
 MIGRATIONS = REPO / "backend/src/juli_backend/database/migrations"
@@ -61,7 +62,7 @@ NOW = datetime(2026, 11, 3, 3, 0)
 TENANT_TABLES = {
     "platform_item_snapshots": PlatformItemSnapshot,
     "product_image_assets": ProductImageAsset,
-    "shopee_order_lines": ShopeeOrderLine,
+    "order_lines": ShopeeOrderLine,  # shopee_order_lines until migration 134 (T5)
     "shop_rule_versions": ShopRuleVersion,
     "ad_campaign_purposes": AdCampaignPurpose,
 }
@@ -110,7 +111,7 @@ def test_migration_112_fits_alembic_and_the_deferred_tail_moved_onto_it():
     # P90 step 2's 113 went on 112 and took the deferred tail.
     later = LATER_MIGRATION.read_text("utf-8")
     assert f'down_revision: str | None = "{mig.revision}"' in later
-    assert 'down_revision: str | None = "133_fleet_draws_real_shops"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "134_canonical_tables"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_additive_gate_accepts_migration_112():
@@ -169,6 +170,8 @@ def test_every_model_column_is_created_by_the_migration(model):
             | _added_columns(KOL_MIGRATION.read_text("utf-8"))
             | _income_added_columns()
         )
+        # Migration 134 (T5) renames shopee_subsidy and adds the GMT+7 day and source_rank.
+        created |= {"platform_subsidy", "day", "source_rank"}
     for column in model.__table__.columns.keys():
         assert column in created, f"{model.__tablename__}.{column}"
     for column in ("role", "item_scope"):
@@ -233,7 +236,7 @@ def test_order_lines_have_no_column_that_could_hold_a_buyer():
         | _income_added_columns()
     )
     assert added and added.isdisjoint(_created_columns(source))
-    assert _created_columns(source) | added == set(columns)
+    assert _created_columns(source) | added == pre_t5_columns(ShopeeOrderLine)  # T5 renames
 
 
 # =========================================================================== card events
@@ -276,7 +279,7 @@ def _line(shop_id: uuid.UUID, **kw) -> ShopeeOrderLine:
         "order_ref": "h" * 64,
         "line_no": 1,
         "ordered_at": NOW,
-        "status": "completed",
+        "status": "delivered",
         "item_id": "1001",
         "qty": 2,
         "original_price": Decimal("200000"),

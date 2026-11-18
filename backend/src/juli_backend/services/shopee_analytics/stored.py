@@ -12,7 +12,7 @@ from __future__ import annotations
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timedelta
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -244,16 +244,16 @@ async def data_days_in(
 ) -> frozenset[date]:
     """The days of ``window`` the shop has order lines or daily Shopee rows for -- the days the
     metrics rebuild writes a stored row for (``materialize.data_days``)."""
-    start = datetime.combine(window.start, time.min)
-    end = datetime.combine(window.end + timedelta(days=1), time.min)
     lines = await session.execute(
-        select(ShopeeOrderLine.ordered_at).where(
+        select(ShopeeOrderLine.day)
+        .where(
             ShopeeOrderLine.shop_id == shop_id,
-            ShopeeOrderLine.ordered_at >= start,
-            ShopeeOrderLine.ordered_at < end,
+            ShopeeOrderLine.day >= window.start,
+            ShopeeOrderLine.day <= window.end,
         )
+        .distinct()
     )
-    out = {v.date() for v in lines.scalars().all() if v is not None}
+    out = set(lines.scalars().all())
     daily = await session.execute(
         select(PlatformDailyMetric.day)
         .where(

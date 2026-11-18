@@ -309,13 +309,14 @@ def test_migration_126_is_additive_and_reversible():
     assert mod.TENANT_TABLES == ("shopee_source_metrics_daily",)
     assert "ENABLE ROW LEVEL SECURITY" in src and "GRANT SELECT, INSERT, UPDATE" in src
     assert "item_id IS NULL" in src and "item_id IS NOT NULL" in src
-    assert TABLE_CLASSIFICATION_MAP[("public", "shopee_source_metrics_daily")] == "tenant_direct"
+    # migration 134 (T5) renamed the table
+    assert TABLE_CLASSIFICATION_MAP[("public", "source_metrics_daily")] == "tenant_direct"
     for column in ShopeeSourceMetricsDaily.__table__.columns.keys():
         assert f'"{column}"' in src, column
     for source in SOURCES:
         assert f"'{source}'" in src
     tail = versions.parent / "deferred/101_write_mode_backfill.py"
-    assert 'down_revision: str | None = "133_fleet_draws_real_shops"' in tail.read_text("utf-8")
+    assert 'down_revision: str | None = "134_canonical_tables"' in tail.read_text("utf-8")
 
 
 async def test_product_sources_come_from_the_daily_item_traffic_and_sum_to_the_product_row(

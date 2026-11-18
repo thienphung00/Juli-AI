@@ -826,7 +826,7 @@ async def pair_daily(
     for r in rows:
         if r.paid_at is None:
             continue
-        day = r.ordered_at.date()
+        day = r.day
         cell = out.setdefault(day, {"orders": 0, "units": 0, "gmv": ZERO})
         cell["units"] += r.qty
         cell["gmv"] += r.deal_price * r.qty
