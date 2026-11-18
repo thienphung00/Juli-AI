@@ -255,7 +255,7 @@ describe("batch approve", () => {
 describe("rules editor", () => {
   it("saves as the seller by default and as the team with the toggle; 422 shows inline", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
-    render(<RulesEditor onDelete={vi.fn()} onSave={onSave} rules={rules({ ctr: 3 })} />);
+    render(<RulesEditor platform="tiktok" onDelete={vi.fn()} onSave={onSave} rules={rules({ ctr: 3 })} />);
     expect(screen.getByTestId("rule-stability_band-ctr")).toHaveTextContent("Đội ngũ Juli đặt · 08/10/2026");
     expect(screen.getByTestId("rule-max_open_cards")).toHaveTextContent("Mặc định");
 
@@ -278,7 +278,7 @@ describe("rules editor", () => {
 
   it("D24.21: edits the content voice — Giọng văn and Từ không được dùng", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
-    render(<RulesEditor onDelete={vi.fn()} onSave={onSave} rules={rules({})} />);
+    render(<RulesEditor platform="tiktok" onDelete={vi.fn()} onSave={onSave} rules={rules({})} />);
     expect(screen.getByTestId("rule-max_open_cards")).toHaveTextContent("5–30");
 
     const tone = screen.getByTestId("rule-content_tone");
@@ -476,7 +476,7 @@ function stubClients(overrides: Partial<QdClients> = {}): QdClients {
 function renderSignedIn(query: Partial<QdQuery>, clients: QdClients) {
   const onNavigate = vi.fn();
   render(
-    <SignedInQuyetDinh
+    <SignedInQuyetDinh platform="tiktok"
       clients={clients}
       onNavigate={onNavigate}
       query={{ tab: "de-xuat", run: null, rulesOpen: false, ...query }}

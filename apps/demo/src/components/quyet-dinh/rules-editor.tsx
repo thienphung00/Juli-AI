@@ -2,6 +2,8 @@
 
 import { useId, useState, type ReactNode } from "react";
 
+import { fmt } from "../../lib/shopee-analytics/format";
+
 import { QdApiError } from "../../lib/quyet-dinh/client-types";
 import { LEVER_LABELS, RULE_LABELS, TEAM_TOGGLE_LABEL, bandMetricLabel, setByLabel } from "../../lib/quyet-dinh/copy";
 import {
@@ -47,8 +49,10 @@ export interface RulesEditorProps {
   readonly offApiReadOnly?: boolean;
   /** Juli Ops (D25.14): every value is written as the team's; no toggle. */
   readonly fixedSetBy?: SetBy;
-  /** Juli Ops (migration 110): a Shopee shop names Shopee and is not asked GMV Max fields. Default TikTok. */
-  readonly platform?: ShopPlatform;
+  /** The shop's marketplace (required: a Shopee shop names Shopee and is not asked GMV Max fields). */
+  readonly platform: ShopPlatform;
+  /** Display names by scope ref (`item_id` or `item_id:model_id`) for the cost rows, when known. */
+  readonly scopeNames?: Readonly<Record<string, string>>;
 }
 
 /** 422 → the rule's own range, in the seller's words (the backend's text is English). */
@@ -221,6 +225,13 @@ function NumberRule({
   );
 }
 
+/** A cost row's value: money in VN format ("65.125 ₫/sản phẩm"), a number otherwise. */
+function scopeValueText(value: unknown, suffix: string): string {
+  const n = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : NaN;
+  if (!Number.isFinite(n)) return `${String(value)} ${suffix}`;
+  return suffix.startsWith("₫") ? `${fmt(n, 0)} ${suffix}` : `${fmt(n, 2).replace(/,00$/, "")} ${suffix}`;
+}
+
 function ScopedRule({
   ruleKey,
   entries,
@@ -230,7 +241,9 @@ function ScopedRule({
   onSave,
   onDelete,
   help,
+  names,
 }: {
+  readonly names?: Readonly<Record<string, string>>;
   readonly ruleKey: "product_cost" | "max_discount_pct" | "sku_cost";
   readonly entries: Readonly<Record<string, RuleValueItem>>;
   readonly scopeLabel: string;
@@ -254,7 +267,7 @@ function ScopedRule({
           {list.map(([ref, item]) => (
             <li key={ref}>
               <span>
-                {scopeLabel} {ref}: {String(item.value)} {suffix}
+                {names?.[ref] ? <b>{names[ref]}</b> : `${scopeLabel} ${ref}`}: {scopeValueText(item.value, suffix)}
               </span>
               <span className="qd-rule__by"> · {provenance(item)}</span>
               <button
@@ -331,7 +344,7 @@ function ClearButton({
   );
 }
 
-function CampaignOptIn({ rules, setBy, onSave, onDelete, platform = "tiktok" }: FieldProps & { readonly platform?: ShopPlatform }) {
+function CampaignOptIn({ rules, setBy, onSave, onDelete, platform }: FieldProps & { readonly platform: ShopPlatform }) {
   const write = useRulesControl();
   const item = rules.joins_platform_campaigns;
   const selectId = useId();
@@ -519,7 +532,7 @@ function ContentVoiceFields({ rules, setBy, onSave, onDelete }: FieldProps) {
   );
 }
 
-function OffApiFields({ rules, setBy, onSave, onDelete, platform }: FieldProps & { readonly platform: ShopPlatform }) {
+function OffApiFields({ rules, setBy, onSave, onDelete, platform, scopeNames }: FieldProps & { readonly platform: ShopPlatform; readonly scopeNames?: Readonly<Record<string, string>> }) {
   const number = (
     ruleKey: "default_gross_margin_pct" | "default_max_discount_pct" | "program_fee_pct" | "target_roas" | "gmv_max_daily_budget",
     suffix: string,
@@ -544,6 +557,7 @@ function OffApiFields({ rules, setBy, onSave, onDelete, platform }: FieldProps &
       <ScopedRule
         entries={rules.sku_cost ?? {}}
         help={OFF_API_HELP.sku_cost}
+        names={scopeNames}
         onDelete={onDelete}
         onSave={onSave}
         ruleKey="sku_cost"
@@ -617,7 +631,8 @@ export function RulesEditor({
   headingLevel = 2,
   offApiReadOnly = false,
   fixedSetBy,
-  platform = "tiktok",
+  platform,
+  scopeNames,
 }: RulesEditorProps) {
   const write = useRulesControl();
   const [team, setTeam] = useState(false);
@@ -775,6 +790,7 @@ export function RulesEditor({
         />
         <ScopedRule
           entries={rules.product_cost}
+          names={scopeNames}
           onDelete={onDelete}
           onSave={onSave}
           ruleKey="product_cost"
@@ -784,6 +800,7 @@ export function RulesEditor({
         />
         <ScopedRule
           entries={rules.max_discount_pct}
+          names={scopeNames}
           onDelete={onDelete}
           onSave={onSave}
           ruleKey="max_discount_pct"
@@ -799,7 +816,7 @@ export function RulesEditor({
         {offApiReadOnly ? (
           <OffApiReadOnly rules={rules} />
         ) : (
-          <OffApiFields onDelete={onDelete} onSave={onSave} platform={platform} rules={rules} setBy={setBy} />
+          <OffApiFields onDelete={onDelete} onSave={onSave} platform={platform} rules={rules} scopeNames={scopeNames} setBy={setBy} />
         )}
       </fieldset>
     </section>

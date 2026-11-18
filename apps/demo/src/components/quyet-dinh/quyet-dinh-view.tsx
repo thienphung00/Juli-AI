@@ -20,6 +20,7 @@
  * (rules editor open).
  */
 
+import type { ShopPlatform } from "../../lib/shop-platform";
 import type { DemoDecisionItem } from "@juli/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -154,8 +155,11 @@ export function QuyetDinhView({
   simulated = false,
   onSimulateMeasure,
   openRunOnApprove = false,
+  platform,
 }: {
   readonly token: string;
+  /** The shop's marketplace: the rules panel names it. */
+  readonly platform: ShopPlatform;
   readonly shop: { readonly id: string; readonly name: string };
   readonly query: QdQuery;
   readonly onNavigate: (href: string) => void;
@@ -584,6 +588,7 @@ export function QuyetDinhView({
         rules.status === "ready" ? (
           <RulesEditor
             offApiReadOnly={sample && !simulated}
+            platform={platform}
             onClose={() => navigate({ rulesOpen: false })}
             onDelete={onDeleteRule}
             onSave={onSaveRule}

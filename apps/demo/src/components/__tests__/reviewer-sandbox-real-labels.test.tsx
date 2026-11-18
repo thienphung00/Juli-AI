@@ -173,7 +173,7 @@ function clients(over: Partial<QdClients> = {}): QdClients {
 function renderQd(query: QdQuery, c: QdClients) {
   return render(
     <StaticReviewerProvider reviewer={SANDBOX}>
-      <SignedInQuyetDinh clients={c} onNavigate={vi.fn()} query={query} shop={{ id: "shop-1", name: "Juli Sandbox" }} token="tok" />
+      <SignedInQuyetDinh platform="tiktok" clients={c} onNavigate={vi.fn()} query={query} shop={{ id: "shop-1", name: "Juli Sandbox" }} token="tok" />
     </StaticReviewerProvider>,
   );
 }

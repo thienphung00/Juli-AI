@@ -59,6 +59,7 @@ export function SampleQuyetDinh({
         onNavigate={onNavigate}
         onSimulateApprove={reviewer ? (cardIds, proceed) => setSimulating({ cardId: cardIds[0], proceed }) : undefined}
         onSimulateMeasure={simulated ? (stage) => store.simulateMeasurement(stage) : undefined}
+        platform="tiktok"
         query={query}
         sample
         shop={SAMPLE_SHOP}

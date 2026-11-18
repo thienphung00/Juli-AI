@@ -50,7 +50,7 @@ function clients(fetchRuns: QdClients["fetchRuns"]): QdClients {
 
 function show(c: QdClients) {
   render(
-    <SignedInQuyetDinh
+    <SignedInQuyetDinh platform="tiktok"
       clients={c}
       onNavigate={vi.fn()}
       query={{ tab: "dang-thuc-hien", run: null, rulesOpen: false }}

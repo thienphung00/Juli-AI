@@ -281,7 +281,7 @@ describe("P92 · chọn phương án", () => {
 });
 
 describe("P92 · các loại khác", () => {
-  it("title: ticked keywords go to the LLM; 'LLM tắt' keeps manual editing with the 100-character counter and coverage", async () => {
+  it("title: ticked keywords go to the LLM; 'LLM tắt' keeps manual editing with the 120-character counter and coverage", async () => {
     const builder = fakeBuilder({}, { draftTitle: new ShopeeApiError(503, "llm_off", "LLM tắt") });
     open(builder);
     await toKinds(builder);
@@ -292,8 +292,8 @@ describe("P92 · các loại khác", () => {
     expect(await screen.findByTestId("p2-llm-off")).toHaveTextContent("LLM tắt");
     expect((calls(builder, "draftTitle")[0]!.args[0] as { keywords: string[] }).keywords).toEqual(["túi zip đựng đồ ăn"]);
     const box = screen.getByRole("textbox", { name: "Tiêu đề" });
-    fireEvent.change(box, { target: { value: "x".repeat(104) } });
-    expect(screen.getByTestId("p2-title-count")).toHaveTextContent("104/100");
+    fireEvent.change(box, { target: { value: "x".repeat(124) } });
+    expect(screen.getByTestId("p2-title-count")).toHaveTextContent("124/120");
     expect(screen.getByText("Quá 4 ký tự: không thêm được.")).toBeInTheDocument();
     expect(screen.getByText(/✕ túi zip đựng đồ ăn/)).toBeInTheDocument();
     fireEvent.change(box, { target: { value: "Túi Zip Đựng Đồ Ăn 20 túi" } });

@@ -67,7 +67,7 @@ describe("LIVE slot text", () => {
 
 describe("P14-F rule fields, signed in", () => {
   it("shows every field with its help, unset by default", () => {
-    render(<RulesEditor onDelete={vi.fn()} onSave={vi.fn()} rules={rules()} />);
+    render(<RulesEditor platform="tiktok" onDelete={vi.fn()} onSave={vi.fn()} rules={rules()} />);
     const group = screen.getByTestId("rules-off-api");
     expect(within(group).getByText("Thông tin TikTok không cung cấp")).toBeInTheDocument();
     for (const field of OFF_API_FIELDS) {
@@ -80,7 +80,7 @@ describe("P14-F rule fields, signed in", () => {
 
   it("saves numbers, the campaign choice, the note and LIVE slots with set_by", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
-    render(<RulesEditor onDelete={vi.fn()} onSave={onSave} rules={rules()} />);
+    render(<RulesEditor platform="tiktok" onDelete={vi.fn()} onSave={onSave} rules={rules()} />);
 
     const margin = screen.getByTestId("rule-default_gross_margin_pct");
     await userEvent.type(within(margin).getByRole("textbox"), "35,5");
@@ -117,7 +117,7 @@ describe("P14-F rule fields, signed in", () => {
 
   it("shows input mistakes and 422s inline in Vietnamese, without saving", async () => {
     const onSave = vi.fn().mockRejectedValueOnce(new QdApiError(422, null, "target_roas: value must be > 0"));
-    render(<RulesEditor onDelete={vi.fn()} onSave={onSave} rules={rules()} />);
+    render(<RulesEditor platform="tiktok" onDelete={vi.fn()} onSave={onSave} rules={rules()} />);
 
     const roas = screen.getByTestId("rule-target_roas");
     await userEvent.type(within(roas).getByRole("textbox"), "0");
@@ -138,7 +138,7 @@ describe("P14-F rule fields, signed in", () => {
   it("shows set values with who set them, and Bỏ đặt unsets", async () => {
     const onDelete = vi.fn().mockResolvedValue(undefined);
     render(
-      <RulesEditor
+      <RulesEditor platform="tiktok"
         onDelete={onDelete}
         onSave={vi.fn()}
         rules={rules({
@@ -159,7 +159,7 @@ describe("P14-F rule fields, signed in", () => {
   it("an older backend without the P14 fields still renders them as unset", () => {
     const legacy = { ...rules() } as Record<string, unknown>;
     for (const field of OFF_API_FIELDS) delete legacy[field.key];
-    render(<RulesEditor onDelete={vi.fn()} onSave={vi.fn()} rules={legacy as unknown as ShopRules} />);
+    render(<RulesEditor platform="tiktok" onDelete={vi.fn()} onSave={vi.fn()} rules={legacy as unknown as ShopRules} />);
     expect(screen.getByTestId("rule-sku_cost")).toHaveTextContent("Chưa đặt.");
   });
 });
@@ -167,7 +167,7 @@ describe("P14-F rule fields, signed in", () => {
 describe("P14-F rule fields, signed-out sample", () => {
   it("shows the sample values read-only, with no input or save button", () => {
     const sample = sampleRules();
-    render(<RulesEditor offApiReadOnly onDelete={vi.fn()} onSave={vi.fn()} rules={sample} />);
+    render(<RulesEditor platform="tiktok" offApiReadOnly onDelete={vi.fn()} onSave={vi.fn()} rules={sample} />);
     const group = screen.getByTestId("rules-off-api");
     expect(within(group).getByTestId("off-api-sample-note")).toHaveTextContent("Đăng nhập để đặt");
     expect(within(group).queryByRole("textbox")).toBeNull();

@@ -284,7 +284,7 @@ describe("P32-E — every feature simulated for the reviewer in the sample shop"
     const requests = spyNetwork();
     render(
       <StaticReviewerProvider reviewer={null}>
-        <RulesEditor onDelete={vi.fn()} onSave={vi.fn()} rules={await reviewerSampleClients().fetchRules({ token: "", shopId: "" })} />
+        <RulesEditor platform="tiktok" onDelete={vi.fn()} onSave={vi.fn()} rules={await reviewerSampleClients().fetchRules({ token: "", shopId: "" })} />
       </StaticReviewerProvider>,
     );
     expect(screen.queryByTestId("simulated-label")).toBeNull();

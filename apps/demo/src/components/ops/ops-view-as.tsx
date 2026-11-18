@@ -341,7 +341,7 @@ export function OpsViewAs({
                 <OpsViewAsShopeeDecisions fetchImpl={baseFetch} params={qdParams} shopId={shopId} shopName={session?.shop.shop_name} />
               ) : null}
               {(tab === "decisions" && !isShopee) || tab === "rules" ? (
-                <QuyetDinhView clients={clients} key={tab} onNavigate={onNavigate} query={qdQuery} shop={{ id: shopId, name }} token={token} />
+                <QuyetDinhView clients={clients} key={tab} onNavigate={onNavigate} platform={platformOf(session?.shop.platform)} query={qdQuery} shop={{ id: shopId, name }} token={token} />
               ) : null}
             </div>
             </SellerViewProvider>

@@ -23,7 +23,8 @@ export type Kind92 =
   | "price_display";
 
 export const MAX_VERSIONS = 4;
-export const MAX_TITLE = 100;
+/** Shopee's own title limit (its field shows n/120). */
+export const MAX_TITLE = 120;
 /** The server's limits (`services/shopee_builder/specs.py`), checked here so a refusal reads in Vietnamese. */
 export const MAX_PCT = 90;
 export const MAX_VOUCHER_DAYS = 90;
@@ -290,12 +291,29 @@ function comboTiersIncrease(dtype: "pct" | "amount" | "special_price", tiers: re
  * precision (0–23) in Seller Centre; "" = the whole day. `maxDays` = the programme's longest run (180 for
  * Chương Trình Của Shop); null = no limit.
  */
+export const HOUR_PROBLEM = "Giờ từ 00:00 đến 23:59 (ví dụ 08:00).";
+/** "8", "08" or "08:30" → the hour (Seller Centre's programme forms run on whole hours); null when it is not a time of day. */
+export function parseHour(text: string): number | null {
+  const m = /^(\d{1,2})(?::(\d{2}))?$/.exec(text.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = m[2] === undefined ? 0 : Number(m[2]);
+  return h <= 23 && min <= 59 ? h : null;
+}
+/** The error to show next to an hour field ("" = the whole day, no error). */
+export function hourProblem(text: string): string | null {
+  return text.trim() === "" || parseHour(text) !== null ? null : HOUR_PROBLEM;
+}
+
+/** "₫5.000". */
+const vndText = (n: number): string => `₫${fmt(n, 0)}`;
+
 function windowHours(c: { start: string; end: string; startHour?: string; endHour?: string }, maxDays: number | null = null): { problem: string | null; fields: Record<string, number> } {
   const fields: Record<string, number> = {};
   for (const [key, text, date] of [["start_hour", c.startHour ?? "", c.start], ["end_hour", c.endHour ?? "", c.end]] as const) {
     if (text.trim() === "") continue;
-    const h = num(text);
-    if (h === null || !Number.isInteger(h) || h < 0 || h > 23) return { problem: "Giờ là số nguyên từ 0 đến 23.", fields: {} };
+    const h = parseHour(text);
+    if (h === null) return { problem: HOUR_PROBLEM, fields: {} };
     if (!date) return { problem: "Chọn ngày cho giờ bắt đầu / kết thúc.", fields: {} };
     fields[key] = h;
   }
@@ -372,6 +390,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       if (v.dtype === "pct" && value > 90) return no("Voucher phần trăm tối đa 90%.");
       if (min < 0) return no("Đơn tối thiểu từ 0đ.");
       if (v.dtype === "amount" && min > 0 && value >= min) return no("Giá trị voucher phải nhỏ hơn đơn tối thiểu.");
+      if (v.dtype === "amount" && min > 0 && value * 100 < min) return no(`Giá trị giảm phải từ 1% đơn tối thiểu: đề nghị ${vndText(Math.ceil(min / 100))} hoặc đổi đơn tối thiểu thành ${vndText(value * 100)}.`);
       const cap = v.dtype === "pct" ? intIn(v.max, 1, Number.MAX_SAFE_INTEGER, "Giảm tối đa từ 1đ.") : { n: null, problem: null };
       const usage = intIn(v.usage, 1, 10_000_000, "Số lượt dùng tối đa từ 1.");
       const perBuyer = intIn(v.perBuyer, 1, 100, "Giới hạn mỗi người từ 1 đến 100 lượt.");

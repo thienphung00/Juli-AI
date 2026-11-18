@@ -364,7 +364,7 @@ describe("Quyết định for a reviewer: simulated Duyệt → Thực thi", () 
     const c = qdClients({ fetchRules: vi.fn().mockResolvedValue(noBands()) });
     render(
       <StaticReviewerProvider reviewer={REVIEWER}>
-        <SignedInQuyetDinh
+        <SignedInQuyetDinh platform="tiktok"
           clients={c}
           onNavigate={vi.fn()}
           query={{ tab: "de-xuat", run: null, rulesOpen: false }}
@@ -389,7 +389,7 @@ describe("Quyết định for a reviewer: simulated Duyệt → Thực thi", () 
   it("a seller's Quyết định is unchanged: the real approve runs", async () => {
     const c = qdClients();
     render(
-      <SignedInQuyetDinh
+      <SignedInQuyetDinh platform="tiktok"
         clients={c}
         onNavigate={vi.fn()}
         query={{ tab: "de-xuat", run: null, rulesOpen: false }}

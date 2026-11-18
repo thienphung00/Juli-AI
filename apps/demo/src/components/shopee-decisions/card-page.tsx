@@ -29,6 +29,7 @@ import {
   versionCode,
   versionName,
   versionsOf,
+  vnDay,
   vnWhenFull,
 } from "../../lib/shopee-decisions/versions";
 import { Notice, TextChip } from "../shopee-analytics/ui";
@@ -52,7 +53,7 @@ import { BreachDialog, TitleBox, VersionsTable } from "./versions";
  * the assisted-execution sheet.
  */
 
-type Outcome = { readonly kind: "approved" | "planned" | "requested" | "dismissed" | "executed" | "sent" | "withdrawn"; readonly text: string; readonly more?: string; readonly ack?: string; readonly planLink?: boolean };
+type Outcome = { readonly kind: "approved" | "planned" | "requested" | "dismissed" | "executed" | "reverted" | "sent" | "withdrawn"; readonly text: string; readonly more?: string; readonly ack?: string; readonly planLink?: boolean };
 
 const ADJUSTABLE = new Set(["draft", "sent", "changes_requested"]);
 const NO_PATCH: Patch = {};
@@ -173,6 +174,11 @@ function nextCard(detail: CardDetail, queue: readonly CardSummary[] | null): { r
 }
 
 const dmy = (iso: string): string => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+/** The card's own last-computed (else created) day in VN; only a card with neither falls back to the data's as-of date. */
+const cardDay = (detail: CardDetail, asOf: string): string => {
+  const day = vnDay(detail.computed_at ?? detail.created_at);
+  return day === DASH ? dmy(asOf) : day;
+};
 
 function todayText(card: Card): string {
   if (isTitleKind(card)) return "tiêu đề hiện tại";
@@ -409,7 +415,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
           {kolBlock?.low_data ? <TextChip tone="warn">{kolBlock.low_data_label ?? "Ít dữ liệu"}</TextChip> : null}
           {detail.product_id && !isKol ? <span className="sa-chip sa-chip--outline">SP · {detail.product_id}</span> : null}
           {isKol ? <h2 className="sa-h2">{detail.title}</h2> : <h1 className="sa-h1 sa-h1--title">{detail.title}</h1>}
-          <StatusChip status={detail.status} />
+          <StatusChip reverted={!!detail.reverted} status={detail.status} />
           {detail.bundle ? <TextChip tone="info">Đo như một gói</TextChip> : null}
           {detail.legacy ? (
             <span data-testid="sd-legacy" title={detail.legacy.note}>
@@ -427,7 +433,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
         <p className="sa-hint" data-testid="sd-queue-line">
           {detail.product_queue ? <b>{queueLabel(detail.product_queue)}</b> : null}
           {detail.product_queue ? " · " : ""}
-          {detail.family_label} · cập nhật {dmy(shown.as_of)} · {fmt(versions.length, 0)} phiên bản{detail.product_queue && queueTotal > 0 ? ` · ${queueTotal} thẻ` : ""}
+          {detail.family_label} · cập nhật {cardDay(detail, shown.as_of)} · {fmt(versions.length, 0)} phiên bản{detail.product_queue && queueTotal > 0 ? ` · ${queueTotal} thẻ` : ""}
         </p>
         {kolBlock ? (
           <p className="sa-hint" data-testid="kol-basis">
@@ -477,7 +483,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
         </p>
       ) : null}
 
-      {detail.status === "approved" || detail.status === "executed" ? <ExecutionPanel detail={detail} onExecuted={() => onChanged({ kind: "executed", text: "Đã ghi nhận “Đã làm”" })} sheet={final.sheet} /> : null}
+      {detail.status === "approved" || detail.status === "executed" ? <ExecutionPanel detail={detail} onExecuted={() => onChanged({ kind: "executed", text: "Đã ghi nhận “Đã làm”" })} onReverted={() => onChanged({ kind: "reverted", text: "Đã ghi nhận hoàn tác" })} sheet={final.sheet} /> : null}
 
       {host.builder?.banner && detail.product_id && BANNER_KINDS.has(detail.change_kind) ? <CardBanner api={host.builder} cardId={detail.id} itemId={detail.product_id} readOnly={!!host.readOnly} /> : null}
 

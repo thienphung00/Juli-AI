@@ -240,7 +240,7 @@ function RevertBlock({ detail, sheet, onChanged }: { readonly detail: CardDetail
   );
 }
 
-export function ExecutionPanel({ detail, sheet, onExecuted }: { readonly detail: CardDetail; readonly sheet: ExecutionSheet; readonly onExecuted: () => void }) {
+export function ExecutionPanel({ detail, sheet, onExecuted, onReverted }: { readonly detail: CardDetail; readonly sheet: ExecutionSheet; readonly onExecuted: () => void; readonly onReverted?: () => void }) {
   const host = useReco();
   const [voucherId, setVoucherId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -288,7 +288,7 @@ export function ExecutionPanel({ detail, sheet, onExecuted }: { readonly detail:
             <summary>Xem lại bảng thao tác</summary>
             <SheetView sheet={sheet} />
           </details>
-          <RevertBlock detail={detail} onChanged={onExecuted} sheet={sheet} />
+          <RevertBlock detail={detail} onChanged={onReverted ?? onExecuted} sheet={sheet} />
         </>
       ) : (
         <>

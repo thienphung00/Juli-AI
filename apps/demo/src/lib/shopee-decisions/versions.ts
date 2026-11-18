@@ -154,6 +154,12 @@ export function vnWhenFull(iso: string | null | undefined): string {
   return `${get("day")}/${get("month")}/${get("year")} ${get("hour")}:${get("minute")}`;
 }
 
+/** "18/11/2026" in Vietnam time (the day of a timestamp, not its UTC date). */
+export function vnDay(iso: string | null | undefined): string {
+  const full = vnWhenFull(iso);
+  return full === DASH ? DASH : full.slice(0, 10);
+}
+
 /** "Đã xác nhận vượt giá sàn · 04/11/2026 10:15". */
 export function ackText(bs: readonly Breach[], at: string | null | undefined): string {
   return `Đã xác nhận ${breachVerb(bs)} · ${vnWhenFull(at)}`;

@@ -231,7 +231,7 @@ function clients(over: Partial<QdClients> = {}): QdClients {
 function signedIn(query: Partial<QdQuery>, c: QdClients) {
   const onNavigate = vi.fn();
   render(
-    <SignedInQuyetDinh
+    <SignedInQuyetDinh platform="tiktok"
       clients={c}
       onNavigate={onNavigate}
       query={{ tab: "de-xuat", run: null, rulesOpen: false, ...query }}
@@ -1168,7 +1168,7 @@ describe("P67 (D75 Q2) — Đo lường lists every confirmed TikTok write on th
   it("lists create product, create discount and listing edit with the TikTok id and confirmation time", async () => {
     render(
       <StaticReviewerProvider reviewer={SANDBOX}>
-        <SignedInQuyetDinh
+        <SignedInQuyetDinh platform="tiktok"
           clients={measureClients()}
           onNavigate={vi.fn()}
           query={{ tab: "do-luong", run: null, rulesOpen: false }}
@@ -1207,7 +1207,7 @@ describe("P67 (D75 Q2) — Đo lường lists every confirmed TikTok write on th
     });
     render(
       <StaticReviewerProvider reviewer={SANDBOX}>
-        <SignedInQuyetDinh
+        <SignedInQuyetDinh platform="tiktok"
           clients={clients({ fetchDecisions: vi.fn().mockResolvedValue([]), fetchRuns: vi.fn().mockResolvedValue([written[0], edit]) })}
           onNavigate={vi.fn()}
           query={{ tab: "do-luong", run: null, rulesOpen: false }}
@@ -1259,7 +1259,7 @@ describe("P67 (D75 Q2) — Đo lường lists every confirmed TikTok write on th
     });
     render(
       <StaticReviewerProvider reviewer={SANDBOX}>
-        <SignedInQuyetDinh
+        <SignedInQuyetDinh platform="tiktok"
           clients={clients({ fetchDecisions: vi.fn().mockResolvedValue([]), fetchRuns: vi.fn().mockResolvedValue([written[0], edit]) })}
           onNavigate={vi.fn()}
           query={{ tab: "do-luong", run: null, rulesOpen: false }}
