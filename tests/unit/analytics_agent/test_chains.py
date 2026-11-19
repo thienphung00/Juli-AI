@@ -334,3 +334,59 @@ async def test_coverage_80pct_or_more_uses_totals() -> None:
 
 
 SPLIT_DAY = AS_OF - timedelta(days=7)
+
+
+async def _trang_shop_case(days_with_views: int) -> chains.ChainResult:
+    shop, srcs = funnel_data()
+    cur_first = AS_OF - timedelta(days=6)
+    srcs += source_rows(
+        AS_OF - timedelta(days=60),
+        cur_first - timedelta(days=1),
+        "trang_shop",
+        views=100,
+        clicks=10,
+        orders=1.0,
+    )
+    for i in range(7):
+        d = cur_first + timedelta(days=i)
+        has = i < days_with_views
+        srcs += source_rows(
+            d,
+            d,
+            "trang_shop",
+            views=100 if has else None,
+            clicks=10 if has else None,
+            orders=1.0 if has else None,
+        )
+    return await chains.run_chain(FakeData(shop, srcs), "orders_change", "orders", PRESET, AS_OF)
+
+
+async def test_source_coverage_40pct_is_missing_60pct_is_present() -> None:
+    low = await _trang_shop_case(3)  # 3 of 7 current days = 43 % (< 50 %)
+    assert any(
+        f.node == "trang_shop" and "no_data_in_current_window" in f.flags for f in low.findings
+    )
+    high = await _trang_shop_case(4)  # 4 of 7 = 57 % (>= 50 %)
+    assert not any(
+        "no_data_in_current_window" in f.flags for f in high.findings if f.node == "trang_shop"
+    )
+
+
+def test_ratio_metrics_are_the_metric_registrys_not_a_second_formula() -> None:
+    from decimal import Decimal
+
+    from juli_backend.services.metrics.compute import raw_value
+
+    rows = shop_rows(AS_OF - timedelta(days=9), AS_OF, gmv=700.0, orders=7.0, views=1000, clicks=70)
+    a, b = AS_OF - timedelta(days=6), AS_OF
+    for metric, comps in (
+        ("ctr", {"clicks": 490, "views": 7000}),
+        ("ctor", {"orders": 49, "clicks": 490}),
+        ("aov", {"gmv": 4900, "orders": 49}),
+    ):
+        want = raw_value(metric, {k: Decimal(v) for k, v in comps.items()})
+        assert chains.metric_value(rows, metric, a, b) == pytest.approx(float(want))
+    nulls = shop_rows(AS_OF - timedelta(days=9), AS_OF, orders=7.0, views=None, clicks=70)
+    assert chains.metric_value(nulls, "ctr", a, b) is None  # NULL is not 0
+    zero = shop_rows(AS_OF - timedelta(days=9), AS_OF, orders=0.0, gmv=0.0)
+    assert chains.metric_value(zero, "aov", a, b) is None  # zero denominator: no value

@@ -246,3 +246,10 @@ async def test_product_resolution_one_many_none() -> None:
         intent(product_phrase="a"),
     )
     assert amb["status"] == "ambiguous" and len(amb["options"]) == 2
+
+
+def test_fits_boundaries_07_goes_and_03_is_unsupported() -> None:
+    assert routing.decide(intent(), ans(fits=nl(0.7)))["outcome"] == "go"
+    assert routing.decide(intent(), ans(fits=nl(0.3)))["outcome"] == "unsupported"
+    assert routing.decide(intent(), ans(fits=nl(0.6999)))["outcome"] == "needs_choice"
+    assert routing.decide(intent(), ans(fits=nl(0.3001)))["outcome"] == "needs_choice"

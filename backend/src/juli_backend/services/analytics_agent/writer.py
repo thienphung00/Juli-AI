@@ -126,6 +126,7 @@ _EVIDENCE = re.compile(r"\b(lmdi|rate_mix|additive|evidence)[:_]\S*", re.I)
 _LONG_DECIMAL = re.compile(r"\d[\d.]*,\d{3,}|(?<![\d.])\d+\.\d{3,}(?![\d.])")
 _BIG_ID = re.compile(r"\b\d{9,}\b")
 _ENGLISH_RUN = re.compile(r"\b(?:[A-Za-z]{3,}\s+){2,}[A-Za-z]{3,}\b")
+_PLACEHOLDER = re.compile(r"placeholder|lorem ipsum|^\s*Tôi hiểu\s*:", re.I | re.M)
 _FIRST_LINE = re.compile(r"^Đang tìm hiểu: .+")
 # Latin words the Vietnamese copy legitimately keeps (brands / metrics / product names handled by
 # caller)
@@ -167,6 +168,7 @@ def sanitise(
         ("decimals", _LONG_DECIMAL),
         ("internal_word", _INTERNAL_WORDS),
         ("long_id", _BIG_ID),
+        ("placeholder", _PLACEHOLDER),
     ):
         if pat.search(probe):
             issues.append(name)

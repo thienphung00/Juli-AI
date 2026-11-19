@@ -127,6 +127,8 @@ async def test_no_shop_rows_is_data_missing() -> None:
         "lấy từ metric_view và channel split",
         'kết quả {"a": 1}',
         "the shop was down this week again",
+        "Đang tìm hiểu: placeholder",
+        "Tôi hiểu: placeholder",
     ],
 )
 def test_sanitiser_blocks_leaks(leak: str) -> None:
@@ -149,8 +151,19 @@ def test_sanitiser_swaps_ids_for_product_names() -> None:
     assert clean == "sản phẩm Áo A bán chậm" and issues == []
 
 
-def test_placeholder_first_line_is_not_accepted() -> None:
-    assert not writer._FIRST_LINE.match("Tôi hiểu: placeholder")
+async def test_placeholder_explanation_goes_through_rewrite_then_template() -> None:
+    good = FIRST + ".\nĐơn giảm vì Video kém."
+    for bad in ("Đang tìm hiểu: placeholder\nĐơn giảm.", "Tôi hiểu: placeholder\nĐơn giảm."):
+        rec = _Rec()
+        text, meta = await writer.write_explanation(
+            FakeLLM(text=bad, rewrite=good), rec.d, rec.r, FIRST, [await _chain()], [], L, {}
+        )
+        assert text == good and meta["rewrites"] == 1 and rec.replaced == [good], bad
+        rec2 = _Rec()
+        text2, meta2 = await writer.write_explanation(
+            FakeLLM(text=bad, rewrite=bad), rec2.d, rec2.r, FIRST, [await _chain()], [], L, {}
+        )
+        assert meta2["template"] and "placeholder" not in text2.lower()
 
 
 # ------------------------------------------------------------------ E6 alignment + writer

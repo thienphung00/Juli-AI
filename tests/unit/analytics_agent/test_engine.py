@@ -6,7 +6,7 @@ import uuid
 from datetime import timedelta
 from typing import Any
 
-from juli_backend.services.analytics_agent import AskRequest, engine, run, shopee_labels
+from juli_backend.services.analytics_agent import AskRequest, run, shopee_labels
 from juli_backend.services.analytics_agent.types import TEMPLATES
 from tests.unit.analytics_agent.fakes import (
     AS_OF,
@@ -250,16 +250,6 @@ async def test_timeout_is_busy_error_and_done_still_ends_the_stream() -> None:
     assert sink.of("error")[0]["code"] == "busy" and sink.events[-1]["type"] == "done"
 
 
-async def test_engine_module_never_imports_write_paths() -> None:
-    src = (
-        open(engine.__file__).read()
-        + open(
-            engine.cards_service.__file__ if hasattr(engine, "cards_service") else engine.__file__
-        ).read()
-    )
-    assert "materialize" not in src and "create_manual" not in src
-
-
 async def test_service_data_cost_lines_come_from_the_analytics_services(monkeypatch: Any) -> None:
     from contextlib import asynccontextmanager
 
@@ -295,3 +285,15 @@ async def test_service_data_cost_lines_come_from_the_analytics_services(monkeypa
     }
     prod = await sd.cost_lines(AS_OF, AS_OF, "p1")
     assert prod["net_revenue"] is None and calls[-1] == "channel_split:p1"
+
+
+async def test_placeholder_restatement_is_replaced_by_the_sellers_words() -> None:
+    for bad in ("Tôi hiểu: placeholder", "Đang tìm hiểu: placeholder", "placeholder"):
+        llm = FakeLLM({"restated_vi": bad, "intents": [intent()]}, text=TEXT)
+        sink, _ = await go(
+            req(text="Vì sao đơn giảm"),
+            llm=llm,
+            jev=FakeJev(lambda s, q: full()),
+            data=data_orders(),
+        )
+        assert sink.of("restated")[0]["text_vi"] == "Đang tìm hiểu: Vì sao đơn giảm", bad

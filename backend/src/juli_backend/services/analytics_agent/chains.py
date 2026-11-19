@@ -13,12 +13,14 @@ import math
 import statistics
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.analytics_agent import mathx
 from juli_backend.services.analytics_agent.labels import SHOPEE_SOURCES
 from juli_backend.services.analytics_agent.types import DataPort, LabelTable
 from juli_backend.services.analytics_agent.windows import Windows, build_windows, campaign_days
+from juli_backend.services.metrics.compute import raw_value
 
 EXPLAINED_SHARE = 0.70
 FOLLOW_SHARE = 0.20
@@ -138,14 +140,25 @@ def _days_with(rows: list[dict[str, Any]], key: str, a: date, b: date) -> int:
     return len({r["day"] for r in rows if a <= r["day"] <= b and r.get(key) is not None})
 
 
+#: ratio metric -> its components; the formula is the metric registry's (no second definition)
+RATIO_COMPONENTS = {
+    "aov": ("gmv", "orders"),
+    "ctr": ("clicks", "views"),
+    "ctor": ("orders", "clicks"),
+}
+
+
 def metric_value(rows: list[dict[str, Any]], metric: str, a: date, b: date) -> float | None:
+    """Sum of a count over the window, or a ratio evaluated by `services.metrics` (NULL stays
+    NULL)."""
     if metric in COUNTS:
         return _sum(rows, metric, a, b)
-    num, den = {"aov": ("gmv", "orders"), "ctr": ("clicks", "views"), "ctor": ("orders", "clicks")}[
-        metric
-    ]
-    n, d = _sum(rows, num, a, b), _sum(rows, den, a, b)
-    return n / d if n is not None and d else None
+    comps = {
+        c: (None if (v := _sum(rows, c, a, b)) is None else Decimal(str(v)))
+        for c in RATIO_COMPONENTS[metric]
+    }
+    out = raw_value(metric, comps)
+    return float(out) if isinstance(out, Decimal) else None
 
 
 def noise_band(
