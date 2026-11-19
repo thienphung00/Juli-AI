@@ -111,3 +111,32 @@ export function jobHarness(raw: Record<string, unknown> | JobReply, over: { prom
   };
   return { deps, reports, progress, details, refs, halted, clock };
 }
+
+/**
+ * 0.3.28 (F5.2): the person's clicks. `person` runs once, at the first sleep after the panel is up and
+ * the first progress went to Juli (the fill is done, the follow is on). Their click is a dispatched
+ * event or a fixture change: HTMLElement.prototype.click stays the Connector's (always 0 calls).
+ */
+export function afterPanel(h: JobHarness, person: () => void): void {
+  const sleep = h.deps.sleep;
+  let acted = false;
+  h.deps.sleep = async (ms) => {
+    if (!acted && h.reports.length >= 2 && h.clock.t > 60_000) {
+      acted = true;
+      person();
+    }
+    await sleep(ms);
+  };
+}
+
+/** The person checks a radio / checkbox. */
+export function choose(el: Element | null): void {
+  const input = el as HTMLInputElement;
+  input.checked = true;
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+/** The person's click on a control (a dispatched event, never HTMLElement.prototype.click). */
+export function personClicks(el: Element | null): void {
+  el!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}

@@ -581,14 +581,14 @@ describe("login wall and CAPTCHA: stop and report blocked", () => {
     expect(ctx.alarms.active.has(READER_WATCHDOG_ALARM)).toBe(false);
   });
 
-  it("a sign-in path on Seller Centre itself is a login wall, a verify path a CAPTCHA", async () => {
+  it("a sign-in path on Seller Centre itself is a login wall, a verify path a CAPTCHA (0.3.28: /verify/traffic is its own reason)", async () => {
     const login = setup();
     await login.scheduler.tick();
     expect(await login.scheduler.onTabReady(login.tabs.current.id, `${SC}/account/signin?next=x`)).toBe(true);
     expect((await login.read())?.blocked?.reason).toBe("login");
     const verify = setup();
     await verify.scheduler.tick();
-    verify.tabs.inspection.set(verify.tabs.current.id, { open: true, url: `${SC}/verify/traffic` });
+    verify.tabs.inspection.set(verify.tabs.current.id, { open: true, url: `${SC}/verify/captcha` });
     verify.clock.now += READER_LOAD_GRACE_MS + 1;
     expect(await verify.scheduler.tick()).toBe("blocked:captcha");
   });

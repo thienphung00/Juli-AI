@@ -2,7 +2,7 @@
 // seller's on-screen vocabulary only (D31.8): no endpoint or backend terms.
 
 import type { Backfill, ReaderSchedule } from "../background/state";
-import { DATASET_LABELS, PASSWORD_RECHECK_LOWER } from "./guide";
+import { DATASET_LABELS, PASSWORD_RECHECK_LOWER, trafficCheckLine } from "./guide";
 
 /** Juli refused this version (below its minimum): the one line the popup shows. */
 export const upgradeRequiredLine = (minimum: string): string => `Cập nhật Juli Connector lên ${minimum}`;
@@ -48,6 +48,8 @@ export function readersLabel(readers: ReaderSchedule | null | undefined, nowMs: 
   if (!readers) return null;
   if (readers.blocked && readers.blocked.until > nowMs) {
     if (readers.blocked.reason === "password_recheck") return `Tạm dừng đọc các trang báo cáo: ${PASSWORD_RECHECK_LOWER}.`;
+    // 0.3.28 (F5.3): one shared pause for readers, fills and read-backs
+    if (readers.blocked.reason === "traffic_check") return trafficCheckLine(readers.blocked.until);
     return readers.blocked.reason === "captcha"
       ? "Tạm dừng đọc các trang báo cáo: Seller Centre yêu cầu xác minh (CAPTCHA). Mở Seller Centre, xác minh, rồi bấm “Đồng bộ hôm qua”."
       : "Tạm dừng đọc các trang báo cáo: đăng nhập lại Seller Centre để tiếp tục.";
