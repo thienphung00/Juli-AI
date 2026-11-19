@@ -230,3 +230,48 @@ def test_the_total_still_says_which_cards_it_leaves_out():
     assert pa._totals_note(j, []) == "Tổng chưa gồm 1 thẻ chưa ước tính được."
     merged = pa._merge_note({"not_estimable_cards": ["x"], "unavailable_cards": []}, True)
     assert merged == "Tổng chưa gồm 1 thẻ chưa ước tính được."
+
+
+# ------------------------------------------------------------- owner notes (verifier round)
+
+
+def test_cards_on_one_campaign_with_different_budgets_count_the_lower_one():
+    low = not_estimable("low", days=14, cost=100_000 * 14, product="p1", campaign="C")
+    high = not_estimable("high", days=14, cost=200_000 * 14, product="p2", campaign="C")
+    shares = pa.ads_shares([low, high], H, pa.AdsData())
+    assert sum(shares.cost.values()) == pytest.approx(1_400_000)  # 100.000 x 14, not 200.000
+
+
+def _ev(card_id, kind, product="p1", campaign_key=None):
+    from types import SimpleNamespace as NS
+
+    return NS(
+        entry=NS(card_id=card_id),
+        cand=NS(kind=kind, campaign_key=campaign_key),
+        product=product,
+        parts=[],
+    )
+
+
+def test_an_ads_card_without_a_key_resolves_to_the_campaign_its_product_spends_in():
+    data = pa.AdsData(products={"A": {"p1": (10.0, 1.0)}, "B": {"p1": (50.0, 2.0)}})
+    assert pa._campaign_of(_ev("c1", "ads_budget"), data) == "B"  # the larger spend
+    assert pa._campaign_of(_ev("c1", "ads_budget", campaign_key="K"), data) == "K"
+    assert pa._campaign_of(_ev("c1", "ads_new_campaign"), data) == "new:c1"
+    assert pa._campaign_of(_ev("c1", "min_spend_voucher"), data) is None  # not an ads card
+
+
+def test_an_ads_card_that_cannot_be_resolved_is_tracked_alone_and_counted_in_the_log(caplog):
+    evs = [_ev("c1", "ads_budget", "p1"), _ev("c2", "ads_budget", "p2")]
+    assert pa._campaign_of(evs[0], pa.AdsData()) == "card:c1"
+    results = {e.entry.card_id: pa.CardResult(e.entry.card_id, None, "x") for e in evs}
+    with caplog.at_level("INFO", logger=pa.log.name):
+        pa.assign_campaigns(results, evs, pa.AdsData())
+    assert [r.campaign for r in results.values()] == ["card:c1", "card:c2"]  # never None
+    assert [m for m in caplog.messages if "ads_card_without_campaign" in m] == [
+        "ads_card_without_campaign count=2"
+    ]
+    # two such cards are not merged: each keeps its own full cost
+    a = not_estimable("c1", days=14, cost=1_400_000, product="p1", campaign="card:c1")
+    b = not_estimable("c2", days=14, cost=1_400_000, product="p2", campaign="card:c2")
+    assert sum(pa.ads_shares([a, b], H, pa.AdsData()).cost.values()) == pytest.approx(2_800_000)

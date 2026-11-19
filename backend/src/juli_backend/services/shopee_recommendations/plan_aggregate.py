@@ -43,6 +43,7 @@ and ``without`` is "bỏ thẻ này thì": the plan's numbers and the floor chec
 
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -76,6 +77,8 @@ from juli_backend.services.shopee_recommendations.model import Candidate
 
 if TYPE_CHECKING:
     from juli_backend.services.shopee_builder.engine.contract import OptionResult, Scenario
+
+log = logging.getLogger(__name__)
 
 RESULT_BASIS = "option_result"
 NOT_ESTIMABLE_TEXT = "chưa ước tính được"
@@ -315,6 +318,18 @@ class AdsData:
     #: campaign key -> day -> the platform's measured spend that day
     daily: Mapping[str, Mapping[date, float]] = field(default_factory=dict)
 
+    def campaign_of_product(self, product: str | None) -> str | None:
+        """The platform campaign this product spends most in (ties: the smaller key); ``None``
+        when the platform shows no spend of it."""
+        if product is None:
+            return None
+        found = [
+            (spend, key)
+            for key, rows in self.products.items()
+            if (spend := rows.get(product, (0.0, 0.0))[0]) > 0
+        ]
+        return min(found, key=lambda t: (-t[0], t[1]))[1] if found else None
+
     def spend(self, campaign: str, product: str | None) -> float:
         rows = self.products.get(campaign, {})
         if product is None:
@@ -364,7 +379,7 @@ class AdsShares:
 
 def ads_shares(results: Sequence[CardResult], h: Horizon, data: AdsData | None = None) -> AdsShares:
     """A campaign's budget is counted ONCE in the plan however many cards (products) of that
-    campaign it holds. The campaign's cost inside the horizon is its highest per-day cost × the
+    campaign it holds. The campaign's cost inside the horizon is its lowest per-day cost × the
     days any of its cards counts; each card gets the share of its product's platform ads spend
     (equal split when the platform spent nothing on the plan's products). Forward days stay at the
     full budget: no forward-spend estimate."""
@@ -384,7 +399,8 @@ def ads_shares(results: Sequence[CardResult], h: Horizon, data: AdsData | None =
                 days.update(
                     span[0] + timedelta(days=i) for i in range((span[1] - span[0]).days + 1)
                 )
-        per_day = max((r.cost_per_day() or 0.0) for r in cards)
+        # owner: cards on one campaign with different budgets count the LOWER one
+        per_day = min((r.cost_per_day() or 0.0) for r in cards)
         total = per_day * len(days)
         spends = [data.spend(campaign, r.product) for r in cards]
         # one product with several cards splits its spend between them
@@ -740,14 +756,34 @@ def card_result(
     return out
 
 
-def _campaign_of(e: Evaluated) -> str | None:
-    """A2.2: the ads campaign a card spends the budget of: a running campaign's key; a new
-    campaign (no key yet) is its own."""
+def _campaign_of(e: Evaluated, data: AdsData | None = None) -> str | None:
+    """A2.2: the ads campaign a card spends the budget of; ``None`` only for a card that is not
+    an ads card. A running campaign's key; a new campaign (no key yet) is its own; an ads card
+    with no key resolves to the platform campaign its product spends in (``data``), else it
+    stands alone as ``card:<id>`` so it is always tracked and never merged with another."""
+    cid = e.entry.card_id
     if e.cand.kind == "ads_new_campaign":
-        return f"new:{e.entry.card_id}"
-    if e.cand.kind in ADS_KINDS:
-        return str(e.cand.campaign_key) if e.cand.campaign_key else None
-    return None
+        return f"new:{cid}"
+    if e.cand.kind not in ADS_KINDS:
+        return None
+    if e.cand.campaign_key:
+        return str(e.cand.campaign_key)
+    return (data or AdsData()).campaign_of_product(e.product) or f"card:{cid}"
+
+
+def assign_campaigns(
+    results: Mapping[str, CardResult], evs: Sequence[Evaluated], data: AdsData
+) -> None:
+    """Give every ads leaf its campaign (``_campaign_of``); one count line says how many stood
+    alone because no campaign could be resolved (a count only)."""
+    unresolved = 0
+    for e in flatten(evs):
+        leaf = results.get(e.entry.card_id)
+        if leaf is not None and leaf.campaign is None:
+            leaf.campaign = _campaign_of(e, data)
+            unresolved += bool(leaf.campaign and leaf.campaign.startswith("card:"))
+    if unresolved:
+        log.info("ads_card_without_campaign count=%d", unresolved)
 
 
 def _version_row(e: Evaluated) -> Mapping[str, Any] | None:
@@ -1668,10 +1704,7 @@ def aggregate(
     if default_end is not None:
         for r in results.values():
             r.end = default_end
-    for e in flatten(evs):
-        leaf = results.get(e.entry.card_id)
-        if leaf is not None and leaf.campaign is None:
-            leaf.campaign = _campaign_of(e)
+    assign_campaigns(results, evs, ads_data_of(env))
     memo = _Memo(env, evs, results, horizon)
     ids = [e.entry.card_id for e in evs]
     full = memo.of(ids)
