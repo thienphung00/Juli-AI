@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 
 import { DASH, fmt } from "../../lib/shopee-analytics/format";
-import { useResource } from "../../lib/shopee-analytics/use-resource";
+import { useResource, type Resource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { FILLABLE_CHANGE_KINDS } from "../../lib/shopee-decisions/model";
-import type { ExecutionCard, ExecutionState, ReaderBlock } from "../../lib/shopee-decisions/types";
+import type { ExecutionCard, ExecutionState, ExecutionStates, ReaderBlock } from "../../lib/shopee-decisions/types";
 import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { fillJobHref } from "../planned-changes/listing-extras";
 import { TextChip } from "../shopee-analytics/ui";
@@ -248,6 +248,11 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
   const readOnly = !!host.readOnly;
   const [tick, setTick] = useState(0);
   const res = useResource(() => host.reco.executionStates(), `${host.shopKey}|thuc-hien|${tick}`);
+  // F6.1: a refetch (tick) must not unmount the page: the "Xoá bảng" confirm and the import panel keep
+  // their state. While the next answer is on its way the last one of this shop stays on screen.
+  const [kept, setKept] = useState<{ readonly shop: string; readonly data: ExecutionStates } | null>(null);
+  if (res.status === "ready" && kept?.data !== res.data) setKept({ shop: host.shopKey, data: res.data });
+  const shown: Resource<ExecutionStates> = res.status === "loading" && kept && kept.shop === host.shopKey ? { status: "ready", data: kept.data } : res;
   const names = useResource(async () => new Map((await (host.products?.() ?? Promise.resolve([]))).map((p) => [p.id, p.name])), `${host.shopKey}|products`);
   const [asking, setAsking] = useState(false);
   const reconcile = async () => {
@@ -272,7 +277,7 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [count]);
   return (
-    <RecoState resource={res}>
+    <RecoState resource={shown}>
       {(data) => {
         const k = data.connector;
         const blocked = readerBlockText(k.reader_blocks);

@@ -221,6 +221,62 @@ async def revoke_token(
     return True
 
 
+INACTIVE_AFTER = timedelta(days=14)
+
+
+async def last_seen_by_token(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> dict[uuid.UUID, datetime | None]:
+    """Per token of the shop: when that computer was last seen (its heartbeat, else its last
+    use, else when it was paired)."""
+    from juli_backend.models.shopee_connector import ShopeeConnectorTokenState
+
+    beats = {
+        s.token_id: s.heartbeat_at
+        for s in (
+            await session.execute(
+                select(ShopeeConnectorTokenState).where(
+                    ShopeeConnectorTokenState.shop_id == shop_id
+                )
+            )
+        ).scalars()
+    }
+    out: dict[uuid.UUID, datetime | None] = {}
+    for t in await list_tokens(session, shop_id):
+        seen = [d for d in (beats.get(t.id), t.last_used_at, t.created_at) if d is not None]
+        out[t.id] = max(seen) if seen else None
+    return out
+
+
+async def revoke_inactive(
+    session: AsyncSession, *, shop_id: uuid.UUID, reason: str, now: datetime
+) -> int:
+    """F6.5: revoke the shop's live tokens whose computer was not seen for 14 days (never
+    another shop's, never a recently seen one). Returns how many were revoked."""
+    seen = await last_seen_by_token(session, shop_id)
+    old = []
+    for t in await list_tokens(session, shop_id):
+        last = seen.get(t.id)
+        if t.revoked_at is None and (last is None or now - last > INACTIVE_AFTER):
+            old.append(t.id)
+    if not old:
+        return 0
+    await session.execute(
+        update(IngestToken)
+        .where(
+            IngestToken.shop_id == shop_id,
+            IngestToken.id.in_(old),
+            IngestToken.revoked_at.is_(None),
+        )
+        .values(revoked_at=now, revoked_reason=reason[:64])
+    )
+    logger.info(
+        "ingest_tokens_revoked_inactive",
+        extra={"shop_id": str(shop_id), "count": len(old), "reason": reason},
+    )
+    return len(old)
+
+
 # -- extension side -------------------------------------------------------------------
 
 

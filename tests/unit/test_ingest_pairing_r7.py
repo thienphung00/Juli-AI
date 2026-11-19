@@ -154,3 +154,35 @@ async def test_the_token_list_carries_each_computers_version_and_last_seen(sessi
     assert by_id[str(second.token_id)]["connector_version"] is None
     assert by_id[str(second.token_id)]["last_seen_at"] is None
     assert by_id[str(second.token_id)]["install_id"] == INSTALL_B
+
+
+async def test_revoke_inactive_takes_only_this_shops_computers_not_seen_for_14_days(session):
+    """F6.5: the bulk revoke is per shop and only for the old ones."""
+    _, shop = await _shop(session)
+    _, other_shop = await _shop(session)
+    old = await _pair(session, shop, INSTALL_A, NOW - timedelta(days=30))
+    recent = await _pair(session, shop, INSTALL_B, NOW - timedelta(days=2))
+    foreign = await _pair(session, other_shop, INSTALL_A, NOW - timedelta(days=30))
+    shop_id, other_id = shop.id, other_shop.id
+    revoked = await svc.revoke_inactive(session, shop_id=shop_id, reason="seller_inactive", now=NOW)
+    assert revoked == 1
+    rows = {t.id: t for t in (await session.execute(select(IngestToken))).scalars()}
+    assert rows[old.token_id].revoked_at == NOW
+    assert rows[recent.token_id].revoked_at is None
+    assert rows[foreign.token_id].revoked_at is None  # another shop's old token is untouched
+    assert (
+        await svc.revoke_inactive(session, shop_id=shop_id, reason="seller_inactive", now=NOW) == 0
+    )
+    assert other_id != shop_id
+
+
+async def test_the_revoke_inactive_routes_answer_with_the_count(session):
+    user, shop = await _shop(session)
+    await _pair(session, shop, INSTALL_A, datetime(2020, 1, 1))
+    app = build_app(session)
+    authenticate(app, user=user, shop=shop)
+    async with client_for(app) as client:
+        r = await client.post("/v1/ingest/tokens/revoke-inactive")
+        assert r.status_code == 200, r.text
+        assert r.json() == {"revoked": 1}
+    app.dependency_overrides.clear()

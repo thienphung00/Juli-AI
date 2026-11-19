@@ -21,6 +21,28 @@ export interface SellerIngestToken {
   readonly last_seen_at?: string | null;
 }
 
+/** F6.5: a computer not seen for this many days is "Máy cũ". */
+export const INACTIVE_DAYS = 14;
+
+interface Seen {
+  readonly active: boolean;
+  readonly last_seen_at?: string | null;
+  readonly last_used_at: string | null;
+  readonly created_at?: string;
+}
+
+/** The computers seen in the last 14 days (newest first) and the older ones. Inactive tokens are dropped. */
+export function splitMachines<T extends Seen>(tokens: readonly T[], now: number = Date.now()): { readonly recent: readonly T[]; readonly old: readonly T[] } {
+  const seenAt = (t: T): number => {
+    const iso = t.last_seen_at ?? t.last_used_at ?? t.created_at ?? null;
+    const ms = iso ? Date.parse(iso) : Number.NaN;
+    return Number.isNaN(ms) ? 0 : ms;
+  };
+  const live = tokens.filter((t) => t.active).sort((a, b) => seenAt(b) - seenAt(a));
+  const cut = now - INACTIVE_DAYS * 86_400_000;
+  return { recent: live.filter((t) => seenAt(t) >= cut), old: live.filter((t) => seenAt(t) < cut) };
+}
+
 export class PairingRequestError extends Error {
   constructor(public readonly status: number) {
     super(`pairing request failed (${status})`);
@@ -54,6 +76,12 @@ export async function listSellerIngestTokens(auth: Auth): Promise<readonly Selle
 
 export async function revokeSellerIngestToken(auth: Auth, tokenId: string): Promise<void> {
   await call(auth, `/v1/ingest/tokens/${encodeURIComponent(tokenId)}`, "DELETE");
+}
+
+/** "Gỡ tất cả máy cũ": the shop's tokens not seen for 14 days; returns how many were revoked. */
+export async function revokeInactiveSellerTokens(auth: Auth): Promise<number> {
+  const body = (await (await call(auth, "/v1/ingest/tokens/revoke-inactive", "POST")).json()) as { revoked?: number };
+  return body.revoked ?? 0;
 }
 
 /** One dataset of `/v1/ingest/shop-status`: what Juli last received from the Connector. */
