@@ -63,6 +63,7 @@ from juli_backend.api.routes.ingest_fill import router as ingest_fill_router
 from juli_backend.api.routes.ingest_fill import seller_router as demo_fill_jobs_router
 from juli_backend.api.routes.ingest_market import router as ingest_market_router
 from juli_backend.api.routes.ingest_order_ref import router as ingest_order_ref_router
+from juli_backend.api.routes.juli_agent import router as juli_agent_router
 from juli_backend.api.routes.me import router as me_router
 from juli_backend.api.routes.ops import router as ops_router
 from juli_backend.api.routes.ops_billing import router as ops_billing_router
@@ -150,6 +151,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
 
     v1_router = APIRouter(prefix="/v1")
     v1_router.include_router(agent_runs_router)
+    v1_router.include_router(juli_agent_router)
     v1_router.include_router(auth_tiktok_router)
     v1_router.include_router(auth_tiktok_business_advertiser_router)
     v1_router.include_router(auth_tiktok_business_account_holder_router)

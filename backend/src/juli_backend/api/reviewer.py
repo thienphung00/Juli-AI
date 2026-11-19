@@ -275,6 +275,20 @@ ALLOWED_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
         (_GET, _R + "reviewer:reviewer_shop"),  # /v1/reviewer/shop
         ("POST", _R + "reviewer:reviewer_sync_shop"),  # /v1/reviewer/shop/sync
     }
+    | {
+        # batch-1120 (owner U6): the Juli tab. The route admits a reviewer ONLY on the sample
+        # pin or Juli's writable sandbox pin (``juli_agent._admit``; any other pin: 403
+        # ``read_only``). It writes Juli's own agent_* rows of that shop; Gửi is the Tự tạo
+        # card path (``manual.create_manual``, origin ``agent``), never anything outbound.
+        (_GET, _R + "juli_agent:list_templates"),  # /v1/demo/juli/templates
+        ("POST", _R + "juli_agent:ask"),  # /v1/demo/juli/ask
+        (_GET, _R + "juli_agent:stream_message_events"),  # …/messages/{id}/events
+        ("POST", _R + "juli_agent:cancel_message"),  # …/messages/{id}/cancel
+        (_GET, _R + "juli_agent:list_conversations"),  # /v1/demo/juli/conversations
+        (_GET, _R + "juli_agent:get_conversation"),  # …/conversations/{id}
+        ("POST", _R + "juli_agent:send_card"),  # …/cards/{draft_ref}/send
+        ("POST", _R + "juli_agent:dismiss_card"),  # …/cards/{draft_ref}/dismiss
+    }
     | SANDBOX_ONLY_ENDPOINTS
 )
 
