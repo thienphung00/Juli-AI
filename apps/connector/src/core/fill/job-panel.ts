@@ -1,5 +1,6 @@
 // The panel of a fill job: what was filled (a checklist), what the person still does, and the
-// reminder that Juli presses nothing. Own buttons: "Đóng" only.
+// reminder that Juli presses nothing. Own buttons: "Đóng" only. 0.3.28: the clicks are the person's,
+// listed as numbered steps (the controls are highlighted on the page).
 
 import type { CoreJob, FillOutcome } from "./form";
 import { PANEL_ID } from "./locate";
@@ -78,10 +79,13 @@ export function showJobPanel(doc: Document, input: JobPanelInput, labels: JobLab
     const header = jobHeader(input.result, labels);
     box.append(el(doc, "div", { cls: header.ok ? "banner ok" : "banner", text: header.text }));
     const list = el(doc, "ul");
+    // 0.3.28 (F5.2): the person's steps are numbered in the order to do them
+    let n = 0;
     for (const s of input.result.steps) {
       if (s.skipped) continue;
       const li = el(doc, "li");
-      li.append(el(doc, "span", { cls: s.ok ? "ok-mark" : "no-mark", text: s.ok ? "✓ " : "✗ " }), s.label);
+      const num = s.guide ? `${(n += 1)}. ` : "";
+      li.append(el(doc, "span", { cls: s.ok ? "ok-mark" : "no-mark", text: s.ok ? "✓ " : "✗ " }), `${num}${s.label}`);
       if (s.note) li.append(` — ${s.note}`);
       list.append(li);
     }

@@ -15,7 +15,7 @@ import { BANNER_JOB_NONE, BANNER_NO_PERIOD } from "../src/core/fill/job-panel";
 import { PICK_NO_OPENER } from "../src/platforms/shopee/fill/controls";
 import { runFillJob } from "../src/platforms/shopee/fill/job-run";
 import { wireEds, type Wire } from "./eds-wire";
-import { affiliateJob, comboJob, jobHarness, rawJob, voucherJob } from "./fill-job-helpers";
+import { afterPanel, affiliateJob, comboJob, jobHarness, personClicks, rawJob, voucherJob } from "./fill-job-helpers";
 import { loadPage } from "./fill-helpers";
 
 let wire: Wire;
@@ -172,8 +172,10 @@ describe("X1 the voucher form on the real page", () => {
     });
     expect(await runFillJob(h.deps)).toMatchObject({ status: "partial" });
     expect(panelText()).toContain(BANNER_NO_PERIOD);
-    expect(panelText()).toContain("Juli điền được 8/9 mục");
-    expect(panelText()).toContain("✗ Thời gian");
+    // 0.3.28: a read-only picker input is the person's step, one per date
+    expect(panelText()).toContain("Juli điền được 8/10 mục");
+    expect(panelText()).toContain("✗ 1. Chọn ngày bắt đầu 09/11/2026 12:00");
+    expect(panelText()).toContain("✗ 2. Chọn ngày kết thúc 23/11/2026 11:59");
     expect(input("start").value).toBe("15:43 17-11-2026");
     expect(h.details.at(-1)?.period_ok).toBe(false);
   });
@@ -183,22 +185,26 @@ describe("X1 the voucher form on the real page", () => {
     const h = jobHarness(raw, { path: "/portal/marketing/vouchers/new" });
     drawLate(h);
     expect(await runFillJob(h.deps)).toMatchObject({ status: "partial" });
-    expect(panelText()).toContain(`✗ Sản phẩm: 0/1 đã tick — ${PICK_NO_OPENER}`);
+    expect(panelText()).toContain(`✗ Sản phẩm: 0/1 — ${PICK_NO_OPENER}`);
   });
 });
 
 describe("X1 the combo form on the real page", () => {
-  it("fills the unlabelled 'Mua [n] sản phẩm để được giảm [x] %GIẢM' rows and ticks the exact ids", async () => {
+  it("fills the unlabelled 'Mua [n] sản phẩm để được giảm [x] %GIẢM' rows (the second once the person adds it); the picker is the person's", async () => {
     loadPage("combo-eds.html");
     const h = jobHarness(comboJob());
-    expect(await runFillJob(h.deps)).toMatchObject({ status: "filled" });
+    afterPanel(h, () => {
+      personClicks(document.querySelector("[data-add-row]")); // «Thêm mức ưu đãi»
+      document.querySelector(".bundle-form")!.insertAdjacentHTML("beforeend", "<ul><li>ID: 1001</li><li>ID: 1003</li></ul>"); // the person's picker Xác nhận
+    });
+    expect(await runFillJob(h.deps)).toMatchObject({ status: "partial" });
+    expect(h.reports.map((r) => r[1])).toContain("filled");
     const tiers = Array.from(document.querySelectorAll("#tiers .tier-row")).map((r) => Array.from(r.querySelectorAll("input")).map((i) => i.value));
     expect(tiers).toEqual([
       ["2", "5"],
       ["3", "8"],
     ]);
-    const ticked = Array.from(document.querySelectorAll<HTMLInputElement>("#ptable input:checked")).map((i) => i.closest("tr")?.textContent);
-    expect(ticked).toEqual(["Sản phẩm mẫu mộtID: 100112", "Sản phẩm mẫu baID: 10035"]);
+    expect(document.querySelectorAll("#ptable input:checked")).toHaveLength(0); // never ticked by Juli
     expect(h.details.at(-1)?.before_values).toMatchObject({ starts_at: "17:00 17-11-2026", tier1_qty: "", discount_type: "Giảm giá theo %" });
     expect(h.details.at(-1)?.period_ok).toBe(true);
     expect(wire.forbidden).toEqual([]);
@@ -215,15 +221,24 @@ describe("X1 the combo form on the real page", () => {
 });
 
 describe("X1 Shopee's 'new version' notice", () => {
-  it("closes the notice by its close icon (never 'Khám phá Ngay', never a save), then fills", async () => {
+  it("highlights the notice's close icon for the person (never 'Khám phá Ngay'), then fills what it reveals", async () => {
     loadPage("affiliate-notice.html");
     const h = jobHarness(affiliateJob());
-    expect(await runFillJob(h.deps)).toMatchObject({ status: "filled" });
+    expect(document.querySelector(".eds-modal__close")).not.toBeNull();
+    let highlighted = false;
+    afterPanel(h, () => {
+      highlighted = document.querySelector(".eds-modal__close")?.getAttribute("data-juli-guide") === "1";
+      personClicks(document.querySelector(".eds-modal__close")); // the person closes it: the page shows
+      document.getElementById("comm-dialog")!.removeAttribute("hidden"); // the person opens the bulk edit
+    });
+    expect(await runFillJob(h.deps)).toMatchObject({ status: "partial" });
+    expect(highlighted).toBe(true);
     expect(document.getElementById("notice")).toBeNull();
     expect(input("pct").value).toBe("12.5");
-    expect(wire.clicks).not.toContain("Khám phá Ngay");
+    expect(h.reports.map((r) => r[1])).toContain("filled");
+    expect(wire.clicks).toHaveLength(1); // the person's one click (on the close icon)
     expect(wire.forbidden).toEqual([]);
-    expect(panelText()).toContain("Juli đã đóng thông báo của Shopee «Phiên bản Chiến dịch Mở Rộng mới!");
+    expect(panelText()).toContain("✓ 1. Đóng thông báo «Phiên bản Chiến dịch Mở Rộng mới!");
     expect(h.details.at(-1)?.before_values).toEqual({ commission_pct: "" });
   });
 
@@ -235,7 +250,8 @@ describe("X1 Shopee's 'new version' notice", () => {
     expect(await runFillJob(h.deps)).toMatchObject({ status: "partial" });
     expect(wire.clicks).not.toContain("Khám phá Ngay");
     expect(document.getElementById("notice")).not.toBeNull();
-    expect(panelText()).toContain("đang che trang; hãy tự đóng rồi mở lại từ Juli");
+    expect(panelText()).toContain("đang che trang; hãy tự đóng (Juli không bấm)");
+    expect(document.querySelector("#notice button")?.getAttribute("data-juli-guide")).toBeNull(); // never a step
     expect(panelText().match(/đang che trang/g)).toHaveLength(1); // once (E21)
     expect(wire.forbidden).toEqual([]);
   });

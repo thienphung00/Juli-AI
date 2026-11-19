@@ -86,6 +86,7 @@ from juli_backend.api.routes.ops_shopee_reco_plan import router as ops_shopee_re
 from juli_backend.api.routes.ops_shopee_recommendations import (
     router as ops_shopee_recommendations_router,
 )
+from juli_backend.api.routes.ops_stock_alert import router as ops_stock_alert_router
 from juli_backend.api.routes.ops_trial_signups import router as ops_trial_signups_router
 from juli_backend.api.routes.orders import router as orders_router
 from juli_backend.api.routes.outcomes import router as outcomes_router
@@ -208,6 +209,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(ops_shopee_funnel_router)
     v1_router.include_router(ops_shopee_orders_router)
     v1_router.include_router(ops_shop_inputs_router)
+    v1_router.include_router(ops_stock_alert_router)
     v1_router.include_router(ops_shopee_analytics_router)
     v1_router.include_router(shop_invites_router)
     # P101 W1: the seller's businesses (switcher, self-serve invites, member removal).

@@ -90,7 +90,7 @@ function env(
     random: () => 0,
     orderLinks: () => links,
     orderListEmpty: () => options.empty === true,
-    nextOrderPage: () => false,
+    moreOrderPages: () => false,
     ...(options.permissionPage !== undefined ? { permissionDeniedVisible: () => options.permissionPage === true } : {}),
   };
   return { env: e, sent };

@@ -1,13 +1,16 @@
 // The controls a fill job needs beyond a text box (P97 D85.6): radios, selects, date pickers,
 // switches, repeated rows and a product picker. Shopee's `eds-react-*` components are found by the
 // VISIBLE LABEL next to them, never by class name alone. Anything unclear (no row, a label twice,
-// no such option) returns false and nothing is touched.
+// no such option) is "missing" and nothing is touched.
 //
-// This is the ONLY fill file that may press something, and only through `press()`, which refuses a
-// button that saves, sends, confirms, deletes or cancels (Lưu, Lưu lại, Xác nhận, Gửi, Cập nhật,
-// Tạo, Đăng, Xóa, Loại bỏ, Hủy, Ẩn, Áp dụng) or that submits a form. Opening a drop-down, choosing
-// a radio / option, switching a switch, adding a row, ticking a product and the "Chỉnh sửa hàng
-// loạt" menu are presses; Shopee's own save is never one.
+// 0.3.28 (F5.1, owner 2026-11-19): the Connector NEVER clicks on a Shopee page. Twice on 19/11 the
+// voucher fill's element.click() (isTrusted=false) sent the tab to /verify/traffic/error; the
+// title / description fills, value writes only, passed. So it writes values into text / number
+// boxes only (native setter + input / change, core/fill/write.ts) and never clicks, focuses or
+// dispatches a mouse / pointer / keyboard / focus event. Every control that needs a click is a
+// GUIDED step: the control is highlighted, the panel says exactly what to choose, and the step
+// turns ✓ only once the form shows it (the job runner's re-check). A box the person's click
+// reveals (a tier row, the rate editor, the picker's search) is written on the next re-check.
 
 import { normalizeLabel, PANEL_ID } from "../../../core/fill/locate";
 import { writeValue } from "../../../core/fill/write";
@@ -40,7 +43,7 @@ function hidden(el: Element): boolean {
 const inPanel = (el: Element) => !!el.closest(`#${PANEL_ID}`);
 const usable = (el: Element) => !inPanel(el) && !hidden(el);
 
-/** Why a press was refused (for tests and for the log): the text or the type that made it unsafe. */
+/** Why a control must never be highlighted as a step to press for the person (a save / confirm / send). */
 export function unsafePress(el: Element): string | null {
   const text = visibleText(el);
   if (FORBIDDEN_PRESS.test(text)) return text;
@@ -57,39 +60,20 @@ export function unsafePress(el: Element): string | null {
   return null;
 }
 
-/** The single place the fill code presses something. Returns false (and presses nothing) when unsafe.
- * 0.3.27: always the element's own native click(), never a synthesized MouseEvent (Shopee's
- * anti-bot sent a synthetic click to /verify/traffic/error, 2026-11-18). */
-export function press(el: HTMLElement): boolean {
-  if (unsafePress(el) !== null) return false;
-  el.click();
-  return true;
-}
-
 /**
- * The two confirms the Connector may press (owner, 2026-11-18): the date-time picker's own
- * "Xác nhận" (inside `.eds-react-date-picker__btn-wrap` of the picker's popover) and the product
- * picker's own "Xác nhận" (in the footer of the `.product-selector` dialog). Every other confirm,
- * the form's own Xác nhận / Lưu / Cập nhật included, is still refused.
+ * 0.3.28: what a click-needing control is after the fill: the form already shows the card's value
+ * ("done"), the person has a step to do there and the control is highlighted ("todo"), or the
+ * control is not on the page ("missing").
  */
-export type OwnConfirm = "date_picker" | "product_picker";
-const CONFIRM_TEXT = /^(xác nhận|confirm|ok)$/;
+export type Guide = "done" | "todo" | "missing";
 
-export function ownConfirmOf(el: Element, kind: OwnConfirm): boolean {
-  const button = el.closest("button") ?? el;
-  if (!CONFIRM_TEXT.test(visibleText(button))) return false;
-  if ((button.getAttribute("type") ?? "").toLowerCase() === "submit") return false;
-  if (kind === "date_picker") {
-    return !!button.closest('[class*="date-picker__btn-wrap"]') && !!button.closest('[class*="date-picker__popup"],[class*="date-picker__panel-wrap"]');
-  }
-  return !!button.closest('[class*="product-selector"],[class*="productSelector"]') && !!button.closest('[class*="modal__footer"]');
-}
-
-/** Presses the date picker's / product picker's OWN confirm; false (nothing pressed) for anything else. */
-export function pressOwnConfirm(el: HTMLElement, kind: OwnConfirm): boolean {
-  if (!ownConfirmOf(el, kind)) return false;
-  (el.closest("button") ?? el).click();
-  return true;
+/** Highlights a control the person clicks (the fill's mark style); never clicks it. */
+export function highlight(target: HTMLElement): void {
+  // the button the text sits in (findPressable returns the innermost text holder)
+  const el = (target.closest("button,[role='button']") as HTMLElement | null) ?? target;
+  el.style.outline = "2px dashed #db2777";
+  el.style.outlineOffset = "2px";
+  el.setAttribute("data-juli-guide", "1");
 }
 
 // -- finding a labelled row ----------------------------------------------------------------
@@ -128,7 +112,7 @@ export function findRow(doc: Document, label: string, within?: Element): HTMLEle
   return rows.size === 1 ? ([...rows][0] as HTMLElement) : null;
 }
 
-async function waitFor<T>(env: Env, find: () => T | null | undefined, ms = WAIT_MS): Promise<T | null> {
+export async function waitFor<T>(env: Env, find: () => T | null | undefined, ms = WAIT_MS): Promise<T | null> {
   const until = env.now() + ms;
   for (;;) {
     const found = find();
@@ -157,10 +141,8 @@ export function writeBox(env: Env, box: HTMLInputElement, value: string): boolea
     env.log.captureBefore(key, box.value);
     env.log.wrote({ key, el: box, want: value, seen: () => box.value, ok: () => box.value === value, rewrite: () => writeValue(box, value) });
   }
-  // 0.3.27 (combo form, 2026-11-18): Shopee validates a box on focus / blur, as when a person tabs through
-  box.focus();
+  // 0.3.28 (F5.1): no focus / blur any more (a focus event is a UI event): the value write only
   const ok = writeValue(box, value) && box.value === value;
-  box.blur();
   return ok && mark(box);
 }
 
@@ -172,7 +154,7 @@ export function setRowText(env: Env, label: string, value: string, index = 0, wi
   return writeBox(env, box, value);
 }
 
-/** Records a pressed choice (radio / select / switch) for the re-read; never pressed again. */
+/** Records a choice (radio / select / switch) for the re-read: ✓ once the form shows it. */
 function recordChoice(env: Env, el: HTMLElement, want: string, before: string, seen: () => string, ok: () => boolean): void {
   const key = env.log?.keyOf(env);
   if (!env.log || !key) return;
@@ -215,38 +197,45 @@ function checkedText(row: Element): string {
   return inner.length === 1 ? (inner[0]!.textContent ?? "").trim() : "";
 }
 
-/**
- * Chooses the radio `option` (any of its spellings) in the group labelled `label`. 0.3.27 (E45):
- * ✓ only when the group's ONE checked option reads as that option; a group whose checked option
- * cannot be read ("") is never ✓.
- */
-export async function chooseRadio(env: Env, label: string, option: string | readonly string[], within?: Element): Promise<boolean> {
-  const row = findRow(env.doc, label, within);
-  if (!row) return false;
+/** The option `option` of the radio group labelled `label`, with whether the group shows it chosen. */
+export function radioOf(doc: Document, label: string, option: string | readonly string[], within?: Element): { holder: HTMLElement; holds: () => boolean; chosen: () => string } | null {
+  const row = findRow(doc, label, within);
+  if (!row) return null;
   const target = optionIn(row, option);
-  if (!target) return false;
+  if (!target) return null;
   const names = (typeof option === "string" ? [option] : option).map(normalizeLabel);
-  const holder = target.closest("label") ?? target;
+  const holder = (target.closest("label") ?? target) as HTMLElement;
   const chosen = () => checkedText(row);
-  const holds = () => isChecked(holder) && names.includes(normalizeLabel(chosen()));
-  recordChoice(env, holder as HTMLElement, typeof option === "string" ? option : option[0]!, chosen(), chosen, holds);
-  if (!holds() && !press(holder as HTMLElement)) return false;
-  const ok = await waitFor(env, () => (holds() ? true : null), 1_000);
-  if (ok) mark(holder as HTMLElement);
-  return !!ok;
+  return { holder, chosen, holds: () => isChecked(holder) && names.includes(normalizeLabel(chosen())) };
+}
+
+/**
+ * The radio `option` (any of its spellings) in the group labelled `label`: "done" when the group's
+ * ONE checked option reads as that option (E45), else the option is highlighted for the person.
+ */
+export function chooseRadio(env: Env, label: string, option: string | readonly string[], within?: Element): Guide {
+  const radio = radioOf(env.doc, label, option, within);
+  if (!radio) return "missing";
+  recordChoice(env, radio.holder, typeof option === "string" ? option : option[0]!, radio.chosen(), radio.chosen, radio.holds);
+  if (radio.holds()) return mark(radio.holder) && "done";
+  highlight(radio.holder);
+  return "todo";
 }
 
 // -- select ---------------------------------------------------------------------------------
 
-/** Opens the select labelled `label` and picks the option with that exact text. */
-export async function chooseSelect(env: Env, label: string, option: string, index = 0, within?: Element): Promise<boolean> {
+/**
+ * The select labelled `label` on `option`: a native <select> takes the value (a value write); a
+ * Shopee drop-down is "done" when it already shows the option, else highlighted for the person.
+ */
+export function chooseSelect(env: Env, label: string, option: string, index = 0, within?: Element): Guide {
   const row = findRow(env.doc, label, within);
-  if (!row) return false;
+  if (!row) return "missing";
   const wanted = normalizeLabel(option);
   const native = Array.from(row.querySelectorAll<HTMLSelectElement>("select")).filter(usable)[index];
   if (native) {
     const hit = Array.from(native.options).find((o) => normalizeLabel(o.text) === wanted);
-    if (!hit) return false;
+    if (!hit) return "missing";
     recordChoice(env, native, option, native.selectedOptions[0]?.text ?? "", () => native.selectedOptions[0]?.text ?? "", () => native.value === hit.value);
     const win = env.doc.defaultView!;
     const setter = Object.getOwnPropertyDescriptor(win.HTMLSelectElement.prototype, "value")?.set;
@@ -254,25 +243,17 @@ export async function chooseSelect(env: Env, label: string, option: string, inde
     else native.value = hit.value;
     native.dispatchEvent(new win.Event("input", { bubbles: true }));
     native.dispatchEvent(new win.Event("change", { bubbles: true }));
-    return native.value === hit.value && mark(native);
+    return native.value === hit.value ? mark(native) && "done" : "missing";
   }
   const selector = Array.from(row.querySelectorAll<HTMLElement>('[class*="eds-selector"],[role="combobox"]'))
     .filter(usable)
     .filter((el) => !el.parentElement?.closest('[class*="eds-selector"],[role="combobox"]'))[index];
-  if (!selector) return false;
-  recordChoice(env, selector, option, (selector.textContent ?? "").trim(), () => (selector.textContent ?? "").trim(), () => visibleText(selector).includes(wanted));
-  if (visibleText(selector) === wanted) return mark(selector);
-  if (!press(selector)) return false;
-  const choice = await waitFor(env, () => {
-    // the options are drawn in a popper that may sit outside the row
-    const opts = Array.from(env.doc.querySelectorAll<HTMLElement>('[role="option"],[class*="eds-option"],[class*="eds-dropdown-item"],li')).filter(
-      (o) => usable(o) && visibleText(o) === wanted && !selector.contains(o),
-    );
-    return opts.length === 1 ? opts[0] : null;
-  });
-  if (!choice || !press(choice)) return false;
-  const shown = await waitFor(env, () => (visibleText(selector).includes(wanted) ? true : null), 1_500);
-  return !!shown && mark(selector);
+  if (!selector) return "missing";
+  const shows = () => visibleText(selector).includes(wanted);
+  recordChoice(env, selector, option, (selector.textContent ?? "").trim(), () => (selector.textContent ?? "").trim(), shows);
+  if (shows()) return mark(selector) && "done";
+  highlight(selector);
+  return "todo";
 }
 
 // -- date and time -------------------------------------------------------------------------
@@ -287,135 +268,52 @@ function dateInputs(row: Element): HTMLInputElement[] {
   );
 }
 
-/** The open date-time picker popover (the newest one drawn), or null. */
-export function datePopup(env: Env): HTMLElement | null {
-  const pops = Array.from(env.doc.querySelectorAll<HTMLElement>('[class*="date-picker__popup"]')).filter(usable);
-  return pops.length > 0 ? (pops[pops.length - 1] as HTMLElement) : null;
-}
-
-const MONTH_OF = (text: string): number | null => {
-  const m = /(\d{1,2})/.exec(text);
-  const n = m ? Number(m[1]) : NaN;
-  return n >= 1 && n <= 12 ? n : null;
-};
-
-/** The header's month / year ("Th11" "2026"), or null when it cannot be read. */
-function shownMonth(pop: Element): { month: number; year: number } | null {
-  const month = pop.querySelector('[class*="date-box"] [class*="month"]')?.textContent ?? "";
-  const year = pop.querySelector('[class*="date-box"] [class*="year"]')?.textContent ?? "";
-  const m = MONTH_OF(month);
-  const y = /^\s*(\d{4})\s*$/.exec(year)?.[1];
-  return m && y ? { month: m, year: Number(y) } : null;
-}
-
-/** The header arrows in drawn order: [prev year, prev month, next month, next year]. */
-function arrows(pop: Element): { prevMonth?: HTMLElement; nextMonth?: HTMLElement } {
-  const header = pop.querySelector('[class*="date-picker__header"]');
-  if (!header) return {};
-  const all = Array.from(header.querySelectorAll<HTMLElement>('[class*="btn-arrow"]')).filter(usable);
-  const single = all.filter((a) => !/\bdouble\b/.test(a.className.toString()));
-  return single.length === 2 ? { prevMonth: single[0], nextMonth: single[1] } : {};
-}
-
-/** The day cell `day` of the month shown (not a greyed day of the month before / after, not disabled). */
-function dayCell(pop: Element, day: number): HTMLElement | null {
-  const cells = Array.from(pop.querySelectorAll<HTMLElement>('[class*="date-picker__table-row"] [class*="date-picker__table-cell"]')).filter(
-    (c) => !/table-cell-wrap/.test(c.className.toString()) && usable(c) && (c.textContent ?? "").trim() === String(day),
-  );
-  const own = cells.filter((c) => !/(prev|next|other|outside|last-month|next-month|not-current)/i.test(c.className.toString()));
-  if (own.length === 0) return null;
-  // the 6-week grid repeats a low day at its end (next month) and a high day at its start (last month)
-  const cell = day >= 15 ? own[own.length - 1]! : own[0]!;
-  return /\bdisabled\b/.test(cell.className.toString()) ? null : cell;
-}
-
-/** The hour (0) or minute (1) column's box with this two-digit text. */
-function timeBox(pop: Element, column: 0 | 1, text: string): HTMLElement | null {
-  const cols = Array.from(pop.querySelectorAll<HTMLElement>('[class*="time-picker__tp-scrollbar"]'));
-  const col = cols[column];
-  if (!col || cols.length !== 2) return null;
-  const hits = Array.from(col.querySelectorAll<HTMLElement>('[class*="time-box"]')).filter((b) => (b.textContent ?? "").trim() === text);
-  return hits.length === 1 ? (hits[0] as HTMLElement) : null;
+/** `HH:mm DD-MM-YYYY` as the person reads it in the step: `DD/MM/YYYY HH:mm`. */
+export function dateText(value: string): string {
+  const p = /^(\d{2}):(\d{2}) (\d{2})-(\d{2})-(\d{4})$/.exec(value);
+  return p ? `${p[3]}/${p[4]}/${p[5]} ${p[1]}:${p[2]}` : value;
 }
 
 /**
- * 0.3.27 (E41): sets the `index`-th date of the labelled row through Shopee's date-time picker:
- * open it (a press on the input), go to the month, press the day, the hour and the minute, then the
- * picker's OWN Xác nhận (never the form's). A page without the picker gets the value typed (older
- * builds). ✓ only when the input then shows exactly `value` (`HH:mm DD-MM-YYYY`).
+ * The `index`-th date of the labelled row. 0.3.28: Shopee's picker input is read-only and opens a
+ * picker that needs clicks, so it is the person's step (highlighted): "done" once the input shows
+ * exactly `value` (`HH:mm DD-MM-YYYY`). An input that takes typing (older builds) gets the value.
  */
-export async function setDate(env: Env, label: string, value: string, index: number, within?: Element): Promise<boolean> {
-  const parts = /^(\d{2}):(\d{2}) (\d{2})-(\d{2})-(\d{4})$/.exec(value);
-  if (!DATE_FORMAT.test(value) || !parts) return false;
+export function setDate(env: Env, label: string, value: string, index: number, within?: Element): Guide {
+  if (!DATE_FORMAT.test(value)) return "missing";
   const row = findRow(env.doc, label, within);
-  if (!row) return false;
+  if (!row) return "missing";
   const box = dateInputs(row)[index];
-  if (!box) return false;
+  if (!box) return "missing";
   const key = env.log?.keyOf(env);
   if (env.log && key) {
     env.log.captureBefore(key, box.value);
     env.log.wrote({ key, el: box, want: value, seen: () => box.value, ok: () => box.value === value });
   }
-  if (box.value === value) return mark(box);
-  if (!box.readOnly && !datePopup(env)) {
-    // no picker drawn yet: open it first; a page that never draws one takes the typed value
-    box.focus();
-    if (!press(box)) return false;
-    const pop = await waitFor(env, () => datePopup(env), 1_000);
-    if (!pop) {
-      const typed = writeValue(box, value) && box.value === value;
-      return typed && mark(box);
-    }
-  } else if (!datePopup(env)) {
-    box.focus();
-    if (!press(box)) return false;
-  }
-  const pop = await waitFor(env, () => datePopup(env), 2_000);
-  if (!pop) return false;
-  const [, hh, mm, dd, mo, yyyy] = parts as unknown as [string, string, string, string, string, string];
-  const want = { month: Number(mo), year: Number(yyyy) };
-  for (let guard = 0; guard < 36; guard += 1) {
-    const shown = shownMonth(pop);
-    if (!shown) return false;
-    const diff = (want.year - shown.year) * 12 + (want.month - shown.month);
-    if (diff === 0) break;
-    const { prevMonth, nextMonth } = arrows(pop);
-    const arrow = diff > 0 ? nextMonth : prevMonth;
-    if (!arrow || !press(arrow)) return false;
-    const moved = await waitFor(env, () => {
-      const now = shownMonth(pop);
-      return now && (now.month !== shown.month || now.year !== shown.year) ? true : null;
-    }, 1_000);
-    if (!moved) return false;
-  }
-  const cell = dayCell(pop, Number(dd));
-  if (!cell || !press(cell)) return false;
-  const hour = await waitFor(env, () => timeBox(pop, 0, hh), 1_000);
-  if (!hour || !press(hour)) return false;
-  const minute = await waitFor(env, () => timeBox(pop, 1, mm), 1_000);
-  if (!minute || !press(minute)) return false;
-  const confirm = Array.from(pop.querySelectorAll<HTMLElement>('[class*="date-picker__btn-wrap"] button')).find((b) => ownConfirmOf(b, "date_picker"));
-  if (!confirm || !pressOwnConfirm(confirm, "date_picker")) return false;
-  const shown = await waitFor(env, () => (box.value === value ? true : null), 1_500);
-  return !!shown && mark(box);
+  if (box.value === value) return mark(box) && "done";
+  if (!box.readOnly && writeValue(box, value) && box.value === value) return mark(box) && "done";
+  highlight(box);
+  return "todo";
 }
 
 // -- switch ---------------------------------------------------------------------------------
 
-export async function setSwitch(env: Env, label: string, on: boolean): Promise<boolean> {
+/** The switch labelled `label`: "done" when it is already `on`, else highlighted for the person. */
+export function setSwitch(env: Env, label: string, on: boolean): Guide {
   const row = findRow(env.doc, label);
   const sw = row ? Array.from(row.querySelectorAll<HTMLElement>('[role="switch"],[class*="eds-switch"],input[type="checkbox"]')).find(usable) : undefined;
-  if (!sw) return false;
+  if (!sw) return "missing";
   const state = () => (sw.matches("input") ? (sw as HTMLInputElement).checked : sw.getAttribute("aria-checked") === "true" || /(open|checked|on)\b/.test(sw.className.toString()));
   const shown = () => (state() ? "bật" : "tắt");
   recordChoice(env, sw, on ? "bật" : "tắt", shown(), shown, () => state() === on);
-  if (state() !== on && !press(sw)) return false;
-  return !!(await waitFor(env, () => (state() === on ? true : null), 1_000)) && mark(sw);
+  if (state() === on) return mark(sw) && "done";
+  highlight(sw);
+  return "todo";
 }
 
 // -- repeated rows ("Thêm mức ưu đãi") -----------------------------------------------------
 
-/** The visible button with this text (own text only), or null if none / more than one. */
+/** The visible button with this text (own text only), or null if none / more than one. Found, never pressed. */
 export function findPressable(env: Env, text: string, within?: Element): HTMLElement | null {
   const wanted = normalizeLabel(text);
   const root: ParentNode = within ?? env.doc.body;
@@ -424,22 +322,6 @@ export function findPressable(env: Env, text: string, within?: Element): HTMLEle
   );
   const inner = hits.filter((h) => !hits.some((o) => o !== h && h.contains(o)));
   return inner.length === 1 ? (inner[0] as HTMLElement) : null;
-}
-
-/** Presses `addLabel` until `have()` reaches `count`, waiting for each new row to appear. */
-export async function ensureCount(env: Env, addLabel: string, have: () => number, count: number): Promise<boolean> {
-  for (let guard = 0; guard < 12 && have() < count; guard += 1) {
-    const before = have();
-    const add = findPressable(env, addLabel);
-    if (!add || !press(add)) return false;
-    if (!(await waitFor(env, () => (have() > before ? true : null), 1_500))) return false;
-  }
-  return have() >= count;
-}
-
-/** Presses `addLabel` until `count` rows (elements matched by `rowSelector`) exist. */
-export function ensureRows(env: Env, addLabel: string, rowSelector: string, count: number): Promise<boolean> {
-  return ensureCount(env, addLabel, () => Array.from(env.doc.querySelectorAll<HTMLElement>(rowSelector)).filter(usable).length, count);
 }
 
 // -- product picker (modal) ----------------------------------------------------------------
@@ -453,18 +335,13 @@ export function pickerModal(env: Env): HTMLElement | null {
 }
 
 export interface PickResult {
-  ticked: string[];
-  missing: string[];
-  /** The picker's own Xác nhận was pressed and the dialog closed (0.3.27). */
-  confirmed?: boolean;
-  /** Why nothing could be ticked (Vietnamese, for the panel), when the picker itself failed. */
+  /** The form (outside the picker) lists every product of the card. */
+  done: boolean;
+  /** Why the step cannot even be guided (Vietnamese, for the panel). */
   reason?: string;
 }
 
 export const PICK_NO_OPENER = "Không thấy nút «Thêm sản phẩm» trên trang";
-export const PICK_NO_MODAL = "Hộp chọn sản phẩm không mở";
-export const PICK_NO_SEARCH = "Hộp chọn sản phẩm không có ô tìm";
-export const pickNotFound = (ids: readonly string[]) => `Tìm theo ID không ra đúng một dòng: ${ids.join(", ")}`;
 
 /** A leaf of the row shows this item id as a whole number ("ID: 1001", not "10012"). */
 export function holdsId(row: Element, id: string): boolean {
@@ -474,115 +351,58 @@ export function holdsId(row: Element, id: string): boolean {
 
 const CHECKBOX = 'input[type="checkbox"],[role="checkbox"],[class*="eds-checkbox"]';
 
-export const PICK_NO_ID_MODE = "Không chuyển được ô tìm sang «Mã sản phẩm»";
-export const PICK_NOT_CONFIRMED = "Chưa bấm được Xác nhận của hộp chọn sản phẩm";
-const ID_MODE = /^(mã sản phẩm|product id|id sản phẩm)$/;
-
-/**
- * 0.3.27 (E48): the picker's search type. The live dialog has a select in front of the search box
- * ("Tên sản phẩm" | "Mã sản phẩm"); an id typed under "Tên sản phẩm" finds other products. True when
- * the box now searches by id, or when the dialog has no such select (one box for name or id).
- */
-export async function searchById(env: Env, modal: HTMLElement): Promise<boolean> {
-  const select = Array.from(modal.querySelectorAll<HTMLElement>('[class*="input-group__prepend"] [class*="select"]')).filter(usable)[0];
-  if (!select) return true;
-  const shows = () => ID_MODE.test(visibleText(select));
-  if (shows()) return true;
-  if (!press(select)) return false;
-  const option = await waitFor(env, () => {
-    const opts = Array.from(env.doc.querySelectorAll<HTMLElement>('[class*="select-option"]')).filter(
-      (o) => usable(o) && ID_MODE.test(visibleText(o)) && !/select-options-list/.test(o.className.toString()),
-    );
-    return opts.length >= 1 ? opts[opts.length - 1] : null;
-  }, 1_500);
-  if (!option || !press(option)) return false;
-  return !!(await waitFor(env, () => (shows() ? true : null), 1_500));
-}
-
 /** The picker's search text box: the one after the search-type select, else the dialog's first. */
 function searchBox(modal: HTMLElement): HTMLInputElement | undefined {
   const appended = Array.from(modal.querySelectorAll<HTMLInputElement>('[class*="input-group__append"] input')).filter((i) => usable(i) && !i.disabled);
   return appended[0] ?? textBoxesIn(modal)[0];
 }
 
+/** The step text of the product picker (F5.2). */
+export const pickStep = (opener: string, ids: readonly string[]) =>
+  `Bấm «${opener}», tìm theo Mã sản phẩm ${ids.join(", ")}, tick, bấm Xác nhận của hộp chọn`;
+
 /**
- * Opens "Thêm sản phẩm", switches the search to the product id, searches each id and ticks its
- * row. With `confirm`, then presses the PICKER's own Xác nhận (owner, 2026-11-18: allowed, it is
- * not the form's save) and checks the form lists every id. Every tick is recorded under the env's
- * field key (re-read later: a product that is no longer chosen turns the step ✗).
+ * 0.3.28: the product picker is the person's: "Thêm sản phẩm" is highlighted; once the person opens
+ * the picker its search box gets the first id (a value write) and the rows of the card's ids are
+ * highlighted. ✓ once the form (outside the picker) lists every id. Recorded under the env's key.
  */
-export async function pickProducts(env: Env, opener: string, ids: readonly string[], opts: { confirm?: boolean } = {}): Promise<PickResult> {
-  const out: PickResult = { ticked: [], missing: [...ids] };
-  if (!pickerModal(env)) {
-    const open = await waitFor(env, () => findPressable(env, opener));
-    if (!open || !press(open)) return { ...out, reason: PICK_NO_OPENER };
-  }
-  const modal = await waitFor(env, () => pickerModal(env));
-  if (!modal) return { ...out, reason: PICK_NO_MODAL };
-  const checks: HTMLElement[] = [];
-  if (!(await searchById(env, modal))) return { ...out, reason: PICK_NO_ID_MODE };
-  for (const id of ids) {
-    const search = searchBox(modal);
-    if (!search) return { ...out, reason: PICK_NO_SEARCH };
-    if (!writeValue(search, id)) continue;
-    const go = findPressable(env, "Tìm kiếm", modal) ?? findPressable(env, "Tìm", modal);
-    if (go) press(go);
-    const box = await waitFor(env, () => {
-      const rows = Array.from(modal.querySelectorAll<HTMLElement>("tr,li,[class*='row'],[role='row']")).filter(
-        (r) => usable(r) && holdsId(r, id) && r.querySelector(CHECKBOX),
-      );
-      const inner = rows.filter((h) => !rows.some((o) => o !== h && h.contains(o)));
-      return inner.length === 1 ? (inner[0] as HTMLElement) : null;
-    });
-    if (!box) continue;
-    const check = box.querySelector<HTMLElement>(CHECKBOX)!;
-    if (!ticked(check) && !press(check)) continue;
-    if (await waitFor(env, () => (ticked(check) ? true : null), 1_000)) {
-      out.ticked.push(id);
-      out.missing = out.missing.filter((m) => m !== id);
-      checks.push(check);
-      mark(box);
-    }
-  }
-  const key = env.log?.keyOf(env);
-  let confirmed = false;
-  if (opts.confirm && out.missing.length === 0 && checks.length > 0) {
-    // the search sits in the dialog's body; its own footer is on the `.product-selector` frame
-    const frame = modal.closest<HTMLElement>('[class*="product-selector"],[class*="productSelector"]') ?? modal;
-    const footer = Array.from(frame.querySelectorAll<HTMLElement>('[class*="modal__footer"] button')).find((b) => ownConfirmOf(b, "product_picker"));
-    // an older dialog without that footer: the person confirms (the panel says so)
-    if (footer) {
-      confirmed = pressOwnConfirm(footer, "product_picker") && !!(await waitFor(env, () => (!env.doc.contains(frame) || hidden(frame) ? true : null), 2_000));
-      if (!confirmed) out.reason = PICK_NOT_CONFIRMED;
-      out.confirmed = confirmed;
-    }
-  }
+export function pickProducts(env: Env, opener: string, ids: readonly string[]): PickResult {
   /** The form (outside the dialog) lists the product: its row shows the id. */
   const listed = (id: string) =>
     Array.from(env.doc.querySelectorAll<HTMLElement>("tr,li,[class*='row'],[role='row']")).some((r) => usable(r) && !r.closest('[role="dialog"],[class*="modal"]') && holdsId(r, id));
-  if (env.log && key && checks.length > 0) {
-    env.log.wrote({
-      key,
-      el: confirmed ? env.doc.body : modal,
-      want: `${checks.length} sản phẩm`,
-      seen: () =>
-        (confirmed ? `${ids.filter(listed).length} sản phẩm trong combo/voucher` : `${checks.filter(ticked).length} sản phẩm đã tick`) +
-        (out.missing.length > 0 ? `, thiếu ID ${out.missing.join(", ")}` : ""),
-      // every product of the card, not only those ticked (a re-read never turns a missing one ✓)
-      ok: () => out.missing.length === 0 && (confirmed ? ids.every(listed) : checks.every((c) => env.doc.contains(c) && ticked(c))),
+  const all = () => ids.every(listed);
+  const key = env.log?.keyOf(env);
+  const record = () => {
+    if (env.log && key) env.log.wrote({ key, el: env.doc.body, want: `${ids.length} sản phẩm`, seen: () => `${ids.filter(listed).length} sản phẩm trong combo/voucher`, ok: all });
+  };
+  if (all()) {
+    record();
+    return { done: true };
+  }
+  const open = findPressable(env, opener);
+  // no picker on this page at all: say so (the step keeps that note)
+  if (!open && !pickerModal(env)) return { done: false, reason: PICK_NO_OPENER };
+  record();
+  if (open) highlight(open);
+  if (env.log && key) {
+    env.log.later({
+      key: `${key}_search`,
+      write: () => {
+        const modal = pickerModal(env);
+        const box = modal ? searchBox(modal) : undefined;
+        if (!modal || !box) return false;
+        const first = ids.find((id) => !listed(id)) ?? ids[0]!;
+        if (box.value !== first) writeValue(box, first);
+        mark(box);
+        for (const row of Array.from(modal.querySelectorAll<HTMLElement>("tr,li,[role='row']"))) {
+          const check = row.querySelector<HTMLElement>(CHECKBOX);
+          if (check && ids.some((id) => holdsId(row, id))) highlight(check);
+        }
+        return true;
+      },
     });
   }
-  if (out.missing.length > 0 && !out.reason) out.reason = pickNotFound(out.missing);
-  return out;
-}
-
-function ticked(check: HTMLElement): boolean {
-  if (check.matches("input")) return (check as HTMLInputElement).checked;
-  const aria = check.getAttribute("aria-checked");
-  if (aria !== null) return aria === "true";
-  const input = check.querySelector<HTMLInputElement>('input[type="checkbox"]');
-  if (input) return input.checked;
-  return /(checked|selected)/.test(check.className.toString()) && !/unchecked/.test(check.className.toString());
+  return { done: false };
 }
 
 /** The innermost control in `row` whose whole text is one of `texts` (lowercase), or null. Never pressed here. */
@@ -596,9 +416,9 @@ export function controlWithText(row: Element, texts: ReadonlySet<string>): HTMLE
 
 /**
  * Shopee's own announcements that cover a page (live 2026-11-17: "Phiên bản Chiến dịch Mở Rộng
- * mới!" over the affiliate page). Only a dialog whose text matches one of these AND that holds no
- * text box (not a form) is closed: its close icon first, else a button that only dismisses.
- * Nothing that saves or confirms is ever pressed (press() still refuses those).
+ * mới!" over the affiliate page): a dialog whose text matches one of these AND that holds no text
+ * box (not a form). 0.3.28: the person closes it (its close icon or a button that only dismisses
+ * is highlighted); the Connector never presses it.
  */
 export const KNOWN_NOTICES: readonly RegExp[] = [
   /phiên bản .{0,60}mới/,
@@ -613,7 +433,7 @@ export const FEEDBACK_WIDGET = /(góp ý|quay màn hình|feedback|screen record)
 const DISMISS_TEXTS = ["để sau", "bỏ qua", "đã hiểu", "tôi đã hiểu", "đóng", "close", "later", "got it"];
 const CLOSE_ICON = '[aria-label*="close" i],[aria-label*="đóng" i],[class*="close"]';
 
-function noticeDialogs(env: Env): HTMLElement[] {
+export function noticeDialogs(env: Env): HTMLElement[] {
   const all = Array.from(env.doc.querySelectorAll<HTMLElement>('[role="dialog"],[class*="eds-modal"],[class*="modal"]')).filter(usable);
   const hits = all.filter((d) => {
     const text = normalizeLabel(d.textContent ?? "");
@@ -623,29 +443,31 @@ function noticeDialogs(env: Env): HTMLElement[] {
   return hits.filter((h) => !hits.some((o) => o !== h && o.contains(h)));
 }
 
-/** Closes Shopee's known notices; the notes say which (for the panel). */
+/** The title of a notice as the panel names it. */
+export const noticeTitle = (dialog: Element) => (dialog.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 50);
+
+/** The notice's own close (its close icon, else a button that only dismisses), or null. */
+function noticeClose(env: Env, dialog: HTMLElement): HTMLElement | null {
+  const icons = Array.from(dialog.querySelectorAll<HTMLElement>(CLOSE_ICON)).filter(usable);
+  const icon = icons.find((i) => !icons.some((o) => o !== i && i.contains(o)));
+  if (icon && unsafePress(icon) === null) return icon;
+  for (const text of DISMISS_TEXTS) {
+    const button = findPressable(env, text, dialog);
+    if (button && unsafePress(button) === null) return button;
+  }
+  return null;
+}
+
+/** The step text of a notice the person closes (F5.2). */
+export const noticeStep = (title: string) => `Đóng thông báo «${title}» của Shopee (dấu × hoặc «Để sau»)`;
+
+/** Highlights the close of Shopee's known notices; the notes say which (for the panel). Presses nothing. */
 export async function dismissNotices(env: Env): Promise<string[]> {
   const notes: string[] = [];
   for (const dialog of noticeDialogs(env)) {
-    const title = (dialog.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 50);
-    const icons = Array.from(dialog.querySelectorAll<HTMLElement>(CLOSE_ICON)).filter(usable);
-    const icon = icons.find((i) => !icons.some((o) => o !== i && i.contains(o)));
-    let pressed = !!icon && press(icon);
-    if (!pressed) {
-      for (const text of DISMISS_TEXTS) {
-        const button = findPressable(env, text, dialog);
-        if (button && press(button)) {
-          pressed = true;
-          break;
-        }
-      }
-    }
-    if (!pressed) {
-      notes.push(`Thông báo của Shopee «${title}» đang che trang; hãy tự đóng rồi mở lại từ Juli.`);
-      continue;
-    }
-    const gone = await waitFor(env, () => (!env.doc.contains(dialog) || hidden(dialog) ? true : null), 2_000);
-    notes.push(gone ? `Juli đã đóng thông báo của Shopee «${title}» (không bấm gì khác).` : `Thông báo của Shopee «${title}» chưa đóng được.`);
+    const close = noticeClose(env, dialog);
+    if (close) highlight(close);
+    notes.push(`Thông báo của Shopee «${noticeTitle(dialog)}» đang che trang; hãy tự đóng (Juli không bấm), Juli làm tiếp khi trang hiện ra.`);
   }
   return notes;
 }
@@ -667,7 +489,7 @@ export function findDialog(env: Env, heading: string): HTMLElement | null {
   return inner.length === 1 ? (inner[0] as HTMLElement) : null;
 }
 
-/** The edit control (pencil) of a labelled card: aria-label / title "Chỉnh sửa", else its only pressable icon. */
+/** The edit control (pencil) of a labelled card: aria-label / title "Chỉnh sửa", else its only pressable icon. Found, never pressed. */
 export function findEditPencil(env: Env, label: string): HTMLElement | null {
   const row = findLabelCard(env, label) ?? findRow(env.doc, label);
   if (!row) return null;

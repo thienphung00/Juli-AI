@@ -3,18 +3,18 @@
 // SYNTHETIC; their structure follows the read-only captures of 2026-11-18 (date-time picker, combo
 // tiers + product picker, affiliate open campaign) and, where nothing was captured, the closest
 // Shopee eds shapes (voucher list, bundle list, the affiliate rate editor and pager).
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BANNER_NO_PERIOD, BANNER_SAVED } from "../src/core/fill/job-panel";
 import { FillLog } from "../src/core/fill/log";
 import { verifyWrites } from "../src/core/fill/verify";
 import { PANEL_ID } from "../src/core/fill/locate";
-import { FORBIDDEN_PRESS, ownConfirmOf, press, pressOwnConfirm } from "../src/platforms/shopee/fill/controls";
+import { FORBIDDEN_PRESS, unsafePress } from "../src/platforms/shopee/fill/controls";
 import { SMART_MISSING } from "../src/platforms/shopee/fill/fillers";
 import { runFillJob } from "../src/platforms/shopee/fill/job-run";
 import { parseFillJob } from "../src/platforms/shopee/fill/job-types";
 import { END_MARK, END_TODO } from "../src/platforms/shopee/fill/revert";
 import { wireEds, type Wire } from "./eds-wire";
-import { affiliateJob, comboJob, JOB_ID, jobHarness, rawJob, voucherJob } from "./fill-job-helpers";
+import { afterPanel, affiliateJob, choose, comboJob, JOB_ID, jobHarness, personClicks, rawJob, voucherJob } from "./fill-job-helpers";
 import { loadPage } from "./fill-helpers";
 
 let wire: Wire;
@@ -23,8 +23,26 @@ beforeEach(() => {
   document.getElementById(PANEL_ID)?.remove();
   document.querySelectorAll(".eds-react-date-picker__popup,.eds-react-select-options-list").forEach((p) => p.remove());
   wire = wireEds(document, { datePicker: true });
+  click = vi.spyOn(HTMLElement.prototype, "click");
 });
-afterEach(() => wire.stop());
+afterEach(() => {
+  wire.stop();
+  // 0.3.28 (F5.1): the Connector never clicks (the person's clicks here are dispatched events)
+  expect(click).not.toHaveBeenCalled();
+  click.mockRestore();
+});
+let click: ReturnType<typeof vi.spyOn>;
+/** The person / Shopee's React picker writes a value (native setter + input / change). */
+const typed = (el: HTMLInputElement, v: string) => {
+  setByPage(el, v);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+};
+/** voucher-live.html as Shopee draws it, product already listed: a card that matches it needs no click. */
+const listed = (into: string) => {
+  document.getElementById(into)!.innerHTML = "<tr><td>Sản phẩm mẫu một</td><td>Mã: 1001</td></tr>";
+};
+const asDrawn = { smart: false, display: "multi", starts_at: "19:57 18-11-2026", ends_at: "20:57 18-11-2026" };
 
 const input = (id: string) => document.getElementById(id) as HTMLInputElement;
 const panelText = () => document.getElementById(PANEL_ID)?.shadowRoot?.querySelector(".box")?.textContent ?? "";
@@ -46,12 +64,21 @@ const productVoucher = (over: Record<string, unknown> = {}) =>
 const harnessFor = (raw: Record<string, unknown>) => jobHarness(raw, { path: String(raw.open_path).split("?")[0] });
 
 describe("F2.1 the date-time picker", () => {
-  it("sets start and end through Shopee's picker: month arrows, day, hour, minute, the picker's own Xác nhận", async () => {
+  it("the date-time picker is the person's: two numbered steps with the dates; ✓ and period_ok once the picker shows them", async () => {
     loadPage("voucher-live.html");
     const h = harnessFor(productVoucher());
+    let first = "";
+    afterPanel(h, () => {
+      first = panelText();
+      typed(input("start"), "00:00 01-03-2027");
+      typed(input("end"), "23:59 02-03-2027");
+    });
     await runFillJob(h.deps);
-    expect([input("start").value, input("end").value]).toEqual(["00:00 01-03-2027", "23:59 02-03-2027"]);
-    const detail = h.details.find((d) => d !== undefined)!;
+    expect(first).toContain("1. Chọn ngày bắt đầu 01/03/2027 00:00");
+    expect(first).toContain("2. Chọn ngày kết thúc 02/03/2027 23:59");
+    expect(first).toContain(BANNER_NO_PERIOD);
+    expect(document.querySelector(".eds-react-date-picker__popup")).toBeNull(); // never opened by Juli
+    const detail = h.details.filter(Boolean).at(-1)!;
     expect(detail.period_ok).toBe(true);
     expect(detail.fields.filter((f) => f.key === "starts_at" || f.key === "ends_at")).toEqual([
       { key: "starts_at", ok: true, seen: "00:00 01-03-2027" },
@@ -59,7 +86,7 @@ describe("F2.1 the date-time picker", () => {
     ]);
     expect(detail.before_values).toMatchObject({ starts_at: "19:57 18-11-2026", ends_at: "20:57 18-11-2026" });
     expect(panelText()).not.toContain(BANNER_NO_PERIOD);
-    expect(wire.clicks.filter((c) => c === "Xác nhận")).toHaveLength(3); // twice the date picker's, once the product picker's
+    expect(wire.clicks).toEqual([]);
     expect(wire.forbidden).toEqual([]); // the form's Xác nhận / Hủy never
   });
 
@@ -73,35 +100,32 @@ describe("F2.1 the date-time picker", () => {
     expect(wire.forbidden).toEqual([]);
   });
 
-  it("presses only the two pickers' own Xác nhận, never the form's or another dialog's", () => {
+  it("never highlights a confirm: neither the pickers' own Xác nhận nor the form's is a step to press", async () => {
     loadPage("voucher-live.html");
-    const form = document.getElementById("submit")!;
-    const picker = document.getElementById("pconfirm-live")!;
-    expect(ownConfirmOf(form, "date_picker")).toBe(false);
-    expect(ownConfirmOf(form, "product_picker")).toBe(false);
-    expect(ownConfirmOf(picker, "product_picker")).toBe(true);
-    expect(ownConfirmOf(picker, "date_picker")).toBe(false);
-    document.body.insertAdjacentHTML("beforeend", `<div class="eds-react-modal"><div class="eds-react-modal__footer"><button id="other">Xác nhận</button></div></div>`);
-    expect(pressOwnConfirm(document.getElementById("other")!, "product_picker")).toBe(false);
+    await runFillJob(harnessFor(productVoucher()).deps);
+    for (const id of ["submit", "pconfirm-live", "cancel"]) expect(document.getElementById(id)!.getAttribute("data-juli-guide")).toBeNull();
+    expect(document.querySelector("[data-opens='#picker']")!.getAttribute("data-juli-guide")).toBe("1");
     expect(wire.clicks).toEqual([]);
   });
 });
 
 describe("F2.2 the voucher form", () => {
-  it("product voucher: picks the product by ID, smart on, the amount, 'Chia sẻ qua mã voucher'; every field read back non-empty", async () => {
+  it("product voucher: the amount written; smart on, 'Chia sẻ qua mã voucher' and the product are the person's; every field read back non-empty", async () => {
     loadPage("voucher-live.html");
     const h = harnessFor(productVoucher());
-    expect(await runFillJob(h.deps)).toMatchObject({ status: "filled" });
+    afterPanel(h, () => {
+      typed(input("start"), "00:00 01-03-2027");
+      typed(input("end"), "23:59 02-03-2027");
+      document.getElementById("smart")!.setAttribute("aria-checked", "true");
+      choose(document.querySelector('input[name="disp"][value="code"]'));
+      listed("chosen"); // the person's picker Xác nhận
+    });
+    await runFillJob(h.deps);
     expect(input("dvalue").value).toBe("5000");
-    expect(document.getElementById("smart")!.getAttribute("aria-checked")).toBe("true");
-    expect((document.querySelector('input[name="disp"][value="code"]') as HTMLInputElement).checked).toBe(true);
-    expect(document.querySelector("#ptype .eds-react-select__inner")!.textContent).toBe("Mã sản phẩm");
-    expect(document.getElementById("chosen")!.textContent).toContain("Mã: 1001");
-    expect(document.getElementById("chosen")!.textContent).not.toContain("1002");
-    const detail = h.details.find((d) => d !== undefined)!;
+    expect(h.reports.map((r) => r[1])).toContain("filled");
+    const detail = h.details.filter(Boolean).at(-1)!;
     expect(detail.fields.every((f) => f.ok && f.seen.trim() !== "")).toBe(true);
     expect(detail.fields.find((f) => f.key === "display")).toEqual({ key: "display", ok: true, seen: "Chia sẻ thông qua mã Voucher" });
-    expect(panelText()).not.toContain("Bấm Xác nhận trong hộp chọn sản phẩm");
     expect(wire.forbidden).toEqual([]);
   });
 
@@ -141,7 +165,8 @@ describe("F2.2 the voucher form", () => {
 describe("F2.3 the new voucher's id after the person's save", () => {
   it("sees the redirect to the list, says 'Đã lưu — bấm Đã làm', and reports captured with the id from the row's edit link", async () => {
     loadPage("voucher-live.html");
-    const h = harnessFor(productVoucher());
+    listed("chosen");
+    const h = harnessFor(productVoucher(asDrawn));
     const sleep = h.deps.sleep;
     let swapped = false;
     h.deps.sleep = async (ms) => {
@@ -161,59 +186,66 @@ describe("F2.3 the new voucher's id after the person's save", () => {
 });
 
 describe("F2.4 the combo form (live shape)", () => {
-  it("fills two tier rows tier by tier, the order limit, the product by 'Mã sản phẩm', and confirms the picker", async () => {
+  it("writes tier 1 and the order limit; the person adds tier 2 (Juli writes it), sets the period and picks the product", async () => {
     loadPage("combo-live.html");
     const h = harnessFor(comboJob({ starts_at: "00:00 01-03-2027", ends_at: "23:59 02-03-2027", product_ids: ["1001"], purchase_limit: 1 }));
-    expect(await runFillJob(h.deps)).toMatchObject({ status: "filled" });
+    afterPanel(h, () => {
+      personClicks(document.querySelector("[data-add-row]"));
+      typed(input("start"), "00:00 01-03-2027");
+      typed(input("end"), "23:59 02-03-2027");
+      listed("combo-products");
+    });
+    await runFillJob(h.deps);
     const rows = Array.from(document.querySelectorAll("#tiers tr")).map((tr) => Array.from(tr.querySelectorAll("input")).map((i) => i.value));
     expect(rows).toEqual([
       ["2", "5"],
       ["3", "8"],
     ]);
     expect(input("limit").value).toBe("1");
-    expect([input("start").value, input("end").value]).toEqual(["00:00 01-03-2027", "23:59 02-03-2027"]);
-    expect(document.querySelector("#ptype .eds-react-select__inner")!.textContent).toBe("Mã sản phẩm");
-    expect(document.getElementById("combo-products")!.textContent).toContain("Mã: 1001");
-    const detail = h.details.find((d) => d !== undefined)!;
+    const detail = h.details.filter(Boolean).at(-1)!;
     expect(detail.fields.map((f) => [f.key, f.ok])).toEqual(expect.arrayContaining([["tier1_qty", true], ["tier1_value", true], ["tier2_qty", true], ["tier2_value", true], ["purchase_limit", true], ["product_ids", true]]));
     expect(detail.fields.every((f) => f.ok)).toBe(true);
+    expect(h.reports.map((r) => r[1])).toContain("filled");
     expect(wire.forbidden).toEqual([]);
   });
 
-  it("an id typed under 'Tên sản phẩm' would find another product: the search type is switched first", async () => {
+  it("the picker's search gets the id once the person opens it (the search type is the person's: «tìm theo Mã sản phẩm»)", async () => {
     loadPage("combo-live.html");
     const h = harnessFor(comboJob({ starts_at: "00:00 01-03-2027", ends_at: "23:59 02-03-2027", product_ids: ["1001"] }));
+    afterPanel(h, () => document.getElementById("picker")!.removeAttribute("hidden"));
     await runFillJob(h.deps);
-    // "Sản phẩm 1001 hai" (id 1002) holds the text 1001 in its NAME: never chosen
-    expect(document.getElementById("combo-products")!.textContent).not.toContain("1002");
+    expect(input("psearch").value).toBe("1001");
+    expect(panelText()).toContain("tìm theo Mã sản phẩm 1001");
+    expect(document.getElementById("combo-products")!.textContent).toBe("");
   });
 });
 
 describe("F2.5 the affiliate open campaign (live shape)", () => {
-  it("closes the notice by its X (never 'Explore Now'), finds the row on page 2, opens its rate control and types the rate; the old rate is kept", async () => {
+  it("the person closes the notice (never 'Explore Now'), goes to page 2 and opens the row's rate; Juli writes the rate and keeps the old one", async () => {
     loadPage("affiliate-live.html");
-    const posted: unknown[] = [];
     const h = jobHarness(affiliateJob({ product_ids: ["2002"], commission_pct: 12 }));
-    h.deps.postCurrent = async (rows) => {
-      posted.push(...rows);
-      return true;
-    };
-    expect(await runFillJob(h.deps)).toMatchObject({ status: "filled" });
-    expect(wire.clicks).not.toContain("Explore Now");
+    h.deps.postCurrent = async () => true;
+    afterPanel(h, () => {
+      personClicks(document.querySelector("#notice [aria-label='close']"));
+      document.getElementById("notice")!.remove();
+      personClicks(document.querySelector("[data-next-page]"));
+      personClicks(document.querySelectorAll("[data-opens='#rate-pop']")[1]!);
+    });
+    await runFillJob(h.deps);
     expect(input("rate").value).toBe("12");
-    const detail = h.details.find((d) => d !== undefined)!;
+    const detail = h.details.filter(Boolean).at(-1)!;
     expect(detail.before_values.commission_pct).toBe("9");
-    expect(detail.fields).toEqual([{ key: "commission_pct", ok: true, seen: "12" }]);
-    // contract D: the rows the page showed, with their commission (E50)
-    expect(posted).toEqual(expect.arrayContaining([{ item_id: "2001", commission_pct: 13 }, { item_id: "2002", commission_pct: 9 }]));
+    expect(detail.fields.find((f) => f.key === "commission_pct")).toEqual({ key: "commission_pct", ok: true, seen: "12" });
+    expect(h.reports.map((r) => r[1])).toContain("filled");
+    expect(wire.clicks).not.toContain("Explore Now");
     expect(wire.forbidden).toEqual([]); // Save / Remove / Explore Now never
   });
 
-  it("says which id it could not find after every page", async () => {
+  it("names the id the person must find (Juli never pages)", async () => {
     loadPage("affiliate-live.html");
     const h = jobHarness(affiliateJob({ product_ids: ["2999"], commission_pct: 12 }));
     expect(await runFillJob(h.deps)).toMatchObject({ status: "partial" });
-    expect(panelText()).toContain("Không thấy dòng của ID 2999");
+    expect(panelText()).toContain("Tìm ID 2999");
     expect(wire.forbidden).toEqual([]);
   });
 });
@@ -221,7 +253,8 @@ describe("F2.5 the affiliate open campaign (live shape)", () => {
 describe("E46: the saved report carries the person's hand edits", () => {
   it("Juli types, the person changes a field by hand, the save redirects: saved carries the hand-edited value", async () => {
     loadPage("voucher-live.html");
-    const h = harnessFor(productVoucher());
+    listed("chosen");
+    const h = harnessFor(productVoucher(asDrawn));
     const sleep = h.deps.sleep;
     let step = 0;
     h.deps.sleep = async (ms) => {
@@ -251,7 +284,8 @@ describe("F2.6 the panel follows the page", () => {
   it("re-checks after the person fixes a field by hand (debounced) and reports filled", async () => {
     loadPage("voucher-live.html");
     document.querySelector(".eds-date-picker")!.setAttribute("data-no-picker", "1"); // the picker does not open
-    const h = harnessFor(productVoucher());
+    listed("chosen");
+    const h = harnessFor(productVoucher({ ...asDrawn, starts_at: "00:00 01-03-2027", ends_at: "23:59 02-03-2027" }));
     const sleep = h.deps.sleep;
     let fixed = false;
     h.deps.sleep = async (ms) => {
@@ -470,10 +504,26 @@ describe("t2's job shapes (2026-11-18)", () => {
     expect(wire.forbidden).toEqual([]);
   });
 
-  it("an affiliate read-back reads the rates on the open campaign, posts them, reports captured; nothing pressed but the notice's X and the pager", async () => {
+  it("an affiliate read-back never clicks: under the notice / on another page it posts nothing and fails readback_not_found", async () => {
     loadPage("affiliate-live.html");
     const raw = rawJob("readback", { mode: "readback", open_path: "/portal/web-seller-affiliate/open_campaign", target: { product_ids: ["2002"] }, datasets: ["item_catalog"] });
     expect(parseFillJob(raw)).toMatchObject({ kind: "readback", payload: { readback: { target: { productIds: ["2002"] } } } });
+    const h = jobHarness(raw);
+    h.deps.postCurrent = async () => true;
+    await runFillJob(h.deps);
+    expect(h.reports).toEqual([
+      [JOB_ID, "opened", undefined],
+      [JOB_ID, "failed", "readback_not_found"],
+    ]);
+    expect(document.getElementById("notice")).not.toBeNull();
+    expect(wire.clicks).toEqual([]);
+  });
+
+  it("an affiliate read-back reads the rates the page shows, posts them, reports captured", async () => {
+    loadPage("affiliate-live.html");
+    personClicks(document.querySelector("#notice [aria-label='close']")); // the person closed it earlier
+    document.getElementById("notice")!.remove();
+    const raw = rawJob("readback", { mode: "readback", open_path: "/portal/web-seller-affiliate/open_campaign", target: { product_ids: ["2001"] }, datasets: ["item_catalog"] });
     const posted: unknown[] = [];
     const h = jobHarness(raw);
     h.deps.postCurrent = async (rows) => {
@@ -482,17 +532,17 @@ describe("t2's job shapes (2026-11-18)", () => {
     };
     await runFillJob(h.deps);
     expect(h.reports.map((r) => r[1])).toEqual(["opened", "captured"]);
-    expect(posted).toEqual(expect.arrayContaining([{ item_id: "2002", commission_pct: 9 }]));
+    expect(posted).toEqual(expect.arrayContaining([{ item_id: "2001", commission_pct: 13 }]));
     expect(input("rate").value).toBe("");
     expect(wire.forbidden).toEqual([]);
   });
 });
 
-describe("hardening: the texts press() refuses", () => {
-  it.each(["Kết thúc", "Remove", "Khám phá ngay", "Explore Now", "OK", "Xóa", "Xoá", "End"])("refuses «%s»", (text) => {
+describe("hardening: the texts never named a step to press", () => {
+  it.each(["Kết thúc", "Remove", "Khám phá ngay", "Explore Now", "OK", "Xóa", "Xoá", "End"])("names «%s» unsafe", (text) => {
     expect(FORBIDDEN_PRESS.test(text.toLocaleLowerCase("vi"))).toBe(true);
     document.body.innerHTML = `<button type="button" data-forbidden>${text}</button>`;
-    expect(press(document.querySelector("button")!)).toBe(false);
+    expect(unsafePress(document.querySelector("button")!)).not.toBeNull();
     expect(wire.forbidden).toEqual([]);
   });
 });

@@ -81,6 +81,8 @@ const REFUSAL: Record<string, string> = {
 
 /** A read-back whose rows did not reach Juli (contract C). */
 export const READBACK_POST_FAILED = "readback_post_failed";
+/** 0.3.28: a read-back that did not find what it was sent for on the page shown (it never clicks to look further). */
+export const READBACK_NOT_FOUND = "readback_not_found";
 
 const NOT_LOADED = "Trang chưa hiện biểu mẫu sau 25 giây; Juli vẫn thử điền.";
 
@@ -108,6 +110,8 @@ async function watch(env: Env, log: FillLog, result: FillOutcome, redraw: (r: Fi
   let current = result;
   for (let waited = 0; waited < FILL_WATCH_MS; waited += FILL_WATCH_POLL_MS) {
     await env.sleep(FILL_WATCH_POLL_MS);
+    // 0.3.28 (F5.2): a box the person's click revealed gets its value (a write, never a click)
+    log.revealed();
     const bad = new Map<string, string>();
     for (const e of log.entries.values()) {
       let ok = false;
@@ -228,6 +232,11 @@ export async function runFillJob<J extends CoreJob>(deps: JobDeps<J>, pack: JobP
     showJobPanel(deps.doc, { outcome: allOk(r) ? "filled" : "partial", job, result: r, ...(periodOk(r) === false ? { periodOk: false } : {}) }, pack.labels);
   const posted = result.current && result.current.length > 0 && deps.postCurrent ? await deps.postCurrent(result.current).catch(() => false) : undefined;
   draw(result);
+  if (result.report === "not_found") {
+    // what it did read was posted above (contract D); the job itself failed
+    await deps.report(job.id, "failed", READBACK_NOT_FOUND);
+    return { status: "partial", steps: counted(result).length };
+  }
   if (result.report === "captured") {
     // a read-back is captured only once what it read reached Juli
     if (posted !== true) {
@@ -237,7 +246,7 @@ export async function runFillJob<J extends CoreJob>(deps: JobDeps<J>, pack: JobP
     await deps.report(job.id, "captured");
     return { status: "filled", steps: counted(result).length };
   }
-  if (log.entries.size > 0) result = await watch(env, log, result, draw);
+  if (log.entries.size > 0 || log.pending.size > 0) result = await watch(env, log, result, draw);
   // E46: the LAST read of each control while it was on the page (a save redirect takes the form
   // away: the saved report carries the person's hand edits, never an older read)
   const latest: Reads = new Map(filled.checks.map((c) => [c.key, { ok: c.ok && c.seen.trim() !== "", seen: c.seen }]));
@@ -266,7 +275,7 @@ export async function runFillJob<J extends CoreJob>(deps: JobDeps<J>, pack: JobP
   await tell(result);
   const all = allOk(result);
   const steps = counted(result).length;
-  if (pack.saved || log.entries.size > 0) await follow(deps, log, job, pack, result, { draw, tell, progressOf, detailOf, turnOf, finalOf });
+  if (pack.saved || log.entries.size > 0 || log.pending.size > 0) await follow(deps, log, job, pack, result, { draw, tell, progressOf, detailOf, turnOf, finalOf });
   return { status: all ? "filled" : "partial", steps };
 }
 
@@ -313,6 +322,9 @@ async function follow<J extends CoreJob>(
   const turns = Math.ceil(FILL_FOLLOW_MS / FILL_WATCH_POLL_MS);
   try {
     for (let turn = 0; turn < turns; turn += 1) {
+      // 0.3.28 (F5.2): the boxes the person's click revealed are written once, then read (looked
+      // for only when the page changed: the person's click redraws it)
+      if ((dirty || turn % FILL_FOLLOW_FULL_EVERY === 0) && log.pending.size > 0 && log.revealed()) dirty = true;
       // this turn's reads (kept while the controls are on the page), then the wait
       if (dirty || turn % FILL_FOLLOW_FULL_EVERY === 0) {
         dirty = false;

@@ -86,6 +86,8 @@ const scheduler: ReaderScheduler = new ReaderScheduler({
     reportTick: (report) => connector.reportTick(report),
   },
   backfillBusy: async () => (await connector.backfillInFlight()) || (await market.isBusy()) || (await fillJobs.isBusy()),
+  // 0.3.28 (F5.4): never two Shopee automations at once: no reader page while a fill tab is open
+  fillTabOpen: () => fillJobs.tabOpen(),
   later: (ms, fn) => void setTimeout(fn, ms),
 });
 
@@ -408,6 +410,13 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     await connector.dailySync();
     await connector.backfillStep();
   })();
+});
+
+// 0.3.28 (F5.3): a reader or fill tab that lands on Shopee's traffic-check page mid-run stops at once
+chrome.tabs.onUpdated?.addListener((tabId, changeInfo) => {
+  if (!changeInfo.url) return;
+  void scheduler.onTabUrl(tabId, changeInfo.url).catch(() => undefined);
+  void fillJobs.onTabUrl(tabId, changeInfo.url).catch(() => undefined);
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {

@@ -40,6 +40,8 @@ import {
   TRAFFIC_OVERVIEW_CATCHUP_DAYS,
   READER_BLOCK_CAPTCHA_MS,
   READER_BLOCK_LOGIN_MS,
+  READER_BLOCK_TRAFFIC_MS,
+  trafficCheckUrl,
   READER_BLOCK_RATE_MS,
   READER_PAGE_LOAD_COST,
   SHOP_TOTALS_BACKFILL_DAYS,
@@ -170,6 +172,8 @@ export interface SchedulerDeps {
   };
   /** The 30-day backfill has a day in flight: do not start a run on top of it. */
   backfillBusy: () => Promise<boolean>;
+  /** 0.3.28 (F5.4): a fill / revert job's tab is open: no reader page opens until it is gone. */
+  fillTabOpen?: () => Promise<boolean>;
   origin: string;
   version: string;
   now: () => number;
@@ -350,8 +354,23 @@ const SKIP_RESULTS: ReadonlySet<string> = new Set([
   "consent_required",
   "blocked",
   "backfill_busy",
+  "fill_busy",
   "nothing_to_do",
 ]);
+
+/** 0.3.28 (F5.4): how long a run waits before it looks again whether the fill tab is gone. */
+export const FILL_TAB_WAIT_MS = 60_000;
+
+/** How long each stop pauses every reader. */
+function blockMs(reason: ReaderBlockReason): number {
+  if (reason === "captcha") return READER_BLOCK_CAPTCHA_MS;
+  if (reason === "rate_limit") return READER_BLOCK_RATE_MS;
+  if (reason === "traffic_check") return READER_BLOCK_TRAFFIC_MS;
+  return READER_BLOCK_LOGIN_MS;
+}
+
+/** A stop no button, heartbeat or data call lifts before its `until` (Shopee asked us to stop). */
+const firm = (reason: ReaderBlockReason | undefined) => reason === "rate_limit" || reason === "traffic_check";
 
 /** A read-back's pages start this soon (minutes; Chrome rounds alarms up to its own minimum). */
 const READBACK_KICK_MINUTES = 0.1;
@@ -438,6 +457,11 @@ export class ReaderScheduler {
     if (!schedulerActive(shopId)) return "off";
     if (state.consentBlocked) return "consent_required";
     if (sched.blocked && sched.blocked.until > now) return "blocked";
+    // 0.3.28 (F5.4): never two Shopee automations at once: a fill tab is open, try again soon
+    if (await this.deps.fillTabOpen?.()) {
+      await this.setKick(sched.readback ? "readback" : "fill_busy", READER_KICK_RETRY_MINUTES);
+      return "fill_busy";
+    }
     const today = gmt7Date(Math.floor(now / 1000));
     // 0.3.27 (contract C): a read-back's pages first, in a run of their own (the day's run is untouched)
     const asked = (sched.readback?.pages ?? []).filter((id) => readerActive(id, shopId));
@@ -682,6 +706,9 @@ export class ReaderScheduler {
         if (jobId === "ads" && !current.reopened) return this.retryAds(sched, run);
         return this.finishJob(sched, run, "timeout");
       }
+      // 0.3.28 (F5.3): the tab is on Shopee's traffic-check page (at load or later): stop everything
+      const seen = await this.deps.tabs.inspect(current.tabId);
+      if (seen.open && trafficCheckUrl(seen.url)) return this.block(sched, run, "traffic_check", "page");
       if (current.sentAt === undefined && now - current.openedAt > READER_LOAD_GRACE_MS) {
         const info = await this.deps.tabs.inspect(current.tabId);
         if (!info.open || info.discarded) return this.tabLost(sched, run);
@@ -757,6 +784,13 @@ export class ReaderScheduler {
     const { state } = await this.load();
     const left = this.requestsLeftFor(state, run);
     if (left <= READER_PAGE_LOAD_COST) return this.budgetSpent(sched, run);
+    if (await this.deps.fillTabOpen?.()) {
+      // 0.3.28 (F5.4): the person is on a fill page: this page opens once that tab is gone
+      const waiting: ReaderRun = { ...run, nextAt: this.deps.now() + FILL_TAB_WAIT_MS };
+      await this.save({ ...sched, run: waiting });
+      this.deps.later?.(FILL_TAB_WAIT_MS + 1_000, () => void this.tick());
+      return "fill_busy";
+    }
     const tabId = await this.deps.tabs.open(`${this.deps.origin}${readerPageUrl(job)}`);
     if (tabId === undefined) return this.finishJob(sched, run, "open_failed", false);
     await addRequests(this.deps.storage, run.day, READER_PAGE_LOAD_COST);
@@ -906,7 +940,9 @@ export class ReaderScheduler {
    * no such proof (the first page of a run, or walls in both sections) it is a session-wide logout:
    * the whole run stops as before, so a logged-out session gets no more tabs than before 0.3.22.
    */
-  private async wall(sched: ReaderSchedule, run: ReaderRun, reason: "login" | "captcha" | "password_recheck", detail?: string): Promise<string> {
+  private async wall(sched: ReaderSchedule, run: ReaderRun, reason: "login" | "captcha" | "password_recheck" | "traffic_check", detail?: string): Promise<string> {
+    // 0.3.28 (F5.3): Shopee's traffic check is never one page only: everything pauses
+    if (reason === "traffic_check") return this.block(sched, run, reason, detail);
     const job = run.jobs[run.index];
     if (!job || (run.kind === "stock" && reason !== "password_recheck")) return this.block(sched, run, reason, detail);
     const section = readerSection(job.id);
@@ -932,9 +968,11 @@ export class ReaderScheduler {
   private async block(sched: ReaderSchedule, run: ReaderRun, reason: ReaderBlockReason, detail?: string): Promise<string> {
     const job = run.jobs[run.index];
     const now = this.deps.now();
-    const until =
-      now + (reason === "captcha" ? READER_BLOCK_CAPTCHA_MS : reason === "rate_limit" ? READER_BLOCK_RATE_MS : READER_BLOCK_LOGIN_MS);
-    const outcomes = { ...run.outcomes, ...(job ? { [job.id]: `blocked_${reason}` } : {}) };
+    const until = now + blockMs(reason);
+    // contract R: the page's outcome reads "blocked:traffic_check" (section seller_centre) with the
+    // pause's end in the outcome's note (the tick's outcomes already carry "<outcome>|<note>")
+    const outcome = reason === "traffic_check" ? `blocked:traffic_check|until=${new Date(until).toISOString()}` : `blocked_${reason}`;
+    const outcomes = { ...run.outcomes, ...(job ? { [job.id]: outcome } : {}) };
     // Ops sees the stop (reader, page, status, time); a failed post never changes the stop.
     await this.deps.sink
       .reportBlock?.({
@@ -960,14 +998,46 @@ export class ReaderScheduler {
     return this.exclusive(async () => {
       const { sched } = await this.load();
       const now = this.deps.now();
-      const until =
-        now + (reason === "captcha" ? READER_BLOCK_CAPTCHA_MS : reason === "rate_limit" ? READER_BLOCK_RATE_MS : READER_BLOCK_LOGIN_MS);
+      const until = now + blockMs(reason);
+      // a firm stop in force (traffic check, rate limit) is never replaced by a liftable one, never
+      // shortened, and the same stop seen again is neither extended nor told twice
+      const held = sched.blocked;
+      if (held && firm(held.reason) && held.until > now && (!firm(reason) || held.reason === reason || held.until >= until)) return;
       const blocked = { at: this.iso(), reason, page: sched.run?.jobs[sched.run.index]?.id ?? ("products" as ReaderId), until };
       if (sched.run) await this.finishRun({ ...sched, blocked }, sched.run, reason);
       else await this.save({ ...sched, blocked });
       await this.deps.sink
         .reportBlock?.({ reader: "fill", page, status: reason, ...(detail ? { code: detail.slice(0, 40) } : {}), at: this.iso() })
         .catch(() => undefined);
+      if (reason === "traffic_check") {
+        // 0.3.28 (F5.3b): a traffic check seen by a FILL tab reaches Juli as a block too: a run tick
+        // whose one page outcome is the fill's (the backend merges a non-daily run's blocks, section
+        // seller_centre), with the pause's end in the outcome's note
+        await this.deps.sink
+          .reportTick?.({
+            kind: "run",
+            trigger: "fill",
+            result: "blocked:traffic_check",
+            day: gmt7Date(Math.floor(now / 1000)),
+            at: this.iso(),
+            outcomes: { fill: `blocked:traffic_check|until=${new Date(until).toISOString()}` },
+          })
+          .catch(() => undefined);
+      }
+    });
+  }
+
+  /**
+   * 0.3.28 (F5.3): a tab's address changed. The scheduler's own reader tab on Shopee's traffic-check
+   * page stops the run and pauses everything (6 h). True when the tab is the scheduler's own.
+   */
+  onTabUrl(tabId: number, url: string | undefined): Promise<boolean> {
+    return this.exclusive(async () => {
+      const { sched } = await this.load();
+      const run = sched.run;
+      if (!run?.current || run.current.tabId !== tabId) return false;
+      if (trafficCheckUrl(url)) await this.block(sched, run, "traffic_check", "page");
+      return true;
     });
   }
 
@@ -1032,6 +1102,11 @@ export class ReaderScheduler {
       const job = run.jobs[run.index] as PlannedJob;
       if (message.job !== job.id) return true; // stale
       const status = String(message.status ?? "error");
+      if (status === "blocked_traffic_check") {
+        await this.countRequests(run.day, message.responses);
+        await this.block(sched, run, "traffic_check", "page");
+        return true;
+      }
       if (status === "blocked_captcha" || status === "blocked_login" || status === "blocked_password_recheck") {
         const detail = outcomeNote(message.detail).replace(/[^A-Za-z0-9_.:-]/g, "_");
         const reason = status === "blocked_captcha" ? "captcha" : status === "blocked_password_recheck" ? "password_recheck" : "login";
@@ -1259,6 +1334,8 @@ export class ReaderScheduler {
   sessionSeen(section?: string): Promise<void> {
     return this.exclusive(async () => {
       let { sched } = await this.load();
+      // 0.3.28 (F5.3): a data call never lifts nor works around a traffic-check pause
+      if (firm(sched.blocked?.reason) && sched.blocked!.until > this.deps.now()) return;
       const lifts = sched.blocked?.reason === "login";
       if (lifts) {
         const wasRunWide = sched.lastRun?.blocked === "login";
@@ -1273,8 +1350,9 @@ export class ReaderScheduler {
   clearBlock(): Promise<void> {
     return this.exclusive(async () => {
       let { sched } = await this.load();
-      // A rate-limit stop is Shopee asking us to slow down: the button does not lift it.
-      if (sched.blocked?.reason === "rate_limit" && sched.blocked.until > this.deps.now()) return;
+      // A rate-limit stop is Shopee asking us to slow down, a traffic check asks us to stop (0.3.28):
+      // neither "Đồng bộ" nor "Đối chiếu ngay" lifts them before their `until`.
+      if (firm(sched.blocked?.reason) && sched.blocked!.until > this.deps.now()) return;
       if (sched.blocked) {
         sched = { ...sched, blocked: undefined, lastRunDay: sched.lastRun?.blocked ? undefined : sched.lastRunDay };
         await this.save(sched);

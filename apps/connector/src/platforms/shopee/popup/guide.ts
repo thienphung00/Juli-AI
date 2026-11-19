@@ -243,6 +243,16 @@ export const PASSWORD_RECHECK_LINE = "Xác nhận mật khẩu Shopee một lầ
 /** 0.3.26: the sub-account may not open Tài chính (income); the shop owner grants the right. */
 export const NO_PERMISSION_LINE = "Cần quyền Tài chính Seller Centre";
 
+/** HH:mm in GMT+7 (the seller's clock), from ms. */
+export function gmt7Time(ms: number): string {
+  const d = new Date(ms + 7 * 3_600_000);
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+}
+
+/** 0.3.28 (F5.3, contract R): Shopee's traffic-check page paused every automation until `until`. */
+export const TRAFFIC_CHECK_STATUS = "Shopee tạm chặn truy cập tự động";
+export const trafficCheckLine = (until: number) => `${TRAFFIC_CHECK_STATUS} — Juli dừng đến ${gmt7Time(until)}`;
+
 /** The same line inside a sentence. */
 export const PASSWORD_RECHECK_LOWER = PASSWORD_RECHECK_LINE.charAt(0).toLowerCase() + PASSWORD_RECHECK_LINE.slice(1);
 
@@ -272,6 +282,7 @@ export function outcomeStatus(outcome: string): { status: string; tone: Tone } {
       // 0.3.22: "blocked:login" / "blocked:captcha": this page only; the other pages went on.
       if (outcome.startsWith("blocked:password_recheck")) return { status: PASSWORD_RECHECK_LINE, tone: "warn" };
       if (outcome.startsWith("blocked:no_permission")) return { status: NO_PERMISSION_LINE, tone: "warn" };
+      if (outcome.startsWith("blocked:traffic_check")) return { status: TRAFFIC_CHECK_STATUS, tone: "warn" };
       return outcome.startsWith("blocked:captcha")
         ? { status: "Trang này yêu cầu xác minh (CAPTCHA)", tone: "warn" }
         : { status: "Đăng nhập lại để đọc trang này", tone: "warn" };
@@ -333,6 +344,7 @@ export function runLine(readers: ReaderSchedule | null | undefined, nowMs: numbe
   if (readers?.blocked && readers.blocked.until > nowMs) {
     const page = READER_GUIDE[readers.blocked.page]?.title ?? "Seller Centre";
     if (readers.blocked.reason === "password_recheck") return `Tạm dừng: ${PASSWORD_RECHECK_LOWER} (trang ${page}).`;
+    if (readers.blocked.reason === "traffic_check") return trafficCheckLine(readers.blocked.until);
     return readers.blocked.reason === "captcha"
       ? `Tạm dừng: Seller Centre yêu cầu xác minh (CAPTCHA) ở trang ${page}. Mở Seller Centre, xác minh, rồi bấm “Đồng bộ hôm qua”.`
       : readers.blocked.reason === "login"
@@ -375,6 +387,7 @@ const TRIGGER_LABELS: Record<string, string> = {
 /** A scheduler tick's result (ReaderScheduler.tick) in the seller's words. */
 export function tickResultLabel(result: string): string {
   const head = result.replace(/^stock[:_]/, "");
+  if (head.startsWith("blocked:traffic_check")) return TRAFFIC_CHECK_STATUS.toLowerCase();
   switch (head) {
     case "opened":
       return result.startsWith("stock") ? "bắt đầu đọc tồn kho" : "bắt đầu đọc các trang";
@@ -386,6 +399,8 @@ export function tickResultLabel(result: string): string {
       return "không có trang nào cần đọc";
     case "backfill_busy":
       return "đang lấy số liệu 30 ngày trước, thử lại sau vài phút";
+    case "fill_busy":
+      return "đang mở một trang điền của Juli, đọc sau khi bạn đóng trang đó";
     case "blocked":
       return "đang tạm dừng (Seller Centre yêu cầu đăng nhập hoặc xác minh)";
     case "consent_required":
