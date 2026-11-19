@@ -510,3 +510,77 @@ async def test_dismiss_logs_only_and_blocks_a_later_send(app_for, world, session
     session.expire_all()
     draft = (await session.scalars(select(AgentCardDraft))).one()
     assert draft.status == "dismissed" and draft.card["draft_ref"] == ref
+
+
+# -- verifier follow-ups -----------------------------------------------------------------------
+
+
+async def _table_rows(session) -> dict[str, list]:
+    from juli_backend.database.database import Base
+
+    out = {}
+    for table in Base.metadata.sorted_tables:
+        rows = (await session.execute(select(table))).all()
+        out[table.name] = sorted(repr(tuple(r)) for r in rows)
+    return out
+
+
+async def test_a_real_draft_of_another_shop_is_missing(app_for, world):
+    ref = await _with_draft(app_for, world)  # the owner's shop
+    creator = _Creator()
+    async with _client(app_for(world["stranger"], world["other"], FakeEngine(), creator)) as c:
+        send = await c.post(f"/v1/demo/juli/cards/{ref}/send", json={})
+        dismiss = await c.post(f"/v1/demo/juli/cards/{ref}/dismiss")
+    assert (send.status_code, dismiss.status_code) == (404, 404) and creator.calls == []
+
+
+async def test_the_daily_window_answers_429_until_its_oldest_ask_leaves(app_for, world, session):
+    shop_id = world["shop"].id
+    now = _now()
+    conv = AgentConversation(
+        id=uuid.uuid4(), shop_id=shop_id, platform="shopee", title="t", created_at=now,
+        updated_at=now,
+    )  # fmt: skip
+    session.add(conv)
+    oldest = now - timedelta(hours=20)
+    for n in range(200):  # the default day limit, all older than the hour window
+        at = oldest + timedelta(minutes=n)
+        session.add(
+            AgentMessage(
+                id=uuid.uuid4(), shop_id=shop_id, conversation_id=conv.id, role="assistant",
+                events=[], status="done", created_at=at, updated_at=at,
+            )
+        )  # fmt: skip
+    await session.commit()
+    async with _client(app_for(world["owner"], world["shop"], FakeEngine())) as c:
+        r = await _ask(c, text="GMV?")
+    assert r.status_code == 429 and r.json()["detail"]["code"] == "juli_limited"
+    retry_at = datetime.fromisoformat(r.json()["detail"]["retry_at"].removesuffix("Z"))
+    assert abs((retry_at - (oldest + timedelta(days=1))).total_seconds()) < 2
+
+
+async def test_a_refused_send_leaves_every_row_as_it_was(app_for, world, session, monkeypatch):
+    ref = await _with_draft(app_for, world)
+
+    async def _read_only(session, shop_id):
+        return True
+
+    monkeypatch.setattr("juli_backend.services.subscriptions.is_read_only", _read_only)
+    before = await _table_rows(session)
+    async with _client(app_for(world["owner"], world["shop"], FakeEngine(), _Creator())) as c:
+        r = await c.post(f"/v1/demo/juli/cards/{ref}/send", json={})
+    session.expire_all()
+    assert r.status_code == 403
+    assert await _table_rows(session) == before
+
+
+async def test_past_the_process_cap_an_ask_is_429_busy_system(app_for, world, monkeypatch):
+    monkeypatch.setenv("JULI_AGENT_MAX_CONCURRENT_RUNS", "1")
+    gate = asyncio.Event()
+    async with _client(app_for(world["owner"], world["shop"], FakeEngine(gate=gate))) as c:
+        first = await _ask(c, text="GMV?")
+        second = await _ask(c, text="AOV?")  # another conversation: only the cap stops it
+        gate.set()
+        await _wait_runs()
+    assert first.status_code == 202
+    assert second.status_code == 429 and second.json()["detail"]["code"] == "juli_busy_system"

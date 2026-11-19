@@ -33,6 +33,7 @@ from juli_backend.models.agent_chat import (
     AgentMessage,
     AgentRoutingDecision,
 )
+from juli_backend.services.juli_agent_api import config
 from juli_backend.services.juli_agent_api.engine import (
     Engine,
     PortsFactory,
@@ -108,7 +109,8 @@ async def _finish(
     drafts: list[dict[str, Any]] | None = None,
 ) -> None:
     now = _utcnow()
-    sink.append(*terminal)
+    kind, payload = terminal
+    events = [*sink.events, {"seq": len(sink.events) + 1, "type": kind, "payload": payload}]
     async with factory() as session, with_shop_scope(session, shop_id):
         row = await session.get(AgentMessage, message_id)
         if row is None:  # pragma: no cover - the row was purged mid-run
@@ -126,7 +128,7 @@ async def _finish(
                 )
             )
         session.add_all(_routing_rows(routing, shop_id=shop_id, message_id=message_id, now=now))
-        row.events = list(sink.events)
+        row.events = events
         row.status = status
         row.stop_reasons = stop_reasons
         row.cost_usd = Decimal(str(cost_usd)) if cost_usd is not None else None
@@ -134,6 +136,7 @@ async def _finish(
         row.pending = sink.private.get("pending")
         row.updated_at = now
         await session.commit()
+    sink.events = events  # only once written: a retried ending never doubles its terminal event
 
 
 def _data_until_vi(result: Any) -> str | None:
@@ -158,16 +161,36 @@ def _template_choice(engine: Engine) -> dict[str, Any]:
     }
 
 
+async def _mark_ended(
+    factory: async_sessionmaker[AsyncSession],
+    shop_id: uuid.UUID,
+    message_id: uuid.UUID,
+    status: str,
+) -> None:
+    """Last resort when the full ending could not be written: the row leaves ``running``."""
+    try:
+        async with factory() as session, with_shop_scope(session, shop_id):
+            row = await session.get(AgentMessage, message_id)
+            if row is not None and row.status == "running":
+                row.status = status
+                row.updated_at = _utcnow()
+            await session.commit()
+    except Exception:
+        logger.exception("juli_agent_mark_ended_failed", extra={"message_id": str(message_id)})
+
+
 async def _finish_safely(
     *args: Any, before: tuple[str, dict[str, Any]] | None = None, **kw: Any
 ) -> None:
+    """:func:`_finish`, and whatever happens the row does not stay ``running``."""
     sink: PersistingSink = kw["sink"]
     if before is not None:
         sink.append(*before)
     try:
         await _finish(*args, **kw)
-    except Exception:
+    except (Exception, asyncio.CancelledError):
         logger.exception("juli_agent_finish_failed", extra={"message_id": str(kw["message_id"])})
+        await _mark_ended(args[0], kw["shop_id"], kw["message_id"], kw["status"])
 
 
 async def execute(
@@ -189,20 +212,34 @@ async def execute(
         return int((time.monotonic() - started) * 1000)
 
     try:
-        ports = await ports_factory(
-            shop_id=shop_id, platform=str(request["platform"]), write_factory=write_factory
-        )
-        result = await engine.run(
-            request,
-            read_session_factory=read_only_session_factory(read_factory, shop_id),
-            llm=ports.llm,
-            jev=ports.jev,
+        async with asyncio.timeout(config.run_timeout_s()):
+            ports = await ports_factory(
+                shop_id=shop_id, platform=str(request["platform"]), write_factory=write_factory
+            )
+            result = await engine.run(
+                request,
+                read_session_factory=read_only_session_factory(read_factory, shop_id),
+                llm=ports.llm,
+                jev=ports.jev,
+                sink=sink,
+            )
+            await sink.flush()
+    except TimeoutError:
+        # the whole run is over its time limit: the answer ends "Juli đang bận"
+        logger.warning("juli_agent_run_timeout", extra={"message_id": str(message_id)})
+        await _finish_safely(
+            write_factory,
+            shop_id=shop_id,
+            message_id=message_id,
             sink=sink,
+            status=STATUS_FAILED,
+            terminal=("error", {"code": "busy"}),
+            ms=elapsed(),
         )
-        await sink.flush()
+        return
     except asyncio.CancelledError:
         # "Dừng": the seller's cancel (a local task.cancel() or the flag read at a flush)
-        await _finish(
+        await _finish_safely(
             write_factory,
             shop_id=shop_id,
             message_id=message_id,
@@ -272,19 +309,35 @@ async def execute(
     routing = _field(result, "routing", None)
     if routing is None:
         routing = sink.private.get("routing")
-    await _finish(
-        write_factory,
-        shop_id=shop_id,
-        message_id=message_id,
-        sink=sink,
-        status=STATUS_DONE,
-        terminal=("done", done),
-        stop_reasons=done["stop_reasons"],
-        cost_usd=float(cost) if cost is not None else done.get("cost_usd"),
-        ms=ms,
-        routing=routing,
-        drafts=_drafts_of(result),
-    )
+    try:
+        await _finish(
+            write_factory,
+            shop_id=shop_id,
+            message_id=message_id,
+            sink=sink,
+            status=STATUS_DONE,
+            terminal=("done", done),
+            stop_reasons=done["stop_reasons"],
+            cost_usd=float(cost) if cost is not None else done.get("cost_usd"),
+            ms=ms,
+            routing=routing,
+            drafts=_drafts_of(result),
+        )
+    except asyncio.CancelledError:
+        # "Dừng" while the answer was being written: end it cancelled, never left "running"
+        await _finish_safely(
+            write_factory,
+            shop_id=shop_id,
+            message_id=message_id,
+            sink=sink,
+            status=STATUS_CANCELLED,
+            terminal=("done", {"stop_reasons": ["cancelled"], "cancelled": True, "ms": ms}),
+            stop_reasons=["cancelled"],
+            ms=ms,
+        )
+    except Exception:
+        logger.exception("juli_agent_finish_failed", extra={"message_id": str(message_id)})
+        await _mark_ended(write_factory, shop_id, message_id, STATUS_FAILED)
 
 
 def schedule(**kwargs: Any) -> asyncio.Task[None]:
@@ -296,6 +349,11 @@ def schedule(**kwargs: Any) -> asyncio.Task[None]:
     return task
 
 
+def active_runs() -> int:
+    """Runs in flight in this process (the per-process cap, ``config.max_concurrent_runs``)."""
+    return sum(1 for task in _TASKS.values() if not task.done())
+
+
 def cancel_local(message_id: uuid.UUID) -> bool:
     """Cancel the run if this process runs it; the row flag covers the other processes."""
     task = _TASKS.get(message_id)
@@ -305,4 +363,4 @@ def cancel_local(message_id: uuid.UUID) -> bool:
     return True
 
 
-__all__ = ["cancel_local", "execute", "schedule"]
+__all__ = ["active_runs", "cancel_local", "execute", "schedule"]

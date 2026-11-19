@@ -22,7 +22,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from sqlalchemy import text
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.database.tenant_context import with_shop_scope
@@ -67,23 +67,30 @@ class EngineUnavailable(RuntimeError):
 # -- read-only analysis sessions ---------------------------------------------------------------
 
 
+def _begin_read_only(session: Any, transaction: Any, connection: Any) -> None:
+    """``after_begin``: make THIS transaction read-only (Postgres; SQLite has no such mode).
+
+    Per transaction, never ``default_transaction_read_only``: production reaches Postgres
+    through Supavisor, and a session-level setting could stay on a pooled server connection.
+    """
+    if connection.dialect.name == "postgresql":
+        connection.exec_driver_sql("SET TRANSACTION READ ONLY")
+
+
 def read_only_session_factory(
     factory: async_sessionmaker[AsyncSession], shop_id: uuid.UUID
 ) -> Callable[[], Any]:
     """Sessions the engine reads with: read-only at the database, in the shop's scope.
 
-    ``default_transaction_read_only`` is set for the connection and committed, so the
-    transaction the engine then runs in (and any later one on this connection) refuses every
-    write with ``25006 read_only_sql_transaction``. The worker factory is NullPool: the setting
-    dies with the connection. SQLite (unit tests) has no such setting and is left as is.
+    Every transaction the session begins -- the first and any after a commit -- runs
+    ``SET TRANSACTION READ ONLY`` as its first statement (:func:`_begin_read_only`), so each
+    write fails with ``25006 read_only_sql_transaction`` and nothing outlives the transaction.
     """
 
     @asynccontextmanager
     async def _session() -> AsyncIterator[AsyncSession]:
         async with factory() as session:
-            if session.bind.dialect.name == "postgresql":
-                await session.execute(text("SET default_transaction_read_only = on"))
-                await session.commit()
+            event.listen(session.sync_session, "after_begin", _begin_read_only)
             async with with_shop_scope(session, shop_id):
                 yield session
 

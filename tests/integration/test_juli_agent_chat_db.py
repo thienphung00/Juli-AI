@@ -5,7 +5,9 @@
   ``juli_ops`` nothing;
 - two tenants: a shop sees and writes only its own rows; a smuggled insert for another shop fails;
 - one running answer per conversation (the partial unique index);
-- the engine's analysis session (``read_only_session_factory``) refuses every write;
+- the engine's analysis session (``read_only_session_factory``) refuses every write, per
+  transaction (nothing session-level);
+- two concurrent sends of one draft make one card (the draft row is locked);
 - the purge sweep finds every table (uuid ``shop_id``);
 - last: ``downgrade`` to 134 drops the tables, ``upgrade head`` restores them.
 
@@ -194,8 +196,11 @@ async def test_the_analysis_session_is_read_only(two_tenants):
     try:
         factory = read_only_session_factory(async_sessionmaker(engine), a.shop_id)
         async with factory() as session:
-            setting = await session.scalar(text("SHOW default_transaction_read_only"))
-            assert setting == "on"
+            assert await session.scalar(text("SHOW transaction_read_only")) == "on"
+            # per transaction only: nothing session-level that a pooled connection could keep
+            assert await session.scalar(text("SHOW default_transaction_read_only")) == "off"
+            await session.commit()
+            assert await session.scalar(text("SHOW transaction_read_only")) == "on"  # next one
             with pytest.raises(DBAPIError) as excinfo:
                 await session.execute(
                     text(
@@ -207,6 +212,75 @@ async def test_the_analysis_session_is_read_only(two_tenants):
             assert "read-only" in str(excinfo.value)
     finally:
         await engine.dispose()
+
+
+async def test_two_concurrent_sends_of_one_draft_make_one_card(owner_engine, two_tenants):
+    import asyncio
+    from datetime import datetime
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    from juli_backend.core.async_db import async_database_url
+    from juli_backend.services.juli_agent_api import send_card
+
+    a, _ = two_tenants
+    ref = f"d_{uuid.uuid4().hex[:12]}"
+    with owner_engine.begin() as conn:
+        conv = _conversation(conn, a.shop_id)
+        msg = _message(conn, a.shop_id, conv, status="done")
+        conn.execute(
+            text(
+                "INSERT INTO public.agent_card_drafts (id, shop_id, message_id, draft_ref, card, "
+                "status) VALUES (:id, :shop, :msg, :ref, CAST(:card AS jsonb), 'drafted')"
+            ),
+            {
+                "id": uuid.uuid4(),
+                "shop": a.shop_id,
+                "msg": msg,
+                "ref": ref,
+                "card": json.dumps(
+                    {
+                        "draft_ref": ref,
+                        "kind": "product_discount",
+                        "item_id": "1001",
+                        "recommended": "A",
+                        "engine_card": {"versions": [{"label": "A", "inputs": {}}]},
+                    }
+                ),
+            },
+        )
+    calls: list[int] = []
+
+    async def create(session, shop_id, variants, chosen, user_id, **kw):
+        calls.append(1)
+        await asyncio.sleep(0.3)  # the second send waits on the row lock meanwhile
+        return {"id": str(uuid.uuid4()), "code": "JC-2611-0001", "status": "sent"}
+
+    engine = create_async_engine(async_database_url(os.environ["DATABASE_URL"]), poolclass=NullPool)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def one() -> dict:
+        async with factory() as session:
+            out = await send_card(
+                session,
+                shop_id=a.shop_id,
+                user_id=a.user_id,
+                draft_ref=ref,
+                version_label=None,
+                now=datetime(2026, 11, 20, 3, 0),
+                create=create,
+            )
+            await session.commit()
+            return out
+
+    try:
+        first, second = await asyncio.gather(one(), one())
+    finally:
+        await engine.dispose()
+    assert len(calls) == 1
+    assert sorted([first["already_sent"], second["already_sent"]]) == [False, True]
+    assert first["card_code"] == second["card_code"] == "JC-2611-0001"
 
 
 def test_the_purge_sweep_finds_every_table(owner_engine):
