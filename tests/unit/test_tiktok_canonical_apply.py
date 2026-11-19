@@ -238,27 +238,38 @@ async def test_each_of_the_nine_statuses_lands_from_the_landed_returns(
     assert second.status == (expected if return_status is None else "delivered")
 
 
-async def test_a_return_this_job_fetched_re_maps_its_held_order_and_refetches_the_rest(
+async def test_a_return_re_maps_its_held_order_now_and_the_rest_in_the_next_cycle(
     session,
 ) -> None:
     _, shop = await make_tenant(session, platform="tiktok")
-    sync = tc.TikTokCanonicalSync(session, shop.id, days_fn=_Days())
-    await sync.on_orders([_order("900000000000000001")])
+    queue = tc.InMemoryRefetchQueue()
     asked: list[list[str]] = []
 
     def fetch(ids: list[str]) -> list[dict]:
         asked.append(ids)
         return [_order(i) for i in ids]
 
-    await sync.on_returns(
+    cycle = tc.TikTokCanonicalSync(session, shop.id, days_fn=_Days())
+    await cycle.on_orders([_order("900000000000000001")])
+    await cycle.on_returns(
         [
             _return("900000000000000001", "RETURN_OR_REFUND_REQUEST_COMPLETE"),
             _return("900000000000000002", "BUYER_SHIPPED_ITEM"),
         ]
     )
-    await sync.finish(fetch_details=fetch)
+    await cycle.finish(fetch_details=fetch, queue=queue)
 
-    assert asked == [["900000000000000002"]]
+    # this cycle: the held order is re-mapped; the other is queued, never fetched by id now
+    assert asked == [] and queue.ids[shop.id] == {"900000000000000002"}
+    # the ETL landed the return meanwhile; the next cycle fetches the queued order by id
+    await _silver_return(
+        session, shop, "900000000000000002", "600000000000000001", "BUYER_SHIPPED_ITEM"
+    )
+    await tc.TikTokCanonicalSync(session, shop.id, days_fn=_Days()).finish(
+        fetch_details=fetch, queue=queue
+    )
+
+    assert asked == [["900000000000000002"]] and queue.ids[shop.id] == set()
     by_ref = {(r.order_ref, r.line_no): r.status for r in await _lines(session)}
     assert by_ref == {
         ("900000000000000001", 0): "returned",
@@ -266,6 +277,29 @@ async def test_a_return_this_job_fetched_re_maps_its_held_order_and_refetches_th
         ("900000000000000002", 0): "refunded_not_received",
         ("900000000000000002", 1): "delivered",
     }
+
+
+async def test_a_job_without_a_queue_never_fetches_by_id(session) -> None:
+    _, shop = await make_tenant(session, platform="tiktok")
+    asked: list[list[str]] = []
+    sync = tc.TikTokCanonicalSync(session, shop.id, days_fn=_Days())
+    await sync.on_returns([_return("900000000000000002", "BUYER_SHIPPED_ITEM")])
+
+    await sync.finish(fetch_details=lambda ids: asked.append(ids) or [])
+
+    assert asked == [] and await _lines(session) == []
+
+
+async def test_a_webhook_job_only_queues_and_leaves_queued_ids_to_the_poll(session) -> None:
+    _, shop = await make_tenant(session, platform="tiktok")
+    queue = tc.InMemoryRefetchQueue()
+    queue.push(shop.id, ["900000000000000005"])
+    sync = tc.TikTokCanonicalSync(session, shop.id, days_fn=_Days())
+    await sync.on_returns([_return("900000000000000002", "BUYER_SHIPPED_ITEM")])
+
+    await sync.finish(queue=queue, pop_queued=False)
+
+    assert queue.ids[shop.id] == {"900000000000000002", "900000000000000005"}
 
 
 async def test_settlements_map_from_the_finance_rows_read_since_the_job_started(session) -> None:

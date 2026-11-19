@@ -81,7 +81,7 @@ from juli_backend.integrations.tiktok import (
     expand_analytics_sku_detail,
     expand_analytics_sku_list_item,
 )
-from juli_backend.services.ingest.tiktok_canonical_throttle import noted_call
+from juli_backend.services.ingest import noted_call
 from juli_backend.services.ingestion import HandoffFn
 from juli_backend.workers.services.polling.sync import (
     SyncOutcome,

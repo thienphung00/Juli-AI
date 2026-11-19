@@ -91,8 +91,8 @@ from juli_backend.services.cdp_speed import (
 - ``execute_targeted_fetch_to_bronze`` — production fetch boundary via ``targeted_fetch_sync``
   (orders/returns only; no workers imports). P101 W2: the fetched orders and returns are also
   mapped to the canonical tables in the same job (``services.ingest.tiktok_canonical``, one
-  ``TikTokCanonicalSync(scope_each_call=True)`` per job, then ``finish`` re-fetches by id the
-  returned orders it did not fetch); ``TIKTOK_CANONICAL_SYNC=0`` turns it off.
+  ``TikTokCanonicalSync(scope_each_call=True)`` per job, then ``finish`` queues the returned orders it
+  did not fetch for the shop's next poll cycle; a webhook job never fetches order detail by id); ``TIKTOK_CANONICAL_SYNC=0`` turns it off.
 - ``make_targeted_fetch_bronze_handoff`` — Speed-layer adapter that delegates append-only
   persistence to the ETL-owned bronze writer.
 - ``SharedComputeJob`` — ``shop_id``, ``shop_key``, ``enqueue_reason`` (``webhook_catalog:<id>`` or

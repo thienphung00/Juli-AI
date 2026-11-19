@@ -302,7 +302,8 @@ async def execute_targeted_fetch_to_bronze(
         job_token=correlation_id,
         tracker=tracker,
     )
-    rate_limiter = RateLimiter(redis.from_url(resolved_env.redis_url))
+    redis_client = redis.from_url(resolved_env.redis_url)
+    rate_limiter = RateLimiter(redis_client)
     # P101 W2 (S-1): the webhook's orders / returns reach the canonical tables in this job.
     # Each canonical call enters the shop scope itself (the scope set around the bronze stage
     # does not survive the vendor fetch, see below).
@@ -325,14 +326,11 @@ async def execute_targeted_fetch_to_bronze(
             canonical=canonical,
         )
     if canonical is not None:
+        # A webhook job never fetches order detail by id: the returned orders it did not
+        # fetch are queued (same Redis as the limiter) for the shop's next poll cycle.
         await canonical.finish(
-            fetch_details=tiktok_canonical.order_details_fetcher(
-                resources.orders,
-                rate_limiter=rate_limiter,
-                app_id=resolved_env.app_key,
-                shop_id=shop_key,
-            ),
-            fetch_errors=tiktok_canonical.ORDER_REFETCH_ERRORS,
+            queue=tiktok_canonical.RedisRefetchQueue(redis_client),
+            pop_queued=False,
         )
 
     # SCOPE ADJACENT TO THE WRITE, NOT AROUND THE FETCH.
