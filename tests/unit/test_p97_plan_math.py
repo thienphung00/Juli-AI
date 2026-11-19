@@ -490,3 +490,32 @@ async def test_one_option_shows_the_same_p50_and_range_on_the_card_the_compare_a
     assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(own["gmv"], abs=1)
     # P99: the plan's Δ Đơn is at the card's precision (one decimal under 10 orders)
     assert agg["dorders_month"]["p50"] == pytest.approx(own["orders"], abs=0.051)
+
+
+async def test_confirm_counts_a_grouped_card_only_on_its_groups_days(session, shop, monkeypatch):
+    """The confirm() call site passes the group's last day like the list view (A3.1)."""
+    seeded, env = shop
+    sid = seeded.shop_id
+    a = await _card(session, seeded, env, _discount(15))
+    v = await _card(session, seeded, env, VOUCHER, 1)
+    await session.commit()
+    await plans.run_together(session, sid, [(a, 1), (v, 1)], days=3, actor=_actor(seeded), now=NOW)
+    real = plans._aggregate
+    seen = []
+
+    async def spy(*args, **kw):
+        out = await real(*args, **kw)
+        if kw.get("default_end") is not None:
+            seen.append((kw["default_start"], kw["default_end"], out[0]))
+        return out
+
+    monkeypatch.setattr(plans, "_aggregate", spy)
+    await plans.confirm(
+        session, sid, actor=_actor(seeded), now=NOW, acknowledge_breaches=True,
+        planned_date=NOW.date() + timedelta(days=1),
+    )  # fmt: skip
+    assert len(seen) == 1
+    start, end, agg = seen[0]
+    assert (end - start).days + 1 == 3
+    counted = [c["result"]["counted_days"] for c in agg["cards"] if c["result"].get("estimable")]
+    assert counted and all(d is not None and d <= 3 for d in counted)
