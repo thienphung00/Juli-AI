@@ -25,6 +25,7 @@ from juli_backend.services.shopee_builder.engine_families.integrate import (
     margin_basis,
     sum_results,
 )
+from juli_backend.services.shopee_builder.reasons import REASON_TEXT
 from juli_backend.services.shopee_profit.fees import FeeComponent, FeeFormula, FeeKind, FeeSchedule
 from juli_backend.services.shopee_profit.income import LineIncome
 from juli_backend.services.shopee_profit.order_profit import (
@@ -214,14 +215,15 @@ def test_not_estimable_result_shows_only_the_one_label(code, note):
     j = r.json()
     assert j["reason_code"] == code  # the detail stays for internal use
     assert j["delta"]["orders"]["note"] == LABEL
-    assert j["reason_text"] == LABEL
+    assert j["reason_text"] == REASON_TEXT[code]  # the hover keeps the real reason (G5)
     assert j["notes"] == [LABEL]
     assert r.notes == (note,)  # the OptionResult (and its stored core) keep the detail
 
 
 def test_not_estimable_result_without_a_note_shows_the_label_too():
     j = result(scen(1_000_000, 0), None, BASIS).json()
-    assert j["delta"]["orders"]["note"] == LABEL and j["reason_text"] == LABEL
+    assert j["delta"]["orders"]["note"] == LABEL
+    assert j["reason_code"] == "no_estimate" and j["reason_text"] == REASON_TEXT["no_estimate"]
 
 
 def test_every_no_estimate_reason_code_is_covered():

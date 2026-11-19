@@ -20,8 +20,9 @@ from juli_backend.services.shopee_builder.reasons import code_for_note, text_for
 from juli_backend.services.shopee_profit.money import pct_points, safe_div
 
 AOV_ONLY_NOTE = "Đòn bẩy này tăng giá trị mỗi đơn, không tăng số đơn."
-#: the ONE seller-facing text of a result that is not estimable (owner 2026-11-19); the detail
-#: stays in ``reason_code`` and in the stored core's ``notes`` (internal use, the Excel export)
+#: the ONE visible text of a result that is not estimable (owner 2026-11-19); the detail
+#: stays in ``reason_code`` / ``reason_text`` (the G5 hover) and in the stored core's ``notes``
+#: (internal use, the Excel export)
 NOT_ESTIMABLE_NOTE = "Chưa ước tính được"
 #: G4: registry id + label of the card figure (kept equal to metrics.registry by a test)
 CARD_RETURN_ID = "card_return"
@@ -212,7 +213,7 @@ def result_json(r: OptionResult) -> dict[str, Any]:
         "drivers": list(r.drivers),
         "estimable": r.estimable,
         "reason_code": reason_code,
-        "reason_text": text_for(reason_code) if r.estimable else NOT_ESTIMABLE_NOTE,
+        "reason_text": text_for(reason_code),  # G5: the hover keeps the real reason
         "basis": r.basis,
         "basis_weak": r.basis == "prior",
         # F5: the metrics ("gmv" | "orders" | "profit") whose delta is null (within normal swing)
