@@ -275,3 +275,123 @@ def test_an_ads_card_that_cannot_be_resolved_is_tracked_alone_and_counted_in_the
     a = not_estimable("c1", days=14, cost=1_400_000, product="p1", campaign="card:c1")
     b = not_estimable("c2", days=14, cost=1_400_000, product="p2", campaign="card:c2")
     assert sum(pa.ads_shares([a, b], H, pa.AdsData()).cost.values()) == pytest.approx(2_800_000)
+
+
+# ------------------------------------------- one product, one campaign (owner 2026-11-19)
+
+
+def test_the_product_is_in_the_campaign_where_it_spent_last():
+    d = date
+    data = pa.AdsData(
+        products={"OLD": {"p1": (500.0, 5.0)}, "NEW": {"p1": (40.0, 1.0)}},
+        latest={"OLD": {"p1": (d(2026, 11, 1), 500.0)}, "NEW": {"p1": (d(2026, 11, 9), 40.0)}},
+    )
+    assert data.campaign_of_product("p1") == "NEW"  # moved: the current campaign wins
+    tie = pa.AdsData(
+        products={"A": {"p1": (10.0, 1.0)}, "B": {"p1": (30.0, 1.0)}},
+        latest={"A": {"p1": (d(2026, 11, 9), 10.0)}, "B": {"p1": (d(2026, 11, 9), 30.0)}},
+    )
+    assert tie.campaign_of_product("p1") == "B"  # same last day: the larger spend that day
+
+
+def test_ads_data_of_keeps_the_last_spend_day_and_the_measured_roas():
+    from types import SimpleNamespace as NS
+
+    def row(k, i, s, g, end):
+        return NS(key=k, item_id=i, spend=s, orders=1, gmv=g, period=(date(2026, 11, 1), end))
+
+    env = NS(
+        view=NS(
+            data=NS(
+                ads_reports=NS(
+                    campaign_rows=[
+                        row("A", "p1", 100, 300, date(2026, 11, 5)),
+                        row("B", "p1", 50, 400, date(2026, 11, 9)),
+                    ]
+                )
+            )
+        ),
+        as_of=date(2026, 11, 10),
+        campaigns={},
+    )
+    data = pa.ads_data_of(env)
+    assert data.campaign_of_product("p1") == "B"
+    assert data.roas("A") == pytest.approx(3.0) and data.roas("B") == pytest.approx(8.0)
+    assert data.roas("none") is None
+
+
+def _conflict(monkeypatch, specs, data, *, days=14, costs=None):
+    """Two ads cards on product p1 in different campaigns; returns their CardResults."""
+    evs = [_ev(cid, kind, "p1", key) for cid, (kind, key, _spec) in specs.items()]
+    for e in evs:
+        e.entry.code = f"JC-{e.entry.card_id}"
+    spec_of = {cid: s for cid, (_k, _key, s) in specs.items()}
+    monkeypatch.setattr(pa, "_version_row", lambda e: {"spec": spec_of[e.entry.card_id]})
+    costs = costs or {}
+    results = {
+        cid: not_estimable(cid, days=days, cost=costs.get(cid, 1_400_000), product="p1")
+        for cid in specs
+    }
+    pa.assign_campaigns(results, evs, data)
+    return results
+
+
+def test_a_conflict_keeps_the_higher_roas_campaign_and_the_loser_adds_nothing(monkeypatch):
+    data = pa.AdsData(roas_parts={"RUN": (800.0, 100.0)})  # measured ROAS 8
+    res = _conflict(
+        monkeypatch,
+        {
+            "run": ("ads_budget", "RUN", {}),
+            "new": ("ads_new_campaign", None, {"roas_target": 3.5}),
+        },
+        data,
+    )
+    assert res["run"].replaced_by is None and res["new"].replaced_by == "JC-run"
+    assert res["new"].cost_in(H) == 0.0  # the loser adds no cost
+    shares = pa.ads_shares(list(res.values()), H, data)
+    assert set(shares.cost) == {"run"}
+    est = card("new2", d_gmv=100, d_orders=1, d_profit=-5, days=14, cost=1_400_000)
+    est.replaced_by = "JC-run"
+    assert pa.count_in_horizon([est], H) == {}  # nor any Δ
+
+
+def test_a_new_campaign_with_the_higher_roas_target_wins_over_a_measured_lower_roas(monkeypatch):
+    data = pa.AdsData(roas_parts={"RUN": (200.0, 100.0)})  # measured ROAS 2
+    res = _conflict(
+        monkeypatch,
+        {
+            "run": ("ads_budget", "RUN", {}),
+            "new": ("ads_new_campaign", None, {"roas_target": 4.5}),
+        },
+        data,
+    )
+    assert res["new"].replaced_by is None and res["run"].replaced_by == "JC-new"
+
+
+def test_a_roas_tie_goes_to_the_lower_per_day_spend(monkeypatch):
+    data = pa.AdsData(roas_parts={"A": (300.0, 100.0), "B": (300.0, 100.0)})
+    res = _conflict(
+        monkeypatch,
+        {"a": ("ads_budget", "A", {}), "b": ("ads_budget", "B", {})},
+        data,
+        costs={"a": 1_400_000, "b": 700_000},  # b spends 50.000 a day, a 100.000
+    )
+    assert res["b"].replaced_by is None and res["a"].replaced_by == "JC-b"
+
+
+def test_no_conflict_changes_nothing(monkeypatch):
+    data = pa.AdsData(roas_parts={"A": (300.0, 100.0)})
+    same = _conflict(
+        monkeypatch,
+        {"a1": ("ads_budget", "A", {}), "a2": ("ads_roas_target", "A", {})},
+        data,
+    )
+    assert all(r.replaced_by is None for r in same.values())  # one product, one campaign
+    ev = [_ev("x", "ads_budget", "p1", "A"), _ev("y", "ads_budget", "p2", "B")]
+    monkeypatch.setattr(pa, "_version_row", lambda e: {"spec": {}})
+    res = {
+        e.entry.card_id: not_estimable(e.entry.card_id, days=14, cost=1, product=e.product)
+        for e in ev
+    }
+    pa.assign_campaigns(res, ev, data)
+    assert all(r.replaced_by is None for r in res.values())  # two products: nothing to resolve
