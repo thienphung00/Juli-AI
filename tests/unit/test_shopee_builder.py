@@ -44,7 +44,7 @@ def S(**kw):
 
 @pytest.fixture
 async def shop(session):
-    seeded = await seed_reco_shop(session)
+    seeded = await seed_reco_shop(session, traffic_days=True)
     await materialize.backfill_shop(session, seeded.shop_id)
     await session.commit()
     return seeded
