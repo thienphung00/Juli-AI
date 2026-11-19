@@ -79,21 +79,25 @@ async def pilot_shop_ids(session: Any) -> list[uuid.UUID]:
             .scalars()
             .all()
         )
-        # F7 (owner: "everything automatic"): every real Shopee shop with an executed card is
-        # measured too, not only the Ops "pilot" stage (ORY had no stage row, so its cards were
-        # never measured). The sample shop stays out (its rows are reloaded, never learned from).
-        executed = set(
-            (
-                await session.execute(
-                    select(ShopProposal.shop_id)
-                    .join(Shop, Shop.id == ShopProposal.shop_id)
-                    .where(ShopProposal.status == STATUS_EXECUTED, Shop.kind == "real")
-                    .distinct()
-                )
+    # F7 (owner: "everything automatic"): every real Shopee shop with an executed card is measured
+    # too, not only the Ops "pilot" stage (ORY had no stage row, so its cards were never measured).
+    # Cards are read inside each shop's own scope (RLS), never under the Ops role. The sample shop
+    # stays out (its rows are reloaded, never learned from).
+    kinds = dict(
+        (await session.execute(select(Shop.id, Shop.kind).where(Shop.id.in_(shopee)))).all()
+    )
+    executed: set[uuid.UUID] = set()
+    for shop_id in sorted(shopee - staged, key=str):
+        if kinds.get(shop_id) != "real":
+            continue
+        async with with_shop_scope(session, shop_id):
+            hit = await session.scalar(
+                select(ShopProposal.id)
+                .where(ShopProposal.shop_id == shop_id, ShopProposal.status == STATUS_EXECUTED)
+                .limit(1)
             )
-            .scalars()
-            .all()
-        )
+        if hit is not None:
+            executed.add(shop_id)
     return sorted(shopee & (staged | executed | _extra_ids()), key=str)
 
 

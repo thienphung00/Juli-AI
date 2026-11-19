@@ -34,7 +34,7 @@ def _cs(start: date, days: int, *, scope="product", product=ITEM, status="measur
 # --------------------------------------------------------------------------- F7.5 (pure)
 
 
-def _days(first: date, profits: list[float], orders: list[int], gmv: float = 100_000):
+def _days(first: date, profits: list[float | None], orders: list[int], gmv: float = 100_000):
     return {
         first + timedelta(days=i): Day(gmv, float(orders[i]), profits[i])
         for i in range(len(profits))
@@ -60,7 +60,7 @@ def test_running_thuc_te_reproduces_the_gloves_example():
 
 def test_no_data_yet_is_none_and_unknown_profit_stays_none():
     assert running.build_actual({}, frozenset(), start=START, n=7) is None
-    days = _days(START - timedelta(days=2), [5.0, 5.0, 5.0, None, 5.0], [1] * 5)  # type: ignore[list-item]
+    days = _days(START - timedelta(days=2), [5.0, 5.0, 5.0, None, 5.0], [1] * 5)
     got = running.build_actual(days, frozenset(days), start=START, n=2)
     assert got is not None and got["metrics"]["profit"]["thuc_te"] is None
     assert got["metrics"]["profit"]["delta"] is None
