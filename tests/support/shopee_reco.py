@@ -47,9 +47,12 @@ async def seed_reco_shop(
     targets: bool = True,
     stock: int = 120,
     materialized: bool = True,
+    traffic_days: bool = False,
 ) -> Seeded:
     seeded = await seed_shopee_shop(session, rules=False, materialized=False)
     sid = seeded.shop_id
+    if traffic_days:  # C1: products 1002 / 1003 get the 5 days with product traffic rows F2 needs
+        await add_product_traffic_days(session, sid)
     for sku, cogs in COSTS.items():
         session.add(rule(sid, "sku_cost", sku, cogs))
         session.add(rule(sid, "packaging_cost", sku, 1_000))
@@ -94,4 +97,28 @@ async def seed_reco_shop(
     return seeded
 
 
-__all__ = ["AS_OF", "CUR_START", "MONTH", "NOW", "datetime", "seed_reco_shop"]
+async def add_product_traffic_days(session: AsyncSession, shop_id: uuid.UUID) -> None:
+    """Two more order days for products 1002 (SKU N1) and 1003 (SKU T1), on days they did not sell,
+    so each has the five days with product traffic rows the F2 base needs (C1); the plain seed
+    gives them 4 and 3. Call before backfilling."""
+    from datetime import timedelta
+
+    from tests.support.shopee_analytics import _line
+
+    extra = (("N1", (1, 3), 60_000, 54_000), ("T1", (0, 2), 50_000, 45_000))
+    for k, (sku, days, original, deal) in enumerate(extra):
+        for i, d in enumerate(days):
+            day = CUR_START + timedelta(days=d)
+            session.add(_line(shop_id, 9001 + 10 * k + i, day, sku, original=original, deal=deal))
+    await session.flush()
+
+
+__all__ = [
+    "AS_OF",
+    "CUR_START",
+    "MONTH",
+    "NOW",
+    "add_product_traffic_days",
+    "datetime",
+    "seed_reco_shop",
+]

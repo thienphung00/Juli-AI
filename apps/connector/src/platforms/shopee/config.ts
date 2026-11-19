@@ -236,6 +236,8 @@ export const READER_POLL_MS = 500;
 /** Cool-downs after a stop: a CAPTCHA is left alone for days; a login wall is retried sooner. */
 export const READER_BLOCK_CAPTCHA_MS = 72 * 3_600_000;
 export const READER_BLOCK_LOGIN_MS = 6 * 3_600_000;
+/** 0.3.28 (F5.3): Shopee's traffic-check page pauses readers, fills and read-backs together this long. */
+export const READER_BLOCK_TRAFFIC_MS = 6 * 3_600_000;
 
 // -- request budget and rate-limit stop (P97 T1, owner concern: no bot detection on the sub-account) --
 // DAILY_REQUEST_BUDGET, TODAY_REQUEST_RESERVE, BACKFILL_REQUEST_SHARE and READER_PAGE_LOAD_COST

@@ -4,12 +4,11 @@
 // page's links, pages with the page's own pager, and reads each order with GET get_one_order,
 // trimmed IN THE PAGE. Field names as captured on 2026-11-15; every value here is fake.
 import { describe, expect, it } from "vitest";
-import { ORDER_LIST_MAX_PAGES_PER_RUN } from "../src/platforms/shopee/config";
 import { ingestBody } from "../src/platforms/shopee/ingest/client";
 import { jobOutcome } from "../src/platforms/shopee/background/scheduler";
 import { outcomeStatus } from "../src/platforms/shopee/popup/guide";
 import { RAW_ORDER_ID } from "../src/platforms/shopee/affiliate-map";
-import { goToNextOrderPage, orderLinksIn, orderListEmptyIn, pagerNextIn } from "../src/platforms/shopee/order-dom";
+import { moreOrderPagesIn, orderLinksIn, orderListEmptyIn, pagerNextIn } from "../src/platforms/shopee/order-dom";
 import { completedOrders, mapOrderLines, orderStatusOf, trimOrderDetail } from "../src/platforms/shopee/orders-map";
 import {
   type FetchedReaderResponse,
@@ -117,15 +116,15 @@ describe("order numbers and the list page DOM", () => {
     expect(orderListEmptyIn(document)).toBe(true);
   });
 
-  it("the pager's next control: enabled and inside a pager, else nothing", () => {
+  it("the pager's next control is only looked at (0.3.28): enabled and inside a pager says more pages, never pressed", () => {
     let clicks = 0;
     page(card("1000001", "261114CCCCCCCC"), `<div class="eds-pager"><button class="eds-pager__button-prev">‹</button><button class="eds-pager__button-next"><i class="icon"></i></button></div>`);
     const next = pagerNextIn(document)!;
     next.addEventListener("click", () => (clicks += 1));
-    expect(goToNextOrderPage(document)).toBe(true);
-    expect(clicks).toBe(1);
+    expect(moreOrderPagesIn(document)).toBe(true);
+    expect(clicks).toBe(0); // F5.1b: never pressed
     page(card("1000001", "261114CCCCCCCC"), `<div class="eds-pager"><button class="eds-pager__button-next" disabled>›</button></div>`);
-    expect(goToNextOrderPage(document)).toBe(false);
+    expect(moreOrderPagesIn(document)).toBe(false);
     page(card("1000001", "261114CCCCCCCC"), `<button class="eds-pager__button-next">not in a pager</button>`);
     expect(pagerNextIn(document)).toBeNull();
   });
@@ -256,7 +255,7 @@ describe("get_one_order -> order_lines", () => {
 /** A list page of `pages` (newest first); the pager moves to the next one. */
 function listEnv(
   pages: OrderLink[][],
-  options: { budget?: number; templates?: Partial<Record<ReaderEndpoint, Template>>; empty?: boolean; pagerStuck?: boolean } = {},
+  options: { budget?: number; templates?: Partial<Record<ReaderEndpoint, Template>>; empty?: boolean } = {},
 ) {
   let clock = NOW;
   let at = 0;
@@ -288,11 +287,10 @@ function listEnv(
     random: () => 0,
     orderLinks: () => pages[at] ?? [],
     orderListEmpty: () => options.empty === true,
-    nextOrderPage: () => {
-      if (at + 1 >= pages.length) return false;
+    // 0.3.28 (F5.1b): the pager is only looked at; `at` never moves
+    moreOrderPages: () => {
       nexts.push(at);
-      if (!options.pagerStuck) at += 1;
-      return true;
+      return at + 1 < pages.length;
     },
     ...(options.budget !== undefined ? { budget: { left: options.budget } } : {}),
   };
@@ -309,17 +307,15 @@ describe("the orders reader on the list page (0.3.20)", () => {
     [link(401, "2026-11-01")],
   ];
 
-  it("pages with the page's own pager until a page is older than sinceDay, then reads each order since then", async () => {
+  it("reads the page it was opened on only (never presses the pager), then each order since sinceDay; more pages left: partial:first_page", async () => {
     const h = listEnv(PAGES);
     const outcome = await runReaderJob({ id: "orders", sinceDay: "2026-11-05" }, h.env);
     expect(outcome.status).toBe("done");
-    expect(outcome.detail).toBeUndefined();
-    expect(h.nexts).toEqual([0, 1]); // pages 1 -> 2 -> 3, never page 4
-    expect(h.pauses).toHaveLength(2);
-    expect(h.pauses.every((ms) => ms >= 20_000 && ms <= 45_000)).toBe(true);
-    // only the orders placed since 05/11, one GET get_one_order each, with the session params
+    expect(outcome.detail).toBe("partial:first_page"); // not complete: the next run reads from the same day
+    expect(h.pauses).toHaveLength(0); // no page change, no wait
+    // only page 1's orders, one GET get_one_order each, with the session params
     const ids = h.sent.map((r) => new URL(r.url).searchParams.get("order_id"));
-    expect(ids).toEqual(["101", "102", "103", "201", "202", "203"]);
+    expect(ids).toEqual(["101", "102", "103"]);
     for (const request of h.sent) {
       const url = new URL(request.url);
       expect(request.method).toBe("GET");
@@ -331,28 +327,28 @@ describe("the orders reader on the list page (0.3.20)", () => {
     // trimmed in the page: nothing personal leaves it
     expect(JSON.stringify(outcome.responses)).not.toMatch(PII);
     const mapped = mapOrderLines(outcome.responses, NOW);
-    expect(mapped.rows).toHaveLength(6);
+    expect(mapped.rows).toHaveLength(3);
     expect(mapped.rows.map((r) => r[RAW_ORDER_ID])).toContain(PAGES[0]![0]!.sn);
   });
 
   it("orders are paced like every replay and counted against the budget; an empty budget ends it as partial", async () => {
-    const h = listEnv(PAGES, { budget: 4 });
+    const h = listEnv(PAGES, { budget: 2 });
     const outcome = await runReaderJob({ id: "orders", sinceDay: "2026-11-05" }, h.env);
     expect(outcome.status).toBe("done");
     expect(outcome.detail).toBe("partial:budget");
-    expect(h.sent).toHaveLength(4);
-    expect(mapOrderLines(outcome.responses, NOW).rows).toHaveLength(4);
+    expect(h.sent).toHaveLength(2);
+    expect(mapOrderLines(outcome.responses, NOW).rows).toHaveLength(2);
   });
 
-  it("stops at the page cap and says so; a pager that does not move ends it as partial", async () => {
-    const many = Array.from({ length: ORDER_LIST_MAX_PAGES_PER_RUN + 5 }, (_, i) => [link(1000 + i, "2026-11-14")]);
-    const capped = listEnv(many);
-    expect((await runReaderJob({ id: "orders", sinceDay: "2026-11-05" }, capped.env)).detail).toBe("partial:page_cap");
-    expect(capped.nexts).toHaveLength(ORDER_LIST_MAX_PAGES_PER_RUN - 1);
-    const stuck = listEnv(PAGES, { pagerStuck: true });
-    const outcome = await runReaderJob({ id: "orders", sinceDay: "2026-11-05" }, stuck.env);
-    expect(outcome.detail).toBe("partial:pager");
-    expect(stuck.sent).toHaveLength(3); // what page 1 showed is still read
+  it("stays partial while later pages may hold orders since sinceDay; complete when every shown order is older, or when there is no further page", async () => {
+    const reached = listEnv([[link(101, "2026-11-14"), link(102, "2026-11-01")], [link(201, "2026-10-30")]]);
+    expect((await runReaderJob({ id: "orders", sinceDay: "2026-11-05" }, reached.env)).detail).toBe("partial:first_page");
+    const older = listEnv([[link(101, "2026-11-01")], [link(201, "2026-10-30")]]);
+    expect((await runReaderJob({ id: "orders", sinceDay: "2026-11-05" }, older.env)).detail).toBe("no_new_orders");
+    const single = listEnv([[link(101, "2026-11-14"), link(102, "2026-11-12")]]);
+    const outcome = await runReaderJob({ id: "orders", sinceDay: "2026-11-05" }, single.env);
+    expect(outcome.detail).toBeUndefined();
+    expect(single.sent).toHaveLength(2);
   });
 
   it("no order since sinceDay: no request at all, 'no_new_orders'; an empty list page: 'no_orders'", async () => {

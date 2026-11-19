@@ -509,6 +509,7 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
             notes=tuple(notes),
             ads=option.ads,
             stale=base.stale,
+            margin_basis=base.margin_basis,
         )
 
     rng = random.Random(seed)
@@ -586,6 +587,7 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         notes=tuple(notes),
         ads=option.ads,
         within_noise=flagged,
+        margin_basis=base.margin_basis,
     )
 
 

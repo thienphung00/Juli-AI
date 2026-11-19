@@ -248,6 +248,7 @@ async def _aggregate(
     base: Mapping[str, Any] | None,
     today: date | None = None,
     default_start: date | None = None,
+    default_end: date | None = None,
 ) -> tuple[dict[str, Any], list[Any]]:
     """``aggregate`` with the variations of the cards' products: the option results (P98 / ADR-122
     d.2) rebuild a price lever's builder spec from them.
@@ -294,6 +295,7 @@ async def _aggregate(
         variations=variations,
         today=today,
         default_start=default_start,
+        default_end=default_end,
         keyword_weights=weights,
         stored=stored,
     )
@@ -496,6 +498,7 @@ async def get_plan(
                     await _aggregate(
                         session, shop_id, env, entries, now=now, base=base, today=today,
                         default_start=group_periods[g.id][0],
+                        default_end=group_periods[g.id][1],
                     )
                 )[0]  # fmt: skip
         agg = merge_groups(env, agg, list(group_aggs.values()))  # K2/K3: the plan total, all cards
@@ -1152,6 +1155,7 @@ async def confirm(
         gagg, gev = await _aggregate(
             session, shop_id, env, entries, now=now, base=base, today=today,
             default_start=windows_of[g.id][0],
+            default_end=windows_of[g.id][1],
         )  # fmt: skip
         group_aggs[g.letter] = gagg
         group_evs.update({e.entry.card_id: e for e in gev})

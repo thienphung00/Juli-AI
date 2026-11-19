@@ -86,5 +86,7 @@ declare namespace chrome {
     function remove(tabId: number): Promise<void>;
     function get(tabId: number): Promise<Tab>;
     const onRemoved: { addListener(callback: (tabId: number) => void): void };
+    /** 0.3.28: `changeInfo.url` is set when a tab's address changes (host permission on that URL). */
+    const onUpdated: { addListener(callback: (tabId: number, changeInfo: { url?: string }) => void): void } | undefined;
   }
 }

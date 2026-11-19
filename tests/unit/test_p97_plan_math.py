@@ -205,13 +205,18 @@ async def test_run_together_makes_one_group_of_mixed_kinds_with_the_plan_math(se
     assert len(out["groups"]) == 1 and out["groups"][0]["name"] == "Nhóm A"
     assert out["groups"][0]["days"] == 5 and out["groups"][0]["members"].__len__() == 2
     grouped = {"aggregate": out["groups"][0]["aggregate"]}
-    assert _totals(grouped) == plain  # a group's total IS the plan math of its members
+    # A3.1 (batch-1119): a group's total is the plan math of its members on the GROUP's 5 days,
+    # not on their own longer dates, so it is smaller than the plain 30-day plan
+    counted = [c["result"]["counted_days"] for c in out["groups"][0]["aggregate"]["cards"]]
+    assert counted and all(d is not None and d <= 5 for d in counted)
+    first = _totals(grouped)
+    assert first != plain and abs(first[0]) < abs(plain[0])
     # order independent: the same two, the other way round
     await plans.cancel_group(session, sid, uuid.UUID(out["groups"][0]["id"]), now=NOW)
     again = await plans.run_together(
         session, sid, [(v, 1), (a, 1)], days=5, actor=_actor(seeded), now=NOW
     )
-    assert _totals({"aggregate": again["groups"][0]["aggregate"]}) == plain
+    assert _totals({"aggregate": again["groups"][0]["aggregate"]}) == first
 
 
 async def test_two_versions_of_one_exclusive_field_run_in_turn_and_non_exclusive_ones_together(
@@ -485,3 +490,32 @@ async def test_one_option_shows_the_same_p50_and_range_on_the_card_the_compare_a
     assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(own["gmv"], abs=1)
     # P99: the plan's Δ Đơn is at the card's precision (one decimal under 10 orders)
     assert agg["dorders_month"]["p50"] == pytest.approx(own["orders"], abs=0.051)
+
+
+async def test_confirm_counts_a_grouped_card_only_on_its_groups_days(session, shop, monkeypatch):
+    """The confirm() call site passes the group's last day like the list view (A3.1)."""
+    seeded, env = shop
+    sid = seeded.shop_id
+    a = await _card(session, seeded, env, _discount(15))
+    v = await _card(session, seeded, env, VOUCHER, 1)
+    await session.commit()
+    await plans.run_together(session, sid, [(a, 1), (v, 1)], days=3, actor=_actor(seeded), now=NOW)
+    real = plans._aggregate
+    seen = []
+
+    async def spy(*args, **kw):
+        out = await real(*args, **kw)
+        if kw.get("default_end") is not None:
+            seen.append((kw["default_start"], kw["default_end"], out[0]))
+        return out
+
+    monkeypatch.setattr(plans, "_aggregate", spy)
+    await plans.confirm(
+        session, sid, actor=_actor(seeded), now=NOW, acknowledge_breaches=True,
+        planned_date=NOW.date() + timedelta(days=1),
+    )  # fmt: skip
+    assert len(seen) == 1
+    start, end, agg = seen[0]
+    assert (end - start).days + 1 == 3
+    counted = [c["result"]["counted_days"] for c in agg["cards"] if c["result"].get("estimable")]
+    assert counted and all(d is not None and d <= 3 for d in counted)

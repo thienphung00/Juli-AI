@@ -326,10 +326,6 @@ def facts_of(
             v = next((v for v in info.variations if v.variation_id == sku.model_id), None)
             variation = None if v is None else v.name
         code = _seller_sku(catalog, sku.item_id, sku.model_id) or None
-        if code and variation:
-            others = [_seller_sku(catalog, o.item_id, o.model_id) for o in by_item[sku.item_id]]
-            if others.count(code) > 1 or (info is not None and info.seller_sku == code):
-                code = None  # the same code on other variations or the parent: the name tells apart
         facts = SkuFacts(
             item_id=sku.item_id,
             model_id=sku.model_id,

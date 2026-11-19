@@ -57,11 +57,24 @@ const BLOCK_VERB: Record<string, string> = {
   no_permission: "Cần quyền Tài chính",
 };
 
+/** Shopee's traffic check: "Juli dừng đến HH:mm" (GMT+7) when the Connector said until when. */
+function trafficCheckText(until: string | null | undefined): string {
+  const ms = until ? Date.parse(until) : Number.NaN;
+  if (Number.isNaN(ms)) return "Shopee tạm chặn";
+  const d = new Date(ms + 7 * 3600_000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `Shopee tạm chặn — Juli dừng đến ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+
 /** Connector 0.3.22: one short line per blocked section ("Đăng nhập lại Phân tích bán hàng"). */
 export function readerBlockText(blocks: readonly ReaderBlock[] | undefined): string | null {
   const lines = [
     ...new Set(
-      (blocks ?? []).map((b) => `${BLOCK_VERB[b.reason] ?? "Đăng nhập lại"} ${SECTION_LABEL[b.section] ?? "Seller Centre"}`),
+      (blocks ?? []).map((b) =>
+        b.reason === "traffic_check"
+          ? trafficCheckText(b.until)
+          : `${BLOCK_VERB[b.reason] ?? "Đăng nhập lại"} ${SECTION_LABEL[b.section] ?? "Seller Centre"}`,
+      ),
     ),
   ];
   return lines.length > 0 ? lines.join(" · ") : null;

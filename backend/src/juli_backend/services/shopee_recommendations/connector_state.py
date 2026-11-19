@@ -69,7 +69,9 @@ SECTION_DATACENTER = "phan_tich_ban_hang"
 SECTION_SELLER_CENTRE = "seller_centre"
 #: ``no_permission`` (Connector 0.3.26): the sub-account may not open Tài chính (the income page);
 #: page-only, a Seller Centre section block.
-_BLOCK_REASONS = ("login", "captcha", "password_recheck", "no_permission")
+#: ``traffic_check`` (Connector 0.3.28): Shopee sent the tab to ``/verify/traffic``; it stops the
+#: whole Seller Centre, so it is always a Seller Centre block, whichever reader hit it.
+_BLOCK_REASONS = ("login", "captcha", "password_recheck", "no_permission", "traffic_check")
 
 #: Reader -> the datasets it posts; kept equal to ``READER_DATASETS`` in
 #: ``apps/connector/src/platforms/shopee/config.ts`` (a test reads that file). An accepted
@@ -202,6 +204,9 @@ def _union_blocks(rows: list[ShopeeConnectorTokenState]) -> list[dict[str, Any]]
             for reader in block.get("readers", []):
                 if reader not in target["readers"]:
                     target["readers"].append(reader)
+            until = _later(target.get("until"), block.get("until"))
+            if until:
+                target["until"] = until
     return [m for m in merged if m["readers"]]
 
 
@@ -335,8 +340,8 @@ def _block_of(reader: str, outcome: object) -> tuple[str, str] | None:
         return None
     for reason in _BLOCK_REASONS:
         if outcome == f"blocked:{reason}" or outcome.startswith(f"blocked:{reason}|"):
-            section = SECTION_DATACENTER if reader in DATACENTER_READERS else SECTION_SELLER_CENTRE
-            return section, reason
+            datacenter = reader in DATACENTER_READERS and reason != "traffic_check"
+            return (SECTION_DATACENTER if datacenter else SECTION_SELLER_CENTRE), reason
         if outcome == f"blocked_{reason}":
             # The password dialog only exists on /datacenter; a login wall or CAPTCHA stops the
             # whole Seller Centre session.
@@ -346,17 +351,45 @@ def _block_of(reader: str, outcome: object) -> tuple[str, str] | None:
     return None
 
 
+def _until_of(outcome: object) -> str | None:
+    """``blocked:traffic_check|until=<ISO UTC>``: when the Connector stops waiting (None if absent
+    or not an ISO time)."""
+    if not isinstance(outcome, str):
+        return None
+    for part in outcome.split("|")[1:]:
+        if part.startswith("until="):
+            value = part[len("until=") :]
+            try:
+                datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+            return value
+    return None
+
+
+def _later(a: str | None, b: str | None) -> str | None:
+    if a is None or b is None:
+        return a or b
+    return max(a, b)
+
+
 def reader_blocks_of(outcomes: dict[str, str]) -> list[dict[str, Any]]:
     """The blocked sections of one run report's page outcomes, in page order."""
     blocks: dict[tuple[str, str], list[str]] = {}
+    untils: dict[tuple[str, str], str | None] = {}
     for reader, outcome in outcomes.items():
         found = _block_of(str(reader), outcome)
         if found is not None:
             blocks.setdefault(found, []).append(str(reader))
-    return [
-        {"section": section, "reason": reason, "readers": readers}
-        for (section, reason), readers in blocks.items()
-    ]
+            if found[1] == "traffic_check":
+                untils[found] = _later(untils.get(found), _until_of(outcome))
+    out: list[dict[str, Any]] = []
+    for (section, reason), readers in blocks.items():
+        block: dict[str, Any] = {"section": section, "reason": reason, "readers": readers}
+        if untils.get((section, reason)):
+            block["until"] = untils[(section, reason)]
+        out.append(block)
+    return out
 
 
 def _is_done(outcome: object) -> bool:
@@ -389,6 +422,9 @@ def merge_reader_blocks(
         for target in merged:
             if target["section"] == block["section"] and target["reason"] == block["reason"]:
                 target["readers"] = [*target["readers"], *block["readers"]]
+                until = _later(target.get("until"), block.get("until"))
+                if until:
+                    target["until"] = until
                 break
         else:
             merged.append(block)
