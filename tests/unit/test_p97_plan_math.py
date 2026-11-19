@@ -205,13 +205,18 @@ async def test_run_together_makes_one_group_of_mixed_kinds_with_the_plan_math(se
     assert len(out["groups"]) == 1 and out["groups"][0]["name"] == "Nhóm A"
     assert out["groups"][0]["days"] == 5 and out["groups"][0]["members"].__len__() == 2
     grouped = {"aggregate": out["groups"][0]["aggregate"]}
-    assert _totals(grouped) == plain  # a group's total IS the plan math of its members
+    # A3.1 (batch-1119): a group's total is the plan math of its members on the GROUP's 5 days,
+    # not on their own longer dates, so it is smaller than the plain 30-day plan
+    counted = [c["result"]["counted_days"] for c in out["groups"][0]["aggregate"]["cards"]]
+    assert counted and all(d is not None and d <= 5 for d in counted)
+    first = _totals(grouped)
+    assert first != plain and abs(first[0]) < abs(plain[0])
     # order independent: the same two, the other way round
     await plans.cancel_group(session, sid, uuid.UUID(out["groups"][0]["id"]), now=NOW)
     again = await plans.run_together(
         session, sid, [(v, 1), (a, 1)], days=5, actor=_actor(seeded), now=NOW
     )
-    assert _totals({"aggregate": again["groups"][0]["aggregate"]}) == plain
+    assert _totals({"aggregate": again["groups"][0]["aggregate"]}) == first
 
 
 async def test_two_versions_of_one_exclusive_field_run_in_turn_and_non_exclusive_ones_together(
