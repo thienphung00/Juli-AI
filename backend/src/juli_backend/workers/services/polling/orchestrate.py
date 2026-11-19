@@ -87,6 +87,13 @@ from juli_backend.integrations.tiktok import (
 )
 from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import ProductsRepo, TikTokSyncStateRepo
+from juli_backend.services.ingest import tiktok_canonical
+from juli_backend.services.ingest.tiktok_canonical import (
+    ORDER_REFETCH_ERRORS,
+    RefetchQueue,
+    TikTokCanonicalSync,
+    order_details_fetcher,
+)
 from juli_backend.services.ingestion.handoff import HandoffFn
 from juli_backend.workers.services.polling.sync import (
     PollStepDroppedRowsError,
@@ -279,12 +286,14 @@ class _PollStep:
     resource_attr: str
     sync_fn: SyncWorkerFn
     wants_product_ids: bool = False
+    #: P101 W2: the step maps what it fetched to the canonical tables in the same job.
+    wants_canonical: bool = False
 
 
 _FUJIWA_POLL_STEPS: tuple[_PollStep, ...] = (
-    _PollStep(ORDER_SEARCH_PATH, "orders", sync_orders),
+    _PollStep(ORDER_SEARCH_PATH, "orders", sync_orders, wants_canonical=True),
     _PollStep(PRODUCT_SEARCH_PATH, "products", sync_products),
-    _PollStep(RETURN_SEARCH_PATH, "returns", sync_returns),
+    _PollStep(RETURN_SEARCH_PATH, "returns", sync_returns, wants_canonical=True),
     _PollStep(INVENTORY_SEARCH_PATH, "inventory", sync_inventory, wants_product_ids=True),
 )
 
@@ -511,6 +520,7 @@ async def _run_poll_step(
     sleep: SleepFn,
     deadline: _CycleDeadline,
     list_product_ids: ProductIdsFn | None = None,
+    canonical: TikTokCanonicalSync | None = None,
 ) -> SyncOutcome:
     await _within_cycle_budget(
         lambda: _backoff_if_rate_limited(
@@ -532,6 +542,8 @@ async def _run_poll_step(
         if list_product_ids is None:
             raise ValueError(f"{step.endpoint_path} step requires list_product_ids")
         extra_kwargs["list_product_ids"] = list_product_ids
+    if step.wants_canonical and canonical is not None:
+        extra_kwargs["canonical"] = canonical
     return await _within_cycle_budget(
         lambda: step.sync_fn(
             resource=getattr(resources, step.resource_attr),
@@ -545,6 +557,48 @@ async def _run_poll_step(
         deadline=deadline,
         stage=step.resource_attr,
     )
+
+
+def canonical_sync_for(session: AsyncSession, shop_id: uuid.UUID) -> TikTokCanonicalSync | None:
+    """The job's raw -> canonical mapper (P101 W2), or ``None`` when the kill switch is off."""
+    return TikTokCanonicalSync(session, shop_id) if tiktok_canonical.enabled() else None
+
+
+async def finish_canonical(
+    canonical: TikTokCanonicalSync | None,
+    *,
+    resources: ProductionReadResources,
+    rate_limiter: RateLimiter,
+    app_id: str,
+    shop_key: str,
+    queue: RefetchQueue | None = None,
+    settled_since: Any = None,
+) -> tiktok_canonical.CanonicalApplyResult | None:
+    """End of the commerce steps: re-fetch by id the returned orders the cycle did not fetch
+    and the reconcile's queued ids, then map the finance rows read since ``settled_since``.
+    Never fails the cycle (a vendor error re-queues the ids)."""
+    if canonical is None:
+        return None
+    result = await canonical.finish(
+        fetch_details=order_details_fetcher(
+            resources.orders, rate_limiter=rate_limiter, app_id=app_id, shop_id=shop_key
+        ),
+        queue=queue,
+        settled_since=settled_since,
+        fetch_errors=ORDER_REFETCH_ERRORS,
+    )
+    logger.info(
+        "tiktok_canonical_cycle",
+        extra={
+            "shop_id": str(canonical.shop_id),
+            "orders": result.orders,
+            "lines_written": result.lines_written,
+            "settlements_written": result.settlements_written,
+            "failed": result.failed,
+            "days": len(result.days),
+        },
+    )
+    return result
 
 
 class PollCycleFailedError(RuntimeError):
@@ -731,6 +785,7 @@ async def _poll(
     list_product_ids = _synced_product_ids_fn(session, credential.shop_id)
 
     outcomes: list[SyncOutcome] = []
+    canonical = canonical_sync_for(session, credential.shop_id)
     try:
         for step in _FUJIWA_POLL_STEPS:
             outcomes.append(
@@ -745,8 +800,16 @@ async def _poll(
                     sleep=sleep,
                     deadline=deadline,
                     list_product_ids=list_product_ids,
+                    canonical=canonical,
                 )
             )
+        await finish_canonical(
+            canonical,
+            resources=resources,
+            rate_limiter=rate_limiter,
+            app_id=app_id,
+            shop_key=shop_key,
+        )
 
         await _within_cycle_budget(
             lambda: _backoff_if_rate_limited(

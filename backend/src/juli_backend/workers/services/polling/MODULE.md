@@ -28,6 +28,13 @@ shop. Fujiwa production-read orchestration is the Phase 2 P2-A1 entry point.
 - `ProductIdsFn` — `Callable[[], Awaitable[list[str]]]`; the shop's already-synced TikTok product ids that `sync_inventory` batches through, `page_size` at a time
 - `DEFAULT_INVENTORY_PAGE_SIZE` — product ids per Search Inventory request (30; the only batch size confirmed against the live endpoint)
 
+### Raw -> canonical (P101 W2)
+
+- `sync_orders` / `sync_returns` take an optional `canonical` (`services.ingest.tiktok_canonical.TikTokCanonicalSync`): the orders a step fetched are mapped to `order_lines` / `order_settlements` in the same job; the returns re-map the orders whose lines they name. `_PollStep.wants_canonical` marks those two steps; `_run_poll_step(..., canonical=)` passes it to them only.
+- `sync_orders`' first read (no watermark) is bounded to the connect window by `create_time` (`tiktok_canonical.order_search_kwargs`: the last `connect_days()` = 90 VN days).
+- `finish_canonical(canonical, *, resources, rate_limiter, app_id, shop_key, queue=None, settled_since=None)` (orchestrate) ends the commerce steps of `run_shop_cycle`, the bootstrap fast phase and `_poll`: returned orders the cycle did not fetch and the nightly reconcile's queued ids are re-fetched by id (Get Order Detail, 50 ids a call, one rate-limiter token a call), and the finance rows read since the cycle started become settlements. Never fails the cycle.
+- `run_shop_cycle(..., refetch_queue=None)`: `poll_shop` passes the Redis queue the nightly `tiktok_canonical_reconcile` beat fills. `TIKTOK_CANONICAL_SYNC=0` turns the wiring off.
+
 ### Per-shop ingestion (fast track P1-B)
 
 - `run_bootstrap_fast_phase(*, session, config, shop_id, rate_limiter, handoff_fn, ...)` — a connecting shop's fast phase: commerce cold start + the last `fast_days()` (env `FAST_DAYS_ENV`, default 30) days of analytics as one date-range pass, then scoring + card persistence through the injected `ScoreFn`; writes the shop's bootstrap state row and emits the bootstrap latency events. Returns `FastPhaseResult`

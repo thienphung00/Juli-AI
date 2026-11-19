@@ -36,6 +36,7 @@ from juli_backend.services.cdp_speed.targeted_fetch_sync import (
     sync_orders,
     sync_returns,
 )
+from juli_backend.services.ingest import tiktok_canonical
 from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,9 @@ _RESOURCE_ATTR_ACCESSOR: dict[str, str] = {
     "ctor": "analytics",
     "live_hours": "analytics",
 }
+
+#: P101 W2 (S-1): the resources whose fetched rows are also mapped to the canonical tables.
+_CANONICAL_RESOURCE_ATTRS = frozenset({"orders", "returns"})
 
 
 def _resources_field_name(resource_attr: str) -> str:
@@ -155,6 +159,7 @@ async def _run_plan_resource(
     shop_key: str,
     sync_state: dict[str, Any],
     correlation_id: str,
+    canonical: tiktok_canonical.TikTokCanonicalSync | None = None,
 ) -> None:
     # Quota guard: skip resources that are guarded (A-38/A-39 bestselling, A-31/A-33 detail fanout)
     if is_quota_guarded(resource.name):
@@ -192,6 +197,9 @@ async def _run_plan_resource(
         )
         return
 
+    extra: dict[str, Any] = {}
+    if canonical is not None and resource.resource_attr in _CANONICAL_RESOURCE_ATTRS:
+        extra["canonical"] = canonical
     await sync_fn(
         resource=getattr(resources, _resources_field_name(resource.resource_attr)),
         rate_limiter=rate_limiter,
@@ -200,6 +208,7 @@ async def _run_plan_resource(
         shop_key=shop_key,
         sync_state=sync_state,
         correlation_id=correlation_id,
+        **extra,
     )
 
 
@@ -294,6 +303,14 @@ async def execute_targeted_fetch_to_bronze(
         tracker=tracker,
     )
     rate_limiter = RateLimiter(redis.from_url(resolved_env.redis_url))
+    # P101 W2 (S-1): the webhook's orders / returns reach the canonical tables in this job.
+    # Each canonical call enters the shop scope itself (the scope set around the bronze stage
+    # does not survive the vendor fetch, see below).
+    canonical = (
+        tiktok_canonical.TikTokCanonicalSync(session, shop_id, scope_each_call=True)
+        if tiktok_canonical.enabled()
+        else None
+    )
 
     for plan_resource in fetch_plan.resources:
         await _run_plan_resource(
@@ -305,6 +322,17 @@ async def execute_targeted_fetch_to_bronze(
             shop_key=shop_key,
             sync_state=sync_state,
             correlation_id=correlation_id,
+            canonical=canonical,
+        )
+    if canonical is not None:
+        await canonical.finish(
+            fetch_details=tiktok_canonical.order_details_fetcher(
+                resources.orders,
+                rate_limiter=rate_limiter,
+                app_id=resolved_env.app_key,
+                shop_id=shop_key,
+            ),
+            fetch_errors=tiktok_canonical.ORDER_REFETCH_ERRORS,
         )
 
     # SCOPE ADJACENT TO THE WRITE, NOT AROUND THE FETCH.

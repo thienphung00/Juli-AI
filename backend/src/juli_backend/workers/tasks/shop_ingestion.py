@@ -27,7 +27,14 @@ Four tasks, replacing the single-merchant ``fujiwa-poll-cycle`` beat entry:
 
 ``juli_backend.poll_shop``              (default queue)
     One scheduled cycle for one shop (commerce every time, analytics at most
-    once a day).
+    once a day). Since P101 W2 it also re-fetches by id the order ids the
+    nightly canonical reconcile queued (Redis set per shop).
+
+``juli_backend.tiktok_canonical_reconcile`` (beat, nightly 21:39 UTC = 04:39 UTC+7)
+    P101 W2 (S-4): per pollable TikTok shop, raw vs canonical order counts per VN
+    day over the connect window (90 days); a gap is re-mapped from its bronze
+    payload or queued for the next ``poll_shop`` to re-fetch by id; stored finance
+    rows with no settlement are re-mapped.
 
 PER-SHOP MUTEX. ``bootstrap_shop`` and ``poll_shop`` take the shop's ``cycle``
 lock (Redis ``SET NX EX``, owner-token release) and skip -- never wait -- when
@@ -77,6 +84,9 @@ HISTORY_TASK = "juli_backend.shop_history_backfill"
 POLL_SHOP_TASK = "juli_backend.poll_shop"
 FANOUT_TASK = "juli_backend.shop_poll_fanout"
 HISTORY_EXTEND_TASK = "juli_backend.shop_history_extend"
+CANONICAL_RECONCILE_TASK = "juli_backend.tiktok_canonical_reconcile"
+#: The reconcile's outer timeout (one task walks every TikTok shop).
+_CANONICAL_RECONCILE_TIMEOUT_SECONDS = 1800.0
 
 _SHOP_UTC_OFFSET = timedelta(hours=7)
 
@@ -128,6 +138,15 @@ def _redis_lock(env: dict[str, str]) -> Any:
     from juli_backend.workers.services.polling.shop_lock import RedisShopIngestLock
 
     return RedisShopIngestLock(redis.from_url(env["redis_url"]))
+
+
+def _refetch_queue(env: dict[str, str]) -> Any:
+    """The canonical re-fetch queue (P101 W2): one Redis set per shop."""
+    import redis
+
+    from juli_backend.services.ingest.tiktok_canonical import RedisRefetchQueue
+
+    return RedisRefetchQueue(redis.from_url(env["redis_url"]))
 
 
 def _production_collaborators(env: dict[str, str]) -> Collaborators:
@@ -614,6 +633,52 @@ async def run_history_extend_fanout(
     return enqueued
 
 
+async def run_canonical_reconcile_fanout(
+    session_factory: SessionFactory,
+    *,
+    queue: Any,
+    enumerate_fn: Callable[[AsyncSession], Awaitable[list[Any]]] | None = None,
+    reconcile_fn: Callable[..., Awaitable[Any]] | None = None,
+    days: int | None = None,
+    now: datetime | None = None,
+) -> int:
+    """Nightly (P101 W2, S-4): reconcile raw vs canonical for every pollable TikTok shop over
+    the connect window, each shop in its own session under its own sticky scope. A failing
+    shop is logged and the walk goes on. Returns the number of shops reconciled."""
+    from juli_backend.database.tenant_context import with_sticky_shop_scope
+    from juli_backend.services.ingest.tiktok_canonical import reconcile_shop
+    from juli_backend.services.onboarding import connect_days
+    from juli_backend.workers.services.polling.ingestion import enumerate_pollable_shops
+
+    enumerate_shops = enumerate_fn or enumerate_pollable_shops
+    reconcile = reconcile_fn or reconcile_shop
+    window = days or connect_days()
+    end = ((now or datetime.now(UTC)) + _SHOP_UTC_OFFSET).date()
+    start = end - timedelta(days=window - 1)
+    async with session_factory() as session:
+        shops = await enumerate_shops(session)
+    done = 0
+    for shop in shops:
+        async with session_factory() as session:
+            try:
+                async with with_sticky_shop_scope(session, shop.shop_id):
+                    await reconcile(session, shop.shop_id, start=start, end=end, queue=queue)
+                    await session.commit()
+                done += 1
+            except Exception as exc:
+                await session.rollback()
+                logger.error(
+                    "tiktok_canonical_reconcile_failed",
+                    extra={"shop_id": str(shop.shop_id), "error_type": type(exc).__name__},
+                    exc_info=True,
+                )
+    logger.info(
+        "tiktok_canonical_reconcile_fanout",
+        extra={"shops": len(shops), "reconciled": done, "days": window},
+    )
+    return done
+
+
 # -- Celery wrappers ----------------------------------------------------------
 
 
@@ -762,6 +827,7 @@ def poll_shop(shop_id: str, force_commerce: bool = False) -> None:
             lock=_redis_lock(env),
             collaborators=_production_collaborators(env),
             enqueuers=Enqueuers(),
+            run_kwargs={"refetch_queue": _refetch_queue(env)},
             force_commerce=force_commerce,
         )
 
@@ -773,8 +839,26 @@ def poll_shop(shop_id: str, force_commerce: bool = False) -> None:
     )
 
 
+@celery_app.task(name=CANONICAL_RECONCILE_TASK)
+def tiktok_canonical_reconcile() -> None:
+    """Beat: the nightly raw vs canonical reconcile of every TikTok shop (P101 W2, S-4)."""
+    env = _skip_if_unconfigured("tiktok_canonical_reconcile")
+    if env is None:
+        return
+
+    async def go() -> None:
+        await run_canonical_reconcile_fanout(_session_factory(), queue=_refetch_queue(env))
+
+    _run(
+        go,
+        timeout=_CANONICAL_RECONCILE_TIMEOUT_SECONDS,
+        event="tiktok_canonical_reconcile",
+    )
+
+
 __all__ = [
     "BOOTSTRAP_TASK",
+    "CANONICAL_RECONCILE_TASK",
     "FANOUT_TASK",
     "HISTORY_EXTEND_TASK",
     "HISTORY_TASK",
@@ -791,6 +875,7 @@ __all__ = [
     "maybe_enqueue_quick_scan",
     "poll_shop",
     "run_bootstrap_task",
+    "run_canonical_reconcile_fanout",
     "run_fanout",
     "run_history_extend_fanout",
     "run_history_task",
@@ -799,4 +884,5 @@ __all__ = [
     "shop_history_backfill",
     "shop_history_extend",
     "shop_poll_fanout",
+    "tiktok_canonical_reconcile",
 ]

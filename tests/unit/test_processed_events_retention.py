@@ -36,7 +36,7 @@ def test_retention_window_outlives_every_redelivery_horizon():
         -(history.HISTORY_TARGET_DAYS - history.DEFAULT_CONNECT_DAYS)
         // (history.DEFAULT_NIGHTLY_CHUNKS * history.DEFAULT_NIGHTLY_CHUNK_DAYS)
     )
-    assert nights_to_full_history == 4
+    assert nights_to_full_history == 3  # 90 -> 180 days (P101 W2: connect window 90)
     assert retention.PROCESSED_EVENTS_RETENTION_DAYS >= 7 * nights_to_full_history
     mig = _migration()
     assert retention.PROCESSED_EVENTS_RETENTION_DAYS >= mig.MIN_RETENTION_DAYS

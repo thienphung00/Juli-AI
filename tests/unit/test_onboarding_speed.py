@@ -612,8 +612,9 @@ def test_status_after_the_quick_scan_with_thirty_days_in():
     }
     assert body["current_step"] == 2 and body["label"].endswith("bước 2/3")
     assert body["history_days_available"] == 30
-    assert steps["backfill_diagnosis"]["percent"] == 35  # 70 % × 30/60, no report yet
-    assert steps["backfill_diagnosis"]["detail"] == "30/60 ngày"
+    # P101 W2: the connect window is 90 days (was 60)
+    assert steps["backfill_diagnosis"]["percent"] == 23  # 70 % × 30/90, no report yet
+    assert steps["backfill_diagnosis"]["detail"] == "30/90 ngày"
 
 
 def test_status_with_only_history_left_slows_the_poll():
@@ -622,18 +623,18 @@ def test_status_with_only_history_left_slows_the_poll():
         quick_scan_status=QUICK_SCAN_DONE,
         fast_started_at=NOW - timedelta(hours=1),
         fast_done_at=NOW - timedelta(minutes=50),
-        history_earliest_date=date(2026, 8, 11),
+        history_earliest_date=date(2026, 7, 12),
         analytics_through_date=date(2026, 10, 9),
     )
     body = _status(state, report=True)
-    assert body["history_days_available"] == 60
+    assert body["history_days_available"] == 90  # the 90-day connect window (P101 W2)
     assert not body["active"] and body["current_step"] == 3
-    assert body["label"] == "Đang tải lịch sử · còn 120 ngày"
+    assert body["label"] == "Đang tải lịch sử · còn 90 ngày"
     assert body["poll_interval_seconds"] == 300
-    assert body["history_days_remaining"] == 120 and not body["window_90d_available"]
+    assert body["history_days_remaining"] == 90 and not body["window_90d_available"]
     steps = {s["key"]: s for s in body["steps"]}
     assert steps["backfill_diagnosis"]["status"] == "done"
-    assert steps["history"]["status"] == "running" and steps["history"]["percent"] == 33
+    assert steps["history"]["status"] == "running" and steps["history"]["percent"] == 50
 
 
 def test_status_done_and_the_ninety_day_window_unlocks_at_180_days():
@@ -859,7 +860,7 @@ def test_the_look_back_defaults_to_180_days(monkeypatch):
     monkeypatch.delenv(history.MAX_LOOKBACK_DAYS_ENV, raising=False)
     assert history_max_lookback_days() == 180 == history.history_target_days()
     assert (history.connect_days(), history.nightly_chunks(), history.nightly_chunk_days()) == (
-        60,
+        90,
         2,
         15,
     )
@@ -915,7 +916,7 @@ async def test_after_connect_the_chain_stops_at_sixty_days_then_extends_nightly(
 
 
 @pytest.mark.asyncio
-async def test_the_history_task_parks_at_sixty_days_and_nightly_never_re_enqueues():
+async def test_the_history_task_parks_at_the_connect_window_and_nightly_never_re_enqueues():
     from juli_backend.workers.services.polling.shop_lock import InMemoryShopIngestLock
     from juli_backend.workers.tasks.shop_ingestion import Enqueuers, run_history_task
 
@@ -947,7 +948,7 @@ async def test_the_history_task_parks_at_sixty_days_and_nightly_never_re_enqueue
         enqueuers=enqueuers,
         history_fn=history_fn_for("connect_window_done"),
     )
-    assert seen[-1]["stop_at_days"] == 60 and enqueued == []
+    assert seen[-1]["stop_at_days"] == 90 and enqueued == []  # P101 W2: 90 (was 60)
 
     await run_history_task(
         shop_id,
@@ -964,7 +965,7 @@ async def test_the_history_task_parks_at_sixty_days_and_nightly_never_re_enqueue
     assert "stop_at_days" not in seen[-1]
     assert enqueued == []
 
-    # Before the 60 days: the chain continues.
+    # Before the connect window (90 days): the chain continues.
     await run_history_task(
         shop_id,
         session_factory=factory,

@@ -100,6 +100,11 @@ from juli_backend.models.models import (
     User,
 )
 from juli_backend.repositories import ShopIngestionStateRepo, TikTokSyncStateRepo, utc_now_naive
+from juli_backend.services.ingest.tiktok_canonical import (
+    CanonicalApplyResult,
+    RefetchQueue,
+    TikTokCanonicalSync,
+)
 from juli_backend.services.ingestion import HandoffFn
 from juli_backend.services.onboarding import history_days_available, max_lookback_days
 from juli_backend.services.order_costs import OrderCostsResult, sync_order_costs
@@ -129,6 +134,8 @@ from juli_backend.workers.services.polling.orchestrate import (
     _run_poll_step,
     _synced_product_ids_fn,
     _within_cycle_budget,
+    canonical_sync_for,
+    finish_canonical,
 )
 from juli_backend.workers.services.polling.sync import PollStepDroppedRowsError, SyncOutcome
 
@@ -294,6 +301,8 @@ class _ShopRun:
     sync_state: dict[str, Any]
     sync_state_repo: TikTokSyncStateRepo
     state_repo: ShopIngestionStateRepo
+    #: P101 W2: raw -> canonical for this run (``None`` when the kill switch is off).
+    canonical: TikTokCanonicalSync | None = None
 
 
 @asynccontextmanager
@@ -364,6 +373,7 @@ async def _scoped_shop_run(
             sync_state=await repo.load(shop_id),
             sync_state_repo=repo,
             state_repo=ShopIngestionStateRepo(session),
+            canonical=canonical_sync_for(session, shop_id),
         )
 
 
@@ -391,8 +401,29 @@ async def _run_commerce_steps(
                 sleep=sleep,
                 deadline=deadline,
                 list_product_ids=list_product_ids,
+                canonical=run.canonical,
             )
         )
+
+
+async def _finish_canonical(
+    run: _ShopRun,
+    *,
+    rate_limiter: RateLimiter,
+    queue: RefetchQueue | None = None,
+    settled_since: datetime | None = None,
+) -> CanonicalApplyResult | None:
+    """P101 W2: the returned orders the steps did not fetch and the reconcile's queued ids are
+    re-fetched by id; the finance rows read since ``settled_since`` become settlements."""
+    return await finish_canonical(
+        run.canonical,
+        resources=run.resources,
+        rate_limiter=rate_limiter,
+        app_id=run.app_id,
+        shop_key=run.shop_key,
+        queue=queue,
+        settled_since=settled_since,
+    )
 
 
 async def _analytics_range(
@@ -642,6 +673,7 @@ async def run_bootstrap_fast_phase(
                 deadline=deadline,
                 outcomes=outcomes,
             )
+            await _finish_canonical(run, rate_limiter=rate_limiter)
             latest = await _probe_latest(
                 run, rate_limiter=rate_limiter, sleep=sleep, deadline=deadline, today=today
             )
@@ -937,6 +969,8 @@ class ShopCycleResult:
     order_costs: OrderCostsResult | None = None
     #: D27.3: why the commerce steps did not run this cycle (``"interval"``).
     commerce_skip_reason: str | None = None
+    #: P101 W2: what raw -> canonical wrote this cycle (``None`` when no commerce ran).
+    canonical: CanonicalApplyResult | None = None
 
 
 def _authorized_shops_lister(
@@ -979,6 +1013,7 @@ async def run_shop_cycle(
     now: datetime | None = None,
     concurrency: int | None = None,
     force_commerce: bool = False,
+    refetch_queue: RefetchQueue | None = None,
 ) -> ShopCycleResult:
     """One cycle for one shop. See the module docstring.
 
@@ -1068,6 +1103,11 @@ async def run_shop_cycle(
                 deadline=deadline,
                 now=now,
                 sleep=sleep,
+            )
+            # P101 W2: returned / queued orders re-fetched by id, then the finance rows read
+            # this cycle (since ``current``) mapped to settlements. Never fails the cycle.
+            result.canonical = await _finish_canonical(
+                run, rate_limiter=rate_limiter, queue=refetch_queue, settled_since=current
             )
         if new_days:
             # D11: scoring once a day, after the analytics pass.

@@ -251,6 +251,14 @@ celery_app.conf.update(
         # (services/businesses/backfill.py). Every 10 minutes and once at worker start; a run
         # after the backfill is two cheap reads. Minutes 6, 16, ... 56: no slot above
         # uses them. Default queue.
+        # P101 W2 (S-4): raw vs canonical TikTok order counts per VN day over the connect
+        # window; gaps re-mapped from bronze or queued for the next poll_shop to re-fetch by
+        # id. 21:39 UTC = 04:39 UTC+7, after the night's history extend and product history;
+        # minute 39 is not a multiple of 5 and none of the slots above. Default queue.
+        "tiktok-canonical-reconcile": {
+            "task": "juli_backend.tiktok_canonical_reconcile",
+            "schedule": crontab(hour=21, minute=39),
+        },
         "businesses-backfill": {
             "task": "juli_backend.businesses_backfill",
             "schedule": crontab(minute="6-59/10"),
