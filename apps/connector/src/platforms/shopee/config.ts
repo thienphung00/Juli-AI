@@ -51,7 +51,9 @@ export type MydataDataset =
   | "shop_traffic"
   | "product_overview"
   /** F4.7: Phân tích bán hàng › Khuyến mãi, per programme type and day (mydata, like traffic_overview). */
-  | "promotion_daily";
+  | "promotion_daily"
+  /** F6.4: Kênh Marketing › Flash Sale, one day (mydata). Posted as promotion_daily rows (promo_type "Flash Sale"). */
+  | "flash_sale";
 export const DATASETS: readonly MydataDataset[] = [
   "traffic_overview",
   "item_by_source",
@@ -60,6 +62,7 @@ export const DATASETS: readonly MydataDataset[] = [
   // F4.8 (Connector 0.3.29): the shop's product funnel by day (Sản phẩm › Tổng quan).
   "product_overview",
   "promotion_daily",
+  "flash_sale",
 ];
 
 /** Datasets the page readers post (ADR-120 d.14); the gateway's names, see services/ingest. */
@@ -217,7 +220,7 @@ export const READER_DATASETS: Record<ReaderId, readonly Dataset[]> = {
   ads_products: ["ads_campaign_period"],
   orders: ["order_lines"],
   order_income: ["order_income"],
-  traffic: ["traffic_overview", "shop_traffic", "product_overview", "promotion_daily"],
+  traffic: ["traffic_overview", "shop_traffic", "product_overview", "promotion_daily", "flash_sale"],
   affiliate: ["affiliate_order_lines"],
   affiliate_kols: ["affiliate_partner_period"],
   affiliate_dashboard: ["affiliate_shop_period"],
@@ -342,7 +345,7 @@ export const CATCHUP_WINDOW_DAYS = 30;
 export const CATCHUP_DAYS_PER_JOB: Partial<Record<string, number>> = { traffic: 5, ads: 5, item_traffic: 2, shop_totals: 30, ads_products: 10 };
 export const CATCHUP_DAY_COST: Partial<Record<string, number>> = { traffic: 3, ads: 3, item_traffic: 40, shop_totals: 1, ads_products: 6 };
 /** Mydata datasets (daily sync / backfill) a hole is closed through the per-day backfill plan. */
-export const CATCHUP_BACKFILL_DATASETS: readonly string[] = ["item_performance", "item_by_source", "product_overview", "promotion_daily"];
+export const CATCHUP_BACKFILL_DATASETS: readonly string[] = ["item_performance", "item_by_source", "product_overview", "promotion_daily", "flash_sale"];
 
 /** 0.3.29 (F4.6): pages that capture the page's own request: a miss opens the page once more, in the same run. */
 export const READER_RELOAD_ONCE: readonly ReaderId[] = [
