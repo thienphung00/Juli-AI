@@ -7,7 +7,8 @@
 - a comma list of shop UUIDs -- only those shops (the owner's "sample shop first" rollout). The
   ids live in the environment, never in source.
 
-Limits per shop (owner, juli-tab grill): 30 asks per rolling hour, 200 per rolling day.
+Limits per shop (owner, juli-tab grill): 30 asks per rolling hour, 200 per rolling day. Per
+process: a run's time limit (120 s) and the runs in flight at once (20).
 """
 
 from __future__ import annotations
@@ -20,8 +21,15 @@ ENABLED_ENV = "JULI_AGENT_ENABLED"
 PER_HOUR_ENV = "JULI_AGENT_LIMIT_PER_HOUR"
 PER_DAY_ENV = "JULI_AGENT_LIMIT_PER_DAY"
 
+RUN_TIMEOUT_ENV = "JULI_AGENT_RUN_TIMEOUT_S"
+MAX_RUNS_ENV = "JULI_AGENT_MAX_CONCURRENT_RUNS"
+
 DEFAULT_PER_HOUR = 30
 DEFAULT_PER_DAY = 200
+#: one answer's whole run (parse, Jev, reads, writer); past it the answer ends ``error: busy``
+DEFAULT_RUN_TIMEOUT_S = 120.0
+#: runs in flight in ONE API process; past it a new ask answers 429 ``juli_busy_system``
+DEFAULT_MAX_CONCURRENT_RUNS = 20
 
 _TRUTHY = frozenset({"true", "1", "yes"})
 
@@ -69,6 +77,18 @@ def limit_per_day() -> int:
     return _positive_int(PER_DAY_ENV, DEFAULT_PER_DAY)
 
 
+def run_timeout_s() -> float:
+    try:
+        value = float(os.environ.get(RUN_TIMEOUT_ENV, "").strip())
+    except ValueError:
+        return DEFAULT_RUN_TIMEOUT_S
+    return value if value > 0 else DEFAULT_RUN_TIMEOUT_S
+
+
+def max_concurrent_runs() -> int:
+    return _positive_int(MAX_RUNS_ENV, DEFAULT_MAX_CONCURRENT_RUNS)
+
+
 __all__ = [
     "DEFAULT_PER_DAY",
     "DEFAULT_PER_HOUR",
@@ -77,4 +97,6 @@ __all__ = [
     "flag_state",
     "limit_per_day",
     "limit_per_hour",
+    "max_concurrent_runs",
+    "run_timeout_s",
 ]

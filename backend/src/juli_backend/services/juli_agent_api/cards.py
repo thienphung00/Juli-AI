@@ -90,10 +90,13 @@ async def create_via_manual(
 
 
 async def _draft(session: AsyncSession, shop_id: uuid.UUID, draft_ref: str) -> AgentCardDraft:
+    # FOR UPDATE: two concurrent sends of one draft queue here; the second reads it "sent" and
+    # answers ``already_sent`` (populate_existing: never a stale copy from the identity map)
     row = await session.scalar(
-        select(AgentCardDraft).where(
-            AgentCardDraft.shop_id == shop_id, AgentCardDraft.draft_ref == draft_ref
-        )
+        select(AgentCardDraft)
+        .where(AgentCardDraft.shop_id == shop_id, AgentCardDraft.draft_ref == draft_ref)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if row is None:
         raise ChatError(ERROR_NOT_FOUND, 404, "card not found")

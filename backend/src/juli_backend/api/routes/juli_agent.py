@@ -31,6 +31,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from starlette.background import BackgroundTask
 
 from juli_backend.api import reviewer as reviewer_gate
 from juli_backend.api.capability_gate import check_open
@@ -218,6 +219,13 @@ async def ask(
     ports_factory: PortsFactory = Depends(get_ports_factory),
     run_factory: async_sessionmaker[AsyncSession] = Depends(get_run_session_factory),
 ) -> AskOut:
+    if juli_agent_api.active_runs() >= juli_agent_api.config.max_concurrent_runs():
+        # this process runs as many answers as it may: a short wait, not a queue
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": "juli_busy_system", "message": "Juli đang bận, thử lại sau"},
+            headers={"Retry-After": "10"},
+        )
     templates = _templates(engine) if body.template is not None else []
     try:
         started = await juli_agent_api.start_ask(
@@ -260,14 +268,39 @@ async def ask(
     return AskOut(conversation_id=started.conversation_id, message_id=started.message_id)
 
 
-async def _with_stream_slot(
-    generator: AsyncIterator[str], gate: agent_abuse_limits.AbuseLimitGate, shop_id: str
-) -> AsyncIterator[str]:
+class _StreamSlot:
+    """The per-shop SSE slot, released exactly once whichever exit comes first."""
+
+    def __init__(self, gate: agent_abuse_limits.AbuseLimitGate, shop_id: str) -> None:
+        self._gate, self._shop_id, self._released = gate, shop_id, False
+
+    async def release(self) -> None:
+        if not self._released:
+            self._released = True
+            await self._gate.release_stream(self._shop_id)
+
+
+async def _with_stream_slot(generator: AsyncIterator[str], slot: _StreamSlot) -> AsyncIterator[str]:
     try:
         async for chunk in generator:
             yield chunk
     finally:
-        await gate.release_stream(shop_id)
+        await slot.release()
+
+
+def _sse_response(
+    generator: AsyncIterator[str], gate: agent_abuse_limits.AbuseLimitGate, shop_id: str
+) -> StreamingResponse:
+    """The stream, its slot released on a clean end, a mid-stream end AND a disconnect before
+    the first byte: a generator that never started has no ``finally`` to run, so the response's
+    background task releases too (idempotent). The gate's one-hour TTL stays the backstop."""
+    slot = _StreamSlot(gate, shop_id)
+    return StreamingResponse(
+        _with_stream_slot(generator, slot),
+        media_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no"},
+        background=BackgroundTask(slot.release),
+    )
 
 
 @router.get("/messages/{message_id}/events")
@@ -309,11 +342,7 @@ async def stream_message_events(
         session_factory=run_factory,
         poll_interval_s=poll_interval_s,
     )
-    return StreamingResponse(
-        _with_stream_slot(generator, gate, str(shop.id)),
-        media_type="text/event-stream",
-        headers={"X-Accel-Buffering": "no"},
-    )
+    return _sse_response(generator, gate, str(shop.id))
 
 
 @router.post("/messages/{message_id}/cancel", status_code=status.HTTP_202_ACCEPTED)

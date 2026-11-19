@@ -57,7 +57,7 @@ from juli_backend.services.juli_agent_api.events import (
     event_stream,
     resolve_after,
 )
-from juli_backend.services.juli_agent_api.runner import cancel_local, execute, schedule
+from juli_backend.services.juli_agent_api.runner import active_runs, cancel_local, execute, schedule
 
 __all__ = [
     "ERROR_BAD_ASK",
@@ -83,6 +83,7 @@ __all__ = [
     "Ports",
     "PortsFactory",
     "TemplateInfo",
+    "active_runs",
     "cancel_local",
     "check_limits",
     "config",
