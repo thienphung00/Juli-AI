@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-import { HOME_MATRIX_REGION, enterReplayDemo, expectFourDestinationShell } from "../helpers/demo-navigation";
+import { HOME_MATRIX_REGION, enterReplayDemo, expectPrimaryRailShell } from "../helpers/demo-navigation";
 
 /**
  * Phân tích (ADR-109 Amendment 2, AC-12.x) end to end: the signed-out
@@ -28,7 +28,7 @@ test.describe("Phân tích — signed out (dữ liệu mẫu)", () => {
     await enterReplayDemo(page);
     await page.getByRole("region", { name: HOME_MATRIX_REGION }).getByRole("link", { name: /^CTOR Thẻ sản phẩm:/ }).click();
     await expect(page).toHaveURL(/\/analytics\?tab=san-pham&stream=the-san-pham&metric=ctor$/);
-    await expectFourDestinationShell(page);
+    await expectPrimaryRailShell(page);
 
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(/^Thẻ sản phẩm: CTOR giảm \d+ %$/);
     await expect(page.getByTestId("mock-data-notice")).toContainText("Cửa hàng Mẫu Hoa Mai");

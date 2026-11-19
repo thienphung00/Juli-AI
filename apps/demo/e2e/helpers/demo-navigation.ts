@@ -1,19 +1,13 @@
 import { expect, type Page } from "@playwright/test";
 
 /**
- * The four destinations of ADR-109 decision 7 (AC-8.5). Juli is shown but
- * locked: it keeps `role="link"` (so it is announced with the others) and
- * `aria-disabled="true"`, and has no href. Cài đặt is no longer a
- * destination — it lives in the shop-avatar menu (`openShopMenu`).
+ * A TikTok shop's rail: the shared one-rail order (owner, 2026-11-19) without Dữ liệu shop,
+ * which TikTok has no page for yet. Cài đặt is not a destination — it lives in the shop-avatar
+ * menu (`openShopMenu`).
  */
-const PRIMARY_DESTINATIONS = [
-  "Trang chủ",
-  "Quyết định",
-  "Phân tích",
-  "Juli",
-] as const;
+const PRIMARY_DESTINATIONS = ["Tổng quan", "Phân tích", "Quyết định"] as const;
 
-type NavigableDestination = "Trang chủ" | "Quyết định" | "Phân tích";
+type NavigableDestination = (typeof PRIMARY_DESTINATIONS)[number];
 
 /** The auth screen's sample-demo entry (P34-F, D44.5; formerly "Dùng thử Demo"). */
 export const SAMPLE_ENTRY = "Xem thử với dữ liệu mẫu, không cần tài khoản →";
@@ -35,18 +29,14 @@ export async function enterReplayDemo(page: Page) {
   await expect(page.getByRole("region", { name: HOME_MATRIX_REGION })).toBeVisible();
 }
 
-export async function expectFourDestinationShell(page: Page) {
+export async function expectPrimaryRailShell(page: Page) {
   const navigation = page.getByRole("navigation", {
     name: "Điều hướng chính",
   });
   await expect(navigation).toBeVisible();
   const items = navigation.getByRole("link");
-  await expect(items).toHaveCount(4);
+  await expect(items).toHaveCount(PRIMARY_DESTINATIONS.length);
   await expect(items).toHaveText([...PRIMARY_DESTINATIONS].map((label) => new RegExp(`^${label}`)));
-
-  const juli = navigation.getByRole("link", { name: "Juli", exact: true });
-  await expect(juli).toHaveAttribute("aria-disabled", "true");
-  expect(await juli.getAttribute("href")).toBeNull();
   await expect(navigation).not.toContainText("Cài đặt");
 }
 

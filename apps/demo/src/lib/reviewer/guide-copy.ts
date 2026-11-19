@@ -25,11 +25,11 @@ export const GUIDE_STEPS: readonly GuideStep[] = [
   {
     id: "home",
     part: "read",
-    title: "Trang chủ: live GMV, orders and traffic",
+    title: "Tổng quan: live GMV, orders and traffic",
     body: "Pulled from the TikTok Shop Open API for the last 30 days. Shop name and ids are hidden.",
-    shortTitle: "Trang chủ: live GMV and orders",
+    shortTitle: "Tổng quan: live GMV and orders",
     shortBody: "From the TikTok Shop Open API, last 30 days. Names and ids hidden.",
-    where: "Trang chủ",
+    where: "Tổng quan",
     href: "/",
   },
   {
@@ -69,7 +69,7 @@ export const GUIDE_STEPS: readonly GuideStep[] = [
     body: "Press “Đồng bộ ngay”. Orders and products refresh from the sandbox within a minute.",
     shortTitle: "Sync from TikTok",
     shortBody: "Press “Đồng bộ ngay” on the connection card.",
-    where: "Trang chủ › Kết nối TikTok Shop",
+    where: "Tổng quan › Kết nối TikTok Shop",
     href: "/",
   },
   {

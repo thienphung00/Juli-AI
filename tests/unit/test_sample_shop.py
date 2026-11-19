@@ -404,7 +404,8 @@ async def test_loading_again_is_idempotent(engine):
         )
     second = await loader.load(factory, generate(END), now=NOW)
     assert second.shop_id == first.shop_id and not second.created
-    assert set(second.outcome) == {"duplicate"}
+    # a reload replaces the generated data (raw payloads included): its posts land as a fresh load
+    assert second.outcome == first.outcome
     async with factory() as session:
         after = await queries.overview(session, first.shop_id, period="30d")
         assert await session.scalar(select(func.count()).select_from(Shop)) == 1
