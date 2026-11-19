@@ -57,6 +57,7 @@ from juli_backend.models.order_costs import ORDER_LEVEL, OrderFinanceTransaction
 from juli_backend.models.shopee_profit import ShopeeOrderIncome, ShopeeOrderLine
 from juli_backend.services.ingest.canonical import DAY_ZONE, OrderLine, OrderSettlement, day_of
 from juli_backend.services.ingest.canonical_writer import DbCanonicalWriter, WriteResult
+from juli_backend.services.ingest.tiktok_canonical_throttle import noted_call
 from juli_backend.services.ingest.tiktok_mapper import PLATFORM, map_order, map_statement
 
 logger = logging.getLogger(__name__)
@@ -613,7 +614,13 @@ def order_details_fetcher(
                 app_id, shop_id, ORDER_DETAIL_PATH, max_requests=10, window_seconds=60
             ):
                 raise OrderRefetchRateLimitedError(ORDER_DETAIL_PATH)
-            data = resource.get_details(order_ids[start : start + ORDER_DETAIL_MAX_IDS])
+            data = noted_call(
+                rate_limiter,
+                app_id,
+                shop_id,
+                resource.get_details,
+                order_ids[start : start + ORDER_DETAIL_MAX_IDS],
+            )
             out.extend(o for o in (data or {}).get("orders") or [] if isinstance(o, dict))
         return out
 
