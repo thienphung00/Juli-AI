@@ -131,7 +131,25 @@ def core_of(r: OptionResult) -> dict[str, Any]:
         "break_even_orders": _s(r.break_even_orders),
         "break_even_aov": _s(r.break_even_aov),
         "notes": list(r.notes),
+        "margin_basis": None
+        if r.margin_basis is None
+        else {
+            "profit": _s(r.margin_basis.profit),
+            "net_revenue": _s(r.margin_basis.net_revenue),
+            "gmv": _s(r.margin_basis.gmv),
+        },
     }
+
+
+def _basis_of(raw: Mapping[str, Any] | None) -> Any:
+    from juli_backend.services.shopee_builder.engine.contract import MarginBasis
+
+    if not raw:
+        return None
+    net, gmv = _d(raw.get("net_revenue")), _d(raw.get("gmv"))
+    if net is None or gmv is None:
+        return None
+    return MarginBasis(profit=_d(raw.get("profit")), net_revenue=net, gmv=gmv)
 
 
 def _scenario_of(raw: Mapping[str, Any] | None) -> Scenario | None:
@@ -172,6 +190,7 @@ def option_of(core: Mapping[str, Any]) -> OptionResult:
         break_even_orders=_d(core.get("break_even_orders")),
         break_even_aov=_d(core.get("break_even_aov")),
         notes=tuple(core.get("notes") or ()),
+        margin_basis=_basis_of(core.get("margin_basis")),
     )
 
 

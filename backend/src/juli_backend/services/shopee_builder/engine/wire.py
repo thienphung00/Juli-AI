@@ -17,6 +17,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
 )
 from juli_backend.services.shopee_builder.engine.vn import DRIVER_LABELS, count, vnd
 from juli_backend.services.shopee_builder.reasons import code_for_note, text_for
+from juli_backend.services.shopee_profit.money import pct_points, safe_div
 
 AOV_ONLY_NOTE = "Đòn bẩy này tăng giá trị mỗi đơn, không tăng số đơn."
 NOT_ESTIMABLE_NOTE = "Chưa ước tính được."
@@ -93,16 +94,30 @@ def per_30d_profit(r: OptionResult) -> Decimal | None:
     return None if d is None else d * 30 / r.days
 
 
-def _margin_pct(s: Scenario | None) -> float | None:
-    if s is None or s.profit is None or s.gmv <= 0:
+def _margin_pct(profit: Decimal | None, net: Decimal | None) -> float | None:
+    """profit ÷ doanh thu thực, the dashboard's margin (``shop_profit`` rounding). Unknown profit or
+    a net revenue <= 0 is None: never a ÷ GMV fallback."""
+    if profit is None or net is None or net <= 0:
         return None
-    return float(s.profit / s.gmv) * 100.0
+    pct = pct_points(safe_div(profit, net))
+    return None if pct is None else float(pct)
 
 
 def _margin(r: OptionResult) -> dict[str, Any]:
-    """P100-C (B.6): profit ÷ GMV before and after, and the shift in points. A secondary line --
-    the headline is Δ tổng lợi nhuận (a lower margin can still mean more total profit)."""
-    before, after = _margin_pct(r.before), _margin_pct(r.likely)
+    """T1 (A1.1-A1.3): the card's one margin, profit ÷ doanh thu thực, the same figure as the
+    dashboard (``shop_profit.scope_margin_pct``). Before = the scope's covered profit ÷ its covered
+    net revenue; after = that profit moved by the card's Δ profit ÷ (after GMV × the scope's net/GMV
+    ratio over the before window). A secondary line -- the headline is Δ tổng lợi nhuận."""
+    mb = r.margin_basis
+    if mb is None:
+        return {"before_pct": None, "after_pct": None, "shift_pts": None}
+    before = _margin_pct(mb.profit, mb.net_revenue)
+    after = None
+    s = r.likely
+    if s is not None and mb.profit is not None and r.before.profit is not None and mb.gmv > 0:
+        if s.profit is not None:
+            net_after = s.gmv * (mb.net_revenue / mb.gmv)
+            after = _margin_pct(mb.profit + (s.profit - r.before.profit), net_after)
     shift = None if before is None or after is None else after - before
     return {"before_pct": before, "after_pct": after, "shift_pts": shift}
 

@@ -103,6 +103,18 @@ class StaleMarker:
 
 
 @dataclass(frozen=True)
+class MarginBasis:
+    """The dashboard's margin inputs for one scope and window (T1, A1.1-A1.3): ``profit`` and
+    ``net_revenue`` (doanh thu thực = covered ``buyer_paid``) are the numerator and denominator of
+    ``shop_profit.scope_margin_pct``; ``gmv`` is the same window's GMV, so ``net_revenue / gmv`` is
+    the scope's net/GMV ratio. The card's margin is built only from these."""
+
+    profit: Decimal | None
+    net_revenue: Decimal
+    gmv: Decimal
+
+
+@dataclass(frozen=True)
 class FunnelBase:
     """The "before" of an option (ADR-122 d.2): one scope over the window ending at the Tổng quan
     anchor. ``contribution_rate`` is the profit of one extra đồng of GMV at today's prices (fees,
@@ -130,6 +142,8 @@ class FunnelBase:
     #: F2 / F3: the product's (or shop's) own daily totals over its orders window, one value per
     #: day up to the orders' last data day (None = unknown profit): the noise band's history
     daily: tuple[tuple[str, tuple[float | None, ...]], ...] = ()
+    #: T1: the dashboard's margin inputs for this scope (None = unknown: the card shows no margin)
+    margin_basis: MarginBasis | None = None
 
     @property
     def window_days(self) -> int:
@@ -328,6 +342,8 @@ class OptionResult:
     #: F5: the metrics ("gmv" | "orders" | "profit") whose effect is within normal swing: the
     #: wire shows them as null; the P10 / P50 / P90 scenarios stay
     within_noise: tuple[str, ...] = ()
+    #: T1: the dashboard's margin inputs (see :class:`MarginBasis`); None = no card margin
+    margin_basis: MarginBasis | None = None
 
     def json(self) -> dict[str, object]:
         """The wire shape, mirrored exactly by ``apps/demo/.../option-result.ts``. Implemented in
