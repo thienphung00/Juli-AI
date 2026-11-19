@@ -220,7 +220,7 @@ async def test_a_listing_combo_without_evidence_is_not_estimable_never_plus_zero
     if r["estimable"]:  # the seeded shop holds a 1001 + 1003 basket: switching is measured
         pytest.skip("the synthetic shop has a matching basket")
     assert r["delta"]["orders"]["value"] is None and r["delta"]["gmv"]["value"] is None
-    assert any("chưa có dữ liệu cho quy cách này" in n for n in r["notes"])
+    assert r["notes"] == ["Chưa ước tính được"] and r["reason_code"] == "no_pack_evidence"
 
 
 async def test_an_affiliate_version_costs_commission_times_its_expected_gmv(session, shop):
