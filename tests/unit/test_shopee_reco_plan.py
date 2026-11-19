@@ -50,7 +50,7 @@ _USER_IDS: dict[uuid.UUID, uuid.UUID] = {}
 
 @pytest.fixture
 async def shop(session):
-    seeded = await seed_reco_shop(session)
+    seeded = await seed_reco_shop(session, traffic_days=True)
     await materialize.backfill_shop(session, seeded.shop_id)  # the stored funnel (P98)
     await session.commit()
     _USER_IDS[seeded.shop_id] = seeded.user.id  # a rollback expires the ORM user: keep the id

@@ -16,7 +16,7 @@ RULES_VERSION = "rules:ADR-121:shopee-reco-v1"
 SCHEMA = "shopee_reco/v1"
 #: Bump when a change to the evaluation (formulas, models, defaults) must refresh every stored card:
 #: a card computed by another engine version is stale and the refresh job recomputes it.
-ENGINE_VERSION = "2026-11-05.1"
+ENGINE_VERSION = "2026-11-19.1"  # card margin ÷ doanh thu thực, traffic days, plan group days
 
 DAYS_PER_MONTH = 30
 #: History window the certain layer is computed on (the last N days ending on ``as_of``).

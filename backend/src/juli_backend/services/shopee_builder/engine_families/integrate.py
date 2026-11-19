@@ -42,6 +42,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
     BuildUpPart,
     Driver,
     FunnelBase,
+    MarginBasis,
     OptionInput,
     OptionResult,
     Scenario,
@@ -111,13 +112,33 @@ def base_for(env: RecoEnv, item_ids: Sequence[str], shop_id: str = "") -> Funnel
     if not isinstance(rows, funnel.FunnelRows):
         rows = funnel.FunnelRows(env.view.window)
     items = tuple(dict.fromkeys(i for i in item_ids if i))
-    return forecast_base.adaptive_base(
+    base = forecast_base.adaptive_base(
         rows,
         shop_id,
         item_ids=items,
         contribution_rate=funnel.contribution_rate(env.view, items),
         today=env.today,
     )
+    return replace(base, margin_basis=margin_basis(env.view.profit, items))
+
+
+def margin_basis(profit: shop_profit.ShopProfit, item_ids: Sequence[str]) -> MarginBasis | None:
+    """T1 (A1.1): the dashboard's margin inputs for the scope -- the very figures behind
+    ``shop_profit.scope_margin_pct`` (covered profit, covered ``buyer_paid`` = doanh thu thực) --
+    plus ``gmv_covered``, the GMV of the same sale lines (no cancelled, undelivered or refund
+    order), so net / GMV compares like with like. None when the scope has no covered revenue."""
+    items = tuple(dict.fromkeys(i for i in item_ids if i))
+    if not items:
+        net, num = profit.buyer_paid_covered, profit.covered_margin_profit
+        gmv = profit.gmv_covered
+    else:
+        rows = [profit.products[i] for i in items if i in profit.products]
+        net = sum((p.buyer_paid_covered for p in rows), ZERO)
+        num = sum((p.profit for p in rows), ZERO) if rows else None
+        gmv = sum((p.gmv_covered for p in rows), ZERO)
+    if net <= 0 or gmv <= 0:
+        return None
+    return MarginBasis(profit=num, net_revenue=net, gmv=gmv)
 
 
 def _base_total(base: FunnelBase, name: str) -> Decimal | None:
@@ -454,6 +475,20 @@ def sum_results(results: Sequence[OptionResult], label: str) -> OptionResult:
         break_even_aov=None,
         notes=tuple(notes),
         ads=_sum_ads([r.ads for r in results]),
+        margin_basis=_sum_basis([r.margin_basis for r in results]),
+    )
+
+
+def _sum_basis(bases: Sequence[MarginBasis | None]) -> MarginBasis | None:
+    """Several targets: the scope is their union, so profit, net revenue and GMV add up."""
+    if not bases or any(b is None for b in bases):
+        return None
+    done = [b for b in bases if b is not None]
+    profit: Decimal | None = ZERO
+    for b in done:
+        profit = None if profit is None or b.profit is None else profit + b.profit
+    return MarginBasis(
+        profit, sum((b.net_revenue for b in done), ZERO), sum((b.gmv for b in done), ZERO)
     )
 
 

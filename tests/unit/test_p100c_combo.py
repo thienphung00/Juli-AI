@@ -17,6 +17,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
     WIRE_KEYS,
     Band,
     FunnelBase,
+    MarginBasis,
     OfferCost,
     SourceFunnel,
 )
@@ -269,7 +270,8 @@ def test_add_on_and_gift_results_carry_cost_and_break_even(spec):
 def test_wire_keys_carry_roi_and_margin():
     assert "roi" in WIRE_KEYS and "margin" in WIRE_KEYS
     o = combo_option(combo("pct", [(2, 5)]), unmeasured_facts(reach=b(0.1, 0.2, 0.3)))
-    r = run(base(), o, n=200)
+    fb = replace(base(), margin_basis=MarginBasis(D(1_000_000), D(10_000_000), D(10_500_000)))
+    r = run(fb, o, n=200)
     j = r.json()
     assert set(j) == set(WIRE_KEYS)
     d_gmv = float(r.likely.gmv - r.before.gmv)
@@ -277,8 +279,13 @@ def test_wire_keys_carry_roi_and_margin():
     assert j["roi"]["text"].startswith("ΔGMV / chi phí ")
     assert j["roi"]["metric_id"] == "card_return"
     m = j["margin"]
-    assert m["before_pct"] == pytest.approx(float(r.before.profit / r.before.gmv) * 100)
-    assert m["after_pct"] == pytest.approx(float(r.likely.profit / r.likely.gmv) * 100)
+    # T1: profit / doanh thu thuc (the dashboard's), never / GMV
+    assert m["before_pct"] == 10.0
+    # on the card's horizon: m0 x R_before + Δ profit over R_after, R = GMV x net/GMV
+    ratio = D(10_000_000) / D(10_500_000)
+    r_before, r_after = r.before.gmv * ratio, r.likely.gmv * ratio
+    after = (D("0.1") * r_before + r.likely.profit - r.before.profit) / r_after * 100
+    assert m["after_pct"] == pytest.approx(float(after), abs=0.06)
     assert m["shift_pts"] == pytest.approx(m["after_pct"] - m["before_pct"])
 
 
@@ -293,7 +300,8 @@ def test_headline_is_total_profit_even_when_margin_falls():
         ctor=LiftEvidence(b(0.6, 0.6, 0.6), "product_history"),
     )
     spec = sp.PriceSpec(kind="price", item_id="i1", variations=[sp.VariationPrice(change_pct=-10)])
-    r = run(base(), price_option(spec, facts), n=1)
+    fb = replace(base(), margin_basis=MarginBasis(D(1_000_000), D(10_000_000), D(10_500_000)))
+    r = run(fb, price_option(spec, facts), n=1)
     j = r.json()
     assert r.likely is not None and r.before.profit is not None and r.likely.profit is not None
     # Δ tổng lợi nhuận = orders_after × ppo_after − orders_before × ppo_before

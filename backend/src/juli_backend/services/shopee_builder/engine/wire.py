@@ -17,9 +17,13 @@ from juli_backend.services.shopee_builder.engine.contract import (
 )
 from juli_backend.services.shopee_builder.engine.vn import DRIVER_LABELS, count, vnd
 from juli_backend.services.shopee_builder.reasons import code_for_note, text_for
+from juli_backend.services.shopee_profit.money import pct_points, safe_div
 
 AOV_ONLY_NOTE = "Đòn bẩy này tăng giá trị mỗi đơn, không tăng số đơn."
-NOT_ESTIMABLE_NOTE = "Chưa ước tính được."
+#: the ONE visible text of a result that is not estimable (owner 2026-11-19); the detail
+#: stays in ``reason_code`` / ``reason_text`` (the G5 hover) and in the stored core's ``notes``
+#: (internal use, the Excel export)
+NOT_ESTIMABLE_NOTE = "Chưa ước tính được"
 #: G4: registry id + label of the card figure (kept equal to metrics.registry by a test)
 CARD_RETURN_ID = "card_return"
 CARD_RETURN_LABEL = "ΔGMV / chi phí"
@@ -93,16 +97,42 @@ def per_30d_profit(r: OptionResult) -> Decimal | None:
     return None if d is None else d * 30 / r.days
 
 
-def _margin_pct(s: Scenario | None) -> float | None:
-    if s is None or s.profit is None or s.gmv <= 0:
+def _margin_pct(profit: Decimal | None, net: Decimal | None) -> float | None:
+    """profit ÷ doanh thu thực, the dashboard's margin (``shop_profit`` rounding). Unknown profit or
+    a net revenue <= 0 is None: never a ÷ GMV fallback."""
+    if profit is None or net is None or net <= 0:
         return None
-    return float(s.profit / s.gmv) * 100.0
+    pct = pct_points(safe_div(profit, net))
+    return None if pct is None else float(pct)
 
 
 def _margin(r: OptionResult) -> dict[str, Any]:
-    """P100-C (B.6): profit ÷ GMV before and after, and the shift in points. A secondary line --
-    the headline is Δ tổng lợi nhuận (a lower margin can still mean more total profit)."""
-    before, after = _margin_pct(r.before), _margin_pct(r.likely)
+    """T1 (A1.1-A1.3): the card's one margin, profit ÷ doanh thu thực, the same figure as the
+    dashboard (``shop_profit.scope_margin_pct``). Before = the scope's covered profit ÷ its covered
+    net revenue (m0). The dashboard basis is its own window, but the card's GMV and Δ profit are
+    over the card's ``days``, so after is built on the card's horizon: with ratio = net/GMV of the
+    basis, R_before = before GMV × ratio and R_after = likely GMV × ratio,
+    after = (m0 × R_before + Δ profit) ÷ R_after. A secondary line -- the headline is Δ tổng
+    lợi nhuận."""
+    mb = r.margin_basis
+    if mb is None:
+        return {"before_pct": None, "after_pct": None, "shift_pts": None}
+    before = _margin_pct(mb.profit, mb.net_revenue)
+    after = None
+    s = r.likely
+    if (
+        s is not None
+        and mb.profit is not None
+        and mb.net_revenue > 0
+        and mb.gmv > 0
+        and s.profit is not None
+        and r.before.profit is not None
+    ):
+        ratio = mb.net_revenue / mb.gmv
+        m0 = mb.profit / mb.net_revenue
+        after = _margin_pct(
+            m0 * (r.before.gmv * ratio) + (s.profit - r.before.profit), s.gmv * ratio
+        )
     shift = None if before is None or after is None else after - before
     return {"before_pct": before, "after_pct": after, "shift_pts": shift}
 
@@ -145,7 +175,7 @@ def result_json(r: OptionResult) -> dict[str, Any]:
     if aov_only:
         note: str | None = AOV_ONLY_NOTE
     elif not r.estimable:
-        note = r.notes[0] if r.notes else NOT_ESTIMABLE_NOTE
+        note = NOT_ESTIMABLE_NOTE
     else:
         note = None
 
@@ -183,7 +213,7 @@ def result_json(r: OptionResult) -> dict[str, Any]:
         "drivers": list(r.drivers),
         "estimable": r.estimable,
         "reason_code": reason_code,
-        "reason_text": text_for(reason_code),
+        "reason_text": text_for(reason_code),  # G5: the hover keeps the real reason
         "basis": r.basis,
         "basis_weak": r.basis == "prior",
         # F5: the metrics ("gmv" | "orders" | "profit") whose delta is null (within normal swing)
@@ -247,7 +277,7 @@ def result_json(r: OptionResult) -> dict[str, Any]:
             "likely": None if r.likely is None else _column(r.likely),
             "high": None if r.high is None else _column(r.high),
         },
-        "notes": list(r.notes),
+        "notes": list(r.notes) if r.estimable else [NOT_ESTIMABLE_NOTE],
         "ads": ads_json(r.ads),
     }
 

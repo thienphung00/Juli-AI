@@ -18,6 +18,13 @@ D29.1):
 * **Stale.** The newest data older than its expected lag + :data:`STALE_GRACE_DAYS` days: the base
   carries a :class:`StaleMarker` (dataset, data-through day) and the engine gives no numbers.
 
+* **A day without product traffic rows is missing, not 0 (C1, owner 2026-11-19).** For a product
+  scope, a day on which none of its products has a traffic row (views / clicks not ``None``, in
+  ``sources`` or ``product_days``) leaves views, CTR and CTOR like an unavailable day: rates are
+  taken over the days that do have rows, numerator and denominator on the same days (orders of a
+  day without traffic rows never enter CTOR), then scaled to the window. A row with views 0 is a
+  real 0. Fewer than :data:`MIN_TRAFFIC_DAYS` such days: views and clicks stay unknown.
+  The order rate keeps the order dataset's own days. The shop scope is unchanged.
 * **Unavailable is not zero either.** For a product scope, a day on which any product of the scope
   was out of stock or unlisted (``rows.unavailable``, from the stock history, see
   :mod:`unavailable_days`) leaves the base like a missing day: its rows leave every numerator, the
@@ -50,6 +57,11 @@ MIN_EVENTS = 30
 BASE_DAYS = 30
 #: No forecast when the newest data is older than its expected lag + this many days.
 STALE_GRACE_DAYS = 2
+#: A product scope needs at least this many days WITH product-level traffic rows in its window;
+#: fewer and views / CTR / CTOR are not estimable (never a low number). Same number as
+#: ``shopee_builder.engine_families.common.MIN_MEASURE_DAYS``, repeated because analytics must not
+#: import the builder.
+MIN_TRAFFIC_DAYS = 5
 
 #: Days a dataset normally trails today, per (platform, dataset). Shopee's Phân tích bán hàng
 #: shows yesterday, so traffic and ads trail by 1; orders arrive the same day. TikTok's analytics
@@ -63,6 +75,32 @@ EXPECTED_LAG_DAYS: dict[tuple[str, str], int] = {
 }
 
 ZERO = Decimal(0)
+
+
+def _traffic_missing(
+    rows: funnel.FunnelRows, items: tuple[str, ...], last: date | None
+) -> frozenset[date]:
+    """Days up to ``last`` (from the window start) on which no product of the scope has a traffic
+    row; empty for the shop scope."""
+    if not items or last is None:
+        return frozenset()
+    wanted = set(items)
+    present = {
+        r.day
+        for r in rows.sources
+        if r.item_id in wanted and (r.views is not None or r.clicks is not None)
+    }
+    present |= {
+        d.day
+        for d in rows.product_days
+        if d.item_id in wanted and (d.views is not None or d.clicks is not None)
+    }
+    n = (last - rows.window.start).days + 1
+    return frozenset(
+        day
+        for i in range(max(n, 0))
+        if (day := rows.window.start + timedelta(days=i)) not in present
+    )
 
 
 def _span(start: date, end: date, floor: date, skip: frozenset[date] = frozenset()) -> int:
@@ -173,26 +211,33 @@ def adaptive_base(
     al = None if last.ads is None else min(last.ads, end)
     stale = stale_marker(last, today, platform)
     skip = scope_unavailable(rows.unavailable, items)
+    skip_t = skip | _traffic_missing(rows, items, tl)
+    min_days = MIN_TRAFFIC_DAYS if items else 0
 
-    def base_of(cap: date, length: int) -> tuple[FunnelBase, int]:
+    def base_of(cap: date, length: int, sk: frozenset[date] = skip) -> tuple[FunnelBase, int]:
         start = cap - timedelta(days=length - 1)
-        sl = _slice(rows, start, cap, al, skip)
-        n = _span(start, cap, floor, skip)
+        sl = _slice(rows, start, cap, al, sk)
+        n = _span(start, cap, floor, sk)
         return (
             funnel.base_from_rows(sl, shop_id, item_ids=items, contribution_rate=contribution_rate),
             n,
         )
 
-    def pick(cap: date | None, kind: str | None) -> tuple[int, bool]:
+    def pick(
+        cap: date | None, kind: str | None, sk: frozenset[date] = skip, need: int = 0
+    ) -> tuple[int, bool]:
         if cap is None:
             return WINDOWS[0], False
         if kind is None:
-            return WINDOWS[0], False
+            for length in WINDOWS:
+                if _span(cap - timedelta(days=length - 1), cap, floor, sk) >= need:
+                    return length, False
+            return WINDOWS[-1], False
         events = 0
         for length in WINDOWS:
-            b, _ = base_of(cap, length)
+            b, n_days = base_of(cap, length, sk)
             events = _events(b, kind)
-            if events >= MIN_EVENTS:
+            if events >= MIN_EVENTS and n_days >= need:
                 return length, False
         # Owner 2026-11-16 (F2 amendment): no window holds MIN_EVENTS -> use the 60-day window
         # anyway; its wide F3 noise band (F5) blanks any effect that does not clear it. Only a
@@ -200,13 +245,21 @@ def adaptive_base(
         return WINDOWS[-1], events == 0
 
     both = ol if tl is None else min(ol, tl)
-    w_views, _ = pick(tl, None)
-    w_ctr, ctr_low = pick(tl, "click")
-    w_ctor, ctor_low = pick(both, "order")
+    w_views, _ = pick(tl, None, skip_t, min_days)
+    w_ctr, ctr_low = pick(tl, "click", skip_t, min_days)
+    w_ctor, ctor_low = pick(both, "order", skip_t, min_days)
+    # C1: too few days with product traffic rows even in the widest window -> not estimable
+    thin_traffic = (
+        min_days > 0
+        and tl is not None
+        and _span(tl - timedelta(days=WINDOWS[-1] - 1), tl, floor, skip_t) < min_days
+    )
+    if thin_traffic:
+        tl = None
     w_ord, ord_low = pick(ol, "order")
-    bv, nv = base_of(tl, w_views) if tl is not None else (plain, 0)
-    bc, _ = base_of(tl, w_ctr) if tl is not None else (plain, 0)
-    bt, _ = base_of(both, w_ctor)
+    bv, nv = base_of(tl, w_views, skip_t) if tl is not None else (plain, 0)
+    bc, _ = base_of(tl, w_ctr, skip_t) if tl is not None else (plain, 0)
+    bt, _ = base_of(both, w_ctor, skip_t)
     bo, n_o = base_of(ol, w_ord)
     b_views = _by_source(bv)
     b_ctr = _by_source(bc)
@@ -274,9 +327,9 @@ def adaptive_base(
             )
         )
     low: list[str] = []
-    if ctr_low and tl is not None:
+    if (ctr_low and tl is not None) or thin_traffic:
         low.append("ctr")
-    if ctor_low:
+    if ctor_low or thin_traffic:
         low.append("ctor")
     if ord_low:
         low.append("aov")
@@ -330,6 +383,7 @@ __all__ = [
     "BASE_DAYS",
     "EXPECTED_LAG_DAYS",
     "MIN_EVENTS",
+    "MIN_TRAFFIC_DAYS",
     "STALE_GRACE_DAYS",
     "WINDOWS",
     "adaptive_base",

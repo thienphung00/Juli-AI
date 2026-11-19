@@ -156,7 +156,7 @@ def test_not_estimable_keeps_cost_and_break_even():
     assert j["delta"]["profit"] is None and j["per_30d"]["profit"] is None
     assert j["cost"]["total"] == 700_000
     assert j["cost"]["break_even_orders"] == 700_000 / (5_000_000 / 250)  # 35
-    assert j["delta"]["orders"]["note"] == "chưa ước tính được — cần chạy thử"
+    assert j["delta"]["orders"]["note"] == "Chưa ước tính được"  # the detail stays in reason_code
 
 
 def test_missing_traffic_makes_view_driver_not_estimable():

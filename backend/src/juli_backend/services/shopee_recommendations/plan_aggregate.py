@@ -43,6 +43,7 @@ and ``without`` is "bỏ thẻ này thì": the plan's numbers and the floor chec
 
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -76,6 +77,8 @@ from juli_backend.services.shopee_recommendations.model import Candidate
 
 if TYPE_CHECKING:
     from juli_backend.services.shopee_builder.engine.contract import OptionResult, Scenario
+
+log = logging.getLogger(__name__)
 
 RESULT_BASIS = "option_result"
 NOT_ESTIMABLE_TEXT = "chưa ước tính được"
@@ -201,6 +204,14 @@ class CardResult:
     reason: str | None = None  # a code; ``None`` with a result = fine
     start: date | None = None
     product: str | None = None
+    #: A3.1: the last day this card may count (its group's last day); ``None`` = no clip
+    end: date | None = None
+    #: A2.2: the ads campaign whose budget the card spends (a running campaign's key; a new
+    #: campaign is its own); ``None`` = not an ads card
+    campaign: str | None = None
+    #: a product is in one campaign at a time: the code of the card that won the product
+    #: instead of this one (this card then adds nothing to the plan's Δ and cost)
+    replaced_by: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -214,7 +225,10 @@ class CardResult:
         if r is None:
             return None
         first = self.start or h.start
-        return first, first + timedelta(days=r.days - 1)
+        last = first + timedelta(days=r.days - 1)
+        if self.end is not None:  # A3.1: only the card's group days (never into the next group)
+            last = min(last, self.end)
+        return first, last
 
     def counted(self, h: Horizon) -> tuple[date, date] | None:
         """The card's days inside the horizon; ``None`` = none of them."""
@@ -250,6 +264,8 @@ class CardResult:
         """The cost on the card's days inside the horizon (its own cost per day × those days);
         ``None`` when the card has no result (unknown, never a number from elsewhere)."""
         per_day = self.cost_per_day()
+        if per_day is not None and self.replaced_by:
+            return 0.0
         return None if per_day is None else per_day * self.counted_days(h)
 
     def delta(self, which: str, h: Horizon | None = None) -> dict[str, float | None] | None:
@@ -294,6 +310,191 @@ RESULT_FIELDS = {
 COLUMNS = (("p10", "low"), ("p50", "likely"), ("p90", "high"))
 
 
+# ------------------------------------------------------------------ ads campaigns (A2.2)
+
+
+@dataclass(frozen=True)
+class AdsData:
+    """What the platform measured for the shop's ads campaigns (read once from the env's stored
+    ads reports; this module does no I/O)."""
+
+    #: campaign key -> product id -> (ads spend, ads orders) of the report's per-product rows
+    products: Mapping[str, Mapping[str, tuple[float, float]]] = field(default_factory=dict)
+    #: campaign key -> day -> the platform's measured spend that day
+    daily: Mapping[str, Mapping[date, float]] = field(default_factory=dict)
+    #: campaign key -> product id -> (last day the report row spans, that row's spend), rows with
+    #: spend only: where the product spent LAST
+    latest: Mapping[str, Mapping[str, tuple[date, float]]] = field(default_factory=dict)
+    #: campaign key -> (ads GMV, ads spend) of its per-product rows: the measured ROAS
+    roas_parts: Mapping[str, tuple[float, float]] = field(default_factory=dict)
+
+    def roas(self, campaign: str) -> float | None:
+        gmv, spend = self.roas_parts.get(campaign, (0.0, 0.0))
+        return None if spend <= 0 else gmv / spend
+
+    def campaign_of_product(self, product: str | None) -> str | None:
+        """The campaign the product is in NOW: where its spend is latest (a product is in one
+        campaign at a time, so spend in two campaigns means it moved); ties go to the larger
+        spend of that row, then the smaller key. ``None`` when the platform shows no spend."""
+        if product is None:
+            return None
+        found = []
+        for key, rows in self.products.items():
+            total = rows.get(product, (0.0, 0.0))[0]
+            if total <= 0:
+                continue
+            last, spend = self.latest.get(key, {}).get(product, (date.min, total))
+            found.append((last, spend, key))
+        if not found:
+            return None
+        return min(found, key=lambda t: (-t[0].toordinal(), -t[1], t[2]))[2]
+
+    def spend(self, campaign: str, product: str | None) -> float:
+        rows = self.products.get(campaign, {})
+        if product is None:
+            return sum(s for s, _ in rows.values())
+        return rows.get(product, (0.0, 0.0))[0]
+
+    def cost_per_order(self, campaign: str, product: str | None = None) -> float | None:
+        """Platform ads spend ÷ platform ads orders (the product's, or the campaign's when
+        ``product`` is ``None``); ``None`` when there is no order."""
+        rows = self.products.get(campaign, {})
+        picked = list(rows.values()) if product is None else [rows.get(product, (0.0, 0.0))]
+        orders = sum(o for _, o in picked)
+        return None if orders <= 0 else sum(sp for sp, _ in picked) / orders
+
+
+def ads_data_of(env: Any) -> AdsData:
+    """The env's stored per-product ads rows (``view.data.ads_reports``) and the campaigns' daily
+    spend (``env.campaigns``: the window's last days up to ``as_of``, oldest first)."""
+    rows = getattr(getattr(getattr(env, "view", None), "data", None), "ads_reports", None)
+    products: dict[str, dict[str, tuple[float, float]]] = {}
+    latest: dict[str, dict[str, tuple[date, float]]] = {}
+    parts: dict[str, tuple[float, float]] = {}
+    for r in getattr(rows, "campaign_rows", None) or []:
+        if not r.item_id:  # a campaign's own total row
+            continue
+        g, sp0 = parts.get(r.key, (0.0, 0.0))
+        parts[r.key] = (g + float(getattr(r, "gmv", 0) or 0), sp0 + float(r.spend))
+        end = getattr(r, "period", (None, None))[1]
+        if end is not None and float(r.spend) > 0:
+            seen = latest.setdefault(r.key, {}).get(r.item_id)
+            if seen is None or (end, float(r.spend)) > seen:
+                latest[r.key][r.item_id] = (end, float(r.spend))
+        sp, od = products.setdefault(r.key, {}).get(r.item_id, (0.0, 0.0))
+        products[r.key][r.item_id] = (sp + float(r.spend), od + float(r.orders))
+    as_of = getattr(env, "as_of", None)
+    daily: dict[str, dict[date, float]] = {}
+    for key, setting in (getattr(env, "campaigns", None) or {}).items():
+        days = tuple(getattr(setting, "days", ()) or ())
+        if as_of is None or not days:
+            continue
+        daily[key] = {
+            as_of - timedelta(days=len(days) - 1 - i): float(spend)
+            for i, (spend, _budget) in enumerate(days)
+        }
+    return AdsData(products, daily, latest, parts)
+
+
+@dataclass(frozen=True)
+class AdsShares:
+    """A2.2: each ads card's share of its campaign's cost inside the horizon. ``cost`` is by card
+    id; the shares of one campaign add up to the campaign's cost exactly."""
+
+    cost: Mapping[str, float] = field(default_factory=dict)
+    campaigns: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+
+
+def ads_shares(results: Sequence[CardResult], h: Horizon, data: AdsData | None = None) -> AdsShares:
+    """A campaign's budget is counted ONCE in the plan however many cards (products) of that
+    campaign it holds. The campaign's cost inside the horizon is its lowest per-day cost × the
+    days any of its cards counts; each card gets the share of its product's platform ads spend
+    (equal split when the platform spent nothing on the plan's products). Forward days stay at the
+    full budget: no forward-spend estimate."""
+    data = data or AdsData()
+    by_campaign: dict[str, list[CardResult]] = {}
+    for r in results:
+        if r.campaign and not r.replaced_by and r.result is not None and r.cost_in(h) is not None:
+            by_campaign.setdefault(r.campaign, []).append(r)
+    cost: dict[str, float] = {}
+    blocks: dict[str, dict[str, Any]] = {}
+    for campaign, cards in sorted(by_campaign.items()):
+        cards = sorted(cards, key=lambda r: r.card_id)
+        days: set[date] = set()
+        for r in cards:
+            span = r.counted(h)
+            if span is not None:
+                days.update(
+                    span[0] + timedelta(days=i) for i in range((span[1] - span[0]).days + 1)
+                )
+        # owner: cards on one campaign with different budgets count the LOWER one
+        per_day = min((r.cost_per_day() or 0.0) for r in cards)
+        total = per_day * len(days)
+        spends = [data.spend(campaign, r.product) for r in cards]
+        # one product with several cards splits its spend between them
+        same = {p: sum(1 for r in cards if r.product == p) for p in {r.product for r in cards}}
+        weights = [sp / same[r.product] for sp, r in zip(spends, cards, strict=True)]
+        if sum(weights) <= 0:
+            weights = [1.0] * len(cards)
+        whole = sum(weights)
+        given = 0.0
+        shares: list[float] = []
+        for i, w in enumerate(weights):
+            share = total - given if i == len(cards) - 1 else total * w / whole
+            shares.append(share)
+            given += share
+        for r, share in zip(cards, shares, strict=True):
+            cost[r.card_id] = share
+        blocks[campaign] = {
+            "campaign": campaign,
+            "cost_horizon": total,
+            "days": len(days),
+            "spend": data.spend(campaign, None),
+            "cost_per_order": data.cost_per_order(campaign),
+            "cards": [
+                {
+                    "card_id": r.card_id,
+                    "product_id": r.product,
+                    "share": 0.0 if total <= 0 else share / total,
+                    "cost_horizon": share,
+                    "cost_per_order": data.cost_per_order(campaign, r.product),
+                }
+                for r, share in zip(cards, shares, strict=True)
+            ],
+        }
+    return AdsShares(cost, blocks)
+
+
+def campaign_span_cost(
+    budget_per_day: float,
+    first: date,
+    last: date,
+    today: date,
+    measured: Mapping[date, float] | None = None,
+) -> dict[str, float]:
+    """A2.2: a campaign's cost over its span. A day already run (before ``today``) costs what the
+    platform measured that day (the budget when nothing was measured); the days still to come
+    cost the full budget."""
+    measured = measured or {}
+    elapsed = forward = 0.0
+    n_elapsed = n_forward = 0
+    for i in range((last - first).days + 1):
+        d = first + timedelta(days=i)
+        if d < today:
+            elapsed += measured.get(d, budget_per_day)
+            n_elapsed += 1
+        else:
+            forward += budget_per_day
+            n_forward += 1
+    return {
+        "elapsed_days": n_elapsed,
+        "elapsed_spend": elapsed,
+        "forward_days": n_forward,
+        "forward_cost": forward,
+        "total": elapsed + forward,
+    }
+
+
 @dataclass
 class Counted:
     """What one leaf card contributes to the plan inside the horizon: its own-days Δ spread
@@ -307,14 +508,30 @@ class Counted:
     cost: float | None
 
 
-def count_in_horizon(results: Sequence[CardResult], h: Horizon) -> dict[str, Counted]:
-    """Each estimable leaf's Δ inside the horizon (its counted days only)."""
+def count_in_horizon(
+    results: Sequence[CardResult], h: Horizon, ads: AdsShares | None = None
+) -> dict[str, Counted]:
+    """Each estimable leaf's Δ inside the horizon (its counted days only).
+
+    A2.2: an ads card's cost is its campaign's share (``ads``); an estimable card's Δ already
+    holds its own full cost, so the difference to its share is put back. A card that cannot be
+    estimated contributes nothing here (its certain cost stays in the spend line)."""
     out: dict[str, Counted] = {}
     for r in results:
-        if not r.ok:
+        if not r.ok or r.replaced_by:
             continue
-        cols = {q: dict(r.delta(col, h) or {}) for q, col in COLUMNS}
-        out[r.card_id] = Counted(r.card_id, cols, r.counted_days(h), r.cost_in(h))
+        own_cost = r.cost_in(h)
+        cost = own_cost
+        if ads is not None and r.card_id in ads.cost:
+            cost = ads.cost[r.card_id]
+        cols: dict[str, dict[str, float | None]] = {
+            q: dict(r.delta(col, h) or {}) for q, col in COLUMNS
+        }
+        if own_cost is not None and cost is not None and cost != own_cost:
+            for q in cols:
+                if cols[q].get("dprofit") is not None:
+                    cols[q]["dprofit"] = float(cols[q]["dprofit"] or 0.0) + (own_cost - cost)
+        out[r.card_id] = Counted(r.card_id, cols, r.counted_days(h), cost)
     return out
 
 
@@ -567,6 +784,79 @@ def card_result(
     return out
 
 
+def _campaign_of(e: Evaluated, data: AdsData | None = None) -> str | None:
+    """A2.2: the ads campaign a card spends the budget of; ``None`` only for a card that is not
+    an ads card. A running campaign's key; a new campaign (no key yet) is its own; an ads card
+    with no key resolves to the platform campaign its product spends in (``data``), else it
+    stands alone as ``card:<id>`` so it is always tracked and never merged with another."""
+    cid = e.entry.card_id
+    if e.cand.kind == "ads_new_campaign":
+        return f"new:{cid}"
+    if e.cand.kind not in ADS_KINDS:
+        return None
+    if e.cand.campaign_key:
+        return str(e.cand.campaign_key)
+    return (data or AdsData()).campaign_of_product(e.product) or f"card:{cid}"
+
+
+def assign_campaigns(
+    results: Mapping[str, CardResult], evs: Sequence[Evaluated], data: AdsData
+) -> None:
+    """Give every ads leaf its campaign (``_campaign_of``); one count line says how many stood
+    alone because no campaign could be resolved (a count only)."""
+    unresolved = 0
+    ads_leaves: list[tuple[Evaluated, CardResult]] = []
+    for e in flatten(evs):
+        leaf = results.get(e.entry.card_id)
+        if leaf is not None and leaf.campaign is None:
+            leaf.campaign = _campaign_of(e, data)
+            unresolved += bool(leaf.campaign and leaf.campaign.startswith("card:"))
+        if leaf is not None and leaf.campaign and leaf.result is not None:
+            ads_leaves.append((e, leaf))
+    if unresolved:
+        log.info("ads_card_without_campaign count=%d", unresolved)
+    resolve_product_conflicts(ads_leaves, data)
+
+
+def _roas_of(e: Evaluated, leaf: CardResult, data: AdsData) -> float:
+    """The card's campaign ROAS: measured over the before window for a running campaign, the
+    ROAS target (Tùy chỉnh) for a new one; unknown counts as 0."""
+    row = _version_row(e)
+    spec = (row or {}).get("spec") or {}
+    target = spec.get("roas_target") if isinstance(spec, Mapping) else None
+    if e.cand.kind != "ads_new_campaign" and leaf.campaign:
+        measured = data.roas(leaf.campaign)
+        if measured is not None:
+            return measured
+    return float(target) if target else 0.0
+
+
+def resolve_product_conflicts(pairs: Sequence[tuple[Evaluated, CardResult]], data: AdsData) -> None:
+    """A product is in ONE campaign at a time. When cards of a plan (or group) put the same
+    product in different campaigns only the better one counts: higher ROAS, then the lower
+    per-day spend, then the smaller card id. The others carry ``replaced_by`` = the winner's
+    code and add nothing to the plan's Δ and cost."""
+    by_product: dict[str, list[tuple[Evaluated, CardResult]]] = {}
+    for e, leaf in pairs:
+        if e.product:
+            by_product.setdefault(e.product, []).append((e, leaf))
+    for group in by_product.values():
+        if len({leaf.campaign for _, leaf in group}) < 2:
+            continue
+        ranked = sorted(
+            group,
+            key=lambda t: (
+                -_roas_of(t[0], t[1], data),
+                t[1].cost_per_day() or 0.0,
+                t[0].entry.card_id,
+            ),
+        )
+        winner = ranked[0]
+        for e, leaf in ranked[1:]:
+            if leaf.campaign != winner[1].campaign:
+                leaf.replaced_by = str(winner[0].entry.code or winner[0].entry.card_id)
+
+
 def _version_row(e: Evaluated) -> Mapping[str, Any] | None:
     vlist = versions.versions_of(e.card)
     return vlist[e.entry.version - 1] if 0 < e.entry.version <= len(vlist) else None
@@ -733,13 +1023,16 @@ def combine_counted(counted: Sequence[Counted]) -> dict[str, dict[str, float | N
 
 
 def combine_results(
-    results: Sequence[CardResult], horizon: Horizon | None = None
+    results: Sequence[CardResult],
+    horizon: Horizon | None = None,
+    ads: AdsData | None = None,
 ) -> dict[str, dict[str, float | None]]:
     """The estimable cards' Δ added up: inside ``horizon`` (each card on its own days there) when
     given, else each over its own days. Cards without a result
     are left out (the caller lists them)."""
     if horizon is not None:
-        return combine_counted(list(count_in_horizon(results, horizon).values()))
+        shares = ads_shares(results, horizon, ads)
+        return combine_counted(list(count_in_horizon(results, horizon, shares).values()))
     return combine_counted([_own_counted(r) for r in results if r.ok])
 
 
@@ -863,6 +1156,8 @@ class Joint:
     #: leaves whose cost is unknown (no result): the spend line leaves them out and says so
     cost_unknown: list[str] = field(default_factory=list)
     outside_horizon: list[str] = field(default_factory=list)
+    #: A2.2: campaign key -> its cost once in the horizon, the cards' shares, cost per order
+    ads_campaigns: dict[str, Mapping[str, Any]] = field(default_factory=dict)
 
     @property
     def floor_ok(self) -> bool:
@@ -970,6 +1265,7 @@ def joint(
     not_estimable: list[str] = []
     none_estimable = False
     counted: dict[str, Counted] = {}
+    ads_blocks: dict[str, Mapping[str, Any]] = {}
     cost_unknown: list[str] = []
     outside: list[str] = []
     h = horizon or Horizon(env.as_of + timedelta(days=1))
@@ -978,10 +1274,13 @@ def joint(
         # (the cap reads it too); a card without a result has an unknown cost -- left out of the
         # spend line and listed, never the money layer's figure
         mine = [results[e.entry.card_id] for e in evs if e.entry.card_id in results]
-        costs = [r.cost_in(h) for r in mine]
+        # A2.2: an ads campaign's budget is counted once; its cards carry a share of it
+        ads = ads_shares(mine, h, ads_data_of(env))
+        costs = [ads.cost.get(r.card_id, r.cost_in(h)) for r in mine]
         cost_unknown = [r.card_id for r, c in zip(mine, costs, strict=True) if c is None]
         certain["dchi"] = sum((c for c in costs if c is not None), 0.0)
-        counted = count_in_horizon(mine, h)
+        counted = count_in_horizon(mine, h, ads)
+        ads_blocks = dict(ads.campaigns)
         predicted = combine_counted(list(counted.values()))
         total = predicted  # an option result's Δ already holds the cost: nothing is added to it
         not_estimable = [r.card_id for r in mine if not r.ok]
@@ -1020,6 +1319,7 @@ def joint(
         cost_unknown=_parents(cost_unknown),
         outside_horizon=_parents(outside),
         none_estimable=none_estimable,
+        ads_campaigns=ads_blocks,
     )
 
 
@@ -1116,6 +1416,7 @@ def _cost_block(env: RecoEnv, j: Joint, base: Mapping[str, Any] | None = None) -
             horizon_spend_after=float(after * days),
             horizon_cap=None if cap is None else float(cap * days),
             over_by_horizon=float(after * days - cap * days) if over and cap is not None else 0.0,
+            ads_campaigns=list(j.ads_campaigns.values()),
             cost_unknown_cards=list(j.cost_unknown),
             cost_complete=not j.cost_unknown,
             cost_note=None
@@ -1254,8 +1555,11 @@ def _card_result_json(
         "counted_dates": None if lead is None else _span_json(lead.counted(h)),
         "counted_days": counted_days if have else None,
         "outside_horizon": outside,
+        "replaced_by": next((r.replaced_by for r in leaves if r.replaced_by), None),
         "cost_total": cost_own,
         "cost_horizon": cost_horizon,
+        #: A2.2: the card's share of its campaign's budget and the platform's cost per order
+        "ads": _card_ads(full, [r.card_id for r in leaves]),
         # deprecated alias (the horizon is 30 days): the cost inside it
         "cost_month": cost_horizon,
         "cost_known": bool(have) and len(have) == len(leaves),
@@ -1306,6 +1610,16 @@ def _card_result_json(
         "after": _after_of(common["before"], inside["p50"]),
         **common,
     }
+
+
+def _card_ads(full: Joint, leaf_ids: Sequence[str]) -> list[dict[str, Any]] | None:
+    out = [
+        {"campaign": c["campaign"], **card}
+        for c in full.ads_campaigns.values()
+        for card in c["cards"]
+        if card["card_id"] in leaf_ids
+    ]
+    return out or None
 
 
 def _sum_before(rows: Sequence[dict[str, float | None] | None]) -> dict[str, float | None] | None:
@@ -1400,7 +1714,7 @@ def _product_today_after(
 
     today = integrate.scope_today(env, integrate.base_for(env, [pid]))
     mine = [results[e.entry.card_id] for e in evs if e.entry.card_id in results]
-    comb = combine_results(mine, horizon)
+    comb = combine_results(mine, horizon, ads_data_of(env))
     after = _after_of(today, comb["p50"])
     return today, None if after is None else {**after, "label": "Dự kiến (P50)"}
 
@@ -1414,6 +1728,7 @@ def aggregate(
     variations: Variations | None = None,
     today: date | None = None,
     default_start: date | None = None,
+    default_end: date | None = None,
     keyword_weights: KeywordWeights | None = None,
     stored: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], list[Evaluated]]:
@@ -1422,7 +1737,7 @@ def aggregate(
     P99b: the numbers are the expected outcome over the next 30 days starting ``today``
     (default ``now``'s date): baseline 30 days + each card's Δ on its own days inside them.
     ``default_start``: where a change without dates of its own starts (a group's first day; else
-    today)."""
+    today). ``default_end``: a group's last day -- a card counts only on its group's days (A3.1)."""
     horizon = Horizon(today or now.date())
     evs: list[Evaluated] = []
     unavailable: list[str] = []
@@ -1458,6 +1773,10 @@ def aggregate(
         for r in results.values():
             if r.start is None:
                 r.start = default_start
+    if default_end is not None:
+        for r in results.values():
+            r.end = default_end
+    assign_campaigns(results, evs, ads_data_of(env))
     memo = _Memo(env, evs, results, horizon)
     ids = [e.entry.card_id for e in evs]
     full = memo.of(ids)
@@ -1759,6 +2078,7 @@ def _merge_cost(
         ),
     )
     base["cost_complete"] = not base["cost_unknown_cards"]
+    base["ads_campaigns"] = [c for s in sides for c in s["cost"].get("ads_campaigns") or []]
     return base
 
 
