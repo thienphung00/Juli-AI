@@ -146,7 +146,9 @@ def test_t2_4_a_running_campaign_elapsed_days_use_measured_spend_forward_days_th
 def test_t2_4_ads_data_reads_the_env_rows_and_the_campaigns_daily_spend():
     from types import SimpleNamespace as NS
 
-    row = lambda k, i, s, o: NS(key=k, item_id=i, spend=s, orders=o)  # noqa: E731
+    def row(k, i, s, o):
+        return NS(key=k, item_id=i, spend=s, orders=o)
+
     env = NS(
         view=NS(
             data=NS(ads_reports=NS(campaign_rows=[row("C", "p1", 10, 2), row("C", "", 99, 9)]))
