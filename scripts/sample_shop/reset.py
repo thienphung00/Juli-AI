@@ -51,6 +51,8 @@ GENERATED_TABLES = frozenset(
     {
         "bronze.order_raw_payloads",
         "bronze.return_raw_payloads",
+        "bronze.ctor_performance_raw_payloads",
+        "bronze.live_hours_raw_payloads",
         "silver.orders",
         "silver.returns",
     }
@@ -74,9 +76,61 @@ GENERATED_TABLES = frozenset(
             "shop_metrics_daily",
             "product_metrics_daily",
             "source_metrics_daily",
+            "shop_daily_products",
+            "shop_daily_streams",
+            "shop_metric_rankings",
+            "product_snapshots",
+            "stock_history",
+            "shop_ingestion_state",
         )
     }
 )
+
+#: Kept on a reload: what reviewers and the product did (cards, approvals, plans, groups, runs,
+#: measurements, alerts, connector state, credentials). Only ``--reset`` removes it.
+REVIEWER_TABLES = frozenset(
+    {"gold.kpi_envelopes", "ops.analytics_backfill_partitions"}
+    | {
+        f"public.{t}"
+        for t in (
+            "action_cards", "action_card_approvals", "card_events", "card_group_members",
+            "card_groups", "shop_proposals", "shop_proposal_approvals",
+            "shop_proposal_code_counters", "shop_proposal_executions", "shop_proposal_results",
+            "shop_reco_change_sets", "shop_reco_plan_cards", "shop_reco_plan_counters",
+            "shop_reco_plan_group_members", "shop_reco_plan_groups", "shop_reco_plans",
+            "shopee_plan_base_snapshots", "shopee_connector_commands", "shopee_connector_state",
+            "shopee_connector_token_state", "shopee_fill_jobs", "shopee_reco_calibrations",
+            "shopee_sim_prior_runs", "shopee_stock_alert_sends", "shopee_stock_alert_unsubscribes",
+            "alert_configs", "alert_history", "decision_reasons",
+            "decision_emission_novelty_ledger", "demo_execution_records", "external_changes",
+            "planned_change_imports", "planned_change_refs", "lever_calibrations", "lever_plans",
+            "run_baselines", "run_lever_flows", "run_lever_photos", "run_measurement_finals",
+            "run_revert_questions", "run_write_values", "run_confirmations", "impact_readings",
+            "workflow_runs", "workflow_run_events", "workflow_outcome_records",
+            "workflow_webhook_signals", "tool_executions", "kpi_contracts", "kpi_forecasts",
+            "kpi_adjustments", "kpi_exclusions", "kpi_targets", "analytics_kpi_envelopes",
+            "analytics_performance_intervals", "shop_diagnosis_reports", "recommendations",
+            "content_analyses", "campaigns", "ad_campaign_purposes", "production_write_audit",
+            "production_write_authorizations", "production_write_shops", "ingest_pairing_codes",
+            "ingest_tokens", "ingest_dedup_epochs", "tiktok_credentials", "tiktok_sync_state",
+            "ops_sim_scenarios", "processed_events", "graph_edges",
+        )
+    }
+)  # fmt: skip
+
+#: Kept on a reload: the catalogue, rules and content the seed (or a Connector read) wrote once.
+#: ``platform_promotions`` and ``platform_product_flags`` carry the load window's dates and
+#: ``platform_items`` first/last seen days; ``platform_item_snapshots`` is also written by the seed.
+SEED_TABLES = frozenset(
+    f"public.{t}"
+    for t in (
+        "platform_items", "platform_item_snapshots", "platform_product_flags",
+        "platform_promotions", "card_content_specs", "shop_keyword_seeds", "shop_rule_versions",
+        "shop_rules", "product_image_assets", "products", "inventory_items",
+        "shopee_sku_tracking", "creators", "livestreams", "promotion_activities",
+        "promotion_activity_products", "ops_shop_daily_summary",
+    )
+)  # fmt: skip
 
 _SHOP_TABLES = sa.text(
     """
@@ -308,6 +362,8 @@ async def replace_generated(
 __all__ = [
     "GENERATED_TABLES",
     "KEEP_TABLES",
+    "REVIEWER_TABLES",
+    "SEED_TABLES",
     "ForeignKey",
     "ResetRefused",
     "ResetReport",

@@ -128,3 +128,50 @@ def test_reload_is_refused_when_a_kept_table_points_at_a_generated_one():
     fks = [fk("order_lines", "shops"), fk("action_cards", "order_lines", "line_id")]
     with pytest.raises(ResetRefused):
         plan_reload_deletes(shop, fks)
+
+
+def _shop_tables_of_the_orm() -> set[str]:
+    """Every ORM table with a ``shop_id``, plus the ``shop_id``-less ones that point at one."""
+    import importlib
+    import pkgutil
+
+    import juli_backend.models as models
+    from juli_backend.database import Base
+
+    for info in pkgutil.iter_modules(models.__path__):
+        importlib.import_module(f"juli_backend.models.{info.name}")
+
+    def name(t) -> str:
+        return f"{t.schema or 'public'}.{t.name}"
+
+    tables = list(Base.metadata.sorted_tables)
+    direct = {name(t) for t in tables if "shop_id" in t.c}
+    via = {
+        name(t)
+        for t in tables
+        if "shop_id" not in t.c
+        and any(name(fk.referred_table) in direct for fk in t.foreign_key_constraints)
+    }
+    return direct | via
+
+
+def test_every_shop_table_is_classified_for_a_reload():
+    """The ratchet: a new table with a shop_id must be put in exactly one group, or this fails."""
+    from scripts.sample_shop.reset import (
+        GENERATED_TABLES,
+        KEEP_TABLES,
+        REVIEWER_TABLES,
+        SEED_TABLES,
+    )
+
+    groups = {
+        "GENERATED_TABLES": GENERATED_TABLES,
+        "REVIEWER_TABLES": REVIEWER_TABLES,
+        "SEED_TABLES": SEED_TABLES,
+        "KEEP_TABLES": KEEP_TABLES,
+    }
+    tables = _shop_tables_of_the_orm()
+    unclassified = sorted(t for t in tables if not any(t in g for g in groups.values()))
+    assert not unclassified, f"classify in scripts/sample_shop/reset.py: {unclassified}"
+    twice = sorted(t for t in tables if sum(t in g for g in groups.values()) > 1)
+    assert not twice, f"in more than one group: {twice}"
