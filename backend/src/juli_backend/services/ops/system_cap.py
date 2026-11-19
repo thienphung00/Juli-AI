@@ -40,6 +40,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.agent_chat import AgentMessage
 from juli_backend.models.content_analysis import ContentAnalysis
 from juli_backend.models.models import WorkflowRun
 from juli_backend.models.ops import ROLE_ADMIN, OpsStaff, OpsSystemSetting
@@ -175,7 +176,8 @@ async def system_cap(session: AsyncSession) -> SystemCap:
 
 
 async def system_spend_since(session: AsyncSession, since: datetime) -> Decimal:
-    """Every shop's OpenAI spend since ``since`` (naive UTC)."""
+    """Every shop's LLM spend since ``since`` (naive UTC); the Juli tab's counts on SQLite
+    and, once ``openai_spend_since`` is re-created to include it, on Postgres."""
     if is_sqlite(session):
         runs = (
             await session.execute(
@@ -191,7 +193,16 @@ async def system_spend_since(session: AsyncSession, since: datetime) -> Decimal:
                 )
             )
         ).scalar_one()
-        return Decimal(str(runs or 0)) + Decimal(str(analyses or 0))
+        agent = (
+            await session.execute(
+                select(func.coalesce(func.sum(AgentMessage.cost_usd), 0)).where(
+                    AgentMessage.created_at >= since
+                )
+            )
+        ).scalar_one()
+        return Decimal(str(runs or 0)) + Decimal(str(analyses or 0)) + Decimal(str(agent or 0))
+    # Postgres: the SECURITY DEFINER sum (086). It does not yet count ``agent_messages``
+    # (batch-1120): that needs a migration re-creating ``openai_spend_since`` (owner's call).
     value = (
         await session.execute(text("SELECT public.openai_spend_since(:since)"), {"since": since})
     ).scalar_one()

@@ -10,7 +10,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func, select, update
@@ -109,28 +108,13 @@ async def check_limits(
 ERROR_COST_CAP = "juli_cost_cap"
 
 
-async def agent_spend_this_month(
-    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime
-) -> Decimal:
-    """The Juli tab's LLM cost this (UTC+7) month for the shop (``agent_messages.cost_usd``)."""
-    from juli_backend.services.shop_rules.openai_cap import month_start_utc
-
-    total = await session.scalar(
-        select(func.coalesce(func.sum(AgentMessage.cost_usd), 0)).where(
-            AgentMessage.shop_id == shop_id,
-            AgentMessage.created_at >= month_start_utc(now.replace(tzinfo=UTC)),
-        )
-    )
-    return Decimal(str(total or 0))
-
-
 async def check_cost_guard(session: AsyncSession, shop_id: uuid.UUID, *, now: datetime) -> None:
-    """The existing LLM cost guard, with the Juli tab's own spend counted in.
+    """The existing LLM cost guard (which counts the Juli tab's own spend).
 
     Refused (429 ``juli_cost_cap``) when the system-wide monthly cap is reached
-    (``ops.system_cap.system_cap_reached``) or when the shop's spend -- its OpenAI spend
-    (``shop_rules.openai_cap.openai_spend_this_month``) plus the Juli tab's -- reaches the shop's
-    monthly cap (``openai_monthly_cap_usd``).
+    (``ops.system_cap.system_cap_reached``) or when the shop's month spend
+    (``shop_rules.openai_cap.openai_spend_this_month``: runs + content analyses + the Juli
+    tab) reaches the shop's monthly cap (``openai_monthly_cap_usd``).
     """
     from juli_backend.services.ops.system_cap import system_cap_reached
     from juli_backend.services.shop_rules.openai_cap import (
@@ -142,7 +126,6 @@ async def check_cost_guard(session: AsyncSession, shop_id: uuid.UUID, *, now: da
     if await system_cap_reached(session, now=aware):
         raise ChatError(ERROR_COST_CAP, 429, "the monthly LLM limit is reached", scope="system")
     spend = await openai_spend_this_month(session, shop_id, now=aware)
-    spend += await agent_spend_this_month(session, shop_id, now=now)
     cap = await openai_monthly_cap_usd(session, shop_id)
     if spend >= cap.usd:
         raise ChatError(ERROR_COST_CAP, 429, "the monthly LLM limit is reached", scope="shop")
@@ -465,7 +448,6 @@ __all__ = [
     "STALE_RUNNING_AFTER",
     "AskStarted",
     "ChatError",
-    "agent_spend_this_month",
     "check_cost_guard",
     "check_limits",
     "get_conversation",
