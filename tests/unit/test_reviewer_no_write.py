@@ -127,18 +127,6 @@ SANDBOX_ROUTES = {
     "/v1/demo/runs/{run_id}/revert",
     "/v1/demo/rules/{rule_key}",
 }
-#: The Juli tab: on the reference (masked) pin each must refuse 403 ``read_only`` -- no row
-#: changed, no LLM client built (a write refusal is audited like any refused write).
-JULI_ROUTES = {
-    "/v1/demo/juli/templates",
-    "/v1/demo/juli/ask",
-    "/v1/demo/juli/messages/{message_id}/events",
-    "/v1/demo/juli/messages/{message_id}/cancel",
-    "/v1/demo/juli/conversations",
-    "/v1/demo/juli/conversations/{conversation_id}",
-    "/v1/demo/juli/cards/{draft_ref}/send",
-    "/v1/demo/juli/cards/{draft_ref}/dismiss",
-}
 
 
 def _routes(app) -> list[Any]:
@@ -388,6 +376,7 @@ async def test_every_route_as_reviewer_writes_nothing(
     before = await _snapshot(session, reviewer_id=reviewer_id)
     checked: list[str] = []
     refused_writes = 0
+    juli_driven: set[tuple[str, str]] = set()
     problems: list[str] = []
     async with client_for(app) as client:
         for route in _routes(app):
@@ -406,8 +395,11 @@ async def test_every_route_as_reviewer_writes_nothing(
                 checked.append(f"{method} {route.path} -> {response.status_code}")
                 allowed = reviewer_gate.is_allowed(method, endpoint)
                 if allowed:
-                    if route.path in JULI_ROUTES:
-                        # Not the sample pin nor the writable sandbox (or no pin): refused.
+                    if (method, endpoint) in reviewer_gate.JULI_PIN_ENDPOINTS:
+                        # The Juli tab, derived from ``JULI_PIN_ENDPOINTS`` (never a hand list):
+                        # not the sample pin nor the writable sandbox (or no pin) -> refused,
+                        # nothing changed, no LLM port opened (the tripwire).
+                        juli_driven.add((method, endpoint))
                         denied = response.headers.get("x-juli-reviewer-denied")
                         if response.status_code != 403 or (pinned and denied != "read_only"):
                             problems.append(
@@ -457,6 +449,8 @@ async def test_every_route_as_reviewer_writes_nothing(
     assert not tripwire.hits, tripwire.hits
     assert not problems, "\n".join(problems + ["--- all:"] + checked)
     assert not changed, f"tables changed by a reviewer: {changed}"
+    # every Juli pin route was served and driven: a new one cannot skip the gate
+    assert juli_driven == reviewer_gate.JULI_PIN_ENDPOINTS
     # The sweep really covered the write surface (a broken route walk would pass vacuously).
     writes = [c for c in checked if not c.startswith("GET")]
     assert len(checked) >= 80 and len(writes) >= 40, checked
