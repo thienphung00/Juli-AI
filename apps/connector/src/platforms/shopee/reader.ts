@@ -118,6 +118,8 @@ export type ReaderStatus =
   | "needs_template"
   | "blocked_captcha"
   | "blocked_login"
+  /** 0.3.28: Shopee's traffic-check page (/verify/traffic…): every Shopee automation pauses 6 h. */
+  | "blocked_traffic_check"
   /** 0.3.25: /datacenter's "enter your Shopee password" dialog (never typed into by the Connector). */
   | "blocked_password_recheck"
   /** HTTP 429 / 403 / a Shopee message that says "too many requests": stops every reader. */
@@ -366,7 +368,9 @@ export function isPasswordPrompt(text: string): boolean {
 }
 
 /** `path` blocked by a login / verification page (client-side redirect or whole-tab redirect). */
-export function blockedPath(pathname: string): "login" | "captcha" | null {
+export function blockedPath(pathname: string): "login" | "captcha" | "traffic_check" | null {
+  // 0.3.28 (contract R): Shopee's anti-bot page is its own reason (not a login, not a CAPTCHA)
+  if (/\/verify\/traffic/i.test(pathname)) return "traffic_check";
   if (/\/(verify|captcha|anti[-_]?bot|security[-_]?check)/i.test(pathname)) return "captcha";
   if (/\/(login|signin|sign[-_]in|account\/sign|seller\/login|authenticate)/i.test(pathname)) return "login";
   return null;
@@ -397,7 +401,7 @@ async function send(
 ): Promise<ReaderResponse> {
   if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_password_recheck", collected, "password_modal"));
   const wall = env.captchaVisible?.() ? "captcha" : blockedPath(env.pathname?.() ?? "");
-  if (wall) throw new Stop(fail(wall === "captcha" ? "blocked_captcha" : "blocked_login", collected, "page"));
+  if (wall) throw new Stop(fail(wall === "captcha" ? "blocked_captcha" : wall === "traffic_check" ? "blocked_traffic_check" : "blocked_login", collected, "page"));
   // The shared daily budget is checked before EVERY replay.
   if (env.budget) {
     if (env.budget.left <= 0) throw new Stop(fail("budget_spent", collected, request.endpoint));

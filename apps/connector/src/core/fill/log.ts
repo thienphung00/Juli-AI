@@ -22,6 +22,16 @@ export interface Entry {
   rewrite?(): boolean;
 }
 
+/**
+ * 0.3.28 (F5.2): a text box the person's click will reveal (a tier row, the rate editor, a picker's
+ * search box). `write` is tried on each re-check; it returns true once it wrote (it is then dropped),
+ * false while the box is not there yet. It only ever writes a value (never a click).
+ */
+export interface Later {
+  key: string;
+  write(): boolean;
+}
+
 export interface FieldCheck {
   key: string;
   ok: boolean;
@@ -47,6 +57,31 @@ export class FillLog {
 
   wrote(entry: Entry): void {
     this.entries.set(entry.key, entry);
+  }
+
+  /** The boxes still waiting for the person's click to reveal them. */
+  readonly pending = new Map<string, Later>();
+
+  later(l: Later): void {
+    this.pending.set(l.key, l);
+  }
+
+  /** Writes every revealed box once; true when one was written. A failing write is tried again later. */
+  revealed(): boolean {
+    let any = false;
+    for (const [key, l] of [...this.pending]) {
+      let done = false;
+      try {
+        done = l.write();
+      } catch {
+        done = false;
+      }
+      if (done) {
+        this.pending.delete(key);
+        any = true;
+      }
+    }
+    return any;
   }
 }
 

@@ -134,7 +134,8 @@ export interface ReaderRun {
 }
 
 /** `rate_limit`: HTTP 429 / 403 or Shopee wording for "too many requests" (P97). */
-export type ReaderBlockReason = "captcha" | "login" | "password_recheck" | "rate_limit";
+/** 0.3.28 (contract R): "traffic_check" = Shopee's anti-bot page (/verify/traffic…): readers, fills and read-backs pause 6 h. */
+export type ReaderBlockReason = "captcha" | "login" | "password_recheck" | "rate_limit" | "traffic_check";
 
 /** One scheduler tick that started from rest: what woke it and how it ended (a skip reason or a start). */
 export interface TickRecord {

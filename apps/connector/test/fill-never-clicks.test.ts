@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { FORBIDDEN_PRESS, ownConfirmOf, unsafePress } from "../src/platforms/shopee/fill/controls";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runFillJob } from "../src/platforms/shopee/fill/job-run";
 import { PANEL_ID } from "../src/core/fill/locate";
 import { runFill } from "../src/platforms/shopee/fill/run";
@@ -49,14 +48,20 @@ describe("a fill never presses, submits or navigates", () => {
   });
 });
 
-// The job fillers (voucher, ads, affiliate, title) DO press ordinary controls -- open a select,
-// choose a radio, tick a row, open a pencil popup, add a tier row -- but never a button that saves,
-// sends, confirms, deletes or cancels, and never anything else a keyboard or a form would do.
-describe("a job fill never presses Shopee's save / confirm / send", () => {
+// 0.3.28 (F5.1, owner 2026-11-19): a job fill never clicks either -- not even an ordinary control
+// (a radio, a drop-down, a pencil, a picker): Shopee's anti-bot answered the voucher fill's
+// element.click() with /verify/traffic/error twice on 19/11. Every click is the person's.
+describe("a job fill never clicks, focuses or dispatches a UI event (F5.1)", () => {
   const titleJob = rawJob("title", {
     open_path: "/portal/product/1001",
     fields: [{ key: "title", label: "Tên sản phẩm", mode: "replace", max_chars: 100, value: "Tên mới của sản phẩm mẫu" }],
   });
+  const descriptionJob = rawJob("description_first_line", {
+    open_path: "/portal/product/1001",
+    fields: [{ key: "description_first_line", label: "Mô tả sản phẩm", mode: "first_line", max_chars: 500, value: "Dòng đầu mới của mô tả" }],
+  });
+  const productReadback = rawJob("readback", { mode: "readback", open_path: "/portal/product/1001", target: { item_id: "1001" }, datasets: ["item_catalog"] });
+  const affiliateReadback = rawJob("readback", { mode: "readback", open_path: "/portal/web-seller-affiliate/open_campaign", target: { product_ids: ["2002"] }, datasets: ["item_catalog"] });
   it.each([
     ["a shop voucher", voucherJob(), "voucher-new.html"],
     ["a percentage voucher", voucherJob({ discount: { type: "percent", value: 10, max: { mode: "limited", value: 20000 } } }), "voucher-new.html"],
@@ -70,38 +75,44 @@ describe("a job fill never presses Shopee's save / confirm / send", () => {
     ["a special-price combo with no limit", comboJob({ discount_type: "special_price", purchase_limit: undefined, tiers: [{ qty: 2, value: 90000 }, { qty: 4, value: 160000 }] }), "combo-tiers.html"],
     ["a combo on a page that is not the form", comboJob(), "edit-unknown.html"],
     ["a title", titleJob, "edit-ory-recon.html"],
+    ["a description", descriptionJob, "edit-eds-quill.html"],
     ["a page that is not the expected form", voucherJob(), "edit-unknown.html"],
     ["a title on the live eds layout", titleJob, "edit-eds-quill.html"],
     ["a voucher on the live eds layout", voucherJob(), "voucher-eds.html"],
     ["a combo on the live eds layout", comboJob(), "combo-eds.html"],
     ["an affiliate commission under Shopee's new-version notice", affiliateJob(), "affiliate-notice.html"],
-    // 0.3.27 live shapes: the date-time picker and the product picker confirm themselves, nothing else does
     ["a product voucher on the live picker shapes", voucherJob({ usecase: 2, product_ids: ["1001"], smart: true, display: "code", starts_at: "00:00 01-03-2027", ends_at: "23:59 02-03-2027", open_path: "/portal/marketing/vouchers/new?usecase=2" }), "voucher-live.html"],
     ["a combo on the live tier table", comboJob({ starts_at: "00:00 01-03-2027", ends_at: "23:59 02-03-2027", product_ids: ["1001"] }), "combo-live.html"],
-    ["an affiliate rate on the live open campaign", affiliateJob({ product_ids: ["2002"] }), "affiliate-live.html"],
     ["a voucher's undo on the list", rawJob("voucher_end", { mode: "revert", open_path: "/portal/marketing/vouchers/list", code: "SHOPVGBB48" }), "voucher-list.html"],
     ["a combo's undo on the list", rawJob("combo_end", { mode: "revert", open_path: "/portal/marketing/bundle/list", name: "JC-2611-0009 V1" }), "bundle-list.html"],
+    ["a product read-back", productReadback, "edit-eds-quill.html"],
+    ["an affiliate read-back", affiliateReadback, "affiliate-live.html"],
   ])("%s", async (_name, raw, page) => {
     loadPage(page);
     const wire = wireEds(document, { datePicker: true });
     const hrefBefore = window.location.href;
     watch = watchForbidden();
-    await runFillJob(jobHarness(raw).deps);
-    expect(wire.forbidden).toEqual([]); // no Xác nhận / Lưu lại / Hủy / Loại bỏ reached the page
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    const blur = vi.spyOn(HTMLElement.prototype, "blur");
+    const h = jobHarness(raw);
+    h.deps.postCurrent = async () => true;
+    await runFillJob(h.deps);
+    expect(watch.click).not.toHaveBeenCalled(); // 0 click calls
+    expect(focus).not.toHaveBeenCalled();
+    expect(blur).not.toHaveBeenCalled();
+    expect(wire.clicks).toEqual([]);
+    expect(wire.forbidden).toEqual([]);
     expect(watch.submit).not.toHaveBeenCalled();
     expect(watch.requestSubmit).not.toHaveBeenCalled();
-    for (const type of watch.seen) expect(type).toBe("click"); // no mouse / pointer / key / submit event
+    expect(watch.seen).toEqual([]); // no click / mouse / pointer / key / submit event reached the page
     for (const type of watch.dispatched) expect(["input", "change"]).toContain(type);
-    for (const target of watch.click.mock.contexts as HTMLElement[]) {
-      // the one exception (owner, 2026-11-18): a picker's OWN confirm
-      if (ownConfirmOf(target, "date_picker") || ownConfirmOf(target, "product_picker")) continue;
-      expect(unsafePress(target), target.outerHTML.slice(0, 80)).toBeNull();
-      expect(FORBIDDEN_PRESS.test((target.textContent ?? "").trim().toLocaleLowerCase("vi"))).toBe(false);
-    }
     expect(window.location.href).toBe(hrefBefore);
     for (const id of ["submit", "cancel", "budget-ok", "roas-ok", "comm-ok", "pconfirm", "save", "vend", "cdel"]) {
       expect(document.getElementById(id)?.getAttribute("data-juli-filled") ?? null).toBeNull();
+      expect(document.getElementById(id)?.getAttribute("data-juli-guide") ?? null).toBeNull(); // never a step to press
     }
+    focus.mockRestore();
+    blur.mockRestore();
     wire.stop();
   });
 });
@@ -142,24 +153,20 @@ describe("the source never presses anything", () => {
     ]);
   });
 
-  // controls.ts is the one file that presses: through press(), which refuses the save / confirm /
-  // send texts, and (0.3.27, owner 2026-11-18) pressOwnConfirm(), which presses ONLY the date
-  // picker's and the product picker's own Xác nhận. Two `.click()` in the source, each behind its guard.
-  it("has exactly two .click() calls, inside press() and pressOwnConfirm()", () => {
-    const controls = stripComments(sources["../src/platforms/shopee/fill/controls.ts"] as string);
-    expect(controls.match(/\.click\s*\(/g)).toHaveLength(2);
-    expect(controls).toMatch(/if \(unsafePress\(el\) !== null\) return false;\s*el\.click\(\);/);
-    expect(controls).toMatch(/if \(!ownConfirmOf\(el, kind\)\) return false;\s*\(el\.closest\("button"\) \?\? el\)\.click\(\);/);
+  // 0.3.28 (F5.1): no file presses anything any more (controls.ts included)
+  it("has no .click() / .focus() / .blur() anywhere", () => {
+    for (const [name, source] of files) expect(stripComments(source).match(/\.(click|focus|blur)\s*\(/g), name).toBeNull();
   });
 
   it.each(files)("%s", (name, source) => {
     const code = stripComments(source);
     const isControls = name.endsWith("shopee/fill/controls.ts");
     for (const banned of [
-      ...(isControls ? [] : [/\.click\s*\(/]),
+      /\.click\s*\(/,
+      /\.(focus|blur)\s*\(/,
       /\.submit\s*\(/,
       /requestSubmit/,
-      /new\s+(Mouse|Pointer|Keyboard|Touch)Event/,
+      /new\s+(\w+\.)?(Mouse|Pointer|Keyboard|Touch|Focus|Wheel|Drag)Event/,
       /new\s+Event\(\s*["'](click|submit|mousedown|mouseup|keydown|keyup)/,
       /dispatchEvent\([^)]*["'](click|submit)/,
       /location\.(assign|replace|href\s*=)/,

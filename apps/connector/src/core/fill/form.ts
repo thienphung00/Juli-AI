@@ -24,6 +24,11 @@ export interface Step {
   keys?: string[];
   /** A step that does not apply on this page (e.g. a control the platform no longer draws): not counted. */
   skipped?: boolean;
+  /**
+   * 0.3.28 (F5.2): a step the PERSON does (a click the Connector never makes): the panel numbers it
+   * and the control is highlighted; it turns ✓ only from what the form shows.
+   */
+  guide?: boolean;
 }
 
 export interface FillOutcome {
@@ -38,8 +43,10 @@ export interface FillOutcome {
    * the Connector posts (item_id + description_first_line / item_name / commission_pct).
    */
   current?: CurrentRow[];
-  /** 0.3.27 (contract C): a read-back reports `captured` once it read the page; nothing is typed. */
-  report?: "captured";
+  /** 0.3.27 (contract C): a read-back reports `captured` once it read the page; nothing is typed.
+   * 0.3.28: "not_found" = a read-back that could not read what it was sent for (never clicks to
+   * look further): reported failed, so its background tab goes and the readers are not held. */
+  report?: "captured" | "not_found";
 }
 
 /** One item's current values as a page shows them (contract D). */
