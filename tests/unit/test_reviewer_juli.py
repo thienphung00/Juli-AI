@@ -353,7 +353,10 @@ async def test_the_cost_guard_counts_the_juli_tabs_own_spend(session, engine, wo
     from decimal import Decimal
 
     sid, reviewer_id = world["sample"].shop_id, world["reviewer_id"]
-    await _answer(session, sid, user_id=world["sample"].user.id, cost=Decimal("6"))  # > the $5 cap
+    from juli_backend.services.shop_rules.openai_cap import default_cap_usd
+
+    over = default_cap_usd() + Decimal("1")  # the configured cap, not a hard-coded $5
+    await _answer(session, sid, user_id=world["sample"].user.id, cost=over)
     async with client_for(_app(session, engine)) as client:
         r = await client.post(
             f"{J}/ask", json={"template": "improve_gmv"}, headers=_headers(reviewer_id, sid)
