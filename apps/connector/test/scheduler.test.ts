@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   BACKFILL_REQUEST_SHARE,
   DAILY_REQUEST_BUDGET,
+  FILL_REQUEST_RESERVE,
   READER_BLOCK_CAPTCHA_MS,
   READER_BLOCK_LOGIN_MS,
   READER_JOB_TIMEOUT_MS,
@@ -298,7 +299,7 @@ describe("a daily run", () => {
     // tab ready -> the job is sent to that tab
     const first = ctx.tabs.current;
     expect(await ctx.scheduler.onTabReady(first.id, first.url)).toBe(true);
-    expect(ctx.tabs.sent).toEqual([{ tabId: first.id, message: { type: "reader-job", job: { id: "products", budget: DAILY_REQUEST_BUDGET - 10 } } }]);
+    expect(ctx.tabs.sent).toEqual([{ tabId: first.id, message: { type: "reader-job", job: { id: "products", budget: DAILY_REQUEST_BUDGET - 10 - FILL_REQUEST_RESERVE } } }]);
     // a second "ready" from a reload does not send it again
     await ctx.scheduler.onTabReady(first.id, first.url);
     expect(ctx.tabs.sent).toHaveLength(1);
@@ -844,7 +845,7 @@ describe("P97: shared daily request budget", () => {
     await ctx.scheduler.tick();
     const tab = ctx.tabs.current;
     await ctx.scheduler.onTabReady(tab.id, tab.url);
-    expect(ctx.tabs.sent.at(-1)?.message).toMatchObject({ job: { id: "shop_totals", budget: DAILY_REQUEST_BUDGET - 10 } });
+    expect(ctx.tabs.sent.at(-1)?.message).toMatchObject({ job: { id: "shop_totals", budget: DAILY_REQUEST_BUDGET - 10 - FILL_REQUEST_RESERVE } });
     const replay = (n: number) => Array.from({ length: n }, () => ({ endpoint: "shop_key_metrics", url: "u", status: 200, capturedAt: T0, source: "replay", body: { code: 0, data: {} } }));
     await ctx.scheduler.onResult(tab.id, { job: "shop_totals", status: "done", responses: [...replay(2), { ...replay(1)[0], source: "page" }] });
     expect(((await loadState(ctx.storage as never)).budget)).toEqual({ day: "2026-11-03", used: 12 });

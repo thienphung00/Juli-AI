@@ -234,6 +234,9 @@ export const opsApi = {
   /** ADR-118 "Thu hồi" (Vận hành / Admin); audited `ingest_token_revoke`. */
   revokeIngestToken: (shopId: string, tokenId: string, o?: OpsRequestOptions) =>
     opsRequest<void>(`${shopPath(shopId)}/ingest-tokens/${encodeURIComponent(tokenId)}`, { method: "DELETE" }, o),
+  /** F6.5 "Gỡ tất cả máy cũ": revokes this shop's tokens not seen for 14 days; audited. */
+  revokeInactiveIngestTokens: (shopId: string, o?: OpsRequestOptions) =>
+    opsRequest<{ revoked: number }>(`${shopPath(shopId)}/ingest-tokens/revoke-inactive`, { method: "POST" }, o),
   /** ADR-118 "Chu kỳ": the shop's proposals with approvals and executions, newest first. */
   proposals: (shopId: string, o?: OpsRequestOptions) =>
     opsRequest<{ proposals: ShopProposalRow[] }>(`${shopPath(shopId)}/proposals`, {}, o),

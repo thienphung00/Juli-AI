@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OpsApiError } from "../../../lib/ops/api";
 import { OpsShopConsent } from "../ops-contract-shop";
@@ -9,14 +9,37 @@ import { OpsShopConsent } from "../ops-contract-shop";
 const TOKEN = {
   id: "t1",
   client_label: "Juli Connector",
-  created_at: "2026-11-02T07:00:00Z",
+  created_at: "2026-11-15T07:00:00Z",
   expires_at: "2027-01-31T07:00:00Z",
   last_used_at: null,
   revoked_at: null,
   active: true,
 };
 
+beforeEach(() => {
+  vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-19T00:00:00Z"));
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe("Kết nối dữ liệu", () => {
+  it("F6.5: computers seen in the last 14 days first; older ones under Máy cũ (N) with one Gỡ tất cả máy cũ", async () => {
+    const old = { ...TOKEN, id: "t2", client_label: "Chrome cũ", created_at: "2026-09-01T00:00:00Z", last_seen_at: "2026-10-01T00:00:00Z" };
+    const api = {
+      ingestTokens: vi.fn().mockResolvedValueOnce({ data: [old, { ...TOKEN, last_seen_at: "2026-11-18T00:00:00Z" }] }).mockResolvedValue({ data: [{ ...TOKEN, last_seen_at: "2026-11-18T00:00:00Z" }] }),
+      revokeInactiveIngestTokens: vi.fn().mockResolvedValue({ revoked: 1 }),
+    };
+    render(<OpsShopConsent api={api} canEdit shopId="s1" />);
+    expect(await screen.findByText("1 nguồn đang kết nối")).toBeInTheDocument();
+    expect(screen.queryByText("Chrome cũ")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Máy cũ (1)" }));
+    expect(screen.getByText("Chrome cũ")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Gỡ tất cả máy cũ" }));
+    await waitFor(() => expect(api.revokeInactiveIngestTokens).toHaveBeenCalledWith("s1"));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Máy cũ (1)" })).toBeNull());
+  });
+
   it("shows a one-use code after 'Tạo mã kết nối' and revokes a source", async () => {
     const api = {
       createPairingCode: vi.fn().mockResolvedValue({ code: "ABCDE-FGHJK", expires_at: "2026-11-02T07:10:00Z", ttl_seconds: 600 }),

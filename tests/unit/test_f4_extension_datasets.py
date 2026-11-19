@@ -71,6 +71,42 @@ async def test_promotion_daily_from_the_connector_wins_over_the_file(session):
     assert (stored.source, stored.gmv) == ("extension", Decimal("900000"))
 
 
+async def test_flash_sale_day_rows_from_the_connector_are_accepted_with_extra_fields(session):
+    """F6.4: a Flash Sale row (promo_type "Flash Sale") with the metrics the file import has no
+    column for in ``extra``; an empty day (no campaign) is a zero row, stored not rejected."""
+    shop = await _shop(session)
+    busy = {
+        "date": DAY.isoformat(),
+        "promo_type": "Flash Sale",
+        "sales": 900000,
+        "orders": 6,
+        "buyers": 4,
+        "sales_per_buyer": 225000,
+        "extra": {"product_impression": 1200, "product_clicks": 80, "reminder_clicks": 9},
+    }
+    await _ingest(session, shop, "promotion_daily", _as_extension(_body([busy])))
+    stored = await _rows(session, PlatformDailyMetric, shop)
+    assert [(r.segment, r.gmv, r.orders) for r in stored] == [
+        ("flash_sale", Decimal("900000"), Decimal("6"))
+    ]
+    assert stored[0].extra["product_clicks"] == 80
+    empty = {
+        "date": DAY.isoformat(),
+        "promo_type": "Flash Sale",
+        "sales": 0,
+        "orders": 0,
+        "buyers": 0,
+    }
+    await _ingest(
+        session,
+        shop,
+        "promotion_daily",
+        _as_extension(_body([empty], captured_at="2026-10-29T11:30:00+07:00")),
+    )
+    (zero,) = await _rows(session, PlatformDailyMetric, shop)
+    assert (zero.segment, zero.gmv) == ("flash_sale", Decimal("0"))
+
+
 async def test_promotions_from_the_connector_win_over_the_file(session):
     shop = await _shop(session)
     await _ingest(session, shop, "promotions", _body([_program()], period=OCTOBER))

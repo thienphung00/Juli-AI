@@ -114,7 +114,7 @@ describe("a job fill never clicks, focuses or dispatches a UI event (F5.1)", () 
     focus.mockRestore();
     blur.mockRestore();
     wire.stop();
-  });
+  }, 20_000); // real fill waits; the default 5 s timed out under full-suite load
 });
 
 describe("the source never presses anything", () => {
