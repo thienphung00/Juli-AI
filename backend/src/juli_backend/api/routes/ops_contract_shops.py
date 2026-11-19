@@ -12,6 +12,10 @@
 - ``GET /v1/ops/shops/{id}/ingest-tokens`` (Xem+) and ``DELETE
   /v1/ops/shops/{id}/ingest-tokens/{token_id}`` (Vận hành, "Thu hồi") -- the connected
   sources; never the token or its hash. Audited ``ingest_token_revoke``.
+- ``POST /v1/ops/shops/{id}/ingest-tokens/revoke-inactive`` (Vận hành) -- "Gỡ tất cả máy cũ": only
+  this shop's live tokens not seen for 14 days (F6.5). Audited ``ingest_tokens_revoke_inactive``.
+- ``GET /v1/ops/shops/{id}/vat-rates`` (Xem+) -- the shop's ``vat_rate_default`` and every
+  ``vat_rate`` row (the "Thuế VAT" section writes through the rules routes, F6.3).
 - ``GET /v1/ops/shops/{id}/connector-problems`` (Xem+) -- the readers whose newest outcome is
   not done / fresh / skipped, with since when (F4.13).
 
@@ -39,6 +43,7 @@ router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
 ACTION_CONSENT_ENABLE = "consent_enable"
 ACTION_PAIRING_CODE_CREATE = "pairing_code_create"
 ACTION_INGEST_TOKEN_REVOKE = "ingest_token_revoke"
+ACTION_INGEST_TOKENS_REVOKE_INACTIVE = "ingest_tokens_revoke_inactive"
 
 CONTRACT_SHOP_REMOVED = HTTPException(
     status_code=410,
@@ -170,6 +175,38 @@ async def ops_create_pairing_code(
     }
 
 
+async def _seen(session: AsyncSession, shop_id: uuid.UUID) -> dict[uuid.UUID, datetime | None]:
+    from juli_backend.database.tenant_context import with_shop_scope
+
+    async with with_shop_scope(session, shop_id):
+        return await ingest_service.last_seen_by_token(session, shop_id)
+
+
+@router.post("/shops/{shop_id}/ingest-tokens/revoke-inactive")
+async def ops_revoke_inactive_tokens(
+    shop_id: uuid.UUID,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """F6.5: "Gỡ tất cả máy cũ": revoke only this shop's tokens not seen for 14 days."""
+    from juli_backend.database.tenant_context import with_shop_scope
+
+    await _shop(session, shop_id)
+    async with with_shop_scope(session, shop_id):
+        count = await ingest_service.revoke_inactive(
+            session, shop_id=shop_id, reason="ops_inactive", now=_now()
+        )
+    await audit.record(
+        session,
+        ctx.staff.actor,
+        ACTION_INGEST_TOKENS_REVOKE_INACTIVE,
+        shop_id=shop_id,
+        after={"revoked": count},
+    )
+    await session.commit()
+    return {"revoked": count}
+
+
 @router.get("/shops/{shop_id}/ingest-tokens")
 async def ops_list_ingest_tokens(
     shop_id: uuid.UUID,
@@ -179,6 +216,7 @@ async def ops_list_ingest_tokens(
     listing = await _shop(session, shop_id)
     tokens = await contract_shops.list_tokens(session, shop_id, listing.owner_user_id)
     await session.commit()
+    seen = await _seen(session, shop_id)
     now = _now()
     grace = ingest_service.ROTATION_GRACE
     return {
@@ -189,6 +227,7 @@ async def ops_list_ingest_tokens(
                 "created_at": _iso(t.created_at),
                 "expires_at": _iso(t.expires_at),
                 "last_used_at": _iso(t.last_used_at),
+                "last_seen_at": _iso(seen.get(t.id)),
                 "revoked_at": _iso(t.revoked_at),
                 "active": t.revoked_at is None
                 and t.expires_at > now
@@ -197,6 +236,48 @@ async def ops_list_ingest_tokens(
             for t in tokens
         ]
     }
+
+
+@router.get("/shops/{shop_id}/vat-rates")
+async def ops_vat_rates(
+    shop_id: uuid.UUID,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """F6.3: ``{"default": 8 | null, "rates": [{"scope_ref", "value"}]}`` (percent)."""
+    from sqlalchemy import select
+
+    from juli_backend.database.tenant_context import with_shop_scope
+    from juli_backend.models.run_changes import ShopRule
+    from juli_backend.services.shop_rules import rules as shop_rules
+
+    await _shop(session, shop_id)
+    async with with_shop_scope(session, shop_id):
+        rows = (
+            (
+                await session.execute(
+                    select(ShopRule)
+                    .where(
+                        ShopRule.shop_id == shop_id,
+                        ShopRule.rule_key.in_((shop_rules.VAT_RATE, shop_rules.VAT_RATE_DEFAULT)),
+                    )
+                    .order_by(ShopRule.scope_ref)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    await session.commit()
+    default = next(
+        (r.value for r in rows if r.rule_key == shop_rules.VAT_RATE_DEFAULT and not r.scope_ref),
+        None,
+    )
+    rates = [
+        {"scope_ref": r.scope_ref, "value": r.value}
+        for r in rows
+        if r.rule_key == shop_rules.VAT_RATE
+    ]
+    return {"default": default, "rates": rates}
 
 
 @router.get("/shops/{shop_id}/connector-problems")

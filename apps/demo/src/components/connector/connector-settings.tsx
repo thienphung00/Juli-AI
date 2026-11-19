@@ -9,7 +9,9 @@ import {
   createSellerPairingCode,
   sellerConnectorStatus,
   listSellerIngestTokens,
+  revokeInactiveSellerTokens,
   revokeSellerIngestToken,
+  splitMachines,
   type SellerIngestToken,
   type SellerPairingCode,
 } from "../../lib/connector-pairing";
@@ -32,6 +34,7 @@ export function ConnectorSettings({
   const [tokens, setTokens] = useState<readonly SellerIngestToken[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showOld, setShowOld] = useState(false);
   const [received, setReceived] = useState<readonly ConnectorDatasetStatus[] | null>(null);
 
   const reload = useCallback(() => {
@@ -71,7 +74,18 @@ export function ConnectorSettings({
     }
   };
 
-  const active = tokens.filter((t) => t.active).sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
+  const revokeOld = async () => {
+    setError(null);
+    try {
+      await revokeInactiveSellerTokens(client);
+      setShowOld(false);
+      reload();
+    } catch {
+      setError("Không gỡ được máy cũ. Thử lại sau.");
+    }
+  };
+
+  const { recent: active, old } = splitMachines(tokens);
   return (
     <section aria-labelledby="connector-title" className="qd-page">
       <AppPageHeader
@@ -110,23 +124,32 @@ export function ConnectorSettings({
         <h2 style={{ margin: "8px 0 0", fontSize: 16 }}>Máy đã kết nối</h2>
         {active.length ? (
           <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
-            {active.map((t, i) => {
-              const seen = t.last_seen_at ?? t.last_used_at;
-              return (
-              <li data-testid="connector-machine" key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 14 }}>
-                <span>{machineLabel(t.client_label, i)}</span>
-                {t.connector_version ? <span className="sa-hint">{t.connector_version}</span> : null}
-                <span className="sa-hint">{seen ? new Date(seen).toLocaleString("vi-VN") : "chưa"}</span>
-                <button className="juli-btn juli-btn--default" onClick={() => void revoke(t.id)} style={{ marginLeft: "auto" }} type="button">
-                  Gỡ
-                </button>
-              </li>
-              );
-            })}
+            {active.map((t, i) => (
+              <Machine key={t.id} onRevoke={() => void revoke(t.id)} t={t} index={i} />
+            ))}
           </ul>
         ) : (
           <p style={{ margin: 0, fontSize: 14 }}>Chưa có máy nào kết nối.</p>
         )}
+        {old.length ? (
+          <div data-testid="connector-old">
+            <button aria-expanded={showOld} className="juli-btn juli-btn--default" onClick={() => setShowOld(!showOld)} type="button">
+              Máy cũ ({old.length})
+            </button>
+            {showOld ? (
+              <>
+                <ul style={{ margin: "8px 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+                  {old.map((t, i) => (
+                    <Machine key={t.id} onRevoke={() => void revoke(t.id)} t={t} index={active.length + i} />
+                  ))}
+                </ul>
+                <button className="juli-btn juli-btn--primary juli-btn--default" onClick={() => void revokeOld()} type="button">
+                  Gỡ tất cả máy cũ
+                </button>
+              </>
+            ) : null}
+          </div>
+        ) : null}
         {error ? (
           <p role="alert" style={{ margin: 0 }}>
             {error}
@@ -134,6 +157,20 @@ export function ConnectorSettings({
         ) : null}
       </div>
     </section>
+  );
+}
+
+function Machine({ t, index, onRevoke }: { readonly t: SellerIngestToken; readonly index: number; readonly onRevoke: () => void }) {
+  const seen = t.last_seen_at ?? t.last_used_at;
+  return (
+    <li data-testid="connector-machine" style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 14 }}>
+      <span>{machineLabel(t.client_label, index)}</span>
+      {t.connector_version ? <span className="sa-hint">{t.connector_version}</span> : null}
+      <span className="sa-hint">{seen ? new Date(seen).toLocaleString("vi-VN") : "chưa"}</span>
+      <button className="juli-btn juli-btn--default" onClick={onRevoke} style={{ marginLeft: "auto" }} type="button">
+        Gỡ
+      </button>
+    </li>
   );
 }
 

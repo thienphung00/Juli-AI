@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SettingsTabs } from "../../quyet-dinh/settings-rules";
 import { ConnectorSettings } from "../connector-settings";
@@ -28,10 +28,15 @@ function fakeFetch(tokens: unknown[] = []) {
         { status: 200 },
       );
     }
+    if (url === "/v1/ingest/tokens/revoke-inactive" && method === "POST") return new Response(JSON.stringify({ revoked: 1 }), { status: 200 });
     if (url.startsWith("/v1/ingest/tokens/") && method === "DELETE") return new Response(null, { status: 204 });
     return new Response("{}", { status: 404 });
   });
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("Cài đặt › Juli Connector", () => {
   it("issues a one-time code with the shop header and shows the steps", async () => {
@@ -47,7 +52,26 @@ describe("Cài đặt › Juli Connector", () => {
     expect(headers.get("X-Shop-Id")).toBe("s1");
   });
 
+  it("F6.5: old computers sit under Máy cũ (N) with one Gỡ tất cả máy cũ", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-19T00:00:00Z"));
+    const fetchImpl = fakeFetch([
+      { id: "n1", client_label: "Chrome · mới", last_used_at: null, last_seen_at: "2026-11-18T05:00:00Z", active: true, created_at: "2026-11-01T00:00:00Z" },
+      { id: "o1", client_label: "Chrome · cũ", last_used_at: "2026-09-01T00:00:00Z", active: true, created_at: "2026-08-01T00:00:00Z" },
+    ]);
+    render(<ConnectorSettings auth={{ token: "t", shopId: "s1", fetchImpl: fetchImpl as unknown as typeof fetch }} shopName="ORY" />);
+    expect(await screen.findByText("Chrome · mới")).toBeInTheDocument();
+    expect(screen.getAllByTestId("connector-machine")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Máy cũ (1)" }));
+    expect(screen.getByText("Chrome · cũ")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Gỡ tất cả máy cũ" }));
+    await waitFor(() =>
+      expect((fetchImpl.mock.calls as unknown as [string, RequestInit][]).some(([u, i]) => u === "/v1/ingest/tokens/revoke-inactive" && i?.method === "POST")).toBe(true),
+    );
+    vi.restoreAllMocks();
+  });
+
   it("lists connected browsers and revokes one", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-19T00:00:00Z"));
     const fetchImpl = fakeFetch([
       { id: "tk1", client_label: "Chrome · máy văn phòng", last_used_at: "2026-11-06T03:00:00Z", active: true, created_at: "2026-11-01T00:00:00Z" },
       { id: "tk2", client_label: "cũ", last_used_at: null, active: false },
@@ -67,10 +91,10 @@ describe("Cài đặt › Juli Connector", () => {
     expect(screen.getByRole("heading", { name: "Máy đã kết nối" })).toBeInTheDocument();
     const rows = screen.getAllByTestId("connector-machine");
     expect(rows).toHaveLength(2);
-    expect(rows[1]).toHaveTextContent("Máy 2"); // the Connector's own default label becomes "Máy <n>"
-    expect(rows[1]).toHaveTextContent("0.3.25");
+    expect(rows[0]).toHaveTextContent("Máy 1"); // newest seen first; the Connector's own default label becomes "Máy <n>"
+    expect(rows[0]).toHaveTextContent("0.3.25");
     expect(screen.queryByText("Ngắt kết nối")).toBeNull();
-    fireEvent.click(within(rows[0]!).getByRole("button", { name: "Gỡ" }));
+    fireEvent.click(within(rows[1]!).getByRole("button", { name: "Gỡ" }));
     await waitFor(() =>
       expect((fetchImpl.mock.calls as unknown as [string, RequestInit][]).some(([u, i]) => u === "/v1/ingest/tokens/tk1" && i?.method === "DELETE")).toBe(true),
     );
