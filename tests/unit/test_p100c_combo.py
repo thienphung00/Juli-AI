@@ -563,4 +563,4 @@ def test_deal_soc_with_few_orders_says_why_with_its_own_reason_code():
     out = result_json(run(replace(base(), low_data=("aov",)), option, n=200))
     assert out["estimable"] is False
     assert out["reason_code"] == "attach_few_orders"
-    assert out["reason_text"] == "Chưa ước tính được"  # the seller sees the one label
+    assert out["reason_text"] == "Sản phẩm chính chưa đủ 10 đơn để ước tính mua kèm."
