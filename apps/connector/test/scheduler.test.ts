@@ -215,6 +215,7 @@ describe("planJobs", () => {
       "orders",
       "order_income",
       "vouchers",
+      "promotions",
       "ads",
       "ads_detail",
       "ads_products",
@@ -223,8 +224,8 @@ describe("planJobs", () => {
       "traffic",
       "product_period",
       "affiliate",
-      "affiliate_kols",
       "affiliate_dashboard",
+      "affiliate_kols",
       "affiliate_products",
       "affiliate_campaigns",
       "affiliate_commissions",
@@ -1559,7 +1560,8 @@ describe("0.3.25: the password re-check dialog is its own block reason, and its 
     const state = await ctx.read();
     expect(state?.blocked).toBeUndefined();
     expect(state?.lastRun?.outcomes).toMatchObject({ shop_totals: "blocked:password_recheck", traffic: expect.stringMatching(/^done/), health: expect.stringMatching(/^done/) });
-    expect(ctx.events.map((e) => [e.reader, e.status])).toEqual([["shop_totals", "password_recheck"]]);
+    // 0.3.29: the traffic page after it read fine, so shop_totals was loaded once more (and the dialog was still up)
+    expect(ctx.events.map((e) => [e.reader, e.status])).toEqual([["shop_totals", "password_recheck"], ["shop_totals", "password_recheck"]]);
   });
 
   it("C1/C2: the dialog is always this page only, even on the run's first page: no run-wide stop, no cool-down", async () => {
@@ -1571,7 +1573,7 @@ describe("0.3.25: the password re-check dialog is its own block reason, and its 
     expect(state?.lastRun?.outcomes.products).toBe("blocked:password_recheck");
     expect(state?.lastRun?.outcomes.orders).toMatch(/^done/);
     expect(ticksOf(ctx).find((t) => t.kind === "run")?.result).toBe("finished");
-    expect(ctx.events.map((e) => e.status)).toEqual(["password_recheck"]);
+    expect(ctx.events.map((e) => e.status)).toEqual(["password_recheck", "password_recheck"]); // 0.3.29: once more at the end of the run
   });
 
   it("C4: a /datacenter data call re-reads only the blocked pages within 10 minutes, as a reread run tick", async () => {

@@ -116,6 +116,26 @@ function driftOf(unexpected: string[], missing: string[]): Drift | null {
   return unexpected.length || missing.length ? { unexpected, missing } : null;
 }
 
+/**
+ * 0.3.29 (F4.4): the ids of the items with product views (page views or visitors) in a product-table
+ * read, most viewed first. The item-traffic reader reads exactly these, not a fixed list.
+ */
+export function viewedItemIds(responses: ReaderResponse[]): string[] {
+  const views = new Map<string, number>();
+  for (const answer of responses) {
+    if (answer.endpoint !== "product_performance" || classify(answer.status, answer.body) !== "ok") continue;
+    const result = payloadOf(answer.body);
+    if (!isRecord(result) || !Array.isArray(result.items)) continue;
+    for (const item of result.items) {
+      if (!isRecord(item)) continue;
+      const id = digits(item.id ?? item.item_id);
+      const seen = Math.max(nonNeg(item.pv) ?? 0, nonNeg(item.uv) ?? 0);
+      if (id !== undefined && seen > 0) views.set(id, Math.max(views.get(id) ?? 0, seen));
+    }
+  }
+  return [...views.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id);
+}
+
 /** The posts of one product-table read: one `product_period` post per order type. */
 export function mapProductPeriod(responses: ReaderResponse[], capturedAt: number): Mapped[] {
   const answers = responses.filter((r) => r.endpoint === "product_performance" && classify(r.status, r.body) === "ok");

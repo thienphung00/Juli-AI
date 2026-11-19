@@ -12,6 +12,7 @@ import { ADS_TARGET_DIVISOR, MAX_PLAUSIBLE_AD_VND, MAX_PLAUSIBLE_PRICE_VND, MONE
 import { mapAdsProducts } from "./ads-products-map";
 import { mapAffiliateJob } from "./affiliate-map";
 import { mapOrderIncome, mapOrderLines } from "./orders-map";
+import { mapPromotions } from "./promotions-map";
 import { mapProductPeriod } from "./product-period-map";
 import { mapShopTotals } from "./totals-map";
 import { type Drift, mapCapturedAll, type Mapped, type Row } from "./map";
@@ -913,6 +914,8 @@ export function mapReaderJob(job: ReaderJob, responses: ReaderResponse[], captur
       return [mapAdsDetail(responses, capturedAt)];
     case "vouchers":
       return [mapVoucherList(responses, capturedAt)];
+    case "promotions":
+      return mapPromotions(responses, capturedAt);
     case "health":
       return [mapShopHealth(responses, capturedAt)];
     case "shop_totals":
