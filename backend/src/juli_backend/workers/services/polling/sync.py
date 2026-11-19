@@ -65,11 +65,8 @@ from juli_backend.integrations.tiktok import (
     promotion_activity_path,
 )
 from juli_backend.models.models import TikTokCredential
-from juli_backend.services.ingest.tiktok_canonical import (
-    TikTokCanonicalSync,
-    order_search_kwargs,
-)
-from juli_backend.services.ingest.tiktok_canonical_throttle import noted_call as _noted
+from juli_backend.services.ingest import TikTokCanonicalSync, order_search_kwargs
+from juli_backend.services.ingest import noted_call as _noted
 from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)

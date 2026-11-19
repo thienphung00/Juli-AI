@@ -144,7 +144,7 @@ def _refetch_queue(env: dict[str, str]) -> Any:
     """The canonical re-fetch queue (P101 W2): one Redis set per shop."""
     import redis
 
-    from juli_backend.services.ingest.tiktok_canonical import RedisRefetchQueue
+    from juli_backend.services.ingest import RedisRefetchQueue
 
     return RedisRefetchQueue(redis.from_url(env["redis_url"]))
 
@@ -646,7 +646,7 @@ async def run_canonical_reconcile_fanout(
     the connect window, each shop in its own session under its own sticky scope. A failing
     shop is logged and the walk goes on. Returns the number of shops reconciled."""
     from juli_backend.database.tenant_context import with_sticky_shop_scope
-    from juli_backend.services.ingest.tiktok_canonical import reconcile_shop
+    from juli_backend.services.ingest import reconcile_shop
     from juli_backend.services.onboarding import connect_days
     from juli_backend.workers.services.polling.ingestion import enumerate_pollable_shops
 

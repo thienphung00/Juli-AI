@@ -100,7 +100,7 @@ from juli_backend.models.models import (
     User,
 )
 from juli_backend.repositories import ShopIngestionStateRepo, TikTokSyncStateRepo, utc_now_naive
-from juli_backend.services.ingest.tiktok_canonical import (
+from juli_backend.services.ingest import (
     CanonicalApplyResult,
     RefetchQueue,
     TikTokCanonicalSync,

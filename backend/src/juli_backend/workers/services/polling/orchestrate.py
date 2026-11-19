@@ -87,12 +87,13 @@ from juli_backend.integrations.tiktok import (
 )
 from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import ProductsRepo, TikTokSyncStateRepo
-from juli_backend.services.ingest import tiktok_canonical
-from juli_backend.services.ingest.tiktok_canonical import (
+from juli_backend.services.ingest import (
     ORDER_REFETCH_ERRORS,
+    CanonicalApplyResult,
     RefetchQueue,
     TikTokCanonicalSync,
     order_details_fetcher,
+    tiktok_canonical_enabled,
 )
 from juli_backend.services.ingestion.handoff import HandoffFn
 from juli_backend.workers.services.polling.sync import (
@@ -561,7 +562,7 @@ async def _run_poll_step(
 
 def canonical_sync_for(session: AsyncSession, shop_id: uuid.UUID) -> TikTokCanonicalSync | None:
     """The job's raw -> canonical mapper (P101 W2), or ``None`` when the kill switch is off."""
-    return TikTokCanonicalSync(session, shop_id) if tiktok_canonical.enabled() else None
+    return TikTokCanonicalSync(session, shop_id) if tiktok_canonical_enabled() else None
 
 
 async def finish_canonical(
@@ -573,7 +574,7 @@ async def finish_canonical(
     shop_key: str,
     queue: RefetchQueue | None = None,
     settled_since: Any = None,
-) -> tiktok_canonical.CanonicalApplyResult | None:
+) -> CanonicalApplyResult | None:
     """End of the commerce steps: re-fetch by id the returned orders the cycle did not fetch
     and the reconcile's queued ids, then map the finance rows read since ``settled_since``.
     Never fails the cycle (a vendor error re-queues the ids)."""

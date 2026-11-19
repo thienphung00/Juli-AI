@@ -14,8 +14,9 @@ Who calls what:
   ``_poll``) and the webhook's targeted fetch (``services/cdp_speed``) build one
   :class:`TikTokCanonicalSync` per job: ``on_orders`` maps the orders the job just fetched, in the
   same job; ``on_returns`` re-maps the orders whose lines a return changed; ``finish`` re-fetches
-  by id (Get Order Detail, at most :data:`ORDER_DETAIL_MAX_IDS` ids a call) the returned orders
-  the job did not fetch and the ids the nightly reconcile queued, and maps the settlements of the
+  by id (Get Order Detail, at most :data:`ORDER_DETAIL_MAX_IDS` ids a call) only the ids queued
+  before the job (the nightly reconcile's gaps, a previous job's returned orders), queues the
+  returned orders this job did not fetch for the next job, and maps the settlements of the
   finance rows read since the job started;
 - the nightly reconcile (:func:`reconcile_shop`) compares, per VN day, the raw order count with
   the canonical one, re-maps a gap from its bronze payload when one exists and queues the rest
@@ -50,8 +51,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.integrations.tiktok import RateLimiter, TikTokAPIError
-from juli_backend.integrations.tiktok.constants import ORDER_DETAIL_PATH
+from juli_backend.integrations.tiktok import ORDER_DETAIL_PATH, RateLimiter, TikTokAPIError
 from juli_backend.models.models import BronzeOrderRawPayload, Order, Return
 from juli_backend.models.order_costs import ORDER_LEVEL, OrderFinanceTransaction
 from juli_backend.models.shopee_profit import ShopeeOrderIncome, ShopeeOrderLine
@@ -718,10 +718,14 @@ class TikTokCanonicalSync:
         settled_since: datetime | None = None,
         refetch_limit: int | None = None,
         fetch_errors: tuple[type[BaseException], ...] = (Exception,),
+        pop_queued: bool = True,
     ) -> CanonicalApplyResult:
-        """Re-fetch the returned orders this job did not hold and the reconcile's queued ids
-        (by id, :data:`ORDER_DETAIL_MAX_IDS` per call, bronze payload first), then the
-        settlements of the finance rows read since ``settled_since``."""
+        """End of the job. The ids queued BEFORE this job (the reconcile's gaps, a previous
+        job's returned orders) are re-mapped from bronze or re-fetched by id
+        (:data:`ORDER_DETAIL_MAX_IDS` per call); the returned orders this job did not hold are
+        re-mapped from bronze or queued for the NEXT job (never fetched by id in this one).
+        Then the settlements of the finance rows read since ``settled_since``.
+        ``pop_queued=False`` (the webhook's job) only queues, leaving the queue to the poll."""
         async with self._scope():
             return await self._finish(
                 fetch_details=fetch_details,
@@ -729,6 +733,7 @@ class TikTokCanonicalSync:
                 settled_since=settled_since,
                 refetch_limit=refetch_limit,
                 fetch_errors=fetch_errors,
+                pop_queued=pop_queued,
             )
 
     async def _finish(
@@ -739,22 +744,32 @@ class TikTokCanonicalSync:
         settled_since: datetime | None,
         refetch_limit: int | None,
         fetch_errors: tuple[type[BaseException], ...],
+        pop_queued: bool,
     ) -> CanonicalApplyResult:
         limit = refetch_per_cycle() if refetch_limit is None else refetch_limit
-        wanted = set(self._pending)
-        if queue is not None and limit > len(wanted):
-            wanted.update(queue.pop(self.shop_id, limit - len(wanted)))
-        wanted.difference_update(self._seen)
-        ids = sorted(wanted)
-        if ids:
-            bronze = await latest_bronze_orders(self.session, self.shop_id, ids)
-            if bronze:
-                await self._on_orders(list(bronze.values()))
-            missing = [i for i in ids if i not in bronze]
-            if missing and fetch_details is None and queue is not None:
-                queue.push(self.shop_id, missing)
-            elif missing and fetch_details is not None:
+        # Only ids queued BEFORE this job are fetched by id now (decision 3: "re-fetch in the
+        # NEXT poll cycle"): pop them first, then queue this job's own returned orders.
+        queued = (
+            sorted(set(queue.pop(self.shop_id, limit)) - set(self._seen))
+            if queue is not None and pop_queued
+            else []
+        )
+        pending = sorted(self._pending - set(self._seen))
+        if pending:
+            rest = await self._remap_from_bronze(pending)
+            if rest and queue is not None:
+                queue.push(self.shop_id, rest)
+            elif rest:
+                logger.info(
+                    "tiktok_canonical_refetch_not_queued",
+                    extra={"shop_id": str(self.shop_id), "orders": len(rest)},
+                )
+        if queued:
+            missing = await self._remap_from_bronze(queued)
+            if missing and fetch_details is not None:
                 await self._refetch(missing, fetch_details, queue, fetch_errors)
+            elif missing and queue is not None:
+                queue.push(self.shop_id, missing)
         self._pending.clear()
         if settled_since is not None:
             self.result.add(
@@ -767,6 +782,13 @@ class TikTokCanonicalSync:
                 )
             )
         return self.result
+
+    async def _remap_from_bronze(self, ids: list[str]) -> list[str]:
+        """Re-map the orders whose full payload is in bronze; return the ids that are not."""
+        bronze = await latest_bronze_orders(self.session, self.shop_id, ids)
+        if bronze:
+            await self._on_orders(list(bronze.values()))
+        return [i for i in ids if i not in bronze]
 
     async def _refetch(
         self,
