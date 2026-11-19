@@ -61,7 +61,11 @@ const BLOCK_VERB: Record<string, string> = {
 export function readerBlockText(blocks: readonly ReaderBlock[] | undefined): string | null {
   const lines = [
     ...new Set(
-      (blocks ?? []).map((b) => `${BLOCK_VERB[b.reason] ?? "Đăng nhập lại"} ${SECTION_LABEL[b.section] ?? "Seller Centre"}`),
+      (blocks ?? []).map((b) =>
+        b.reason === "traffic_check"
+          ? "Shopee tạm chặn"
+          : `${BLOCK_VERB[b.reason] ?? "Đăng nhập lại"} ${SECTION_LABEL[b.section] ?? "Seller Centre"}`,
+      ),
     ),
   ];
   return lines.length > 0 ? lines.join(" · ") : null;

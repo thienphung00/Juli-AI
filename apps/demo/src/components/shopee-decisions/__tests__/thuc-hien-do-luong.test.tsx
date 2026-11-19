@@ -165,6 +165,13 @@ describe("Đối chiếu ngay", () => {
     ).toBe("Đăng nhập lại Phân tích bán hàng · Xác minh lại Seller Centre");
   });
 
+  it("traffic_check reads \"Shopee tạm chặn\" with no section", async () => {
+    const blocks = [{ section: "seller_centre", reason: "traffic_check", readers: ["orders"] }];
+    renderReco(<ThucHienView />, fakeReco({ execution: line({ reader_blocks: blocks }) }));
+    expect(await screen.findByTestId("sd-th-bar-block")).toHaveTextContent(/^Shopee tạm chặn$/);
+    expect(readerBlockText([{ section: "phan_tich_ban_hang", reason: "traffic_check", readers: [] }])).toBe("Shopee tạm chặn");
+  });
+
   it("password_recheck reads \"Xác nhận mật khẩu\" + the section; login and captcha unchanged", async () => {
     const blocks = [{ section: "phan_tich_ban_hang", reason: "password_recheck", readers: ["shop_totals"] }];
     renderReco(<ThucHienView />, fakeReco({ execution: line({ reader_blocks: blocks }) }));
