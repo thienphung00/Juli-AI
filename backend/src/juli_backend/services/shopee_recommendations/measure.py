@@ -40,8 +40,9 @@ from juli_backend.repositories import (
     ShopeeOrderLinesRepo,
 )
 from juli_backend.services.card_measure import reader
-from juli_backend.services.shopee_analytics import forecast_base, loaders
+from juli_backend.services.shopee_analytics import forecast_base, loaders, materialize
 from juli_backend.services.shopee_analytics.catalog import Catalog
+from juli_backend.services.shopee_kpi.exclusions import contract_excluded_days
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 from juli_backend.services.shopee_recommendations import (
     ads_readback,
@@ -51,6 +52,7 @@ from juli_backend.services.shopee_recommendations import (
     learning,
     product_queue,
     result_store,
+    running,
     store,
     verdict,
 )
@@ -312,6 +314,47 @@ class CardReading:
     measurement: dict[str, Any] | None = None
 
 
+#: L-5: traffic-present days a window needs on each side for a result to be clean
+CLEAN_MIN_TRAFFIC_DAYS = 5
+
+
+async def clean_reasons(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    treated_days: Mapping[date, DayAgg],
+    *,
+    t: date,
+    days: int,
+    pre: int,
+    stacked: bool,
+    partial: bool = False,
+) -> list[str]:
+    """Why a single result is NOT clean (empty = clean, may calibrate): another card / promotion
+    on the same days (``stacked``: a card of the product, a shop-wide change, a bundle), a
+    mega-sale day in either window (the shop's contract sale days), fewer than
+    ``CLEAN_MIN_TRAFFIC_DAYS`` days with traffic in the before or the after window, or a cut
+    measurement."""
+    why: list[str] = []
+    if partial:
+        why.append("partial")
+    if stacked:
+        why.append("other_change")
+    before = [t - timedelta(days=i) for i in range(pre, 0, -1)]
+    after = [t + timedelta(days=i) for i in range(1, days + 1)]
+    sale = await contract_excluded_days(session, shop_id, before[0], after[-1])
+    if sale & {*before, *after}:
+        why.append("sale_day")
+    for name, window in (("before", before), ("after", after)):
+        n = sum(
+            1
+            for d in window
+            if d in treated_days and (treated_days[d].views or treated_days[d].clicks)
+        )
+        if n < CLEAN_MIN_TRAFFIC_DAYS:
+            why.append(f"traffic_days_{name}")
+    return why
+
+
 async def _read_card(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -441,12 +484,25 @@ async def _read_card(
         )
     await write(EVENT_IMPACT_FINAL, reading, plan_days, meas)
     if partial:  # a cut measurement is shown ("đo được N ngày"), never calibrated
+        meas["clean"] = False
+        meas["clean_reasons"] = ["partial"]
         return CardReading(None, reading, plan_days, stacked=stacked, measurement=meas)
     if reading.impact_pct is None or reading.confidence == "suppressed":
         report.skip(f"reading_{reading.reason}")
+        meas["clean"] = False
+        meas["clean_reasons"] = [f"reading_{reading.reason}"]
         return CardReading(
             None, reading, plan_days, f"reading_{reading.reason}", stacked, measurement=meas
         )
+    why = await clean_reasons(
+        session, shop_id, source.treated_days, t=t, days=plan_days, pre=pre,
+        stacked=stacked or bool(card.get("bundle")),
+    )  # fmt: skip
+    meas["clean"] = not why
+    meas["clean_reasons"] = why
+    if why:  # L-3 / L-5: only a clean result calibrates; the reading is still shown
+        report.skip(f"not_clean_{why[0]}")
+        return CardReading(None, reading, plan_days, stacked=stacked, measurement=meas)
     lo, hi = _lift_range(card)
     obs = Observation(
         card["change_kind"],
@@ -540,7 +596,11 @@ async def _set_clock(
 
 
 async def read_change_sets(
-    session: AsyncSession, shop_id: uuid.UUID, today: date, report: LearningReport
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    today: date,
+    report: LearningReport,
+    skip: set[uuid.UUID] | None = None,
 ) -> list[Observation]:
     """Read every change set that is due (P91 D-7). Returns the observations to calibrate with:
 
@@ -555,6 +615,8 @@ async def read_change_sets(
     for cs in await change_sets.sets_for(
         session, shop_id, status=[change_sets.SET_MEASURING, change_sets.SET_CUT]
     ):
+        if skip and cs.id in skip:  # read as a group (:func:`read_groups`)
+            continue
         cut = cs.status == change_sets.SET_CUT
         if cut and (
             (cs.result or {}).get("state") != change_sets.STATE_KEPT
@@ -590,6 +652,8 @@ async def read_change_sets(
                 "in_range": _in_range(got.reading.impact_pct, lo, hi),
                 "read": True,
                 "measurement": got.measurement,
+                "clean": bool((got.measurement or {}).get("clean")),
+                "clean_reasons": (got.measurement or {}).get("clean_reasons", []),
                 **_reading_json(got.reading, got.post_days),
             }
             if not cut:
@@ -601,6 +665,48 @@ async def read_change_sets(
             session, shop_id, cs, cards, today, report, days=days, t=t, how=how, cut=cut
         )
         out.extend(obs)
+    return out
+
+
+async def read_groups(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    today: date,
+    report: LearningReport,
+    grouping: running.Grouping,
+) -> list[Observation]:
+    """F7.6: read every group of overlapping change sets once its LAST window has ended -- one
+    joint result for all members, copied to each set (``done``). A group result is not clean:
+    it is shown, never calibrates (no observation)."""
+    out: list[Observation] = []
+    for g in grouping.multi:
+        cards: list[tuple[Any, dict[str, Any]]] = []
+        for cs in g.sets:
+            cards += await _set_cards(session, shop_id, cs)
+        if not cards:
+            continue
+        starts: list[date] = []
+        how = "verified"
+        for p, _ in cards:
+            t_at, how = await verified_time(session, shop_id, p.id)
+            if t_at is None:
+                break
+            starts.append(t_at.date())
+        else:
+            t = min(starts)
+            days = max((g.end_excl - t).days, 1)
+            out += await _read_joint(
+                session, shop_id, g.primary, cards, today, report,
+                days=days, t=t, how=how, cut=False, group=True,
+            )  # fmt: skip
+            if g.primary.status == change_sets.SET_DONE:
+                for cs in g.sets[1:]:
+                    reset = {k: v for k, v in (cs.result or {}).items() if k == "reset_card_ids"}
+                    cs.result = {**(g.primary.result or {}), **reset}
+                    cs.status = change_sets.SET_DONE
+                    cs.updated_at = g.primary.updated_at
+            continue
+        report.skip(how)
     return out
 
 
@@ -648,7 +754,11 @@ async def _read_joint(
     t: date,
     how: str,
     cut: bool,
+    group: bool = False,
 ) -> list[Observation]:
+    """The joint reading of a multi-card set or of a group (F7.6). Shown, never calibrated: a
+    result with other changes on the same days is not clean (L-5), so no observation comes
+    back (the list type stays for callers)."""
     report.cards_considered += len(cards)
     if today < t + timedelta(days=days + 1):
         report.skip("plan_not_ended")
@@ -669,10 +779,8 @@ async def _read_joint(
         bundle = replace(bundle, controls={})
     m = _measure(bundle, source, t, days, today, "gmv", None, pre)
     reading = m.reading
-    stale = not m.fresh
-    rel = (cs.predicted or {}).get("rel_gmv") or _joint_rel_from_cards(
-        cards, treated_days, first, t
-    )
+    own_rel = {} if group else (cs.predicted or {}).get("rel_gmv")
+    rel = own_rel or _joint_rel_from_cards(cards, treated_days, first, t)
     lo, hi = rel.get("p10"), rel.get("p90")
     for p, card in cards:
         items = card["scope"]["product_ids"]
@@ -710,6 +818,8 @@ async def _read_joint(
         "state": change_sets.STATE_KEPT if cut else change_sets.STATE_MEASURED,
         "label": change_sets.kept_label(days) if cut else f"Đo xong sau {days} ngày",
         "joint": True,
+        "clean": False,
+        "clean_reasons": ["group" if group else "other_change"],
         "with_shop_wide": cs.with_shop_wide,
         "predicted_range": None if lo is None or hi is None else [lo, hi],
         "in_range": _in_range(reading.impact_pct, lo, hi),
@@ -720,40 +830,8 @@ async def _read_joint(
     if not cut:
         cs.status = change_sets.SET_DONE
     report.readings += 1
-    if cut or reading.impact_pct is None or reading.confidence == "suppressed":
-        if not cut:
-            report.skip(f"reading_{reading.reason}")
-        return []
-    if lo is None or hi is None:
-        report.skip("no_joint_prediction")
-        return []
-    controlled = not reading.fallback
-    out = [
-        Observation(
-            "joint", "gmv", float(lo), float(hi), reading.impact_pct, reading.se_rel,
-            "card", cs.with_shop_wide, f"cs:{cs.id}", controlled,
-            tier=reading.confidence, fresh=not stale,
-        )
-    ]  # fmt: skip
-    mid_j = (float(lo) + float(hi)) / 2
-    if mid_j == 0:
-        return out
-    ratio = reading.impact_pct / mid_j
-    for p, card in cards:
-        klo, khi = _lift_range(card)
-        mid_k = (klo + khi) / 2
-        if mid_k == 0:
-            continue
-        out.append(
-            Observation(
-                card["change_kind"], card["metric"]["key"], klo, khi, ratio * mid_k,
-                None if reading.se_rel is None else reading.se_rel * abs(mid_k / mid_j),
-                "card", cs.with_shop_wide, f"{cs.id}:{p.id}", controlled,
-                str(card.get("origin") or "engine"), config.MULTI_CARD_WEIGHT,
-                tier=reading.confidence, fresh=not stale,
-            )
-        )  # fmt: skip
-    return out
+    report.skip("not_clean_group" if group else "not_clean_other_change")
+    return []
 
 
 def _day_means(
@@ -1000,8 +1078,15 @@ async def run_learning(
     """Score every finished plan, pool with the stored natural experiments, recompute the
     shop's calibration (per change_kind and metric; bundles excluded) and coverage."""
     report = LearningReport()
+    await materialize.rebuild_outdated(session, shop_id)  # F7.10: rows built by an older rule
     card_obs = await read_cards(session, shop_id, now.date(), report)
-    card_obs += await read_change_sets(session, shop_id, now.date(), report)
+    # F7.6: overlapping sets (and the sets an older release cut) are one group, read together
+    grouping = await running.regroup(session, shop_id, now)
+    await running.refresh_actuals(session, shop_id, now, grouping)  # F7.5: running Thực tế
+    card_obs += await read_change_sets(
+        session, shop_id, now.date(), report, skip=grouping.grouped_ids
+    )
+    card_obs += await read_groups(session, shop_id, now.date(), report, grouping)
     await read_plan_totals(session, shop_id, now.date(), report)
     await ads_readback.refresh_shop(session, shop_id, now.date())  # P99b: new-campaign read-back
     old = await store.load_observations(session, shop_id)

@@ -734,7 +734,7 @@ async def test_the_plan_window_is_validated_and_automatic_per_product_by_default
     assert auto["windows"]["per_product"][0]["source"] == "auto"
 
 
-async def test_executing_on_a_product_still_measured_cuts_the_running_measurement(session, shop):
+async def test_executing_on_a_product_still_measured_joins_the_running_measurement(session, shop):
     seeded, env = shop
     sid = seeded.shop_id
     day1 = NOW
@@ -742,7 +742,7 @@ async def test_executing_on_a_product_still_measured_cuts_the_running_measuremen
     first = await _execute(session, seeded, ids[0], day1 + timedelta(hours=1))
     cs1 = first["change_set"]
     assert cs1["status"] == "measuring" and cs1["window_days"] == 28
-    # a second plan on the same product, executed 2 days later: the dialog lists the cut
+    # a second plan on the same product, executed 2 days later: the dialog lists it
     day3 = NOW + timedelta(days=2)
     more = await _manual(session, seeded, env, _discount(8), at=day3)
     await plans.add_card(session, sid, uuid.UUID(more["id"]), actor=_actor(seeded), now=day3)
@@ -753,19 +753,19 @@ async def test_executing_on_a_product_still_measured_cuts_the_running_measuremen
     assert cut["days_measured"] == 2 and cut["state"] == "inconclusive"
     assert cut["label"] == "Không kết luận" and cut["name"]
     assert conf["plan"]["measurement_cut"] == conf["measurement_cut"]
-    # nothing is cut yet: the confirm only says it will be
+    assert cut["joins"] is True
+    # nothing happens at confirm
     assert (await change_sets.get(session, sid, uuid.UUID(cs1["id"]))).status == "measuring"
     second = await _execute(session, seeded, uuid.UUID(more["id"]), day3 + timedelta(hours=1))
     cs = await change_sets.get(session, sid, uuid.UUID(cs1["id"]))
-    assert cs.status == "cut" and cs.cut_days == 2 and cs.result["state"] == "inconclusive"
-    assert cs.result["cut_by_change_set"] == second["change_set"]["id"]
-    # the new set started; the old one no longer holds the product or shows as measuring
-    m = await product_queue.measuring(session, sid, day3 + timedelta(days=1))
-    assert m["1001"]["change_set"] == second["change_set"]["id"]
-    assert "measure_cut_at" in await store.card_meta(session, sid, ids[0])
+    # F7.6: the running set is NOT cut; both sets are one group, never clean
+    assert cs.status == "measuring" and cs.cut_days is None
+    assert cs.result["group"]["change_sets"] == [cs1["id"], second["change_set"]["id"]]
+    assert cs.result["clean"] is False
+    assert not (await store.card_meta(session, sid, ids[0])).get("measure_cut_at")
 
 
-async def test_three_or_more_days_measured_are_kept_as_do_duoc_n_ngay(session, shop):
+async def test_three_or_more_days_measured_are_listed_and_the_new_set_joins(session, shop):
     seeded, env = shop
     sid = seeded.shop_id
     ids, _ = await _confirm_plan(session, seeded, env, [_discount(15)], window=28)
@@ -782,8 +782,9 @@ async def test_three_or_more_days_measured_are_kept_as_do_duoc_n_ngay(session, s
     await session.commit()
     await _execute(session, seeded, uuid.UUID(more["id"]), day5 + timedelta(hours=1))
     (first, second) = await change_sets.sets_for(session, sid)
-    assert first.status == "cut" and first.result["label"] == "Đo được 4 ngày"
-    assert first.result["low_confidence"] is True and second.status == "measuring"
+    # F7.6: not cut -- both sets are one group
+    assert first.status == "measuring" and second.status == "measuring"
+    assert first.result["group"]["change_sets"] == [str(first.id), str(second.id)]
 
 
 async def test_a_shop_wide_card_is_its_own_set_and_flags_the_product_sets(session, shop):

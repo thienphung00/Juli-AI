@@ -6,7 +6,8 @@ scope -- score the finished plans and change sets, pool them with the stored nat
 experiments, refresh the shop's calibration and requeue its cards. DB only (no Seller Centre,
 no LLM), idempotent: a second run on the same day recomputes the same rows.
 
-Pilot shops = Shopee shops whose Ops stage is "Pilot đặc biệt" (``ops_shop_settings.stage``), plus
+Shops = real Shopee shops with an executed card (F7), shops whose Ops stage is "Pilot đặc biệt"
+(``ops_shop_settings.stage``), plus
 any id listed in ``RECO_LEARNING_SHOP_IDS`` (comma separated; empty by default). Every other shop
 is left alone: nobody else has executed cards to learn from yet. Ops can still run it by hand
 (``POST .../recommendations/learning/run``).
@@ -28,7 +29,9 @@ from typing import Any
 from sqlalchemy import select
 
 from juli_backend.database.tenant_context import with_shop_scope
+from juli_backend.models.models import Shop
 from juli_backend.models.ops import STAGE_PILOT, OpsShopSettings
+from juli_backend.models.shop_proposals import STATUS_EXECUTED, ShopProposal
 from juli_backend.services.ops import ops_role
 from juli_backend.services.ops.overview import list_shops
 from juli_backend.services.shopee_recommendations import measure
@@ -76,7 +79,22 @@ async def pilot_shop_ids(session: Any) -> list[uuid.UUID]:
             .scalars()
             .all()
         )
-    return sorted(shopee & (staged | _extra_ids()), key=str)
+        # F7 (owner: "everything automatic"): every real Shopee shop with an executed card is
+        # measured too, not only the Ops "pilot" stage (ORY had no stage row, so its cards were
+        # never measured). The sample shop stays out (its rows are reloaded, never learned from).
+        executed = set(
+            (
+                await session.execute(
+                    select(ShopProposal.shop_id)
+                    .join(Shop, Shop.id == ShopProposal.shop_id)
+                    .where(ShopProposal.status == STATUS_EXECUTED, Shop.kind == "real")
+                    .distinct()
+                )
+            )
+            .scalars()
+            .all()
+        )
+    return sorted(shopee & (staged | executed | _extra_ids()), key=str)
 
 
 async def run_daily_learning(

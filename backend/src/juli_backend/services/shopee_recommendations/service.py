@@ -69,6 +69,7 @@ from juli_backend.services.shopee_recommendations import (
     product_queue,
     result_store,
     revert_fill,
+    running,
     store,
     trigger_adapter,
     versions,
@@ -472,6 +473,14 @@ async def measurement_states(
                     "label": (cs.result or {}).get("label"),
                     "window_days": cs.window_days,
                     "window_closed": cs.status in (change_sets.SET_DONE, change_sets.SET_CUT),
+                    "actual": (cs.result or {}).get("actual"),
+                    "group": (cs.result or {}).get("group"),
+                    "measured_with": [
+                        m["code"]
+                        for m in ((cs.result or {}).get("group") or {}).get("members", [])
+                        if m.get("code") and m.get("card_id") != str(cid)
+                    ],
+                    "clean": (cs.result or {}).get("clean"),
                 }
     return out
 
@@ -1624,8 +1633,9 @@ async def mark_executed(
     subject = _subject_of(card, card_id)
     chosen_version, chosen_code = await _chosen(session, shop_id, card_id)
     # the card joins the change set of its product (or the shop) for that day; a running
-    # measurement of the same product is cut today (P91 D-7)
+    # measurement of the same product is joined into one group, not cut (F7.6)
     cset = await change_sets.attach_execution(session, shop_id, p, card, executed_at=when, now=now)
+    await running.regroup(session, shop_id, now)
     plan_code = (
         (await plan_codes.plan_codes_for(session, shop_id, [p.lever_plan_id])).get(p.lever_plan_id)
         if p.lever_plan_id
