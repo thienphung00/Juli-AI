@@ -245,3 +245,92 @@ async def test_cost_change_missing_cost_is_data_missing_and_small_change_within_
         FakeData(shop, costs=_costs(300.0, 300.0)), "cost_change", None, PRESET, AS_OF
     )
     assert same.stop_reason == "within_noise"
+
+
+MV = {
+    "total": {"impact": -100.0},
+    "channels": [
+        {"key": "video", "name": "Video", "impact": -60.0, "now": 5.0, "prev": 65.0},
+        {"key": "live", "name": "LIVE", "impact": -2.0, "now": 1.0, "prev": 3.0},
+    ],
+    "products": [
+        {"key": "p1", "name": "Sản phẩm A", "impact": -90.0, "now": 10.0, "prev": 100.0},
+        {"key": "p2", "name": "Sản phẩm B", "impact": -5.0, "now": 1.0, "prev": 6.0},
+    ],
+}
+
+
+async def test_metric_view_is_evidence_when_its_window_equals_ours() -> None:
+    d = FakeData(noisy_orders((10.0, 4.0)), mv=MV)  # nothing else explains this drop
+    r = await chains.run_chain(d, "orders_change", "orders", PRESET, AS_OF)
+    assert "metric_view" in d.calls
+    by = {(f.level, f.node): f for f in r.findings}
+    assert by[("endpoint.product", "Sản phẩm A")].contribution_pct == pytest.approx(90.0)
+    assert by[("endpoint.channel", "Video")].contribution_pct == pytest.approx(60.0)
+    assert ("endpoint.product", "Sản phẩm B") not in by  # 5 % share: below the follow threshold
+    assert by[("endpoint.product", "Sản phẩm A")].evidence_ref == "metric_view:orders:product:p1"
+    assert r.stop_reason == "explained" and (r.explained_share or 0) >= 0.7
+
+
+async def test_metric_view_is_skipped_when_the_comparison_window_differs() -> None:
+    d = FakeData(noisy_orders((10.0, 4.0)), mv=MV)
+    r = await chains.run_chain(d, "orders_change", "orders", "mtd_vs_same_days_last_month", AS_OF)
+    assert "metric_view" not in d.calls
+    assert any("comparison window differs" in s for s in r.steps)
+
+
+async def test_metric_view_channel_without_data_is_flagged_not_counted() -> None:
+    shop, srcs = funnel_data()
+    srcs = [r for r in srcs if r["source"] != "video"] + source_rows(
+        AS_OF - timedelta(days=60),
+        AS_OF - timedelta(days=7),
+        "video",
+        views=400,
+        clicks=40,
+        orders=4.0,
+    )
+    shop2 = FakeData(shop, srcs, mv=MV)
+    r = await chains.run_chain(shop2, "orders_change", "orders", PRESET, AS_OF)
+    flagged = [f for f in r.findings if f.level == "endpoint.channel" and f.node == "video"]
+    assert (
+        flagged
+        and "no_data_in_current_window" in flagged[0].flags
+        and flagged[0].contribution_pct is None
+    )
+
+
+async def test_partial_coverage_uses_per_day_averages() -> None:
+    first = AS_OF - timedelta(days=40)
+    cur_first = AS_OF - timedelta(days=6)
+    missing = {AS_OF - timedelta(days=1), AS_OF - timedelta(days=2)}  # 5 of 7 current days = 71 %
+
+    def orders(d: date) -> float | None:
+        if d in missing:
+            return None
+        return 10.0 if d >= cur_first else 20.0
+
+    r = await chains.run_chain(
+        FakeData(shop_rows(first, AS_OF, orders=orders)), "orders_change", "orders", PRESET, AS_OF
+    )
+    head = r.findings[0]
+    assert "partial_coverage" in r.windows.flags
+    assert head.now == pytest.approx(10.0) and head.before == pytest.approx(
+        20.0
+    )  # per-day, not 50 vs 140
+    assert not any(f.startswith("poisson_z") for f in head.flags)  # counts are not comparable
+
+
+async def test_coverage_80pct_or_more_uses_totals() -> None:
+    first = AS_OF - timedelta(days=40)
+    r = await chains.run_chain(
+        FakeData(shop_rows(first, AS_OF, orders=lambda d: 10.0 if d > SPLIT_DAY else 20.0)),
+        "orders_change",
+        "orders",
+        PRESET,
+        AS_OF,
+    )
+    assert "partial_coverage" not in r.windows.flags
+    assert r.findings[0].now == pytest.approx(70.0) and r.findings[0].before == pytest.approx(140.0)
+
+
+SPLIT_DAY = AS_OF - timedelta(days=7)

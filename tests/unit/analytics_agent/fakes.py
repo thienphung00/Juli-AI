@@ -61,7 +61,9 @@ def funnel_data(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Views 1000/day, two sources; the `other_source` collapses its CTR in the last 7 days."""
     first = AS_OF - timedelta(days=60)
-    after = lambda d: d > SPLIT  # noqa: E731
+
+    def after(d: date) -> bool:
+        return d > SPLIT
 
     def vid_clicks(d: date) -> float:
         return 400 * (ctr_video_after if after(d) else ctr_video_before)

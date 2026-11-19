@@ -111,7 +111,7 @@ async def run(
     except TimeoutError:
         await out.emit({"type": "error", "code": "busy"})
         result.stop_reasons.append("error")
-    except Exception:  # noqa: BLE001 - the seller sees "Juli đang gặp sự cố"; T3 logs the cause
+    except Exception:  # the seller sees "Juli đang gặp sự cố"; T3 logs the cause
         await out.emit({"type": "error", "code": "failed"})
         result.stop_reasons.append("error")
         raise

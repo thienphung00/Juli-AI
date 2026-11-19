@@ -64,7 +64,7 @@ class ServiceCardEngine:
                 return {"ok": False, "reason": "kind_needs_a_product"}
             try:
                 mine = gen(env, None, item or "")
-            except Exception as exc:  # noqa: BLE001 - a generator that needs a critical item
+            except Exception as exc:  # a generator that needs a critical item
                 return {"ok": False, "reason": f"generator_error:{type(exc).__name__}"}
             if not mine:
                 return {"ok": False, "reason": "generator_returned_none"}

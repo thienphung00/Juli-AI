@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Any
 
 import pytest
@@ -43,7 +43,10 @@ async def test_metric_total_with_direction_and_freshness() -> None:
 
 async def test_metric_total_money_chain_metric_comes_from_overview() -> None:
     shop = shop_rows(AS_OF - timedelta(days=40), AS_OF, orders=5.0)
-    ov = lambda a, b: {"shop_profit": {"margin_pct": 42.8 if b >= AS_OF else 40.0}}  # noqa: E731
+
+    def ov(a: date, b: date) -> dict[str, Any]:
+        return {"shop_profit": {"margin_pct": 42.8 if b >= AS_OF else 40.0}}
+
     out = await lookup.run_lookup(
         FakeData(shop, overview=ov), L, "metric_total", "margin", PRESET, AS_OF
     )

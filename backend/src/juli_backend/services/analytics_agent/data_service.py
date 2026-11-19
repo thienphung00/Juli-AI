@@ -9,6 +9,7 @@ series the chains need (shop / source / product rows, stock history, open cards)
 from __future__ import annotations
 
 import re
+import unicodedata
 import uuid
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
@@ -19,6 +20,12 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
+
+
+def _fold(text_: str) -> str:
+    """Lower-case without accents ("Găng" -> "gang")."""
+    d = unicodedata.normalize("NFD", text_.casefold().replace("đ", "d"))
+    return "".join(c for c in d if unicodedata.category(c) != "Mn")
 
 
 class ServiceData:
@@ -137,34 +144,44 @@ class ServiceData:
             b=b,
         )
 
+    async def _items(self) -> dict[str, tuple[str, str | None]]:
+        """item_id -> (name, seller_sku), through the existing `PlatformItemsRepo` read. The
+        item-level row (no variation) wins; the repository scopes every read to the shop."""
+        from juli_backend.models.platform_data import ITEM_LEVEL_VARIATION
+        from juli_backend.repositories.shopee_analytics import PlatformItemsRepo
+
+        async with self._f() as s:
+            try:
+                rows = await PlatformItemsRepo(s).all_items(self.shop)
+            finally:
+                await s.rollback()
+        out: dict[str, tuple[str, str | None]] = {}
+        for r in sorted(rows, key=lambda r: r.variation_id != ITEM_LEVEL_VARIATION):
+            out.setdefault(r.item_id, (r.name or r.item_id, r.seller_sku))
+        return out
+
     async def item_names(self, ids: list[str]) -> dict[str, str]:
         if not ids:
             return {}
-        rows = await self._q(
-            """select distinct on (item_id) item_id, name from platform_items
-                                 where shop_id = :s and item_id = any(:ids) order by item_id,
-                                 updated_at desc""",
-            ids=ids,
-        )
-        return {r["item_id"]: r["name"] or r["item_id"] for r in rows}
+        items = await self._items()
+        return {i: items[i][0] if i in items else i for i in ids}
 
     async def catalog_search(self, phrase: str) -> list[dict[str, Any]]:
-        words = [w for w in re.split(r"\s+", phrase.strip()) if len(w) >= 2][:6]
+        """Every word (>= 2 letters, accent- and case-insensitive) must be in the name; the exact
+        item id or seller SKU also matches. At most 8, like the product Choice expects."""
+        raw = phrase.strip()
+        words = [_fold(w) for w in re.split(r"\s+", raw) if len(w) >= 2][:6]
         if not words:
             return []
-        cond = " and ".join(
-            f"(lower(name) like lower(:w{i}) or item_id = :raw or seller_sku = :raw)"
-            for i in range(len(words))
-        )
-        sql = (
-            f"select distinct on (item_id) item_id, name from platform_items "  # nosec B608
-            f"where shop_id = :s and {cond} order by item_id, updated_at desc limit 8"
-        )
-        return await self._q(
-            sql,
-            raw=phrase.strip(),
-            **{f"w{i}": f"%{w}%" for i, w in enumerate(words)},
-        )
+        out = []
+        for item_id, (name, sku) in (await self._items()).items():
+            if (
+                item_id == raw
+                or (sku is not None and sku == raw)
+                or all(w in _fold(name) for w in words)
+            ):
+                out.append({"item_id": item_id, "name": name})
+        return out[:8]
 
     async def stock_events(self, a: date, b: date) -> list[dict[str, Any]]:
         return await self._q(
