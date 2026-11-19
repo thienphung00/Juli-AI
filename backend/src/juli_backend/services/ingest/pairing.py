@@ -254,11 +254,11 @@ async def revoke_inactive(
     """F6.5: revoke the shop's live tokens whose computer was not seen for 14 days (never
     another shop's, never a recently seen one). Returns how many were revoked."""
     seen = await last_seen_by_token(session, shop_id)
-    old = [
-        t.id
-        for t in await list_tokens(session, shop_id)
-        if t.revoked_at is None and (seen.get(t.id) is None or now - seen[t.id] > INACTIVE_AFTER)
-    ]
+    old = []
+    for t in await list_tokens(session, shop_id):
+        last = seen.get(t.id)
+        if t.revoked_at is None and (last is None or now - last > INACTIVE_AFTER):
+            old.append(t.id)
     if not old:
         return 0
     await session.execute(
