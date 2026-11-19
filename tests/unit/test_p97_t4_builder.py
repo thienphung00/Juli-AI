@@ -29,7 +29,7 @@ from juli_backend.services.shopee_recommendations import (
 )
 from juli_backend.services.shopee_recommendations.fill_queue import _card_targets
 from tests.support.shopee_analytics import CUR_END, _src
-from tests.support.shopee_reco import AS_OF, seed_reco_shop
+from tests.support.shopee_reco import AS_OF, add_product_traffic_days, seed_reco_shop
 from tests.unit.test_shopee_builder import NOW, S, add_baskets, builder, one
 from tests.unit.test_shopee_reco_plan import _USER_IDS, _actor
 
@@ -38,6 +38,7 @@ from tests.unit.test_shopee_reco_plan import _USER_IDS, _actor
 async def shop(session):
     """Synthetic reco shop, owned here (no imported fixture, so no new lint suppression)."""
     seeded = await seed_reco_shop(session)
+    await add_product_traffic_days(session, seeded.shop_id)
     await materialize.backfill_shop(session, seeded.shop_id)  # P98: the stored funnel
     await session.commit()
     return seeded

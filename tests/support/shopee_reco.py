@@ -94,4 +94,28 @@ async def seed_reco_shop(
     return seeded
 
 
-__all__ = ["AS_OF", "CUR_START", "MONTH", "NOW", "datetime", "seed_reco_shop"]
+async def add_product_traffic_days(session: AsyncSession, shop_id: uuid.UUID) -> None:
+    """Two more order days for product 1002 (SKU N1), so it has the five days with product
+    traffic rows the F2 base needs (C1); the plain seed gives it four. Call before backfilling."""
+    from datetime import timedelta
+
+    from tests.support.shopee_analytics import _line
+
+    for i, d in enumerate((1, 3)):
+        session.add(
+            _line(
+                shop_id, 201 + i, CUR_START + timedelta(days=d), "N1", original=60_000, deal=54_000
+            )
+        )
+    await session.flush()
+
+
+__all__ = [
+    "AS_OF",
+    "CUR_START",
+    "MONTH",
+    "NOW",
+    "add_product_traffic_days",
+    "datetime",
+    "seed_reco_shop",
+]
