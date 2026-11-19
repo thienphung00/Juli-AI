@@ -158,6 +158,10 @@ ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
         "Connector fill progress (P97 D85.6): authenticated by the ingest token; moves one job of "
         "the token's own shop forward (opened / filled / saved / captured id / failed)."
     ),
+    ("GET", "/v1/connector/shopee/read-days"): (
+        "Connector catch-up (F4.2): authenticated by the ingest token (get_ingest_principal); "
+        "read-only list of the token's own shop's unread days per dataset."
+    ),
     ("GET", "/v1/ingest/fill"): (
         "Whether the server allows the Connector's listing fill-in: authenticated by the "
         "ingest token (get_ingest_principal); returns a boolean and the platform only."

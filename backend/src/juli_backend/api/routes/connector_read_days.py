@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.api.routes.ingest import get_ingest_principal
 from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
+from juli_backend.models.ingest import PLATFORM_SHOPEE
 from juli_backend.services import ingest as ingest_service
 from juli_backend.services.ingest import read_days
 
@@ -25,7 +26,7 @@ async def get_read_days(
     principal: ingest_service.IngestPrincipal = Depends(get_ingest_principal),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    if principal.platform != "shopee":
+    if principal.platform != PLATFORM_SHOPEE:
         raise HTTPException(status_code=403, detail={"code": "platform_not_allowed"})
     async with with_shop_scope(session, principal.shop_id):
         return await read_days.read_days(session, principal.shop_id, principal.platform)
