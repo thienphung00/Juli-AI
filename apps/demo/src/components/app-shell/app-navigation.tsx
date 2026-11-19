@@ -72,7 +72,7 @@ export function AppNavigation({
   sampleShop = false,
 }: {
   readonly activePath: string;
-  /** Shopee shops get Tổng quan / Phân tích / Sản phẩm / Quyết định (ADR-120 d.2). */
+  /** Which platform's routes the shared rail uses. */
   readonly platform?: NavPlatform;
   /** P100 S2-C: the reviewer's sample shop — only the four screens that work there. */
   readonly sampleShop?: boolean;

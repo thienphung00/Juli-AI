@@ -94,7 +94,7 @@ export function SignedInHome() {
     {strip}
     {connection}
     <section aria-labelledby="home-title" className="home-overview">
-      <AppPageHeader eyebrow="Trang chủ" title="Báo cáo của shop" titleId="home-title" />
+      <AppPageHeader eyebrow="Tổng quan" title="Báo cáo của shop" titleId="home-title" />
       {body}
     </section>
     </>

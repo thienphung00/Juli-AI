@@ -42,6 +42,97 @@ KEEP_TABLES = frozenset(
     }
 )
 
+#: What a RELOAD replaces (``loader.load``): the data the loader posts (the raw payloads, so a
+#: repeat post is not a duplicate that hides the new window) and every table built from it.
+#: Everything else in the plan -- cards, approvals, plans, groups, comments, card events, the
+#: seeded content and history -- is a reviewer's or the seed's and stays; only ``--reset``
+#: removes it.
+GENERATED_TABLES = frozenset(
+    {
+        "bronze.order_raw_payloads",
+        "bronze.return_raw_payloads",
+        "bronze.ctor_performance_raw_payloads",
+        "bronze.live_hours_raw_payloads",
+        "silver.orders",
+        "silver.returns",
+    }
+    | {
+        f"public.{t}"
+        for t in (
+            "ingest_raw_payloads",
+            "ingest_dataset_status",
+            "platform_daily_metrics",
+            "platform_period_metrics",
+            "order_items",
+            "order_lines",
+            "order_price_details",
+            "order_settlements",
+            "order_finance_transactions",
+            "order_cost_fetches",
+            "settlements",
+            "affiliate_lines",
+            "ads_change_log",
+            "shop_health_daily",
+            "shop_metrics_daily",
+            "product_metrics_daily",
+            "source_metrics_daily",
+            "platform_promotions",
+            "platform_product_flags",
+            "platform_item_snapshots",
+            "shop_daily_products",
+            "shop_daily_streams",
+            "shop_metric_rankings",
+            "product_snapshots",
+            "stock_history",
+            "shop_ingestion_state",
+        )
+    }
+)
+
+#: Kept on a reload: what reviewers and the product did (cards, approvals, plans, groups, runs,
+#: measurements, alerts, connector state, credentials). Only ``--reset`` removes it.
+REVIEWER_TABLES = frozenset(
+    {"gold.kpi_envelopes", "ops.analytics_backfill_partitions"}
+    | {
+        f"public.{t}"
+        for t in (
+            "action_cards", "action_card_approvals", "card_events", "card_group_members",
+            "card_groups", "shop_proposals", "shop_proposal_approvals",
+            "shop_proposal_code_counters", "shop_proposal_executions", "shop_proposal_results",
+            "shop_reco_change_sets", "shop_reco_plan_cards", "shop_reco_plan_counters",
+            "shop_reco_plan_group_members", "shop_reco_plan_groups", "shop_reco_plans",
+            "shopee_plan_base_snapshots", "shopee_connector_commands", "shopee_connector_state",
+            "shopee_connector_token_state", "shopee_fill_jobs", "shopee_reco_calibrations",
+            "shopee_sim_prior_runs", "shopee_stock_alert_sends", "shopee_stock_alert_unsubscribes",
+            "alert_configs", "alert_history", "decision_reasons",
+            "decision_emission_novelty_ledger", "demo_execution_records", "external_changes",
+            "planned_change_imports", "planned_change_refs", "lever_calibrations", "lever_plans",
+            "run_baselines", "run_lever_flows", "run_lever_photos", "run_measurement_finals",
+            "run_revert_questions", "run_write_values", "run_confirmations", "impact_readings",
+            "workflow_runs", "workflow_run_events", "workflow_outcome_records",
+            "workflow_webhook_signals", "tool_executions", "kpi_contracts", "kpi_forecasts",
+            "kpi_adjustments", "kpi_exclusions", "kpi_targets", "analytics_kpi_envelopes",
+            "analytics_performance_intervals", "shop_diagnosis_reports", "recommendations",
+            "content_analyses", "campaigns", "ad_campaign_purposes", "production_write_audit",
+            "production_write_authorizations", "production_write_shops", "ingest_pairing_codes",
+            "ingest_tokens", "ingest_dedup_epochs", "tiktok_credentials", "tiktok_sync_state",
+            "ops_sim_scenarios", "processed_events", "graph_edges",
+        )
+    }
+)  # fmt: skip
+
+#: Kept on a reload: the catalogue, rules and content the seed (or a Connector read) wrote once.
+#: ``platform_items`` carries first/last seen days: the ingest only moves ``last_seen_on`` forward.
+SEED_TABLES = frozenset(
+    f"public.{t}"
+    for t in (
+        "platform_items", "card_content_specs", "shop_keyword_seeds", "shop_rule_versions",
+        "shop_rules", "product_image_assets", "products", "inventory_items",
+        "shopee_sku_tracking", "creators", "livestreams", "promotion_activities",
+        "promotion_activity_products", "ops_shop_daily_summary",
+    )
+)  # fmt: skip
+
 _SHOP_TABLES = sa.text(
     """
     SELECT n.nspname, c.relname
@@ -63,7 +154,9 @@ _FOREIGN_KEYS = sa.text(
                  ORDER BY k.i),
            ARRAY(SELECT a.attname FROM unnest(con.confkey) WITH ORDINALITY k(n, i)
                  JOIN pg_attribute a ON a.attrelid = con.confrelid AND a.attnum = k.n
-                 ORDER BY k.i)
+                 ORDER BY k.i),
+           (SELECT bool_and(NOT a.attnotnull) FROM unnest(con.conkey) k(n)
+            JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.n)
     FROM pg_constraint con
     JOIN pg_class cc ON cc.oid = con.conrelid
     JOIN pg_namespace cn ON cn.oid = cc.relnamespace
@@ -84,6 +177,8 @@ class ForeignKey:
     parent: str
     child_cols: tuple[str, ...]
     parent_cols: tuple[str, ...]
+    #: every child column may be NULL: the pointer can be cleared instead of deleting the row
+    nullable: bool = False
 
 
 @dataclass(frozen=True)
@@ -157,9 +252,66 @@ def plan_deletes(
     return [Step(t, via.get(t)) for t in order]
 
 
+def _kept_pointers(shop_tables: set[str], fks: list[ForeignKey]) -> list[ForeignKey]:
+    """Foreign keys from a table a reload keeps to a table it replaces."""
+    planned = {step.table for step in plan_deletes(shop_tables, fks)}
+    return [
+        fk
+        for fk in fks
+        if fk.parent in GENERATED_TABLES
+        and fk.child in planned
+        and fk.child not in GENERATED_TABLES
+        and fk.child != fk.parent
+    ]
+
+
+def plan_reload_detaches(shop_tables: set[str], fks: list[ForeignKey]) -> list[ForeignKey]:
+    """The reload's pointer clears, run before its DELETEs: a kept row of the shop whose nullable
+    pointer names a replaced row (``platform_items.raw_payload_id``: the payload it was read from)
+    keeps the row and loses only the pointer; the next ingest sets it again."""
+    return [
+        fk for fk in _kept_pointers(shop_tables, fks) if fk.nullable and fk.child in shop_tables
+    ]
+
+
+def plan_reload_deletes(shop_tables: set[str], fks: list[ForeignKey]) -> list[Step]:
+    """The reload's DELETEs: the generated tables of :func:`plan_deletes`, in the same order.
+
+    Refused (nothing deleted) when a table that stays points at a generated one through a pointer
+    that cannot be cleared (:func:`plan_reload_detaches`): the DELETE would fail on the foreign
+    key, or leave a reviewer's row dangling."""
+    detached = set(plan_reload_detaches(shop_tables, fks))
+    for fk in _kept_pointers(shop_tables, fks):
+        if fk not in detached:
+            raise ResetRefused(
+                f"{fk.child} references {fk.parent}, which a reload replaces: classify it"
+            )
+    return [step for step in plan_deletes(shop_tables, fks) if step.table in GENERATED_TABLES]
+
+
+def _detach(fk: ForeignKey, shop_id: uuid.UUID) -> sa.Update:
+    child = _table(fk.child, "shop_id", *fk.child_cols)
+    return (
+        sa.update(child)
+        .where(child.c.shop_id == shop_id, *(child.c[c].is_not(None) for c in fk.child_cols))
+        .values({c: None for c in fk.child_cols})
+    )
+
+
+def _metadata_reload_steps() -> list[Step]:
+    """The reload's DELETEs from the ORM metadata (non-Postgres databases): children first."""
+    from juli_backend.database import Base
+
+    return [
+        Step(t.fullname)
+        for t in reversed(Base.metadata.sorted_tables)
+        if "shop_id" in t.c and not t.schema and f"public.{t.name}" in GENERATED_TABLES
+    ]
+
+
 def _table(qualified: str, *cols: str) -> sa.TableClause:
-    schema, name = qualified.split(".", 1)
-    return sa.table(name, *(sa.column(c) for c in cols), schema=schema)
+    schema, _, name = qualified.rpartition(".")
+    return sa.table(name, *(sa.column(c) for c in cols), schema=schema or None)
 
 
 def _delete(step: Step, shop_id: uuid.UUID) -> sa.Delete:
@@ -181,16 +333,22 @@ def _delete(step: Step, shop_id: uuid.UUID) -> sa.Delete:
 async def read_catalogue(session: AsyncSession) -> tuple[set[str], list[ForeignKey]]:
     shop_tables = {f"{s}.{t}" for s, t in (await session.execute(_SHOP_TABLES)).all()}
     fks = [
-        ForeignKey(f"{cs}.{ct}", f"{ps}.{pt}", tuple(cc), tuple(pc))
-        for cs, ct, ps, pt, cc, pc in (await session.execute(_FOREIGN_KEYS)).all()
+        ForeignKey(f"{cs}.{ct}", f"{ps}.{pt}", tuple(cc), tuple(pc), bool(nullable))
+        for cs, ct, ps, pt, cc, pc, nullable in (await session.execute(_FOREIGN_KEYS)).all()
     ]
     return shop_tables, fks
 
 
 async def wipe(
-    factory: async_sessionmaker[AsyncSession], shop_id: uuid.UUID, *, commit: bool
+    factory: async_sessionmaker[AsyncSession],
+    shop_id: uuid.UUID,
+    *,
+    commit: bool,
+    generated_only: bool = False,
 ) -> ResetReport:
-    """Delete the shop's rows (``commit=False``: count them and roll back)."""
+    """Delete the shop's rows (``commit=False``: count them and roll back).
+
+    ``generated_only``: just the loader's own data (:data:`GENERATED_TABLES`), as a reload does."""
     from juli_backend.database.tenant_context import with_shop_scope
     from scripts.sample_shop.loader import _has_credentials, check_target
 
@@ -207,8 +365,18 @@ async def wipe(
             shopee_shop_id=shop.shopee_shop_id,
             has_credentials=await _has_credentials(session, shop.id),
         )
-        steps = plan_deletes(*await read_catalogue(session))
+        detaches: list[ForeignKey] = []
+        if generated_only and session.get_bind().dialect.name != "postgresql":
+            steps = _metadata_reload_steps()  # the unit tests' SQLite: no pg catalogue to read
+        else:
+            catalogue = await read_catalogue(session)
+            plan = plan_reload_deletes if generated_only else plan_deletes
+            steps = plan(*catalogue)
+            if generated_only:
+                detaches = plan_reload_detaches(*catalogue)
         async with with_shop_scope(session, shop_id):
+            for fk in detaches:
+                await session.execute(_detach(fk, shop_id))
             for step in steps:
                 result = await session.execute(_delete(step, shop_id))
                 if result.rowcount:
@@ -221,13 +389,26 @@ async def wipe(
     return report
 
 
+async def replace_generated(
+    factory: async_sessionmaker[AsyncSession], shop_id: uuid.UUID
+) -> ResetReport:
+    """A reload's first step: drop the shop's generated data (one transaction, this shop only)."""
+    return await wipe(factory, shop_id, commit=True, generated_only=True)
+
+
 __all__ = [
+    "GENERATED_TABLES",
     "KEEP_TABLES",
+    "REVIEWER_TABLES",
+    "SEED_TABLES",
     "ForeignKey",
     "ResetRefused",
     "ResetReport",
     "Step",
     "plan_deletes",
+    "plan_reload_deletes",
+    "plan_reload_detaches",
+    "replace_generated",
     "read_catalogue",
     "wipe",
 ]
