@@ -41,6 +41,8 @@ export interface AnswerView {
   readonly freshVi: string | null;
 }
 
+export const RESTATED_PREFIX = "Đang tìm hiểu: ";
+
 const EMPTY_BLOCK: AnswerBlockView = {
   title: null,
   text: "",
@@ -89,7 +91,7 @@ export function reduceAnswer(events: readonly JuliAgentEvent[]): AnswerView {
         break;
       }
       case "restated":
-        restated = event.data.text_vi;
+        restated = event.data.text_vi.startsWith(RESTATED_PREFIX) ? event.data.text_vi : `${RESTATED_PREFIX}${event.data.text_vi}`;
         break;
       case "text_delta":
         patchLast({ text: last().text + event.data.text });

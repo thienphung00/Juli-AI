@@ -30,6 +30,7 @@ export interface JuliChatProps {
 }
 
 const LIMIT_TEXT = "Bạn đã hỏi nhiều trong giờ này, thử lại sau";
+export const BUSY_LIMIT_TEXT = "Juli đang bận, thử lại sau";
 export const BACKFILL_TEXT = "Juli đang lấy dữ liệu shop, thử lại sau";
 
 function storageGet(key: string): string | null {
@@ -59,7 +60,7 @@ export function JuliChat({
   templates: fixedTemplates,
   shopKey = "shop",
 }: JuliChatProps) {
-  const chat = useJuliChat({ client, templates: fixedTemplates });
+  const chat = useJuliChat({ client, templates: fixedTemplates, platform });
   const [historyOpen, setHistoryOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -69,7 +70,7 @@ export function JuliChat({
   const scrollKey = `juli_scroll_${shopKey}`;
   const { openConversation, activeConversationId } = chat;
 
-  const limited = chat.limitRetryAt !== null;
+  const limited = chat.limited;
   const inputOff = limited || backfilling;
   const empty = chat.messages.length === 0;
 
@@ -196,7 +197,7 @@ export function JuliChat({
             ) : null}
             {limited ? (
               <div className="juli-line" data-state="limit" role="status">
-                {chat.limitRetryAt ? `${LIMIT_TEXT} ${formatClock(chat.limitRetryAt)}` : LIMIT_TEXT}
+                {chat.limitRetryAt ? `${LIMIT_TEXT} ${formatClock(chat.limitRetryAt)}` : BUSY_LIMIT_TEXT}
               </div>
             ) : null}
             {backfilling ? (

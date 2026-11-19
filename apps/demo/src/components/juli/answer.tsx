@@ -10,6 +10,9 @@ import { CardBlock, NoCardLine } from "./card-block";
 export const ERROR_TEXT = "Juli đang gặp sự cố, thử lại sau";
 export const RECONNECTING_TEXT = "Đang kết nối lại…";
 export const STOPPED_TEXT = "Đã dừng";
+export const BUSY_TEXT = "Juli đang trả lời câu trước";
+export const INVALID_TEXT = "Juli chưa hiểu câu hỏi này";
+export const READ_ONLY_TEXT = "Shop chỉ xem";
 
 export interface AnswerActions {
   readonly platform: JuliPlatform;
@@ -97,7 +100,8 @@ export function MessagePair({
 }) {
   const view = reduceAnswer(message.events);
   const running = message.status === "running";
-  const failed = message.status === "failed" || view.errorCode !== null;
+  const refused = message.status === "refused";
+  const failed = !refused && (message.status === "failed" || view.errorCode !== null);
   const saved = message.status === "saved";
   const interactive = isLast && !running;
   const multi = view.blocks.length > 1;
@@ -155,6 +159,16 @@ export function MessagePair({
           </div>
         ) : null}
         {message.status === "stopped" ? <div className="juli-none">{STOPPED_TEXT}</div> : null}
+        {refused && message.refusal === "busy" ? <div className="juli-none">{BUSY_TEXT}</div> : null}
+        {refused && message.refusal === "read_only" ? <div className="juli-none">{READ_ONLY_TEXT}</div> : null}
+        {refused && message.refusal === "invalid" ? (
+          <Unsupported
+            data={{ text_vi: INVALID_TEXT, templates: actions.templates.map((t) => t.key) }}
+            templates={actions.templates}
+            interactive={interactive}
+            onTemplate={actions.onTemplate}
+          />
+        ) : null}
         {failed ? (
           <div className="juli-error" role="alert">
             <p className="juli-p juli-p--body">{ERROR_TEXT}</p>

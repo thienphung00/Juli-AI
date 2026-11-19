@@ -169,3 +169,42 @@ describe("T3 shapes", () => {
     expect(conv.messages[0]!.cards![0]!.sent_card_code).toBe("JC-1");
   });
 });
+
+describe("429 handling", () => {
+  const limited = (headers: Record<string, string>) =>
+    vi.fn(async () => new Response(JSON.stringify({ detail: "Too many concurrent event streams" }), { status: 429, headers })) as unknown as typeof fetch;
+
+  it("a stream 429 is a limit: one request, closes 'limited' with Retry-After as the time", async () => {
+    const fetchImpl = limited({ "Retry-After": "120" });
+    const client = createJuliClient({ token: "t", shopId: "s", fetchImpl, reconnectDelayMs: () => 0 });
+    const closed = await new Promise<[string, { retryAt?: string } | undefined]>((resolve) =>
+      client.stream("m", { onEvent: () => undefined, onClose: (r, i) => resolve([r, i]) }),
+    );
+    expect(closed[0]).toBe("limited");
+    expect(Date.parse(closed[1]!.retryAt!)).toBeGreaterThan(Date.now());
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("a stream 429 with neither time nor header still closes 'limited' without a time", async () => {
+    const fetchImpl = limited({});
+    const client = createJuliClient({ token: "t", shopId: "s", fetchImpl, reconnectDelayMs: () => 0 });
+    const closed = await new Promise<[string, { retryAt?: string } | undefined]>((resolve) =>
+      client.stream("m", { onEvent: () => undefined, onClose: (r, i) => resolve([r, i]) }),
+    );
+    expect(closed).toEqual(["limited", { retryAt: undefined }]);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("ask 429 uses Retry-After when the body has no retry_at", async () => {
+    const client = createJuliClient({ token: "t", shopId: "s", fetchImpl: limited({ "Retry-After": "60" }) });
+    await expect(client.ask({ text: "x" })).rejects.toMatchObject({ status: 429, retryAt: expect.any(String) });
+  });
+});
+
+describe("history query", () => {
+  it("GET /conversations carries ?platform=", async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ conversations: [] }))) as unknown as typeof fetch;
+    await createJuliClient({ token: "t", shopId: "s", fetchImpl }).conversations("tiktok");
+    expect((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toBe("/v1/demo/juli/conversations?platform=tiktok");
+  });
+});

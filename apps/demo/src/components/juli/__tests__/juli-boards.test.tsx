@@ -50,6 +50,17 @@ describe("board 2 running (U3)", () => {
   });
 });
 
+describe("restated line", () => {
+  it("is prefixed when the backend text lacks it", () => {
+    pair([{ type: "restated", data: { text_vi: "vì sao GMV giảm" } }, { type: "done", data: { stop_reasons: [] } }]);
+    expect(screen.getByText("Đang tìm hiểu: vì sao GMV giảm")).toBeInTheDocument();
+  });
+  it("is not doubled when it has it", () => {
+    pair([{ type: "restated", data: { text_vi: "Đang tìm hiểu: x" } }, { type: "done", data: { stop_reasons: [] } }]);
+    expect(screen.getByText("Đang tìm hiểu: x")).toBeInTheDocument();
+  });
+});
+
 describe("board 3 explanation + card (U1, U6)", () => {
   it("renders the path row with links, four versions, ★ preselected, buttons", async () => {
     const { a } = pair(F.EXPLANATION_CARD);
@@ -335,12 +346,75 @@ describe("whole page flows (mock client)", () => {
     expect(screen.queryByRole("button", { name: "Gửi vào Đề xuất" })).toBeNull();
   });
 
-  it("403 on ask flips the card block to read-only", async () => {
+  it("403 on card send flips the card block to read-only", async () => {
     const client: JuliClient = { ...createMockJuliClient(), sendCard: vi.fn().mockRejectedValue(new JuliApiError(403)) };
     render(<JuliChat client={client} {...props} />);
     await userEvent.click(screen.getByRole("button", { name: /Cải thiện GMV/ }));
     await userEvent.click(await screen.findByRole("button", { name: "Gửi vào Đề xuất" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: "Gửi vào Đề xuất" })).toBeNull());
+  });
+
+  it("ask 403 -> read-only state, ask 409 -> busy line, ask 422 -> templates; none offers Thử lại", async () => {
+    for (const [status, code, text] of [
+      [403, undefined, "Shop chỉ xem"],
+      [409, "juli_busy", "Juli đang trả lời câu trước"],
+      [422, "juli_ask_invalid", "Juli chưa hiểu câu hỏi này"],
+    ] as const) {
+      window.sessionStorage.clear();
+      const client: JuliClient = { ...createMockJuliClient(), ask: vi.fn().mockRejectedValue(new JuliApiError(status, undefined, code)) };
+      const { unmount } = render(<JuliChat client={client} {...props} />);
+      await userEvent.click(screen.getByRole("button", { name: /Giảm chi phí/ }));
+      expect(await screen.findByText(text)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
+      if (status === 422) expect(within(screen.getAllByRole("group", { name: "Mẫu câu hỏi" })[0]!).getAllByRole("button").length).toBeGreaterThanOrEqual(5);
+      unmount();
+    }
+  });
+
+  it("ask 403 makes later cards read-only", async () => {
+    const mock = createMockJuliClient();
+    const client: JuliClient = { ...mock, ask: vi.fn().mockRejectedValueOnce(new JuliApiError(403)).mockImplementation(mock.ask) };
+    render(<JuliChat client={client} {...props} />);
+    await userEvent.click(screen.getByRole("button", { name: /Giảm chi phí/ }));
+    await screen.findByText("Shop chỉ xem");
+    await userEvent.click(screen.getAllByRole("button", { name: /Cải thiện GMV/ }).at(-1)!);
+    await screen.findByRole("radiogroup", { name: "Phương án" });
+    expect(screen.queryByRole("button", { name: "Gửi vào Đề xuất" })).toBeNull();
+  });
+
+  it("429 without a time shows the generic busy line", async () => {
+    const client: JuliClient = { ...createMockJuliClient(), ask: vi.fn().mockRejectedValue(new JuliApiError(429)) };
+    render(<JuliChat client={client} {...props} />);
+    await userEvent.click(screen.getByRole("button", { name: /Giảm chi phí/ }));
+    expect(await screen.findByText("Juli đang bận, thử lại sau")).toBeInTheDocument();
+  });
+
+  it("a stream 429 shows the limit line and is not retried", async () => {
+    const mock = createMockJuliClient();
+    const client: JuliClient = {
+      ...mock,
+      stream: (_id, handlers) => {
+        queueMicrotask(() => handlers.onClose?.("limited", { retryAt: "2026-11-20T08:40:00Z" }));
+        return { abort: () => undefined };
+      },
+    };
+    render(<JuliChat client={client} {...props} />);
+    await userEvent.click(screen.getByRole("button", { name: /Giảm chi phí/ }));
+    expect(await screen.findByText(/Bạn đã hỏi nhiều trong giờ này, thử lại sau \d{2}:\d{2}/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
+  });
+
+  it("history asks for the current platform and shows a bare dd/mm as Số liệu đến dd/mm", async () => {
+    const mock = createMockJuliClient({
+      history: [{ id: "c1", title: "Giảm chi phí", messages: [{ id: "x1", question: "Giảm chi phí", events: F.NO_CARD_PLAIN, created_at: "2026-11-12T03:00:00Z", data_until_vi: "15/11" }] }],
+    });
+    const spy = vi.spyOn(mock, "conversations");
+    render(<JuliChat client={mock} platform="tiktok" templates={F.TEMPLATES} shopKey="p" />);
+    await waitFor(() => expect(spy).toHaveBeenCalledWith("tiktok"));
+    await userEvent.click(screen.getByRole("button", { name: "Lịch sử" }));
+    const panel = await screen.findByRole("complementary", { name: "Lịch sử" });
+    await userEvent.click(await within(panel).findByRole("button", { name: /Giảm chi phí/ }));
+    expect(await screen.findByText("Số liệu đến 15/11")).toBeInTheDocument();
   });
 
   it("stale line (U11b) and backfilling (U11g)", () => {
@@ -392,6 +466,13 @@ describe("U2 / mobile contract (static)", () => {
     expect(mobile).toContain(".juli-ver-head { display: none; }");
     expect(mobile).toMatch(/\.juli-history \{[^}]*position: fixed[^}]*bottom: 0/);
     expect(mobile).toContain("min-height: 48px");
+  });
+  it("uses DS v7 tokens: no hex colours but the two direction colours", () => {
+    const hex = css.match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
+    expect([...new Set(hex)].sort()).toEqual(["#15803d", "#b42318"]);
+    expect(css).not.toMatch(/var\(--juli-[a-z-]+,/); // no fallbacks where a token exists
+    expect(css).toContain("var(--juli-border)");
+    expect(css).toContain("var(--juli-surface)");
   });
   it("no captions or 'ước tính' anywhere in the Juli UI sources", () => {
     for (const f of ["answer.tsx", "answer-parts.tsx", "card-block.tsx", "composer.tsx", "history.tsx", "juli-chat.tsx", "delta.tsx"]) {

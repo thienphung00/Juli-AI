@@ -15,7 +15,10 @@ import type {
 
 import { JuliApiError, type JuliClient, type JuliStreamHandle } from "./client";
 
-export type ChatMessageStatus = "running" | "done" | "stopped" | "failed" | "saved";
+export type ChatMessageStatus = "running" | "done" | "stopped" | "failed" | "saved" | "refused";
+
+/** Why an ask was refused: no "Thử lại" for these (repeating cannot help). */
+export type AskRefusal = "busy" | "invalid" | "read_only";
 
 export interface ChatMessage {
   readonly id: string;
@@ -31,6 +34,7 @@ export interface ChatMessage {
   readonly sentCardCode?: string;
   /** The request that produced it, so "Thử lại" can send it again. */
   readonly request?: JuliAskRequest;
+  readonly refusal?: AskRefusal;
 }
 
 export type CardPhase = "sending" | "sent" | "dismissed" | "failed" | "forbidden" | "refused";
@@ -44,13 +48,17 @@ export interface JuliChatOptions {
   readonly client: JuliClient;
   /** Skips loading the template list (tests and fixed lists). */
   readonly templates?: readonly JuliTemplate[];
+  /** The shop's platform: history is listed for it (`GET /conversations?platform=`). */
+  readonly platform?: "shopee" | "tiktok";
 }
 
 export interface JuliChat {
   readonly messages: readonly ChatMessage[];
   readonly templates: readonly JuliTemplate[];
   readonly running: boolean;
-  /** 429: when asking is possible again (ISO timestamp), else null. */
+  /** 429 (ask or stream): asking is limited. */
+  readonly limited: boolean;
+  /** When asking is possible again (ISO timestamp); null = the server did not say. */
   readonly limitRetryAt: string | null;
   /** A send was refused as read-only (403). */
   readonly readOnlyDetected: boolean;
@@ -82,10 +90,11 @@ function fromStored(m: JuliStoredMessage, templates: readonly JuliTemplate[]): C
   };
 }
 
-export function useJuliChat({ client, templates: fixedTemplates }: JuliChatOptions): JuliChat {
+export function useJuliChat({ client, templates: fixedTemplates, platform }: JuliChatOptions): JuliChat {
   const [messages, setMessages] = useState<readonly ChatMessage[]>([]);
   const [templates, setTemplates] = useState<readonly JuliTemplate[]>(fixedTemplates ?? []);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [limited, setLimited] = useState(false);
   const [limitRetryAt, setLimitRetryAt] = useState<string | null>(null);
   const [readOnlyDetected, setReadOnlyDetected] = useState(false);
   const [cardStates, setCardStates] = useState<Readonly<Record<string, CardState>>>({});
@@ -99,11 +108,11 @@ export function useJuliChat({ client, templates: fixedTemplates }: JuliChatOptio
 
   const refreshHistory = useCallback(async () => {
     try {
-      setHistory(await client.conversations());
+      setHistory(await client.conversations(platform));
     } catch {
       /* history stays as it was; the tab still works */
     }
-  }, [client]);
+  }, [client, platform]);
 
   useEffect(() => {
     let alive = true;
@@ -118,14 +127,14 @@ export function useJuliChat({ client, templates: fixedTemplates }: JuliChatOptio
         .catch(() => undefined);
     }
     client
-      .conversations()
+      .conversations(platform)
       .then((list) => alive && setHistory(list))
       .catch(() => undefined);
     return () => {
       alive = false;
       streamRef.current?.abort();
     };
-  }, [client, fixedTemplates]);
+  }, [client, fixedTemplates, platform]);
 
   const ask = useCallback(
     async (request: Omit<JuliAskRequest, "conversation_id">, question: string) => {
@@ -139,12 +148,17 @@ export function useJuliChat({ client, templates: fixedTemplates }: JuliChatOptio
         response = await client.ask(full);
       } catch (error) {
         runningIdRef.current = null;
-        if (error instanceof JuliApiError && error.status === 429) setLimitRetryAt(error.retryAt ?? null);
-        if (error instanceof JuliApiError && error.status === 403) setReadOnlyDetected(true);
+        const status = error instanceof JuliApiError ? error.status : 0;
+        if (status === 429) {
+          setLimited(true);
+          setLimitRetryAt((error as JuliApiError).retryAt ?? null);
+          setMessages((prev) => prev.filter((m) => m.id !== tempId));
+          return;
+        }
+        const refusal: AskRefusal | undefined = status === 409 ? "busy" : status === 422 ? "invalid" : status === 403 ? "read_only" : undefined;
+        if (status === 403) setReadOnlyDetected(true);
         setMessages((prev) =>
-          error instanceof JuliApiError && (error.status === 429 || error.status === 403)
-            ? prev.filter((m) => m.id !== tempId)
-            : prev.map((m) => (m.id === tempId ? { ...m, status: "failed" as const } : m)),
+          prev.map((m) => (m.id === tempId ? { ...m, status: refusal ? ("refused" as const) : ("failed" as const), refusal } : m)),
         );
         return;
       }
@@ -163,8 +177,14 @@ export function useJuliChat({ client, templates: fixedTemplates }: JuliChatOptio
           if (event.type === "error") finish("failed");
         },
         onReconnecting: (reconnecting) => patchMessage(id, { reconnecting }),
-        onClose: (reason) => {
-          if (reason === "failed") finish("failed");
+        onClose: (reason, info) => {
+          if (reason === "limited") {
+            // The stream's 429 is a limit, not a drop: show the limit message, never retry it.
+            setLimited(true);
+            setLimitRetryAt(info?.retryAt ?? null);
+            if (runningIdRef.current === id) runningIdRef.current = null;
+            setMessages((prev) => prev.filter((m) => m.id !== id));
+          } else if (reason === "failed") finish("failed");
           else if (reason === "terminal-event") finish("done");
         },
       });
@@ -265,6 +285,7 @@ export function useJuliChat({ client, templates: fixedTemplates }: JuliChatOptio
     messages,
     templates,
     running,
+    limited,
     limitRetryAt,
     readOnlyDetected,
     cardStates,

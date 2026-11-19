@@ -75,7 +75,7 @@ export function createMockJuliClient(options: MockJuliOptions = {}): JuliClient 
     async cancel(id) {
       calls.cancel.push(id);
     },
-    async conversations() {
+    async conversations(_platform) {
       return [...conversations.values()].map<JuliConversationSummary>((c) => ({
         id: c.id,
         title: c.title,

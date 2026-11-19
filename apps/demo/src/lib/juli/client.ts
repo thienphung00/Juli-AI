@@ -37,13 +37,14 @@ export class JuliApiError extends Error {
   }
 }
 
-export type JuliStreamCloseReason = "terminal-event" | "aborted" | "failed";
+export type JuliStreamCloseReason = "terminal-event" | "aborted" | "failed" | "limited";
 
 export interface JuliStreamHandlers {
   onEvent: (event: JuliAgentEvent) => void;
   /** true while the connection is being re-established (the seller sees "Đang kết nối lại…"). */
   onReconnecting?: (reconnecting: boolean) => void;
-  onClose?: (reason: JuliStreamCloseReason) => void;
+  /** `info.retryAt` is set for "limited" when the server said when (ISO). */
+  onClose?: (reason: JuliStreamCloseReason, info?: { retryAt?: string }) => void;
 }
 
 export interface JuliStreamHandle {
@@ -55,7 +56,7 @@ export interface JuliClient {
   ask(request: JuliAskRequest): Promise<JuliAskResponse>;
   stream(messageId: string, handlers: JuliStreamHandlers): JuliStreamHandle;
   cancel(messageId: string): Promise<void>;
-  conversations(): Promise<readonly JuliConversationSummary[]>;
+  conversations(platform?: "shopee" | "tiktok"): Promise<readonly JuliConversationSummary[]>;
   conversation(id: string): Promise<JuliConversation>;
   sendCard(draftRef: string, versionLabel: string): Promise<JuliSendCardResponse>;
   dismissCard(draftRef: string): Promise<void>;
@@ -75,6 +76,12 @@ const DEFAULT_MAX_RECONNECTS = 10;
 
 function backoff(attempt: number): number {
   return Math.min(1000 * 2 ** (attempt - 1), 15_000);
+}
+
+/** `Retry-After` (seconds) as an ISO timestamp, when the body carried no `retry_at`. */
+function retryAtFromHeader(response: Response): string | undefined {
+  const seconds = Number(response.headers.get("Retry-After"));
+  return Number.isFinite(seconds) && seconds > 0 ? new Date(Date.now() + seconds * 1000).toISOString() : undefined;
 }
 
 /** Server rows (user + assistant, events as `{seq, type, payload}`) -> the pairs the page renders. */
@@ -130,7 +137,7 @@ export function createJuliClient(config: JuliClientConfig): JuliClient {
       } catch {
         /* no JSON body */
       }
-      throw new JuliApiError(response.status, retryAt, code);
+      throw new JuliApiError(response.status, retryAt ?? retryAtFromHeader(response), code);
     }
     if (response.status === 204) return undefined as T;
     const text = await response.text();
@@ -144,11 +151,11 @@ export function createJuliClient(config: JuliClientConfig): JuliClient {
     let closed = false;
     const max = config.maxReconnectAttempts ?? DEFAULT_MAX_RECONNECTS;
 
-    const finish = (reason: JuliStreamCloseReason) => {
+    const finish = (reason: JuliStreamCloseReason, info?: { retryAt?: string }) => {
       if (closed) return;
       closed = true;
       handlers.onReconnecting?.(false);
-      handlers.onClose?.(reason);
+      handlers.onClose?.(reason, info);
     };
 
     const wait = (ms: number) =>
@@ -166,7 +173,10 @@ export function createJuliClient(config: JuliClientConfig): JuliClient {
         headers: buildAgentEventStreamHeaders(config.token, lastId, config.shopId),
         signal: controller.signal,
       });
-      if (!response.ok) throw new JuliApiError(response.status);
+      if (!response.ok) {
+        // The stream route's 429 has a string `detail` and a Retry-After header (never retried).
+        throw new JuliApiError(response.status, response.status === 429 ? retryAtFromHeader(response) : undefined);
+      }
       if (!response.body) throw new Error("juli stream has no body");
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -208,6 +218,7 @@ export function createJuliClient(config: JuliClientConfig): JuliClient {
           if (outcome === "terminal") return finish("terminal-event");
         } catch (error) {
           if (controller.signal.aborted) return finish("aborted");
+          if (error instanceof JuliApiError && error.status === 429) return finish("limited", { retryAt: error.retryAt });
           if (error instanceof JuliApiError && [401, 403, 404].includes(error.status)) {
             return finish("failed");
           }
@@ -228,7 +239,8 @@ export function createJuliClient(config: JuliClientConfig): JuliClient {
     ask: (request) => call<JuliAskResponse>("/ask", { method: "POST", body: JSON.stringify(request) }, true),
     stream,
     cancel: (id) => call<void>(`/messages/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
-    conversations: async () => (await call<{ conversations: readonly JuliConversationSummary[] }>("/conversations")).conversations,
+    conversations: async (platform) =>
+      (await call<{ conversations: readonly JuliConversationSummary[] }>(`/conversations${platform ? `?platform=${platform}` : ""}`)).conversations,
     conversation: async (id) =>
       adaptConversation(await call<{ id: string; title: string; messages: readonly JuliServerMessage[] }>(`/conversations/${encodeURIComponent(id)}`)),
     sendCard: (draftRef, versionLabel) =>
