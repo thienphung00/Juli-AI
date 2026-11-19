@@ -442,4 +442,4 @@ async def test_ads_and_kol_setups_carry_a_result(seller):
     # ADR-122 d.8: the cost is exact (the budget, Shopee-optimised) whether or not it is estimable
     assert r["cost"]["total"] == pytest.approx(150_000 * 7)
     if not r["estimable"]:
-        assert r["delta"]["profit"] is None and "cần chạy thử" in r["delta"]["orders"]["note"]
+        assert r["delta"]["profit"] is None and r["delta"]["orders"]["note"] == "Chưa ước tính được"

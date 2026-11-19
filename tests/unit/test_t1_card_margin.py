@@ -46,11 +46,13 @@ def scen(gmv: int, profit: int | None) -> Scenario:
     return Scenario(None, None, D(10), D(gmv), None if profit is None else D(profit), D(0))
 
 
-def result(before: Scenario, likely: Scenario | None, basis: MarginBasis | None) -> OptionResult:
+def result(
+    before: Scenario, likely: Scenario | None, basis: MarginBasis | None, days: int = 30
+) -> OptionResult:
     return OptionResult(
         kind="x",
         label="x",
-        days=30,
+        days=days,
         horizon="duration",
         drivers=(),
         estimable=likely is not None,
@@ -177,3 +179,88 @@ def test_only_the_sale_is_in_net_revenue_and_in_the_covered_gmv():
     assert sp.gmv == p.gmv == normal_gmv + 2 * D(70_000)
     b = margin_basis(sp, ())
     assert b is not None and (b.net_revenue, b.gmv) == (normal_net, normal_gmv)
+
+
+# -- a result that is not estimable shows ONE label to the seller (owner 2026-11-19) -------------
+
+LABEL = "Chưa ước tính được"
+NOT_ESTIMABLE_NOTES = {
+    "no_driver_data": "Chưa có dữ liệu để đòn bẩy Lượt xem chưa có dữ liệu",
+    "no_estimate": "Ít dữ liệu để ước tính CTR",
+    "needs_trial_run": "Cần chạy thử trước",
+    "measure_after_run": "Sẽ đo sau khi chạy",
+    "kol_first_sample": "Đo sau lần gửi mẫu đầu tiên",
+    "no_keyword_data": "Chưa có từ khoá của sản phẩm",
+    "no_keyword_gain": "Không thêm từ khoá nào",
+    "combo_few_orders": "Chưa đủ đơn để đo số đơn lên mức combo",
+    "combo_no_history": "Shop chưa chạy combo",
+    "set_not_cheaper": "Chưa có set nào rẻ hơn",
+    "no_pack_evidence": "Chưa có dữ liệu của quy cách này",
+    "pack_already_sold": "Shop đang bán quy cách này",
+    "followers_unknown": "Chưa biết người theo dõi",
+    "ads_budget_unlimited": "Chiến dịch không giới hạn ngân sách",
+    "ads_no_history": "Chưa có lịch sử ở mức này",
+    "ads_no_product_rows": "Chưa có báo cáo quảng cáo theo sản phẩm",
+    "ads_no_cpa": "Chưa đo được CPA",
+    "ads_no_incremental": "Chưa đủ ngày có và không có quảng cáo",
+    "ads_roas_system": "Shopee tự đặt mục tiêu ROAS",
+    "attach_few_orders": "Chưa đủ 10 đơn để ước tính mua kèm",
+}
+
+
+@pytest.mark.parametrize(("code", "note"), sorted(NOT_ESTIMABLE_NOTES.items()))
+def test_not_estimable_result_shows_only_the_one_label(code, note):
+    r = replace(result(scen(1_000_000, 0), None, BASIS), notes=(note,))
+    j = r.json()
+    assert j["reason_code"] == code  # the detail stays for internal use
+    assert j["delta"]["orders"]["note"] == LABEL
+    assert j["reason_text"] == LABEL
+    assert j["notes"] == [LABEL]
+    assert r.notes == (note,)  # the OptionResult (and its stored core) keep the detail
+
+
+def test_not_estimable_result_without_a_note_shows_the_label_too():
+    j = result(scen(1_000_000, 0), None, BASIS).json()
+    assert j["delta"]["orders"]["note"] == LABEL and j["reason_text"] == LABEL
+
+
+def test_every_no_estimate_reason_code_is_covered():
+    from juli_backend.services.shopee_builder import reasons
+
+    codes = [c for c in reasons.REASON_TEXT if not c.startswith("profit_")]
+    assert sorted(codes) == sorted(NOT_ESTIMABLE_NOTES)
+
+
+def test_estimable_result_keeps_its_notes_and_reason_text():
+    r = replace(result(scen(1_000_000, 10), scen(1_100_000, 20), BASIS), notes=("n1",))
+    j = r.json()
+    assert j["notes"] == ["n1"] and j["reason_text"] is None
+
+
+# -- the card's horizon: the dashboard basis is 30 days, the card's Δ and GMV are over `days` -----
+
+
+def test_after_margin_of_a_2_day_card_is_on_the_cards_own_horizon():
+    # 2 days: before GMV 100.000 (profit 18.800), after GMV 120.000 (profit 25.000, Δ +6.200)
+    # R_before = 94.000, R_after = 112.800; m0 = 20 % -> (0,2 x 94.000 + 6.200) / 112.800 = 22,2 %
+    # (the old formula added 6.200 to the 30-day profit: (188.000 + 6.200) / 112.800 = 172 %)
+    m = _margin(result(scen(100_000, 18_800), scen(120_000, 25_000), BASIS, days=2))
+    assert m["before_pct"] == 20.0 and m["after_pct"] == 22.2
+
+
+def test_after_margin_of_a_14_day_card_is_on_the_cards_own_horizon():
+    # R_before = 470.000, R_after = 564.000: (0,2 x 470.000 + 26.000) / 564.000 = 21,3 %
+    m = _margin(result(scen(500_000, 94_000), scen(600_000, 120_000), BASIS, days=14))
+    assert m["after_pct"] == 21.3
+
+
+def test_after_margin_of_a_30_day_card_is_unchanged():
+    m = _margin(result(scen(1_000_000, 10_000), scen(1_200_000, 60_000), BASIS, days=30))
+    assert m["after_pct"] == 21.1
+
+
+@pytest.mark.parametrize("days", [2, 14, 30])
+def test_no_change_means_no_margin_shift_on_any_horizon(days):
+    one = scen(100_000 * days, 5_000 * days)
+    m = _margin(result(one, one, BASIS, days=days))
+    assert m["after_pct"] == m["before_pct"] == 20.0 and m["shift_pts"] == 0

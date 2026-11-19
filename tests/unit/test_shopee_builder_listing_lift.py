@@ -122,7 +122,9 @@ async def test_no_keyword_data_is_not_estimable_but_saveable(session, bare_shop)
         assert v["ok"] is True
         assert v["result"]["estimable"] is False
         assert v["result"]["basis"] == "not_estimable"
-        assert "chưa có dữ liệu từ khoá của sản phẩm" in str(v["result"])
+        assert v["result"]["reason_code"] == "no_keyword_data" and v["result"]["notes"] == [
+            "Chưa ước tính được"
+        ]
 
 
 async def test_cover_image_and_price_display_are_not_estimable_but_saveable(session, shop):
@@ -140,5 +142,7 @@ async def test_cover_image_and_price_display_are_not_estimable_but_saveable(sess
         assert v["ok"] is True
         assert v["result"]["estimable"] is False
         assert v["result"]["basis"] == "not_estimable"
-        assert "đo sau khi chạy" in str(v["result"])
+        assert v["result"]["reason_code"] == "measure_after_run" and v["result"]["notes"] == [
+            "Chưa ước tính được"
+        ]
         assert v["result"]["cost"]["total"] == 0

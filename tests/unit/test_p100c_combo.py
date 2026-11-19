@@ -281,8 +281,10 @@ def test_wire_keys_carry_roi_and_margin():
     m = j["margin"]
     # T1: profit / doanh thu thuc (the dashboard's), never / GMV
     assert m["before_pct"] == 10.0
-    net_after = r.likely.gmv * D(10_000_000) / D(10_500_000)
-    after = (D(1_000_000) + r.likely.profit - r.before.profit) / net_after * 100
+    # on the card's horizon: m0 x R_before + Δ profit over R_after, R = GMV x net/GMV
+    ratio = D(10_000_000) / D(10_500_000)
+    r_before, r_after = r.before.gmv * ratio, r.likely.gmv * ratio
+    after = (D("0.1") * r_before + r.likely.profit - r.before.profit) / r_after * 100
     assert m["after_pct"] == pytest.approx(float(after), abs=0.06)
     assert m["shift_pts"] == pytest.approx(m["after_pct"] - m["before_pct"])
 
@@ -561,4 +563,4 @@ def test_deal_soc_with_few_orders_says_why_with_its_own_reason_code():
     out = result_json(run(replace(base(), low_data=("aov",)), option, n=200))
     assert out["estimable"] is False
     assert out["reason_code"] == "attach_few_orders"
-    assert out["reason_text"] == "Sản phẩm chính chưa đủ 10 đơn để ước tính mua kèm."
+    assert out["reason_text"] == "Chưa ước tính được"  # the seller sees the one label

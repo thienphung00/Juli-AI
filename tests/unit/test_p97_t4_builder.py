@@ -570,7 +570,9 @@ async def test_without_a_basket_in_history_there_is_nothing_to_switch_and_it_say
         # P99: nothing to switch and no pack evidence: "chưa ước tính được", never an all-+0
         assert v["result"]["estimable"] is False
         assert v["delta"]["gmv"]["p50"] is None and v["delta"]["orders"]["p50"] is None
-        assert any("chưa có dữ liệu cho quy cách này" in n for n in v["result"]["notes"])
+        # the seller sees one label; the detail stays in the reason code
+        assert v["result"]["notes"] == ["Chưa ước tính được"]
+        assert v["result"]["reason_code"] == "no_pack_evidence"
         assert "Chưa có đơn nào" in v["details"]["assumption"]
 
 
