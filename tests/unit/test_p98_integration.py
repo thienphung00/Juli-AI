@@ -36,7 +36,7 @@ from juli_backend.services.shopee_builder.engine_families.families import (
 )
 from juli_backend.services.shopee_profit.order_profit import OrderLine
 from tests.support.api import authenticate, build_app, client_for
-from tests.support.shopee_reco import AS_OF, seed_reco_shop
+from tests.support.shopee_reco import AS_OF, add_product_traffic_days, seed_reco_shop
 from tests.unit.test_shopee_builder import NOW, S
 
 B = "/v1/demo/shopee/builder"
@@ -199,6 +199,7 @@ def test_a_stable_seed_per_version():
 @pytest.fixture
 async def shop(session):
     seeded = await seed_reco_shop(session)
+    await add_product_traffic_days(session, seeded.shop_id)
     await materialize.backfill_shop(session, seeded.shop_id)
     await session.commit()
     return seeded
