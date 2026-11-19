@@ -151,6 +151,7 @@ export const DATASET_LABELS: Record<Dataset, string> = {
   order_income: "Doanh thu từng đơn",
   promotions: "Chương trình khuyến mãi",
   promotion_daily: "Khuyến mãi theo ngày",
+  flash_sale: "Flash Sale",
   affiliate_order_lines: "Đơn KOL",
   affiliate_partner_period: "KOL theo kỳ",
   affiliate_shop_period: "Tiếp thị liên kết theo ngày",

@@ -131,6 +131,20 @@ function promotionRequests(range: Range): PlannedRequest[] {
   }));
 }
 
+/**
+ * F6.4: Kênh Marketing › Flash Sale key metrics of one day, placed and confirmed (recorded 2026-11-19):
+ * `period=day`, end = the next midnight. A day with no flash sale answers code 40001 "no campaign": an
+ * empty day (a zero row), not an error.
+ */
+function flashSaleRequests(range: Range): PlannedRequest[] {
+  const start = Number(range.start_time);
+  return PROMOTION_ORDER_TYPES.map((order_type) => ({
+    dataset: "flash_sale" as const,
+    path: ENDPOINTS.flash_sale,
+    params: { start_time: String(start), end_time: String(start + DAY), period: "day", order_type },
+  }));
+}
+
 export function buildSyncPlan(
   nowMs: number,
   stopped: ReadonlySet<Dataset>,
@@ -155,6 +169,7 @@ export function buildSyncPlan(
   }
   if (wanted("product_overview")) plan.push(productOverviewRequest(range));
   if (wanted("promotion_daily")) plan.push(...promotionRequests(range));
+  if (wanted("flash_sale")) plan.push(...flashSaleRequests(range));
   if (itemReadersActive) plan.push(...itemRequests(range, wanted));
   return plan;
 }
@@ -200,6 +215,7 @@ export function buildBackfillDayPlan(
   }
   if (wanted("product_overview")) plan.push(productOverviewRequest(range));
   if (wanted("promotion_daily")) plan.push(...promotionRequests(range));
+  if (wanted("flash_sale")) plan.push(...flashSaleRequests(range));
   if (itemReadersActive) plan.push(...itemRequests(range, wanted));
   return plan;
 }

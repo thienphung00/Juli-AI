@@ -8,7 +8,7 @@ const Y_START = Date.UTC(2026, 9, 10, 17, 0, 0) / 1000;
 describe("daily sync plan", () => {
   it("asks for yesterday's shop-level calls (item pages off)", () => {
     const plan = buildSyncPlan(NOW, new Set(), false);
-    expect(plan.map((p) => p.dataset)).toEqual(["traffic_overview", "traffic_overview", "shop_traffic", "product_overview", "promotion_daily", "promotion_daily"]);
+    expect(plan.map((p) => p.dataset)).toEqual(["traffic_overview", "traffic_overview", "shop_traffic", "product_overview", "promotion_daily", "promotion_daily", "flash_sale", "flash_sale"]);
     expect(plan[1]?.params).toMatchObject({ order_type: "placed" });
     expect(plan[0]?.params).toEqual({
       start_time: String(Y_START),

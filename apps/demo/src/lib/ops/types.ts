@@ -672,6 +672,7 @@ export interface IngestTokenRow {
   readonly created_at: string;
   readonly expires_at: string;
   readonly last_used_at: string | null;
+  readonly last_seen_at?: string | null;
   readonly revoked_at: string | null;
   readonly active: boolean;
 }

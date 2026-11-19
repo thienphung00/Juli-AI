@@ -10,7 +10,7 @@
 import { type Dataset, type MydataDataset, SHOPEE_NO_VALUE } from "./config";
 import { ENDPOINTS } from "./endpoints";
 import { singleDay } from "../../core/time";
-import { mapPromotionDailyAnswer } from "./promotion-map";
+import { mapFlashSaleAnswer, mapPromotionDailyAnswer } from "./promotion-map";
 
 export { ENDPOINTS };
 
@@ -554,6 +554,7 @@ function mapCapturedAllInner(captured: Captured): Mapped[] {
   if (date === null) return [];
   if (dataset === "product_overview") return mapProductOverviewAnswer(captured.body, date);
   if (dataset === "promotion_daily") return mapPromotionDailyAnswer(captured.body, date, url.searchParams);
+  if (dataset === "flash_sale") return mapFlashSaleAnswer(captured.body, date, url.searchParams);
   const unwrapped = unwrap(captured.body);
   if (unwrapped === null) return [];
   const orderType = dataset === "shop_traffic" ? null : orderTypeOf(url.searchParams);

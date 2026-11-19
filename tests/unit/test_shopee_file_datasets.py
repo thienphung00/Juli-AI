@@ -517,6 +517,9 @@ def test_every_raw_code_alias_fits_the_segment_column_and_matches_its_label():
     assert card["psd_label_recommendation"] == card["Đề xuất"]
     ads = SHOPEE_L2_SOURCES["psd_label_shopee_ads"]
     assert ads["psd_label_shop_ads"] == ads["Quảng cáo cửa hàng"]
+    # the codes Seller Centre actually sent (2026-11-19)
+    assert card["psd_label_my_purchase"] == card["Đơn mua của tôi"] == "my_orders"
+    assert ads["psd_label_productgmvmax_autobidding_ads"] == "ads_auto_bid"
     assert all(len(code) <= 16 for labels in SHOPEE_L2_SOURCES.values() for code in labels.values())
 
 

@@ -94,6 +94,7 @@ _CARD_LIKE: dict[str, str] = {
     "psd_label_recommendation": "recommend",
     "psd_label_shopping_cart": "cart",
     "psd_label_my_orders": "my_orders",
+    "psd_label_my_purchase": "my_orders",  # the code Seller Centre actually sends (seen 2026-11-19)
     "psd_label_others": "other",
 }
 #: Seller Centre's level-2 source labels (``… › Theo nguồn lưu lượng``, every Ory export
@@ -132,6 +133,7 @@ SHOPEE_L2_SOURCES: dict[str, dict[str, str]] = {
         "Product Ads (GMV Max-Shop)": "ads_gmvmax_shop",
         "Khác": "other",
         "psd_label_productgmvmax_customroas_ads": "ads_roas_custom",
+        "psd_label_productgmvmax_autobidding_ads": "ads_auto_bid",  # seen 2026-11-19
         "psd_label_shop_ads": "ads_shop",
     },
 }

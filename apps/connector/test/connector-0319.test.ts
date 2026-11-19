@@ -97,14 +97,14 @@ function readerHarness(handler: (request: ReaderRequest) => { status?: number; b
 
 const FLAT = { uv: { value: 10, ratio: 0 }, pv: { value: 12, ratio: 0 }, placed_buyers: { value: 2, ratio: 0 } };
 const bodyFor = (request: ReaderRequest) =>
-  request.url.includes("/traffic/dashboard/") ? shopTraffic : request.url.includes("/product/overview/") ? FLAT : overview;
+  request.url.includes("/flash-sale/") ? { code: 40001, msg: "err:no campaign, detail:no campaign" } : request.url.includes("/traffic/dashboard/") ? shopTraffic : request.url.includes("/product/overview/") ? FLAT : overview;
 
 describe("the traffic reader (Truy cập in the scheduler's own tab)", () => {
   it("reads each day's overview on both order bases and the shop traffic dashboard, GET only", async () => {
     const h = readerHarness((request) => ({ body: bodyFor(request) }));
     const outcome = await runReaderJob({ id: "traffic", days: ["2026-11-13", "2026-11-12"] }, h.env);
     expect(outcome.status).toBe("done");
-    expect(h.sent).toHaveLength(12); // per day: overview x 2 order bases, shop traffic, product overview (F4.8), promotions x 2 order bases (F4.7)
+    expect(h.sent).toHaveLength(16); // per day: overview x 2 order bases, shop traffic, product overview (F4.8), promotions x 2 order bases (F4.7), flash sale x 2 (F6.4)
     expect(h.sent.every((r) => r.method === "GET")).toBe(true);
     const first = new URL(h.sent[0]!.url).searchParams;
     expect(Object.fromEntries(first)).toMatchObject({
@@ -115,7 +115,7 @@ describe("the traffic reader (Truy cập in the scheduler's own tab)", () => {
       SPC_CDS: "s",
     });
     expect(new URL(h.sent[2]!.url).pathname).toBe("/api/mydata/traffic/dashboard/overview/");
-    expect(Object.fromEntries(new URL(h.sent[8]!.url).searchParams)).toMatchObject({ period: "day", dt: "20261112" });
+    expect(Object.fromEntries(new URL(h.sent[10]!.url).searchParams)).toMatchObject({ period: "day", dt: "20261112" });
     expect(new URL(h.sent[3]!.url).pathname).toBe("/api/mydata/v2/product/overview/");
     expect(h.sent[0]!.headers["x-sap-ri"]).toBe("r");
     // the session params never reach what is posted
@@ -129,7 +129,7 @@ describe("the traffic reader (Truy cập in the scheduler's own tab)", () => {
     const odd = readerHarness((request) => (request.url.includes("placed") ? { body: { code: 10006, msg: "err:invalid param" } } : { body: bodyFor(request) }));
     const outcome = await runReaderJob({ id: "traffic", days: ["2026-11-13"] }, odd.env);
     expect(outcome.status).toBe("done");
-    expect(odd.sent).toHaveLength(6);
+    expect(odd.sent).toHaveLength(8);
     // and a rate answer stops it like every reader
     const rate = readerHarness(() => ({ status: 429, body: { error: 429 } }));
     expect((await runReaderJob({ id: "traffic", days: ["2026-11-13"] }, rate.env)).status).toBe("blocked_rate");
@@ -145,6 +145,8 @@ describe("the traffic reader (Truy cập in the scheduler's own tab)", () => {
       ["shop_traffic", "2026-11-13", null],
       ["product_overview", "2026-11-13", "placed"],
       ["product_overview", "2026-11-13", "confirmed"],
+      ["promotion_daily", "2026-11-13", "placed"], // F6.4: code 40001 "no campaign" = an empty flash sale day
+      ["promotion_daily", "2026-11-13", "confirmed"],
     ]);
     const { storage, client, connector } = connectorSetup();
     storage.data.token = TOKEN;
@@ -155,6 +157,8 @@ describe("the traffic reader (Truy cập in the scheduler's own tab)", () => {
       "shop_traffic:2026-11-13": "posted",
       "product_overview:2026-11-13:placed": "posted",
       "product_overview:2026-11-13:confirmed": "posted",
+      "promotion_daily:2026-11-13:placed": "posted",
+      "promotion_daily:2026-11-13:confirmed": "posted",
     });
     expect(client.posts.map((p) => p.dataset)).toEqual([
       "traffic_overview",
@@ -162,6 +166,8 @@ describe("the traffic reader (Truy cập in the scheduler's own tab)", () => {
       "shop_traffic",
       "product_overview",
       "product_overview",
+      "promotion_daily",
+      "promotion_daily",
     ]);
     // an error answer is left out
     expect(mapTrafficJob([{ ...(outcome.responses[0] as ReaderResponse), body: { code: 10006 } }])).toEqual([]);
