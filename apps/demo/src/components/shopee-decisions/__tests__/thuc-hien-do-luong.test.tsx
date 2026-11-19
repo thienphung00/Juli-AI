@@ -172,6 +172,15 @@ describe("Đối chiếu ngay", () => {
     expect(readerBlockText([{ section: "phan_tich_ban_hang", reason: "traffic_check", readers: [] }])).toBe("Shopee tạm chặn");
   });
 
+  it("traffic_check with until reads \"Shopee tạm chặn — Juli dừng đến HH:mm\" in GMT+7", () => {
+    expect(
+      readerBlockText([{ section: "seller_centre", reason: "traffic_check", readers: [], until: "2026-11-19T11:05:00.000Z" }]),
+    ).toBe("Shopee tạm chặn — Juli dừng đến 18:05");
+    expect(
+      readerBlockText([{ section: "seller_centre", reason: "traffic_check", readers: [], until: "not a time" }]),
+    ).toBe("Shopee tạm chặn");
+  });
+
   it("password_recheck reads \"Xác nhận mật khẩu\" + the section; login and captcha unchanged", async () => {
     const blocks = [{ section: "phan_tich_ban_hang", reason: "password_recheck", readers: ["shop_totals"] }];
     renderReco(<ThucHienView />, fakeReco({ execution: line({ reader_blocks: blocks }) }));

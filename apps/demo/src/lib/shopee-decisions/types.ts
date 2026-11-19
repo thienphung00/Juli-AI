@@ -773,6 +773,8 @@ export interface ReaderBlock {
   readonly section: "phan_tich_ban_hang" | "seller_centre" | string;
   readonly reason: "login" | "captcha" | "password_recheck" | "no_permission" | "traffic_check" | string;
   readonly readers: readonly string[];
+  /** ISO UTC time Juli stops waiting; only on a `traffic_check` block. */
+  readonly until?: string | null;
 }
 
 export interface ExecutionStates {

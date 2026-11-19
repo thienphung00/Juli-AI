@@ -140,3 +140,32 @@ def test_traffic_check_merges_and_clears_like_the_other_reasons():
     ]
     cleared = cs.merge_reader_blocks(merged, {"orders": "done:orders=posted"})
     assert cleared == [LOGIN]
+
+
+def test_traffic_check_carries_its_until_time_and_the_latest_wins():
+    blocks = cs.reader_blocks_of(
+        {
+            "orders": "blocked:traffic_check|until=2026-11-19T11:00:00.000Z",
+            "traffic": "blocked:traffic_check|until=2026-11-19T12:30:00.000Z",
+        }
+    )
+    assert blocks == [
+        {
+            "section": "seller_centre",
+            "reason": "traffic_check",
+            "readers": ["orders", "traffic"],
+            "until": "2026-11-19T12:30:00.000Z",
+        }
+    ]
+    assert cs.reader_blocks_of({"orders": "blocked:traffic_check|until=soon"}) == [
+        {"section": "seller_centre", "reason": "traffic_check", "readers": ["orders"]}
+    ]
+
+
+def test_until_survives_a_merge_and_the_union_of_computers():
+    first = cs.reader_blocks_of({"orders": "blocked:traffic_check|until=2026-11-19T11:00:00Z"})
+    merged = cs.merge_reader_blocks(
+        first, {"traffic": "blocked:traffic_check|until=2026-11-19T13:00:00Z"}
+    )
+    assert merged[0]["until"] == "2026-11-19T13:00:00Z"
+    assert merged[0]["readers"] == ["orders", "traffic"]
