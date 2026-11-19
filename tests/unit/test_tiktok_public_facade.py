@@ -56,6 +56,7 @@ EXPECTED_PUBLIC_EXPORTS = frozenset(
         "FINANCE_STATEMENTS_PATH",
         "INVENTORY_SEARCH_PATH",
         "MARKETPLACE_CREATORS_SEARCH_PATH",
+        "ORDER_DETAIL_PATH",
         "ORDER_SEARCH_PATH",
         # P14-C cost data: rate-limit bucket keys of the per-order reads.
         "ORDER_PRICE_DETAIL_PATH_TEMPLATE",
