@@ -76,6 +76,9 @@ GENERATED_TABLES = frozenset(
             "shop_metrics_daily",
             "product_metrics_daily",
             "source_metrics_daily",
+            "platform_promotions",
+            "platform_product_flags",
+            "platform_item_snapshots",
             "shop_daily_products",
             "shop_daily_streams",
             "shop_metric_rankings",
@@ -119,13 +122,11 @@ REVIEWER_TABLES = frozenset(
 )  # fmt: skip
 
 #: Kept on a reload: the catalogue, rules and content the seed (or a Connector read) wrote once.
-#: ``platform_promotions`` and ``platform_product_flags`` carry the load window's dates and
-#: ``platform_items`` first/last seen days; ``platform_item_snapshots`` is also written by the seed.
+#: ``platform_items`` carries first/last seen days: the ingest only moves ``last_seen_on`` forward.
 SEED_TABLES = frozenset(
     f"public.{t}"
     for t in (
-        "platform_items", "platform_item_snapshots", "platform_product_flags",
-        "platform_promotions", "card_content_specs", "shop_keyword_seeds", "shop_rule_versions",
+        "platform_items", "card_content_specs", "shop_keyword_seeds", "shop_rule_versions",
         "shop_rules", "product_image_assets", "products", "inventory_items",
         "shopee_sku_tracking", "creators", "livestreams", "promotion_activities",
         "promotion_activity_products", "ops_shop_daily_summary",
