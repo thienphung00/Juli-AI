@@ -25,9 +25,6 @@ from juli_backend.services.juli_agent_api.ports import (
 )
 from tests.unit.juli_agent_api.fakes import FakeEngine, fake_ports
 
-pytestmark = pytest.mark.asyncio
-
-
 # -- flag --------------------------------------------------------------------------------------
 
 
