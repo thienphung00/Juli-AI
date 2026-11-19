@@ -111,6 +111,8 @@ export function mapAdsProducts(responses: ReaderResponse[], _capturedAt: number)
       const report = isRecord(entry.report) ? entry.report : {};
       if (id === undefined) continue;
       const row: Row = { campaign_name: name.slice(0, 255), item_id: id, ordinal: ordinal++ };
+      // F4.5 (C4): Shopee's own campaign id, so the same campaign keeps one key across days and periods.
+      if (answer.campaignId) row.campaign_id = answer.campaignId;
       put(row, "ads_impressions", nonNeg(report.impression));
       put(row, "ad_clicks", nonNeg(report.click));
       put(row, "ctr", ctr(report.ctr));

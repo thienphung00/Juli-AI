@@ -14,7 +14,7 @@ import {
   type ReaderDataset,
 } from "../config";
 import { GatewayClient, GatewayError, ingestBody, type TokenInfo } from "../ingest/client";
-import { type Captured, mapCaptured, type Mapped } from "../map";
+import { type Captured, mapCapturedAll, type Mapped } from "../map";
 import { mapMarketSearch } from "../market";
 import { importOrderRefKey, orderRef } from "../ingest/order-ref";
 import { RAW_ORDER_ID } from "../affiliate-map";
@@ -154,9 +154,16 @@ export class Connector {
   }
 
   async handleCapture(captured: Captured): Promise<CaptureOutcome> {
-    const mapped = mapCaptured(captured);
-    if (mapped === null) return "ignored";
-    return this.submit(mapped, captured.capturedAt);
+    const all = mapCapturedAll(captured);
+    if (all.length === 0) return "ignored";
+    // One answer can hold several order types (product_overview): the first outcome that is not a post wins.
+    let outcome: CaptureOutcome = "posted";
+    for (const mapped of all) {
+      const result = await this.submit(mapped, captured.capturedAt);
+      if (outcome === "posted") outcome = result;
+      if (result === "unpaired" || result === "refused") return result;
+    }
+    return outcome;
   }
 
   /**
@@ -612,7 +619,8 @@ export class Connector {
       return finished ? "done" : "datasets_stopped";
     }
     // The shared daily request budget: a backfill day waits for tomorrow once today's is spent.
-    if (next.plan.length > backfillRequestsLeft(state, this.today())) {
+    // F4.4: later pages of a paged list are sent only after a full page, so a day is planned at its first pages.
+    if (next.plan.filter((r) => !r.page || r.params.page_num === "1").length > backfillRequestsLeft(state, this.today())) {
       await saveState(this.deps.storage, { backfill: { ...backfill, inFlight: undefined } });
       return "budget_spent";
     }

@@ -651,6 +651,24 @@ export function trafficDayBounds(day: string): { start_time: number; end_time: n
   return { start_time: start, end_time: start + 86_400 };
 }
 
+/**
+ * F4.4: the days one item_traffic job reads. A day is read whole or not at all (a day cut short is
+ * read again from its first item, so its requests were wasted): days are taken, yesterday first,
+ * while every item of the day still fits in `cap`; the first day is always taken (a shop with more
+ * items than the cap still gets its first `cap` items for it).
+ */
+export function trafficDaysWithinCap(days: string[], itemCount: number, cap: number): string[] {
+  if (itemCount <= 0) return [];
+  const taken: string[] = [];
+  let left = cap;
+  for (const day of days) {
+    if (taken.length > 0 && left < itemCount) break;
+    taken.push(day);
+    left -= itemCount;
+  }
+  return taken;
+}
+
 async function readItemTraffic(env: ReaderEnv, days: string[], itemIds: string[], collected: ReaderResponse[]): Promise<void> {
   // The re-confirmation modal means the page will never load its data: stop at once.
   const modal = () => env.passwordModalVisible?.() === true;
@@ -666,7 +684,7 @@ async function readItemTraffic(env: ReaderEnv, days: string[], itemIds: string[]
   };
   let requests = 0;
   let errorsInARow = 0;
-  for (const day of days) {
+  for (const day of trafficDaysWithinCap(days, itemIds.length, TRAFFIC_MAX_REQUESTS_PER_JOB)) {
     const bounds = trafficDayBounds(day);
     for (const itemId of itemIds) {
       if (requests >= TRAFFIC_MAX_REQUESTS_PER_JOB) return;
@@ -711,7 +729,7 @@ async function readTraffic(env: ReaderEnv, days: string[], collected: ReaderResp
   const template: Template = { query: {}, headers: env.mydataHeaders?.() };
   for (const day of days) {
     for (const planned of buildBackfillDayPlan(day, env.now(), new Set(), false)) {
-      if (planned.dataset !== "traffic_overview" && planned.dataset !== "shop_traffic") continue;
+      if (planned.dataset !== "traffic_overview" && planned.dataset !== "shop_traffic" && planned.dataset !== "product_overview") continue;
       const request = buildReaderRequest(env.origin, planned.dataset, template, { query: planned.params }, env.session());
       await send(env, request, collected, { day }, true);
     }
@@ -850,7 +868,30 @@ async function readProductPeriod(env: ReaderEnv, collected: ReaderResponse[]): P
  * for the campaign it opened is kept as loaded; for each other group campaign the same call is
  * replayed with only `campaign_id` changed. Nothing is clicked (no Xóa, no Thêm sản phẩm).
  */
-async function readAdsProducts(env: ReaderEnv, ids: string[], names: string[], collected: ReaderResponse[]): Promise<void> {
+/** F4.5: at most this many (campaign x day) requests for past days in one ads_products job. */
+export const ADS_PRODUCTS_MAX_DAY_REQUESTS = 60;
+
+/**
+ * F4.5: the page's own request body with its window set to one finished GMT+7 day (the unit of the
+ * page's `start_time` / `end_time`, seconds or milliseconds, is kept). The end is the day's last second.
+ */
+export function adsProductsDayBody(body: Record<string, unknown>, day: string): Record<string, unknown> {
+  const start = gmt7DateStart(day);
+  const millis = typeof body.start_time === "number" && body.start_time > 1e12;
+  const out: Record<string, unknown> = {
+    start_time: millis ? start * 1000 : start,
+    end_time: millis ? (start + 86_399) * 1000 : start + 86_399,
+  };
+  return out;
+}
+
+async function readAdsProducts(
+  env: ReaderEnv,
+  ids: string[],
+  names: string[],
+  collected: ReaderResponse[],
+  days: string[] = [],
+): Promise<void> {
   // Capture-only first: the page loads the table itself; a missing session must not discard it.
   const answered = () => env.template("ads_mpd_products")?.lastResponse !== undefined;
   if (!(await env.waitFor(() => env.hasSession() || answered(), READER_TEMPLATE_WAIT_MS)) && !answered()) {
@@ -886,6 +927,26 @@ async function readAdsProducts(env: ReaderEnv, ids: string[], names: string[], c
     const request = buildReaderRequest(env.origin, "ads_mpd_products", template, { body: { campaign_id: typed } }, env.session());
     const name = names[index + 1];
     await send(env, request, collected, { campaignId: id, ...(name ? { campaignName: name } : {}), ...bodyPeriod(body) }, true);
+  }
+  // F4.5: past days, one request per campaign x day (the same GET-free POST the page makes, only the
+  // window changed; a 1-day window is what fills the per-product daily spend). Never a click.
+  let sent = 0;
+  for (const day of days) {
+    for (const [index, id] of ids.entries()) {
+      if (sent >= ADS_PRODUCTS_MAX_DAY_REQUESTS) return;
+      sent += 1;
+      const typed = typeof body.campaign_id === "number" ? Number(id) : id;
+      const window = adsProductsDayBody(body, day);
+      const request = buildReaderRequest(
+        env.origin,
+        "ads_mpd_products",
+        template,
+        { body: { campaign_id: typed, ...window } },
+        env.session(),
+      );
+      const name = (index === 0 ? openedName : undefined) ?? names[index];
+      await send(env, request, collected, { campaignId: id, ...(name ? { campaignName: name } : {}), period: { start: day, end: day } }, true);
+    }
   }
 }
 
@@ -1011,6 +1072,65 @@ export function orderSnDay(sn: string | undefined): string | undefined {
   return `20${m[1]}-${m[2]}-${m[3]}`;
 }
 
+/** The orders an index answer names (trimmed: `order_id`, `order_sn`), as list links. */
+export function orderLinksOfIndex(body: unknown): OrderLink[] {
+  const found = findList(payloadOf(body), (o) => "order_id" in o || "order_sn" in o);
+  const out: OrderLink[] = [];
+  for (const o of found?.list ?? []) {
+    const id = o.order_id !== undefined && o.order_id !== null ? String(o.order_id) : undefined;
+    if (!id || !/^\d{1,20}$/.test(id)) continue;
+    const sn = typeof o.order_sn === "string" && o.order_sn ? o.order_sn.toUpperCase() : undefined;
+    out.push({ id, ...(sn ? { sn } : {}) });
+  }
+  return out;
+}
+
+/**
+ * F4.10: pages 2..N of the order list, no click. The list page's own `order_search` request (its
+ * body, headers) is replayed with only the page number changed, a pause before each page, until a
+ * page is short (complete), a page's orders were all placed before `sinceDay` (complete), the page
+ * cap (`partial:page_cap`), or the number of orders to read in detail reaches the per-run cap
+ * (`partial:detail_cap`, said by the caller). Nothing replayable (no template, no page number in
+ * its body) is `partial:first_page`: the job is not complete.
+ */
+async function readOrderIndexPages(
+  env: ReaderEnv,
+  collected: ReaderResponse[],
+  orders: Map<string, OrderLink>,
+  sinceDay: string,
+): Promise<{ complete: boolean; note?: string }> {
+  const search = env.template("order_search");
+  if (!search || !isRecord(search.body) || !isReadOnlyOrderPath(READER_ENDPOINTS.order_search.path)) {
+    return { complete: false, note: "partial:first_page" };
+  }
+  const size = bodyPageSize(search.body) ?? pageSizeOf(search, 40);
+  if (withListPage(search.body, 2, size) === null) return { complete: false, note: "partial:first_page" };
+  const random = env.random ?? Math.random;
+  for (let page = 2; page <= ORDER_LIST_MAX_PAGES_PER_RUN; page += 1) {
+    if (orders.size >= ORDER_DETAIL_MAX_PER_RUN) return { complete: true }; // the detail cap says the rest
+    try {
+      const body = withListPage(search.body, page, size) as Record<string, unknown>;
+      await env.pause?.(ORDER_LIST_PAGE_GAP_MS + Math.floor(random() * ORDER_LIST_PAGE_GAP_JITTER_MS));
+      const request = buildReaderRequest(env.origin, "order_search", search, { body }, env.session());
+      const index = await send(env, request, collected, { page });
+      index.body = trimOrderIndex(index.body);
+      const links = orderLinksOfIndex(index.body);
+      if (links.length === 0) return { complete: true };
+      for (const link of links) if (!orders.has(link.id)) orders.set(link.id, link);
+      if (links.length < size) return { complete: true };
+      const days = links.map((link) => orderSnDay(link.sn));
+      if (days.every((day) => day !== undefined && day < sinceDay)) return { complete: true };
+    } catch (error) {
+      // A failed replay keeps the pages already read; CAPTCHA / login / rate stops still stop everything.
+      if (error instanceof Stop && error.outcome.status === "error") {
+        return { complete: false, note: `partial:${error.outcome.detail ?? "error"}`.slice(0, 80) };
+      }
+      throw error;
+    }
+  }
+  return { complete: false, note: "partial:page_cap" };
+}
+
 /**
  * The order list as the page shows it (0.3.20). Seller Centre's list page no longer calls the
  * list endpoints the hook could replay (it loads through Shopee's DRM bundle), so: the order ids
@@ -1032,7 +1152,13 @@ async function readOrdersFromList(env: ReaderEnv, collected: ReaderResponse[], s
   if (sinceDay !== undefined) {
     const days = shown.map((link) => orderSnDay(link.sn));
     const olderSeen = shown.length > 0 && days.every((day) => day !== undefined && day < sinceDay);
-    if (!olderSeen && env.moreOrderPages?.()) note = "partial:first_page";
+    if (!olderSeen && env.moreOrderPages?.()) {
+      // F4.10: the pages after the one shown are read through the list's own index call, replayed
+      // with only its page number changed (the page's captured request, never a click on the pager).
+      // Only when the page made no such call (no template, no page number in it) is the job partial.
+      const paged = await readOrderIndexPages(env, collected, orders, sinceDay);
+      note = paged.complete ? undefined : paged.note;
+    }
   }
   const wanted = [...orders.values()].filter((link) => {
     const day = orderSnDay(link.sn);
@@ -1535,7 +1661,7 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         await readProductPeriod(env, collected);
         break;
       case "ads_products":
-        await readAdsProducts(env, job.campaignIds ?? [], job.campaignNames ?? [], collected);
+        await readAdsProducts(env, job.campaignIds ?? [], job.campaignNames ?? [], collected, job.days ?? []);
         break;
       case "shop_totals":
         await readShopTotals(env, job.days ?? [], collected);
