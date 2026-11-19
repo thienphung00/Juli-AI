@@ -652,7 +652,7 @@ async def test_a_gate_without_a_sink_still_gates_and_sends():
     )
     assert usage.output_tokens == 7
     refused = OpenAIGate(shop_id=SHOP, granted=frozenset())
-    with pytest.raises(GateRefused):
+    with pytest.raises(GateRefused) as excinfo:
         await anthropic_messages(
             refused,
             purpose=PURPOSE_AGENT_CHAT_PARSE,
@@ -660,7 +660,54 @@ async def test_a_gate_without_a_sink_still_gates_and_sends():
             timeout=5,
             transport=rec.transport,
         )
+    assert excinfo.value.reason == "consent_llm_processing"
     assert len(rec.requests) == 1
+
+
+def _assistant(block: dict[str, Any]) -> dict[str, Any]:
+    return {"messages": [{"role": "assistant", "content": [block]}]}
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        _assistant({"type": "tool_use", "id": 1, "name": "parse", "input": {}}),
+        _assistant({"type": "tool_use", "id": "tu_1", "name": None, "input": {}}),
+        _assistant({"type": "tool_result", "tool_use_id": 7, "content": "x"}),
+        _assistant(
+            {"type": "tool_result", "tool_use_id": "tu_1", "content": "x", "is_error": "no"}
+        ),
+        {"stop_sequences": "END"},
+        {"stop_sequences": ["END", 3]},
+    ],
+)
+async def test_pass_through_fields_must_have_their_types(change):
+    gate, log = _gate()
+    rec = Recorder(_message_response())
+    with pytest.raises(GateRefused) as excinfo:
+        await anthropic_messages(
+            gate,
+            purpose=PURPOSE_AGENT_CHAT_PARSE,
+            body=_messages_body(**change),
+            timeout=5,
+            transport=rec.transport,
+        )
+    assert excinfo.value.reason == "payload_shape"
+    assert rec.requests == []
+    assert [e.refusal_reason for e in log.entries] == ["payload_shape"]
+
+
+async def test_stop_sequences_are_minimised():
+    gate, _ = _gate()
+    rec = Recorder(_message_response())
+    await anthropic_messages(
+        gate,
+        purpose=PURPOSE_AGENT_CHAT_PARSE,
+        body=_messages_body(stop_sequences=["END", f"shop {PLATFORM_ID}"]),
+        timeout=5,
+        transport=rec.transport,
+    )
+    assert rec.body()["stop_sequences"] == ["END", "shop [shop]"]
 
 
 # -- streaming -------------------------------------------------------------------------
@@ -851,3 +898,55 @@ async def test_a_stream_purpose_must_be_bound_to_anthropic():
     assert excinfo.value.reason == "unknown_purpose"
     assert rec.requests == []
     assert log.entries[0].status == "refused"
+
+
+class _BrokenStream(httpx.AsyncByteStream):
+    """Sends ``message_start``, then the connection drops."""
+
+    async def __aiter__(self):
+        yield _sse(
+            {"type": "message_start", "message": {"usage": {"input_tokens": 5, "output_tokens": 0}}}
+        )
+        raise httpx.ReadError("connection reset")
+
+
+async def test_a_transport_error_mid_stream_writes_exactly_one_error_row():
+    gate, log = _gate()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, stream=_BrokenStream(), headers={"content-type": "text/event-stream"}
+        )
+
+    with pytest.raises(GateCallFailed) as excinfo:
+        async with anthropic_stream(
+            gate,
+            purpose=PURPOSE_AGENT_CHAT_WRITE,
+            body=_messages_body(),
+            timeout=5,
+            transport=httpx.MockTransport(handler),
+        ) as stream:
+            async for _ in stream:
+                pass
+    assert excinfo.value.reason == "transport"
+    assert isinstance(excinfo.value.__cause__, httpx.ReadError)
+    [entry] = log.entries
+    assert (entry.status, entry.input_tokens) == ("error", 5)
+
+
+async def test_an_exception_in_the_callers_block_writes_exactly_one_error_row():
+    gate, log = _gate()
+    rec = Recorder(
+        httpx.Response(200, content=STREAM_OK, headers={"content-type": "text/event-stream"})
+    )
+    with pytest.raises(ValueError) as excinfo:
+        async with anthropic_stream(
+            gate,
+            purpose=PURPOSE_AGENT_CHAT_WRITE,
+            body=_messages_body(),
+            timeout=5,
+            transport=rec.transport,
+        ):
+            raise ValueError("caller bug")
+    assert str(excinfo.value) == "caller bug"
+    assert [e.status for e in log.entries] == ["error"]

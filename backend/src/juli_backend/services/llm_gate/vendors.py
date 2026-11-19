@@ -19,7 +19,9 @@ and get the same guarantees, BEFORE ANY HTTP:
      ``tool_use``, ``tool_result`` only -- no image or document block, so no image ever
      leaves on this path. ``system`` is a string or a list of ``text`` blocks.
      ``output_config`` and ``thinking`` must be objects and pass as they are (config, not
-     data), like ``tools`` (schemas) and ``tool_choice``.
+     data), like ``tools`` (schemas) and ``tool_choice``. ``tool_use.id`` / ``name`` and
+     ``tool_result.tool_use_id`` must be strings, ``is_error`` a bool, ``stop_sequences``
+     a list of strings (minimised).
    - System One: exactly ``{model, state, questions}`` (no ``assets``); every question
      is ``choice`` (non-empty ``criteria``) or ``noul`` (``criteria`` absent or
      ``{true, false}``) with keys ``type``, ``instructions``, ``criteria`` only.
@@ -208,13 +210,20 @@ def _content_block(block: Any, cleaner: _TextCleaner) -> dict[str, Any]:
     if kind == "text":
         return _text_block(block, cleaner)
     if kind == "tool_use":
-        if set(block) - {"type", "id", "name", "input"} or not isinstance(
-            block.get("input"), Mapping
+        if (
+            set(block) - {"type", "id", "name", "input"}
+            or not isinstance(block.get("input"), Mapping)
+            or not isinstance(block.get("id"), str)
+            or not isinstance(block.get("name"), str)
         ):
             raise PayloadRefused(REASON_SHAPE)
         return {**block, "input": _clean_value(dict(block["input"]), cleaner)}
     if kind == "tool_result":
-        if set(block) - {"type", "tool_use_id", "content", "is_error"}:
+        if (
+            set(block) - {"type", "tool_use_id", "content", "is_error"}
+            or not isinstance(block.get("tool_use_id"), str)
+            or not isinstance(block.get("is_error", False), bool)
+        ):
             raise PayloadRefused(REASON_SHAPE)
         content = block.get("content", "")
         if isinstance(content, str):
@@ -243,8 +252,15 @@ def inspect_messages_body(
             raise PayloadRefused(REASON_SHAPE)
     if "tools" in body and not isinstance(body["tools"], list):
         raise PayloadRefused(REASON_SHAPE)
+    stops = body.get("stop_sequences")
+    if stops is not None and (
+        not isinstance(stops, list) or not all(isinstance(stop, str) for stop in stops)
+    ):
+        raise PayloadRefused(REASON_SHAPE)
     cleaner = _cleaner(shop_identifiers)
     out = dict(body)
+    if stops is not None:
+        out["stop_sequences"] = [cleaner.clean(stop) for stop in stops]
     system = body.get("system")
     if system is not None:
         if isinstance(system, str):
@@ -326,13 +342,16 @@ def inspect_system_one_body(
 # -- the doors --------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass
 class _Call:
+    """One call attempt; it writes exactly one ``llm_call_log`` row (the first wins)."""
+
     gate: OpenAIGate
     provider: str
     purpose: str
     endpoint: str
     model: str
+    written: bool = False
 
     def entry(
         self,
@@ -356,6 +375,9 @@ class _Call:
         )
 
     async def write(self, entry: CallLogEntry) -> None:
+        if self.written:
+            return
+        self.written = True
         await self.gate._write(entry)
 
     async def refuse(self, reason: str) -> GateRefused:
@@ -606,6 +628,13 @@ async def anthropic_stream(
                     raise await call.failed(
                         FAIL_STREAM, usage=stream.usage, response=None, request_id_header=header
                     ) from None
+                except httpx.HTTPError as exc:
+                    raise await call.failed(
+                        FAIL_TRANSPORT,
+                        usage=stream.usage,
+                        response=None,
+                        request_id_header=header,
+                    ) from exc
                 except BaseException:
                     await call.write(
                         call.entry(
