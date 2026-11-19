@@ -65,6 +65,10 @@ from juli_backend.integrations.tiktok import (
     promotion_activity_path,
 )
 from juli_backend.models.models import TikTokCredential
+from juli_backend.services.ingest.tiktok_canonical import (
+    TikTokCanonicalSync,
+    order_search_kwargs,
+)
 from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)
@@ -718,8 +722,11 @@ async def sync_orders(
     app_id: str,
     shop_id: str,
     sync_state: dict[str, Any],
+    canonical: TikTokCanonicalSync | None = None,
+    now: datetime | None = None,
 ) -> SyncOutcome:
-    """Fetch orders since last sync, hand off to ETL, and report the triple."""
+    """Fetch orders since last sync, hand off to ETL, map them to the canonical tables in the
+    same job (``canonical``, P101 W2), and report the triple."""
     if not rate_limiter.acquire(
         app_id, shop_id, ORDER_SEARCH_PATH, max_requests=10, window_seconds=60
     ):
@@ -727,6 +734,7 @@ async def sync_orders(
         return _skipped("orders", shop_id)
 
     update_from = sync_state.get("orders_last_update_time")
+    search_kwargs = order_search_kwargs(update_from, now=now)
     with _StepRun(
         "orders",
         shop_id,
@@ -735,7 +743,7 @@ async def sync_orders(
         update_time_from=update_from,
     ) as step:
         try:
-            orders = step.fetch(lambda: resource.search_all(update_time_from=update_from))
+            orders = step.fetch(lambda: resource.search_all(**search_kwargs))
         except TikTokPaginationError as exc:
             # A truncated or timed-out backfill is a failed read, not a partial one.
             # The exception must reach `report` too, or the step logs `ok=True` on
@@ -763,6 +771,10 @@ async def sync_orders(
                     json.dumps(line_item).encode(),
                 )
             max_update_time = max(max_update_time, order.get("update_time", 0))
+        if canonical is not None and orders:
+            # P101 W2 (S-1): raw -> canonical in the same job. Never fails the step: a
+            # failed canonical write is logged and the nightly reconcile repairs it.
+            await canonical.on_orders(orders)
 
         outcome = step.report()
         # The watermark follows the rows, never the fetch (#1950): advancing it over
@@ -940,8 +952,10 @@ async def sync_returns(
     app_id: str,
     shop_id: str,
     sync_state: dict[str, Any],
+    canonical: TikTokCanonicalSync | None = None,
 ) -> SyncOutcome:
-    """Fetch returns since last sync, hand off to ETL, and report the triple."""
+    """Fetch returns since last sync, hand off to ETL, re-map the returned lines' orders to the
+    canonical tables (``canonical``, P101 W2), and report the triple."""
     if not rate_limiter.acquire(
         app_id, shop_id, RETURN_SEARCH_PATH, max_requests=10, window_seconds=60
     ):
@@ -977,6 +991,8 @@ async def sync_returns(
                 max_update_time,
                 ret.get("update_time") or ret.get("create_time") or 0,
             )
+        if canonical is not None and returns:
+            await canonical.on_returns(returns)
 
         outcome = step.report()
         if returns and outcome.persisted:

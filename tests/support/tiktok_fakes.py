@@ -134,6 +134,8 @@ class FakeOrdersResource(_Recording):
         status: str | None = None,
         update_time_from: int | None = None,
         update_time_to: int | None = None,
+        create_time_from: int | None = None,
+        create_time_to: int | None = None,
         page_size: int = 50,
     ) -> list[dict[str, Any]]:
         return self._record(
