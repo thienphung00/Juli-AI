@@ -156,10 +156,12 @@ class ServiceData:
             f"(lower(name) like lower(:w{i}) or item_id = :raw or seller_sku = :raw)"
             for i in range(len(words))
         )
+        sql = (
+            f"select distinct on (item_id) item_id, name from platform_items "  # nosec B608
+            f"where shop_id = :s and {cond} order by item_id, updated_at desc limit 8"
+        )
         return await self._q(
-            f"""select distinct on (item_id) item_id, name from platform_items
-                 where shop_id = :s and {cond}
-                 order by item_id, updated_at desc limit 8""",
+            sql,
             raw=phrase.strip(),
             **{f"w{i}": f"%{w}%" for i, w in enumerate(words)},
         )
