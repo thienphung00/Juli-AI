@@ -145,6 +145,11 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "shop_reco_plan_group_members"): "tenant_direct",
     # P100 E.7 (migration 127): append-only title / banner / style-profile specs of a card or shop.
     ("public", "card_content_specs"): "tenant_direct",
+    # batch-1120 (migration 137): the Juli tab, shared per shop.
+    ("public", "agent_conversations"): "tenant_direct",
+    ("public", "agent_messages"): "tenant_direct",
+    ("public", "agent_routing_decisions"): "tenant_direct",
+    ("public", "agent_card_drafts"): "tenant_direct",
     ("public", "shop_reco_change_sets"): "tenant_direct",
     ("public", "planned_change_imports"): "tenant_direct",
     ("public", "planned_change_refs"): "tenant_direct",
