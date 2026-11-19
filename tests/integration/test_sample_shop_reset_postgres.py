@@ -177,7 +177,9 @@ async def test_reload_with_a_new_end_date_equals_a_fresh_load():
         fresh = await loader.load(factory, generate(d2, shopee_shop_id=other_id), now=NOW)
         fresh_figures = await _figures(factory, fresh.shop_id)
         fresh_dated = await _dated(factory, fresh.shop_id)
-        assert all(v[0] > 0 for k, v in fresh_dated.items() if k != "last_seen")
+        # the sample posts no product flags: that table stays empty on both sides, the others fill
+        empty = {k for k in fresh_dated if k != "last_seen" and k[0] == "platform_product_flags"}
+        assert all(v[0] > 0 for k, v in fresh_dated.items() if k != "last_seen" and k not in empty)
         assert fresh_figures[0] > 0 and fresh_figures[2] > 0
 
         first = await loader.load(factory, generate(d1), now=NOW)
