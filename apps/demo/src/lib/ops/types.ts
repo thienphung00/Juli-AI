@@ -676,6 +676,13 @@ export interface IngestTokenRow {
   readonly active: boolean;
 }
 
+/** F4.13: a Connector reader whose newest outcome is not done / fresh / skipped. */
+export interface ConnectorProblem {
+  readonly reader: string;
+  readonly outcome: string;
+  readonly since: string;
+}
+
 /** ADR-118 "Chu kỳ": proposals of a shop's manual cycle (`GET /v1/ops/shops/{id}/proposals`). */
 export type ProposalKind = "title" | "images" | "price" | "voucher" | "flash_sale" | "ads" | "bundle" | "program" | "stock" | "other";
 export type ProposalSubject = "item" | "shop" | "campaign";

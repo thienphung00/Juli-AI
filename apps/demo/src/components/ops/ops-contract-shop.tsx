@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { fmtWhen } from "../../lib/ops/format";
-import type { IngestTokenRow, PairingCode } from "../../lib/ops/types";
+import type { ConnectorProblem, IngestTokenRow, PairingCode } from "../../lib/ops/types";
 import { C, card } from "./ops-shell";
 
 /**
@@ -28,7 +28,25 @@ const BUTTON = {
 
 const SECONDARY = { ...BUTTON, color: C.ink, background: "#ffffff", border: `1px solid ${C.line}` } as const;
 
-type ConsentApi = Partial<Pick<OpsApi, "createPairingCode" | "ingestTokens" | "revokeIngestToken">>;
+type ConsentApi = Partial<Pick<OpsApi, "createPairingCode" | "ingestTokens" | "revokeIngestToken" | "connectorProblems">>;
+
+/** F4.13: a reader outcome other than done / fresh / skipped, in a few words. */
+export function problemLabel(outcome: string): string {
+  const [head, detail] = outcome.split(":");
+  if (head === "blocked") {
+    if (detail === "login") return "Cần đăng nhập";
+    if (detail === "password_recheck") return "Cần nhập lại mật khẩu";
+    if (detail === "no_permission") return "Không có quyền";
+    return "Cần xác minh";
+  }
+  if (head === "error") return "Lỗi";
+  if (head === "timeout") return "Quá thời gian";
+  if (head === "needs_template") return "Chưa có mẫu";
+  if (head === "open_failed") return "Không mở được trang";
+  if (head === "waiting_budget") return "Chờ hạn mức";
+  if (head === "partial") return "Đọc chưa đủ";
+  return outcome;
+}
 
 export function OpsShopConsent({
   shopId,
@@ -52,6 +70,19 @@ function OpsShopConnector({ shopId, canEdit, api }: { readonly shopId: string; r
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [epoch, setEpoch] = useState(0);
+  const [problems, setProblems] = useState<readonly ConnectorProblem[]>([]);
+
+  useEffect(() => {
+    let live = true;
+    if (!api.connectorProblems) return;
+    api
+      .connectorProblems(shopId)
+      .then((r) => live && setProblems(r.data))
+      .catch(() => live && setProblems([]));
+    return () => {
+      live = false;
+    };
+  }, [api, shopId]);
 
   useEffect(() => {
     let live = true;
@@ -126,6 +157,17 @@ function OpsShopConnector({ shopId, canEdit, api }: { readonly shopId: string; r
                   Thu hồi
                 </button>
               ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {problems.length ? (
+        <ul aria-label="Reader lỗi" style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
+          {problems.map((p) => (
+            <li key={p.reader} style={{ display: "flex", gap: 10, fontSize: 13 }}>
+              <span style={{ fontWeight: 600 }}>{p.reader}</span>
+              <span style={{ color: C.red }}>{problemLabel(p.outcome)}</span>
+              <span style={{ color: C.muted2 }}>từ {fmtWhen(p.since)}</span>
             </li>
           ))}
         </ul>
