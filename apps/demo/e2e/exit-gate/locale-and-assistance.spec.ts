@@ -1,11 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 import { DEMO_MODE_REPLAY_LABEL } from "../../src/lib/demo-mode-copy";
-import { JULI_LOCKED_HINT } from "../../src/lib/app-navigation";
 import {
   HOME_MATRIX_REGION,
   enterReplayDemo,
-  expectFourDestinationShell,
+  expectPrimaryRailShell,
   expectShopHeader,
   navigatePrimaryDestination,
   openShopMenu,
@@ -13,12 +12,12 @@ import {
 
 // AC-8.5 retired the contextual-assistance aside (ADR-109 d.1: the shell
 // follows the sales demo video, which has none). What this suite still
-// guards on every destination is the shell itself: the four-item nav with
-// Juli locked, and the shop header without a global stepper.
+// guards on every destination is the shell itself: the one-rail nav, and the
+// shop header without a global stepper.
 const DESTINATION_PATHS = [
-  { path: "/", label: "Trang chủ" },
-  { path: "/decisions", label: "Quyết định" },
+  { path: "/", label: "Tổng quan" },
   { path: "/analytics", label: "Phân tích" },
+  { path: "/decisions", label: "Quyết định" },
 ] as const;
 
 test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
@@ -101,38 +100,26 @@ test.describe("App shell regression (AC-8.5) — every destination", () => {
       // Trang chủ's shell is the sample Home's, behind the sample entry.
       if (destination.path === "/") await enterReplayDemo(page);
       else await page.goto(destination.path);
-      await expectFourDestinationShell(page);
+      await expectPrimaryRailShell(page);
       await expectShopHeader(page);
     });
   }
-
-  test("Juli is shown, locked, and says what is coming", async ({ page }) => {
-    await page.goto("/decisions");
-    const juli = page
-      .getByRole("navigation", { name: "Điều hướng chính" })
-      .getByRole("link", { name: "Juli", exact: true });
-    await expect(juli).toBeVisible();
-    await expect(juli).toHaveAttribute("aria-disabled", "true");
-    await expect(juli).toHaveAttribute("title", JULI_LOCKED_HINT);
-    await juli.click({ force: true });
-    await expect(page).toHaveURL(/\/decisions$/);
-  });
 
   test("Cài đặt opens from the shop-avatar menu", async ({ page }) => {
     await page.goto("/decisions");
     await openShopMenu(page);
     await page.getByRole("link", { name: "Cài đặt" }).click();
     await expect(page).toHaveURL(/\/settings$/);
-    await expectFourDestinationShell(page);
+    await expectPrimaryRailShell(page);
   });
 
   test("primary navigation has exactly four destinations (no fifth tab)", async ({
     page,
   }) => {
     await enterReplayDemo(page);
-    await expectFourDestinationShell(page);
+    await expectPrimaryRailShell(page);
     await navigatePrimaryDestination(page, "Phân tích");
     await expect(page).toHaveURL(/\/analytics/);
-    await expectFourDestinationShell(page);
+    await expectPrimaryRailShell(page);
   });
 });

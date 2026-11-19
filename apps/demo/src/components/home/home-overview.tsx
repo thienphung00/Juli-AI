@@ -183,7 +183,7 @@ export function HomeOverview({ envelope, sample = false }: HomeOverviewProps) {
   return (
     <section aria-labelledby="home-title" className="home-overview">
       <AppPageHeader
-        eyebrow={day ? `Trang chủ · ${day}` : "Trang chủ"}
+        eyebrow={day ? `Tổng quan · ${day}` : "Tổng quan"}
         lede={`${clock ? `Juli dựng báo cáo lúc ${clock} và so` : "Juli so"} từng chỉ số của 5 luồng truy cập trong ${model.windowDays} ngày đến ${end} với ${model.windowDays} ngày trước đó.`}
         title={headline(model.cards, model.windowDays)}
         titleId="home-title"
