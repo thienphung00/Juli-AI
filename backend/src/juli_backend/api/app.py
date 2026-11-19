@@ -23,6 +23,7 @@ from juli_backend.api.routes.auth_tiktok_business_advertiser import (
 from juli_backend.api.routes.businesses import router as businesses_router
 from juli_backend.api.routes.connector_fill_flag import demo_router as demo_connector_fill_router
 from juli_backend.api.routes.connector_fill_flag import ops_router as ops_connector_fill_router
+from juli_backend.api.routes.connector_read_days import router as connector_read_days_router
 from juli_backend.api.routes.creators import router as creators_router
 from juli_backend.api.routes.debug_tiktok import router as debug_tiktok_router
 from juli_backend.api.routes.demo_analysis import router as demo_analysis_router
@@ -221,6 +222,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(ingest_market_router)
     v1_router.include_router(ingest_order_ref_router)
     v1_router.include_router(ingest_connector_ticks_router)
+    v1_router.include_router(connector_read_days_router)
     v1_router.include_router(ingest_router)
     # Fast track P32-A (D42): the partner reviewer's own routes (who am I, simulate).
     v1_router.include_router(reviewer_router)

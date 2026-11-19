@@ -142,6 +142,8 @@ KOL_SAMPLE = "kol_sample"
 PACK_COUNT = "pack_count"
 PACK_COMPONENTS = "pack_components"
 VAT_RATE = "vat_rate"
+#: Owner 2026-11-19: the shop-wide VAT rate used for a SKU with no ``vat_rate`` of its own.
+VAT_RATE_DEFAULT = "vat_rate_default"
 # P92 B-1: a listing the shop leaves out of cards, product lists and the builder (its sales stay in
 # the shop totals). Both keys are scoped to the item id.
 EXCLUDED = "excluded"
@@ -229,6 +231,7 @@ RULE_KEYS: tuple[str, ...] = (
     EXCLUDED,
     EXCLUDE_REASON,
     *VAT_FLAG_RULE_KEYS,
+    VAT_RATE_DEFAULT,
     *MONTHLY_RULE_KEYS,
     KOL_SAMPLE,
 )
@@ -638,6 +641,7 @@ _SELLER_INPUT_VALIDATORS: Mapping[str, Any] = {
     PACK_COUNT: lambda v: _count_between(v, rule=PACK_COUNT, low=1, high=MAX_PACK_COUNT),
     PACK_COMPONENTS: _components,
     VAT_RATE: _vat_rate,
+    VAT_RATE_DEFAULT: _vat_rate,
     EXCLUDED: lambda v: _bool(v, rule=EXCLUDED),
     EXCLUDE_REASON: lambda v: _choice(v, rule=EXCLUDE_REASON, allowed=EXCLUDE_REASONS),
     PRICES_INCLUDE_VAT: lambda v: _bool(v, rule=PRICES_INCLUDE_VAT),

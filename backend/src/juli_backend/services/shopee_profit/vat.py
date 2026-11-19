@@ -10,8 +10,9 @@ the seller credits as input VAT). A per-SKU ``vat_rate`` of 0, 5, 8 or 10 %.
   out. Unset: the profit is shown BEFORE VAT and says so.
 - ``cost_includes_vat`` true: cost = giá vốn ÷ (1 + rate), the VAT part is credited. Unset or
   false: the cost is taken as entered.
-- a flag that needs the rate while the SKU has none: the line's profit is unknown (``vat_rate``
-  missing), never computed at 0 %.
+- a flag that needs the rate while the SKU has none: the rate falls back to the item's rate (its
+  rated variations agree) and then to the shop's ``vat_rate_default`` (owner 2026-11-19); with
+  neither, the line's profit is unknown (``vat_rate`` missing), never computed at 0 %.
 
 Shopee's own fees are not adjusted (they are VAT-inclusive invoices to the seller).
 """

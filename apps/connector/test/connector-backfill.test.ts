@@ -7,6 +7,7 @@ import type { RequestResult } from "../src/platforms/shopee/runner";
 import type { PlannedRequest } from "../src/platforms/shopee/sync";
 import shopTraffic from "./fixtures/shop_traffic.json";
 import overview from "./fixtures/traffic_overview.json";
+import { pageRowCount } from "../src/platforms/shopee/runner";
 import itemList from "./fixtures/item_list.json";
 import performance from "./fixtures/product_performance.json";
 
@@ -80,11 +81,20 @@ const BODIES = {
   shop_traffic: shopTraffic,
   item_by_source: itemList,
   item_performance: performance,
+  product_overview: { uv: { value: 10, ratio: 0 }, pv: { value: 12, ratio: 0 } },
+  promotion_daily: { code: 0, result: null },
 } as Record<string, unknown>;
 
 /** What the page hook would answer for a backfill message, with data for every call. */
 function answer(message: BackfillMessage, capturedAt: number, override: Partial<Record<string, Partial<RequestResult>>> = {}) {
-  return message.plan.map((request) => ({
+  // Like the hook (F4.4): a short page ends its group, the later pages are not sent.
+  const exhausted = new Set<string>();
+  const sentPlan = message.plan.filter((request) => {
+    if (request.page && exhausted.has(request.page.group)) return false;
+    if (request.page && pageRowCount(BODIES[request.dataset]) < request.page.pageSize) exhausted.add(request.page.group);
+    return true;
+  });
+  return sentPlan.map((request) => ({
     dataset: request.dataset,
     url: `${SC}${request.path}?${new URLSearchParams(request.params).toString()}`,
     status: 200,
@@ -125,7 +135,7 @@ describe("30-day backfill", () => {
     expect(t.sent[5]!.plan[2]!.params).toEqual({ period: "day", dt: days[5]!.replaceAll("-", "") });
     // 13 requests (confirmed + placed overview, shop traffic, and since 0.3.19 5 item-performance
     // pages + 5 item-by-source pages) × 30 days, each post for its own day.
-    expect(t.client.posts).toHaveLength(390);
+    expect(t.client.posts).toHaveLength(510);
     expect(t.client.posts.filter((p) => p.dataset === "shop_traffic").map((p) => p.body.period.start)).toEqual(days);
     expect(backfillOf(t.storage).status).toBe("done");
     expect(await t.connector.backfillStep()).toBe("done");
@@ -155,7 +165,7 @@ describe("30-day backfill", () => {
     const all = [...first.sent.slice(0, 10), ...second.sent].map((m) => m.day);
     expect(new Set(all).size).toBe(30);
     expect(all).toHaveLength(30);
-    expect(first.client.posts.length + second.client.posts.length).toBe(390);
+    expect(first.client.posts.length + second.client.posts.length).toBe(510);
   });
 
   it("does not send a second day while one is in flight; re-sends after the timeout", async () => {

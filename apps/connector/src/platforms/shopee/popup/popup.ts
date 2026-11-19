@@ -4,7 +4,7 @@
 
 import { READER_IDS, readerActive } from "../config";
 import type { Backfill, ReaderSchedule } from "../background/state";
-import { adsHistoryLine, DATASET_LABELS, type Guidance, pageRows, runLine, stockLine, syncGuidance, tickLine } from "./guide";
+import { adsHistoryLine, DATASET_LABELS, type Guidance, pageRows, problemLines, runLine, stockLine, syncGuidance, tickLine } from "./guide";
 import { backfillLabel, CONSENT_REQUIRED_MESSAGE, upgradeRequiredLine } from "./labels";
 import { el, fmt, openTab, send, ungrantedHosts, wireHostButton } from "../../../core/popup/shell";
 
@@ -115,6 +115,14 @@ async function render(): Promise<void> {
   el("stock").textContent = stockLine(state.readers) ?? "";
   el("ads-history").textContent = adsHistoryLine(state.readers) ?? "";
   renderPages(state);
+  const problems = el<HTMLUListElement>("problems");
+  problems.replaceChildren();
+  for (const line of problemLines(state.readers, new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10))) {
+    const li = document.createElement("li");
+    li.textContent = line.text;
+    problems.append(li);
+  }
+  problems.hidden = problems.childElementCount === 0;
 
   const list = el<HTMLUListElement>("datasets");
   list.replaceChildren();

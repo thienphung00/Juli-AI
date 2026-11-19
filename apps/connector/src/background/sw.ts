@@ -84,6 +84,8 @@ const scheduler: ReaderScheduler = new ReaderScheduler({
     postReader: (job, responses) => connector.postReader(job, responses),
     reportBlock: (event) => connector.reportBlock(event),
     reportTick: (report) => connector.reportTick(report),
+    readDays: () => connector.readDays(),
+    queueBackfillHoles: (datasets) => connector.reopenBackfillDays(datasets),
   },
   backfillBusy: async () => (await connector.backfillInFlight()) || (await market.isBusy()) || (await fillJobs.isBusy()),
   // 0.3.28 (F5.4): never two Shopee automations at once: no reader page while a fill tab is open
@@ -132,7 +134,8 @@ const connector: Connector = new Connector({
   busy: async () => (await scheduler.isBusy()) || (await market.isBusy()),
   tabs: {
     async sellerCentreTabs() {
-      const tabs = await chrome.tabs.query({ url: `${SELLER_CENTRE_ORIGIN}/*` });
+      // 0.3.29: the sync and the backfill replay /api/mydata/*, which only Phân tích bán hàng tabs answer
+      const tabs = await chrome.tabs.query({ url: `${SELLER_CENTRE_ORIGIN}/datacenter/*` });
       // Never the scheduler's own background tab: the daily sync and the backfill talk to the
       // seller's tabs only.
       const held = new Set([...(await scheduler.activeTabIds()), ...(await market.activeTabIds())]);

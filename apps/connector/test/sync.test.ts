@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isPageMessage } from "../src/platforms/shopee/content/messages";
-import { buildSyncPlan, gapBefore, requestUrl } from "../src/platforms/shopee/sync";
+import { buildSyncPlan, gapBefore, ITEM_SOURCE_PAGES, requestUrl } from "../src/platforms/shopee/sync";
 
 const NOW = Date.UTC(2026, 9, 12, 3, 0, 0);
 const Y_START = Date.UTC(2026, 9, 10, 17, 0, 0) / 1000;
@@ -8,7 +8,7 @@ const Y_START = Date.UTC(2026, 9, 10, 17, 0, 0) / 1000;
 describe("daily sync plan", () => {
   it("asks for yesterday's shop-level calls (item pages off)", () => {
     const plan = buildSyncPlan(NOW, new Set(), false);
-    expect(plan.map((p) => p.dataset)).toEqual(["traffic_overview", "traffic_overview", "shop_traffic"]);
+    expect(plan.map((p) => p.dataset)).toEqual(["traffic_overview", "traffic_overview", "shop_traffic", "product_overview", "promotion_daily", "promotion_daily"]);
     expect(plan[1]?.params).toMatchObject({ order_type: "placed" });
     expect(plan[0]?.params).toEqual({
       start_time: String(Y_START),
@@ -28,7 +28,7 @@ describe("daily sync plan", () => {
   it("skips stopped datasets and adds item pages when enabled", () => {
     const plan = buildSyncPlan(NOW, new Set(["traffic_overview"] as const), true);
     expect(plan.some((p) => p.dataset === "traffic_overview")).toBe(false);
-    expect(plan.filter((p) => p.dataset === "item_by_source")).toHaveLength(5);
+    expect(plan.filter((p) => p.dataset === "item_by_source")).toHaveLength(5 * ITEM_SOURCE_PAGES);
     expect(plan.filter((p) => p.dataset === "item_performance")).toHaveLength(5);
   });
 

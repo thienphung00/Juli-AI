@@ -8,6 +8,8 @@ export const ENDPOINTS: Record<MydataDataset, string> = {
   item_by_source: "/api/mydata/v1/product/traffic/item-list/",
   item_performance: "/api/mydata/v4/product/performance/",
   shop_traffic: "/api/mydata/traffic/dashboard/overview/",
+  promotion_daily: "/api/mydata/marketing/new-discount/performance-list/",
+  product_overview: "/api/mydata/v2/product/overview/",
 };
 
 export const WATCHED_PATHS: ReadonlySet<string> = new Set(Object.values(ENDPOINTS));
@@ -66,10 +68,14 @@ export const READER_ENDPOINTS = {
   // replayed for the other group campaigns with only `campaign_id` changed (a list read: isReadOnlyPasPath).
   ads_mpd_products: { method: "POST", path: "/api/pas/v1/product/mpd/list_item_product_performance/", capture: true },
   voucher_list: { method: "GET", path: "/api/marketing/v3/voucher/list/" },
+  // -- Khuyến mãi của Shop (0.3.29, F4.7; captured 2026-11-19, shapes only). The page's own list /
+  // active calls are kept as it loads them; metrics is kept AND replayed (GET) with one day's range.
+  promotion_daily: { method: "GET", path: "/api/mydata/marketing/new-discount/performance-list/" },
   // -- shop traffic (Connector 0.3.19): the same two GET reads the daily sync and the backfill send
   // (ENDPOINTS above), replayed in the scheduler's own Truy cập tab for each day still missing.
   traffic_overview: { method: "GET", path: "/api/mydata/v1/product/traffic/overview/" },
   shop_traffic: { method: "GET", path: "/api/mydata/traffic/dashboard/overview/" },
+  product_overview: { method: "GET", path: "/api/mydata/v2/product/overview/" },
   traffic_details: { method: "GET", path: "/api/mydata/v1/product/traffic/details/" },
   health_overview: { method: "GET", path: "/api/accounthealth/v1/sc/shops/overview" },
   health_metric_list: { method: "GET", path: "/api/accounthealth/v1/sc/shops/metric_list" },

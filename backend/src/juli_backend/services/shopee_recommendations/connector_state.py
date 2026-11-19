@@ -88,7 +88,7 @@ READER_DATASETS: dict[str, tuple[str, ...]] = {
     "ads_products": ("ads_campaign_period",),
     "orders": ("order_lines",),
     "order_income": ("order_income",),
-    "traffic": ("traffic_overview", "shop_traffic"),
+    "traffic": ("traffic_overview", "shop_traffic", "product_overview", "promotion_daily"),
     "affiliate": ("affiliate_order_lines",),
     "affiliate_kols": ("affiliate_partner_period",),
     "affiliate_dashboard": ("affiliate_shop_period",),

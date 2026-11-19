@@ -8,6 +8,14 @@ export * from "../../core/config";
 export const PLATFORM_ID = "shopee";
 export const SELLER_CENTRE_ORIGIN = "https://banhang.shopee.vn";
 
+/**
+ * 0.3.29: Seller Centre answers /api/mydata/* only inside Phân tích bán hàng (/datacenter/...): from any
+ * other page it says {"code":10000,"msg":"permission denied","result":"not login"}. Mydata requests go
+ * out from such a page only; the answer from another page is never a login verdict.
+ */
+export const isDatacenterPath = (pathname: string): boolean => pathname.startsWith("/datacenter/");
+export const isMydataPath = (pathname: string): boolean => pathname.startsWith("/api/mydata/");
+
 /** The window.postMessage channel between the page hook and the content script. */
 export const CHANNEL = "juli-connector/v1";
 
@@ -36,12 +44,22 @@ export const BACKFILL_MAX_DAY_ATTEMPTS = 3;
 export const ITEM_READERS_ACTIVE = true;
 
 /** The four `/api/mydata` datasets the page's own responses feed (passive capture + daily sync). */
-export type MydataDataset = "traffic_overview" | "item_by_source" | "item_performance" | "shop_traffic";
+export type MydataDataset =
+  | "traffic_overview"
+  | "item_by_source"
+  | "item_performance"
+  | "shop_traffic"
+  | "product_overview"
+  /** F4.7: Phân tích bán hàng › Khuyến mãi, per programme type and day (mydata, like traffic_overview). */
+  | "promotion_daily";
 export const DATASETS: readonly MydataDataset[] = [
   "traffic_overview",
   "item_by_source",
   "item_performance",
   "shop_traffic",
+  // F4.8 (Connector 0.3.29): the shop's product funnel by day (Sản phẩm › Tổng quan).
+  "product_overview",
+  "promotion_daily",
 ];
 
 /** Datasets the page readers post (ADR-120 d.14); the gateway's names, see services/ingest. */
@@ -60,6 +78,9 @@ export type ReaderDataset =
   | "ads_campaign_period"
   | "order_lines"
   | "order_income"
+  /** 0.3.29 (F4.7): Kênh Marketing › Khuyến mãi của Shop (Chương trình của Shop). */
+  /** F4.7: the programme snapshot, derived from the promotion_daily answers (terms only). */
+  | "promotions"
   | "affiliate_order_lines"
   | "affiliate_partner_period"
   | "affiliate_shop_period"
@@ -103,8 +124,9 @@ export type AffiliateReaderId =
   | "affiliate_bills";
 export const AFFILIATE_READER_IDS: readonly AffiliateReaderId[] = [
   "affiliate",
-  "affiliate_kols",
+  // 0.3.29 (F4.6): the shop's own daily numbers first: they tell whether an empty KOL / product / campaign period is real.
   "affiliate_dashboard",
+  "affiliate_kols",
   "affiliate_products",
   "affiliate_campaigns",
   "affiliate_commissions",
@@ -195,7 +217,7 @@ export const READER_DATASETS: Record<ReaderId, readonly Dataset[]> = {
   ads_products: ["ads_campaign_period"],
   orders: ["order_lines"],
   order_income: ["order_income"],
-  traffic: ["traffic_overview", "shop_traffic"],
+  traffic: ["traffic_overview", "shop_traffic", "product_overview", "promotion_daily"],
   affiliate: ["affiliate_order_lines"],
   affiliate_kols: ["affiliate_partner_period"],
   affiliate_dashboard: ["affiliate_shop_period"],
@@ -267,8 +289,9 @@ export const ORDER_INCOME_MAX_PER_DAY = 100;
 /** On the first run only orders completed in the last this-many days are queued (never a sweep). */
 export const ORDER_INCOME_FIRST_RUN_DAYS = 3;
 /** Completed orders waiting for their income read are kept at most this long / this many. */
-export const ORDER_INCOME_QUEUE_MAX = 300;
-export const ORDER_INCOME_QUEUE_DAYS = 14;
+export const ORDER_INCOME_QUEUE_MAX = 600;
+/** 0.3.29 (F4.9): 30 days (was 14): an income page that could not be read for two weeks lost its orders. */
+export const ORDER_INCOME_QUEUE_DAYS = 30;
 /** 0.3.26: an order whose income read failed on this many days is dropped from the queue. */
 export const ORDER_INCOME_MAX_FAILED_DAYS = 3;
 /** Shop totals: the 30 days after pairing, then the last 7 each day (placed / paid settle late). */
@@ -308,6 +331,32 @@ export const READER_KICK_DELAY_MINUTES = 1;
 export const READER_REREAD_DELAY_MINUTES = 2;
 /** 0.3.25: at most this many re-read starts a day (a dialog that keeps coming back cannot loop). */
 export const READER_REREAD_MAX_PER_DAY = 3;
+
+/**
+ * 0.3.29 (F4.2, contract C2): the backend's hole list names, per dataset, the days of the last
+ * CATCHUP_WINDOW_DAYS with no accepted row. A run reads at most this many hole days per page (after
+ * yesterday's reads, oldest first), and only while the backfill's part of the budget has room; a
+ * day's cost is the requests it takes (item traffic: one per product).
+ */
+export const CATCHUP_WINDOW_DAYS = 30;
+export const CATCHUP_DAYS_PER_JOB: Partial<Record<string, number>> = { traffic: 5, ads: 5, item_traffic: 2, shop_totals: 30, ads_products: 10 };
+export const CATCHUP_DAY_COST: Partial<Record<string, number>> = { traffic: 3, ads: 3, item_traffic: 40, shop_totals: 1, ads_products: 6 };
+/** Mydata datasets (daily sync / backfill) a hole is closed through the per-day backfill plan. */
+export const CATCHUP_BACKFILL_DATASETS: readonly string[] = ["item_performance", "item_by_source", "product_overview", "promotion_daily"];
+
+/** 0.3.29 (F4.6): pages that capture the page's own request: a miss opens the page once more, in the same run. */
+export const READER_RELOAD_ONCE: readonly ReaderId[] = [
+  "affiliate_kols",
+  "affiliate_dashboard",
+  "affiliate_products",
+  "affiliate_campaigns",
+  "affiliate_commissions",
+  "affiliate_content",
+  "affiliate_bills",
+  "order_income",
+];
+/** 0.3.29 (F4.6): the captured-only affiliate / promotion pages answer within about 90 s; the first open gets this long. */
+export const READER_CAPTURE_JOB_TIMEOUT_MS = 2 * 60_000;
 
 /** Ads: yesterday plus up to this many earlier finished days not read yet (one day per call). */
 export const ADS_CATCHUP_DAYS = 3;

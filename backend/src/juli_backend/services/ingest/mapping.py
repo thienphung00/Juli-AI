@@ -73,7 +73,6 @@ from juli_backend.services.ingest.schemas import (
     ITEM_TRAFFIC_L2,
     MAX_ADS_PERIOD_DAYS,
     MAX_PERIOD_DAYS,
-    SHOPEE_L2_SOURCES,
     SHOPEE_PROMO_TYPES,
     DatasetRow,
     ShopeeAdsCampaignDailyRow,
@@ -114,6 +113,7 @@ from juli_backend.services.ingest.schemas import (
     ShopeeTrafficOverviewPeriodRow,
     ShopeeTrafficOverviewRow,
     ShopeeVoucherSettingRow,
+    l2_segment,
 )
 
 #: The version of this module's field meanings (ADR-117 §1). Bump it whenever a field
@@ -356,9 +356,7 @@ def _source_row(row: _SourceRow) -> NormalizedRow:
         item_id=getattr(row, "item_id", SHOP_LEVEL_ITEM),
         platform_source=row.source,
         segment=(
-            SHOPEE_L2_SOURCES[row.source][row.sub_source]
-            if row.sub_source is not None
-            else SEGMENT_ALL
+            l2_segment(row.source, row.sub_source) if row.sub_source is not None else SEGMENT_ALL
         ),
         kpis=kpis,
         extra=extra,
@@ -440,15 +438,22 @@ def _product_period(row: ShopeeProductPeriodRow) -> NormalizedRow:
 def _ads_campaign(row: ShopeeAdsCampaignPeriodRow) -> NormalizedRow:
     """One campaign x product total: a Juli ``ads`` overlay row. The platform has no campaign
     id, so ``segment`` is a short hash of the name (and twin place) and ``platform_source``
-    holds the name itself, cut to its column."""
+    holds the name itself, cut to its column. F4.5: a Connector row carries Shopee's
+    ``campaign_id``; ``segment`` is then ``campaign_segment(id)``, the key ``ads_campaign_daily``
+    uses, so one campaign keeps one key across days and periods (E69)."""
     kpis, extra = _split(row, _ADS_CAMPAIGN_KPIS)
-    digest = hashlib.sha1(f"{row.campaign_name}|{row.ordinal}".encode(), usedforsecurity=False)
+    if row.campaign_id is not None:
+        segment = campaign_segment(row.campaign_id)
+        extra["campaign_id"] = row.campaign_id
+    else:
+        digest = hashlib.sha1(f"{row.campaign_name}|{row.ordinal}".encode(), usedforsecurity=False)
+        segment = f"c{digest.hexdigest()[:12]}"
     return NormalizedRow(
         day=None,
         stream=STREAM_ADS,
         item_id=row.item_id or SHOP_LEVEL_ITEM,
         platform_source=row.campaign_name[:64],
-        segment=f"c{digest.hexdigest()[:12]}",
+        segment=segment,
         kpis=kpis,
         extra=extra,
     )

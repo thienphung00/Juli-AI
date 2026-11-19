@@ -8,6 +8,7 @@ import type {
   CostsPage,
   Deltas,
   DisconnectResult,
+  ConnectorProblem,
   IngestTokenRow,
   Invite,
   OpsMe,
@@ -227,6 +228,9 @@ export const opsApi = {
   /** ADR-118: the shop's connected sources (never the token itself). */
   ingestTokens: (shopId: string, o?: OpsRequestOptions) =>
     opsRequest<{ data: IngestTokenRow[] }>(`${shopPath(shopId)}/ingest-tokens`, {}, o),
+  /** F4.13: the Connector readers that did not finish well (from the stored tick reports). */
+  connectorProblems: (shopId: string, o?: OpsRequestOptions) =>
+    opsRequest<{ data: ConnectorProblem[] }>(`${shopPath(shopId)}/connector-problems`, {}, o),
   /** ADR-118 "Thu hồi" (Vận hành / Admin); audited `ingest_token_revoke`. */
   revokeIngestToken: (shopId: string, tokenId: string, o?: OpsRequestOptions) =>
     opsRequest<void>(`${shopPath(shopId)}/ingest-tokens/${encodeURIComponent(tokenId)}`, { method: "DELETE" }, o),

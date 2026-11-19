@@ -24,6 +24,7 @@ import {
   runReaderJob,
   campaignNameFromGet,
   type Template,
+  adsProductsDayBody,
 } from "../src/platforms/shopee/reader";
 import { Pacer } from "../src/platforms/shopee/runner";
 import { gmt7DateStart } from "../src/core/time";
@@ -280,6 +281,7 @@ describe("group campaigns' products -> ads_campaign_period", () => {
     expect(post).toMatchObject({ dataset: "ads_campaign_period", granularity: "period", orderType: "placed", periodStart: "2026-11-02", date: "2026-11-08", drift: null });
     expect(post!.rows[0]).toEqual({
       campaign_name: "Chiến dịch nhóm A",
+      campaign_id: "188757809",
       item_id: "1001",
       ordinal: 0,
       ads_impressions: 2000,
@@ -351,6 +353,39 @@ describe("group campaigns' products -> ads_campaign_period", () => {
       ["A", "1001"],
       ["B", "2002"],
     ]);
+  });
+
+  it("F4.5: a 1-day read for each past day replays the page's call with only the window changed, one post per day, rows carry campaign_id", async () => {
+    const own = mpd([adsRow(1001)]);
+    const h = harness(
+      { ads_mpd_products: { query: {}, body: pageBody(188757809, { page_size: 20 }), lastResponse: own } },
+      () => ({ body: mpd([adsRow(3003)]) }),
+      "/portal/marketing/pas/product/manual-mpd/188757809",
+    );
+    const job = { id: "ads_products" as const, campaignIds: ["188757809", "188757810"], campaignNames: ["A", "B"], days: ["2026-11-05", "2026-11-04"] };
+    const outcome = await runReaderJob(job, h.env);
+    expect(outcome.status).toBe("done");
+    // 1 replay for the other campaign (page window) + 2 campaigns x 2 days
+    expect(h.sent).toHaveLength(1 + 4);
+    const bodies = h.sent.slice(1).map((r) => JSON.parse(r.body!));
+    expect(bodies.map((b) => [b.campaign_id, b.start_time, b.end_time])).toEqual([
+      [188757809, gmt7DateStart("2026-11-05"), gmt7DateStart("2026-11-05") + 86_399],
+      [188757810, gmt7DateStart("2026-11-05"), gmt7DateStart("2026-11-05") + 86_399],
+      [188757809, gmt7DateStart("2026-11-04"), gmt7DateStart("2026-11-04") + 86_399],
+      [188757810, gmt7DateStart("2026-11-04"), gmt7DateStart("2026-11-04") + 86_399],
+    ]);
+    expect(bodies.every((b) => b.page_size === 20)).toBe(true);
+    const posts = mapReaderJob(job, outcome.responses, NOW);
+    const oneDay = posts.filter((p) => p.periodStart === p.date);
+    expect(oneDay.map((p) => p.date).sort()).toEqual(["2026-11-04", "2026-11-05"]);
+    for (const post of oneDay) expect(post.rows.map((r) => r.campaign_id).sort()).toEqual(["188757809", "188757810"]);
+  });
+
+  it("F4.5: the day window keeps the page's unit (milliseconds stay milliseconds)", () => {
+    expect(adsProductsDayBody({ start_time: 1_700_000_000_000 }, "2026-11-05")).toEqual({
+      start_time: gmt7DateStart("2026-11-05") * 1000,
+      end_time: (gmt7DateStart("2026-11-05") + 86_399) * 1000,
+    });
   });
 
   it("stops on the password prompt before it replays anything", async () => {

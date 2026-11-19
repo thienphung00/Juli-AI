@@ -14,7 +14,7 @@ import { mapAffiliateJob } from "./affiliate-map";
 import { mapOrderIncome, mapOrderLines } from "./orders-map";
 import { mapProductPeriod } from "./product-period-map";
 import { mapShopTotals } from "./totals-map";
-import { type Drift, mapCaptured, type Mapped, type Row } from "./map";
+import { type Drift, mapCapturedAll, type Mapped, type Row } from "./map";
 import {
   classify,
   findList,
@@ -940,10 +940,9 @@ export function mapReaderJob(job: ReaderJob, responses: ReaderResponse[], captur
 export function mapTrafficJob(responses: ReaderResponse[]): Mapped[] {
   const out: Mapped[] = [];
   for (const response of responses) {
-    if (response.endpoint !== "traffic_overview" && response.endpoint !== "shop_traffic") continue;
+    if (response.endpoint !== "traffic_overview" && response.endpoint !== "shop_traffic" && response.endpoint !== "product_overview" && response.endpoint !== "promotion_daily") continue;
     if (classify(response.status, response.body) !== "ok") continue;
-    const mapped = mapCaptured({ url: response.url, body: response.body, capturedAt: response.capturedAt });
-    if (mapped) out.push(mapped);
+    out.push(...mapCapturedAll({ url: response.url, body: response.body, capturedAt: response.capturedAt }));
   }
   return out;
 }

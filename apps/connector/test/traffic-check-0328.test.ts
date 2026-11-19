@@ -280,8 +280,8 @@ describe("F5.4 never two Shopee automations at once", () => {
 });
 
 describe("F5.V the version", () => {
-  it("is 0.3.28 in package.json and the manifest", () => {
-    expect(pkg.version).toBe("0.3.28");
-    expect(manifest.version).toBe("0.3.28");
+  it("is 0.3.29 in package.json and the manifest", () => {
+    expect(pkg.version).toBe("0.3.29");
+    expect(manifest.version).toBe("0.3.29");
   });
 });

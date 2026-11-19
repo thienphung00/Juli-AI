@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from typing import Any
@@ -57,6 +58,7 @@ from juli_backend.services.shopee_recommendations import (
     store,
 )
 from juli_backend.services.shopee_recommendations import service as reco_service
+from juli_backend.services.shopee_recommendations.evaluate import campaign_profile
 from juli_backend.services.shopee_recommendations.loader import load_env
 
 ORIGIN_EXTERNAL = "external"
@@ -171,6 +173,47 @@ def forecast_day(on: date | None, today: date) -> date:
     """The day a card's Dự kiến is made on: its start date (a future one: today); the evaluation
     reads only the data before it (``as_of`` = that day - 1)."""
     return min(on or today, today)
+
+
+async def first_report_day(
+    has_report: Callable[[date], Awaitable[bool]], first: date, last: date
+) -> date | None:
+    """F4.12 (E68): the earliest ``as_of`` in ``first..last`` from which the campaign has a
+    report (``has_report`` is monotonic: more days never remove a report); None when even
+    ``last`` has none. ``first`` itself is tried first (the usual case: one evaluation)."""
+    if await has_report(first):
+        return first
+    if last <= first or not await has_report(last):
+        return None
+    lo, hi = first, last  # no report at lo, a report at hi
+    while (hi - lo).days > 1:
+        mid = lo + timedelta(days=(hi - lo).days // 2)
+        if await has_report(mid):
+            hi = mid
+        else:
+            lo = mid
+    return hi
+
+
+async def _as_of_for(
+    session: AsyncSession, shop_id: uuid.UUID, plan: er.CardPlan, as_of: date, today: date
+) -> date:
+    """``as_of`` (the row's start day - 1), moved to the first day inside the row's run window
+    on which its campaign has a report, when there is none by then (E68, "no_campaign_report");
+    unchanged when no day of the window has one (the evaluation then refuses as before)."""
+    spec = plan.spec
+    key = spec.get("kind") == "ads" and spec.get("campaign_key")
+    if not key:
+        return as_of
+    end = date.fromisoformat(spec["end"]) if spec.get("end") else as_of
+    last = min(max(end, as_of), today - timedelta(days=1))
+
+    async def has_report(day: date) -> bool:
+        env = await load_env(session, shop_id, as_of=day, now=_when(today))
+        return env is not None and campaign_profile(env, str(key)) is not None
+
+    found = await first_report_day(has_report, as_of, last)
+    return as_of if found is None else found
 
 
 async def _approve_and_execute(
@@ -299,7 +342,7 @@ async def _create(
 ) -> dict[str, Any]:
     spec = _SPEC.validate_python(plan.spec)
     day = forecast_day(row.on, now.date())
-    as_of = day - timedelta(days=1)
+    as_of = await _as_of_for(session, shop_id, plan, day - timedelta(days=1), now.date())
     executed = row.status in er.EXECUTED_STATUSES
     # an executed row is recorded on its own day; a proposal is sent today (so it does not
     # expire at once) but still evaluated as of its start date

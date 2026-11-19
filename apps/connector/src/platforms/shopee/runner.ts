@@ -3,6 +3,7 @@
 // jitter after the previous one, whichever plan it belonged to.
 
 import type { MydataDataset } from "./config";
+import { itemRowsIn } from "./map";
 import { waitBefore } from "./sync";
 
 export interface PacerDeps {
@@ -55,6 +56,25 @@ export interface DayRequest {
   url: string;
   /** The same URL without session params (what is reported back). */
   publicUrl: string;
+  /** One page of a paged list (see PlannedRequest.page). */
+  page?: { group: string; pageSize: number };
+}
+
+/** How many rows a list answer carries (0 when none is found). */
+export function pageRowCount(body: unknown): number {
+  return itemRowsIn(isRecord(body) ? (body.result ?? body.data ?? body) : body)?.length ?? 0;
+}
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** F4.8: Sản phẩm › Tổng quan answers a bare `{metric: {value, ratio}}` object (no code, no wrapper). */
+export function isFlatMetrics(body: Record<string, unknown>): boolean {
+  const values = Object.values(body);
+  return (
+    !("code" in body) &&
+    !("error" in body) &&
+    values.length > 0 &&
+    values.every((v) => isRecord(v) && "value" in v)
+  );
 }
 
 /**
@@ -64,6 +84,7 @@ export interface DayRequest {
 export function isDataAnswer(status: number, body: unknown): boolean {
   if (status < 200 || status >= 300 || typeof body !== "object" || body === null || Array.isArray(body)) return false;
   const b = body as { code?: unknown; error?: unknown; data?: unknown; result?: unknown };
+  if (isFlatMetrics(body as Record<string, unknown>)) return true;
   if ("code" in b) return b.code === 0;
   if ("error" in b) return b.error === 0 && (b.data != null || b.result != null);
   return (typeof b.data === "object" && b.data !== null) || (typeof b.result === "object" && b.result !== null);
@@ -81,7 +102,9 @@ export async function runDay(
   now: () => number,
 ): Promise<RequestResult[]> {
   const results: RequestResult[] = [];
+  const exhausted = new Set<string>();
   for (const request of requests) {
+    if (request.page && exhausted.has(request.page.group)) continue;
     await pacer.beforeRequest();
     let status = 0;
     let body: unknown = null;
@@ -98,6 +121,7 @@ export async function runDay(
     }
     results.push({ dataset: request.dataset, url: request.publicUrl, status, body, capturedAt: now() });
     if (!isDataAnswer(status, body)) break;
+    if (request.page && pageRowCount(body) < request.page.pageSize) exhausted.add(request.page.group);
   }
   return results;
 }
