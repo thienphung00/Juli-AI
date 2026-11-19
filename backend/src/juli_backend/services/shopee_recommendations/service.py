@@ -525,6 +525,9 @@ def _summary(
         # one card, one number: the stored engine result of the chosen version (Tự tạo's figure)
         "predicted_summary": result_store.summary(block),
         "result": block,
+        # F7.1 / F7.4: forecast.metrics of the chosen version + the data day ("Số liệu đến")
+        "forecast": (block or {}).get("forecast"),
+        "data_through": (block or {}).get("data_through"),
         "floor_ok": card["floor"]["ok"],
         # P100: what the card costs over its own days (the result's Chi phí); "Chi phí" when > 0.
         "cost": (block or {}).get("cost_total"),

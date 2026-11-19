@@ -54,7 +54,7 @@ from juli_backend.models.shop_proposals import (
     STATUS_SENT,
     ShopProposal,
 )
-from juli_backend.services.shopee_recommendations import config, freshness, versions
+from juli_backend.services.shopee_recommendations import config, forecast, freshness, versions
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 
 if TYPE_CHECKING:
@@ -276,6 +276,9 @@ def block_of(
         "targets": {t: (None if r is None else core_of(r)) for t, r in (targets or {}).items()},
         "start": None if start is None else start.isoformat(),
         "as_of": as_of.isoformat(),
+        # F7.1 / F7.4: the card's forecast.metrics over its own days and the data day it is on
+        "forecast": forecast.forecast_of(result, reason=reason, data_through=as_of),
+        "data_through": as_of.isoformat(),
         "computed_at": now.isoformat(),
         "engine_version": engine_version(),
         "inputs_hash": hash_,
@@ -298,6 +301,8 @@ def missing_block() -> dict[str, Any]:
         "option": None,
         "core": None,
         "targets": {},
+        "forecast": forecast.forecast_of(None, reason=NOT_COMPUTED, data_through=None),
+        "data_through": None,
     }
 
 
@@ -317,11 +322,20 @@ def apply(card: dict[str, Any], meta: Mapping[str, Any] | None) -> dict[str, Any
             got = stored.get(str(v.get("version")))
             if got is not None:
                 v[KEY] = got
+                _lay_forecast(v, got)
                 align_spend(v, got)
     if stored.get("1") is not None:
         card[KEY] = stored["1"]
+        _lay_forecast(card, stored["1"])
         align_spend(card, stored["1"])
     return card
+
+
+def _lay_forecast(row: dict[str, Any], block: Mapping[str, Any]) -> None:
+    """The block's ``forecast`` as the row's own key (a new key; the old keys stay)."""
+    if block.get("forecast") is not None:
+        row["forecast"] = block["forecast"]
+        row["data_through"] = block.get("data_through")
 
 
 def align_spend(row: dict[str, Any], block: Mapping[str, Any] | None) -> None:
@@ -438,6 +452,8 @@ def is_fresh(
     except ValueError:
         return False
     if as_of > env.as_of:
+        return False
+    if as_of < env.as_of:  # F7.4: new data arrived since the block was computed
         return False
     spec_json = block.get("_spec")
     return block.get("inputs_hash") == inputs_hash(spec_json, env, scope_items(card), as_of)
@@ -703,11 +719,13 @@ def write_into(card: dict[str, Any], blocks: Mapping[int, Mapping[str, Any]]) ->
             got = blocks.get(int(v.get("version") or 0))
             if got is not None:
                 v[KEY] = dict(got)
+                _lay_forecast(v, got)
                 align_spend(v, got)
                 if isinstance(v.get("metrics"), dict):  # the side-by-side reads the result too
                     v["metrics"].update(metrics_of_block(got))
     if blocks.get(1) is not None:
         card[KEY] = dict(blocks[1])
+        _lay_forecast(card, blocks[1])
         align_spend(card, blocks[1])
     return card
 
