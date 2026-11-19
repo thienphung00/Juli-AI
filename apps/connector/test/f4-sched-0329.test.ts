@@ -689,3 +689,15 @@ describe("F4.4 / F4.5 wiring (t1a's readers)", () => {
     expect((await ctx.read())?.run?.jobs[1]?.itemIds).toEqual(["3003", "3001"]);
   });
 });
+
+describe("0.3.30: fills and read-backs keep their own reserve", () => {
+  it("readers (incl. catch-up) stop FILL_REQUEST_RESERVE short of the total, fills can still use it", async () => {
+    const { readerRequestsLeft } = await import("../src/platforms/shopee/background/state");
+    const { requestsLeft } = await import("../src/core/state");
+    const { DAILY_REQUEST_BUDGET, FILL_REQUEST_RESERVE } = await import("../src/core/config");
+    const day = "2026-11-19";
+    const state = { budget: { day, used: DAILY_REQUEST_BUDGET - FILL_REQUEST_RESERVE } } as never;
+    expect(readerRequestsLeft(state, day)).toBe(0);
+    expect(requestsLeft(state, day)).toBe(FILL_REQUEST_RESERVE);
+  });
+});

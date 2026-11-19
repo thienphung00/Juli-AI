@@ -29,7 +29,7 @@ BODY = {"code": "not_a_shopee_shop", "message": "this shop is not on Shopee"}
 # batch-1118g F3.1: +1 each for the revert-fill routes: seller
 # POST /demo/shopee/recommendations/{id}/revert-fill (`_gate_w`) and ops
 # POST /ops/shops/{shop_id}/shopee/recommendations/{card_id}/revert-fill (`require_ops_capability`)
-SELLER_GATED = 89
+SELLER_GATED = 90  # +1 F6 (board import status / revoke-inactive seller route)
 OPS_GATED = 94
 
 
