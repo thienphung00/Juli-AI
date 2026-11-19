@@ -213,7 +213,8 @@ async def load(
     shop_id: uuid.UUID | None = None,
     now: datetime | None = None,
 ) -> LoadReport:
-    """Ensure the shop, write its costs, ingest every post, rebuild the stored daily rows."""
+    """Ensure the shop, replace its generated data, write its costs, ingest every post, rebuild the
+    stored daily rows."""
     from juli_backend.database.tenant_context import with_shop_scope
     from juli_backend.repositories import utc_now_naive
     from juli_backend.services.shop_inputs import Actor, RuleChange, write_versions
@@ -224,6 +225,9 @@ async def load(
     if sample.end_date > (now + timedelta(hours=7)).date():
         raise SampleShopRefused(f"--end-date {sample.end_date} is in the future (GMT+7)")
     sid, created = await ensure_shop(factory, sample.shopee_shop_id, shop_id=shop_id, now=now)
+    # A reload replaces the generated data of its window entirely (a new --end-date must not keep
+    # the old window's order lines); reviewers' cards and the like stay. Same as a fresh load.
+    await reset.replace_generated(factory, sid)
     # Costs first: with no data day yet, saving them rebuilds nothing.
     async with factory() as session:
         async with with_shop_scope(session, sid):

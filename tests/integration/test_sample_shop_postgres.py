@@ -110,7 +110,9 @@ async def test_sample_shop_end_to_end_on_postgres(monkeypatch):
         assert [c["change_kind"] for c in measured] == ["min_spend_voucher"]
         assert len(finals) == 1 and finals[0].payload["impact_pct"] is not None  # actual, computed
         again = await loader.load(factory, generate(END), now=NOW)
-        assert again.shop_id == report.shop_id and set(again.outcome) == {"duplicate"}
+        # a reload replaces the generated data (raw payloads too): its posts land as a fresh load
+        assert again.shop_id == report.shop_id and not again.created
+        assert again.outcome == report.outcome
     finally:
         await engine.dispose()
 
