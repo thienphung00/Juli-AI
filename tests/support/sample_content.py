@@ -19,6 +19,7 @@ from juli_backend.models.card_content_specs import (
 )
 from juli_backend.services.sample_shop.content_specs import SEEDED_MODEL, canonical_hash
 from juli_backend.services.shopee_builder import service as builder
+from juli_backend.services.shopee_recommendations.config import MAX_TITLE_CHARS
 
 
 async def passing_titles(
@@ -39,7 +40,7 @@ async def seed_title_spec(
     *,
     now: datetime,
 ) -> CardContentSpec:
-    inputs = {"current_title": "", "keywords": [], "banned_terms": [], "max_chars": 100}
+    inputs = {"current_title": "", "keywords": [], "banned_terms": [], "max_chars": MAX_TITLE_CHARS}
     row = CardContentSpec(
         id=uuid.uuid4(),
         shop_id=shop_id,

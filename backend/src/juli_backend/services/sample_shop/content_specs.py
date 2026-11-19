@@ -36,6 +36,7 @@ from juli_backend.models.card_content_specs import (
     CardContentSpec,
 )
 from juli_backend.services.sample_shop.catalog import KEYWORDS, PRODUCTS, Product
+from juli_backend.services.shopee_recommendations.config import MAX_TITLE_CHARS
 
 #: The model name a seeded title spec carries (no model wrote it).
 SEEDED_MODEL = "seeded"
@@ -141,7 +142,7 @@ def title_spec(index: int) -> tuple[dict[str, Any], str]:
         "current_title": product.name,
         "keywords": [{"keyword": k, "role": "chinh", "searches": None} for k in kws],
         "banned_terms": [],
-        "max_chars": 100,
+        "max_chars": MAX_TITLE_CHARS,
     }
     candidates = [
         {
@@ -343,7 +344,7 @@ def llm_title_row(
         "current_title": current_title,
         "keywords": [{"keyword": k, "role": "chinh", "searches": None} for k in keywords],
         "banned_terms": [],
-        "max_chars": 100,
+        "max_chars": MAX_TITLE_CHARS,
     }
     candidates = [
         {
