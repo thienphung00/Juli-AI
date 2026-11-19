@@ -1,0 +1,247 @@
+"""E3: chains on SYNTHETIC fixtures."""
+
+from __future__ import annotations
+
+from datetime import date, timedelta
+
+import pytest
+
+from juli_backend.services.analytics_agent import chains
+from juli_backend.services.analytics_agent.labels import shopee_labels
+from tests.unit.analytics_agent.fakes import (
+    AS_OF,
+    FakeData,
+    funnel_data,
+    noisy_orders,
+    shop_rows,
+    source_rows,
+)
+
+PRESET = "last_7d_vs_prev_7d"
+
+
+async def test_orders_explained_by_one_source_collapse() -> None:
+    shop, srcs = funnel_data()
+    r = await chains.run_chain(FakeData(shop, srcs), "orders_change", "orders", PRESET, AS_OF)
+    assert r.stop_reason == "explained"
+    assert (r.explained_share or 0) >= 0.7
+    nodes = {f.level + ":" + f.node for f in r.findings}
+    assert "formula:ctr" in nodes and "source:video" in nodes
+    assert any(f.level == "time" for f in r.findings)  # start day found
+
+
+async def test_headline_change_under_3pct_stops_without_drilling() -> None:
+    shop, srcs = funnel_data(ctr_video_before=0.10, ctr_video_after=0.0995)
+    d = FakeData(shop, srcs)
+    r = await chains.run_chain(d, "orders_change", "orders", PRESET, AS_OF)
+    assert r.stop_reason == "within_noise"
+    assert "source_daily" not in d.calls
+
+
+async def test_coverage_below_half_is_data_missing() -> None:
+    shop = shop_rows(
+        AS_OF - timedelta(days=40),
+        AS_OF,
+        orders=lambda d: None if d > AS_OF - timedelta(days=5) else 5.0,
+    )
+    r = await chains.run_chain(FakeData(shop), "orders_change", "orders", PRESET, AS_OF)
+    assert r.stop_reason == "data_missing"
+
+
+async def test_yesterday_not_complete_is_data_stale() -> None:
+    shop = shop_rows(AS_OF - timedelta(days=40), AS_OF - timedelta(days=2), orders=5.0)
+    r = await chains.run_chain(
+        FakeData(shop), "orders_change", "orders", "yesterday_vs_same_weekday", AS_OF
+    )
+    assert r.stop_reason == "data_stale"
+
+
+async def test_unknown_o_source_is_grouped_as_khac_never_raw() -> None:
+    shop, srcs = funnel_data(other_source="o:777")
+    r = await chains.run_chain(FakeData(shop, srcs), "orders_change", "orders", PRESET, AS_OF)
+    j = r.json(shopee_labels())
+    names = [f["node_vi"] for f in j["findings"]]
+    assert "Khác" in names
+    assert not any("o:" in n for n in names)
+
+
+async def test_null_source_is_missing_not_zero() -> None:
+    shop, srcs = funnel_data()
+    last = AS_OF
+    for r in srcs:  # trang shop: data before, NULL in the current window
+        pass
+    srcs += source_rows(
+        AS_OF - timedelta(days=60),
+        AS_OF - timedelta(days=7),
+        "trang_shop",
+        views=100,
+        clicks=10,
+        orders=1.0,
+    )
+    srcs += source_rows(AS_OF - timedelta(days=6), last, "trang_shop")
+    r = await chains.run_chain(FakeData(shop, srcs), "orders_change", "orders", PRESET, AS_OF)
+    miss = [f for f in r.findings if f.node == "trang_shop"]
+    assert miss and "no_data_in_current_window" in miss[0].flags
+
+
+async def test_within_noise_is_decided_at_the_bottom() -> None:
+    inside = await chains.run_chain(
+        FakeData(noisy_orders((10.0, 9.0))), "orders_change", "orders", PRESET, AS_OF
+    )
+    assert inside.stop_reason == "within_noise"  # < 70 % explained, inside band, no Poisson
+    assert inside.noise and inside.noise["in_band"] is True and inside.noise["significant"] is False
+    outside = await chains.run_chain(
+        FakeData(noisy_orders((10.0, 4.0))), "orders_change", "orders", PRESET, AS_OF
+    )
+    assert outside.stop_reason != "within_noise"
+    assert outside.noise and outside.noise["in_band"] is False
+
+
+async def test_bottom_up_fallback_explains_by_daily_outliers() -> None:
+    base = noisy_orders((10.0, 10.0))
+    for r in base:
+        if r["day"] == AS_OF - timedelta(days=2):
+            r["orders"] = 0.0
+    r = await chains.run_chain(FakeData(base), "orders_change", "orders", PRESET, AS_OF)
+    assert any(e["kind"] == "daily_outlier" for e in r.events)
+
+
+async def test_yesterday_drills_against_latest_same_weekday_not_double_day() -> None:
+    as_of = date(2026, 11, 18)  # Wed; 11/11 is a double day
+    shop = shop_rows(
+        as_of - timedelta(days=60),
+        as_of,
+        orders=lambda d: 3.0 if d == as_of else 10.0,
+        views=1000,
+        clicks=100,
+    )
+    r = await chains.run_chain(
+        FakeData(
+            shop,
+            source_rows(
+                as_of - timedelta(days=60), as_of, "video", views=1000, clicks=50, orders=5
+            ),
+        ),
+        "orders_change",
+        "orders",
+        "yesterday_vs_same_weekday",
+        as_of,
+    )
+    assert any("04/11" in s for s in r.steps)
+    assert not any("drill-down compares with 11/11" in s for s in r.steps)
+
+
+async def test_product_scope_reads_the_product() -> None:
+    shop, srcs = funnel_data()
+    d = FakeData(shop, srcs, names={"p1": "Sản phẩm A"})
+    r = await chains.run_chain(d, "orders_change", "orders", PRESET, AS_OF, item_id="p1")
+    assert r.item_id == "p1" and r.item_name == "Sản phẩm A" and "shop_daily:p1" in d.calls
+    assert r.json(shopee_labels())["product"]["name"] == "Sản phẩm A"
+
+
+def _ov(profit1: float, profit0: float, nr1: float, nr0: float):
+    def f(a: date, b: date) -> dict:
+        now = b >= AS_OF
+        return {
+            "shop_profit": {
+                "profit": profit1 if now else profit0,
+                "margin_pct": 100 * (profit1 / nr1 if now else profit0 / nr0),
+                "net_revenue": nr1 if now else nr0,
+                "gmv_share_pct": 95,
+                "bridge": {
+                    "product_profit": profit1 if now else profit0,
+                    "ads_no_order_days": 0,
+                    "other_marketing": 0,
+                },
+            },
+            "shop_metrics": {},
+        }
+
+    return f
+
+
+async def test_profit_chain_explained_by_bridge_and_margin_data_missing_on_low_coverage() -> None:
+    shop = shop_rows(AS_OF - timedelta(days=40), AS_OF, orders=5.0)
+    r = await chains.run_chain(
+        FakeData(shop, overview=_ov(60.0, 100.0, 1000.0, 1000.0)),
+        "profit_change",
+        "profit",
+        PRESET,
+        AS_OF,
+    )
+    assert r.stop_reason == "explained"
+
+    def low(a: date, b: date) -> dict:
+        d = _ov(60.0, 100.0, 1000.0, 1000.0)(a, b)
+        d["shop_profit"]["gmv_share_pct"] = 30
+        return d
+
+    m = await chains.run_chain(
+        FakeData(shop, overview=low), "profit_change", "margin", PRESET, AS_OF
+    )
+    assert m.stop_reason == "data_missing"
+
+
+def _costs(ads1: float, ads0: float, aff: float = 100.0, offers: float = 50.0):
+    def f(a: date, b: date, item: str | None) -> dict:
+        now = b >= AS_OF
+        return {
+            "net_revenue": 10_000.0 if item is None else None,
+            "cost_ads": ads1 if now else ads0,
+            "cost_affiliate": aff,
+            "cost_offers": offers,
+        }
+
+    return f
+
+
+async def test_cost_change_splits_by_line_product_and_start_day() -> None:
+    first = AS_OF - timedelta(days=40)
+    shop = shop_rows(
+        first,
+        AS_OF,
+        orders=5.0,
+        ads_spend=lambda d: 400.0 if d > AS_OF - timedelta(days=4) else 100.0,
+    )
+    prods = [
+        {"day": d, "item_id": "p1", "gmv": 1000.0, "orders": 2.0, "units": 2.0}
+        for d in shop_rows(first, AS_OF)
+    ]
+    prods = [
+        {"day": r["day"], "item_id": "p1", "gmv": 1000.0, "orders": 2.0, "units": 2.0}
+        for r in shop_rows(first, AS_OF)
+    ]
+    d = FakeData(shop, products=prods, names={"p1": "Sản phẩm A"}, costs=_costs(900.0, 300.0))
+    r = await chains.run_chain(d, "cost_change", None, PRESET, AS_OF)
+    assert r.metric == "cost_ratio" and r.stop_reason == "explained"
+    head = r.findings[0]
+    assert head.now == pytest.approx(1000 / 10000) and head.before == pytest.approx(400 / 10000)
+    levels = {(f.level, f.node) for f in r.findings}
+    assert ("line", "cost_ads") in levels and (
+        "line",
+        "cost_offers",
+    ) in levels  # offers = its own line
+    assert ("product", "Sản phẩm A") in levels
+    assert any(f.level == "time" for f in r.findings)
+    offers = next(f for f in r.findings if f.node == "cost_offers")
+    assert "own_line" in offers.flags and offers.contribution_pct is None
+
+
+async def test_cost_change_missing_cost_is_data_missing_and_small_change_within_noise() -> None:
+    shop = shop_rows(AS_OF - timedelta(days=40), AS_OF, orders=5.0)
+
+    def none_cost(a: date, b: date, item: str | None) -> dict:
+        return {
+            "net_revenue": 10_000.0,
+            "cost_ads": None,
+            "cost_affiliate": None,
+            "cost_offers": 5.0,
+        }
+
+    assert (
+        await chains.run_chain(FakeData(shop, costs=none_cost), "cost_change", None, PRESET, AS_OF)
+    ).stop_reason == "data_missing"
+    same = await chains.run_chain(
+        FakeData(shop, costs=_costs(300.0, 300.0)), "cost_change", None, PRESET, AS_OF
+    )
+    assert same.stop_reason == "within_noise"

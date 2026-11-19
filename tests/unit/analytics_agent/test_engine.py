@@ -1,0 +1,297 @@
+"""End-to-end engine runs with fake ports: events, routing log, templates, resume, platforms."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import timedelta
+from typing import Any
+
+from juli_backend.services.analytics_agent import AskRequest, engine, run, shopee_labels
+from juli_backend.services.analytics_agent.types import TEMPLATES
+from tests.unit.analytics_agent.fakes import (
+    AS_OF,
+    FakeCardEngine,
+    FakeData,
+    FakeJev,
+    FakeLLM,
+    ListSink,
+    funnel_data,
+    shop_rows,
+)
+from tests.unit.analytics_agent.test_cards import ch, nl
+from tests.unit.analytics_agent.test_chains import _costs
+from tests.unit.analytics_agent.test_routing import ans, intent
+
+SHOP = uuid.uuid4()
+L = shopee_labels()
+TEXT = "Đang tìm hiểu: vì sao đơn hàng giảm.\nĐơn giảm vì Video kém; Sản phẩm A nên xem giảm giá."
+
+
+def full(**over: Any) -> dict[str, dict[str, Any]]:
+    base = ans() | {
+        "actionable": nl(0.9),
+        "kind": ch("product_discount"),
+        "product": ch("p1"),
+        "overlap": nl(0.1),
+        "version": ch("Vừa"),
+    }
+    return base | over
+
+
+def data_orders() -> FakeData:
+    shop, srcs = funnel_data()
+    prods = [
+        {
+            "day": r["day"],
+            "item_id": "p1",
+            "gmv": 5000.0 if r["day"] <= AS_OF - timedelta(days=7) else 1000.0,
+            "orders": 5.0 if r["day"] <= AS_OF - timedelta(days=7) else 1.0,
+            "units": 1.0,
+        }
+        for r in shop
+    ]
+    return FakeData(shop, srcs, products=prods, names={"p1": "Sản phẩm A"})
+
+
+def req(**kw: Any) -> AskRequest:
+    return AskRequest(shop_id=SHOP, platform=kw.pop("platform", "shopee"), as_of=AS_OF, **kw)
+
+
+async def go(
+    r: AskRequest, *, llm: FakeLLM, jev: FakeJev, data: FakeData, eng: FakeCardEngine | None = None
+) -> tuple[ListSink, Any]:
+    sink = ListSink()
+    res = await run(
+        r, llm=llm, jev=jev, sink=sink, labels=L, data=data, card_engine=eng or FakeCardEngine()
+    )
+    return sink, res
+
+
+async def test_free_text_why_full_flow() -> None:
+    llm = FakeLLM({"restated_vi": "Vì sao đơn hàng giảm", "intents": [intent()]}, text=TEXT)
+    jev = FakeJev(lambda s, q: full())
+    sink, res = await go(req(text="sao đơn tụt"), llm=llm, jev=jev, data=data_orders())
+    types = [e["type"] for e in sink.events]
+    assert (
+        types[0] == "status"
+        and sink.events[0]["key"] == "thinking"
+        and sink.events[0]["text_vi"] == "Đang tìm hiểu"
+    )
+    assert sink.of("restated")[0]["text_vi"] == "Đang tìm hiểu: Vì sao đơn hàng giảm"
+    assert types.index("restated") < types.index("path") < types.index("card") < types.index("done")
+    assert "".join(e["text"] for e in sink.of("text_delta")).startswith("Đang tìm hiểu: ")
+    assert (
+        sink.of("card")[0]["item_name"] == "Sản phẩm A"
+        and res.cards[0]["draft_ref"] == sink.of("card")[0]["draft_ref"]
+    )
+    assert res.cards[0]["engine_card"]["title"]
+    done = sink.of("done")[0]
+    assert (
+        done["stop_reasons"] == ["explained"]
+        and done["cost_usd"] > 0
+        and done["routing"][0]["outcome"] == "go"
+    )
+    assert res.events == sink.events
+    # E7: direction data on every value of the path
+    steps = sink.of("path")[0]["steps"]
+    assert steps[0]["delta"]["dir"] == "down" and steps[0]["link"]["kind"] == "metric"
+    assert any(s["link"]["kind"] == "channel" for s in steps)
+
+
+async def test_one_jev_routing_request_per_intent_in_parallel() -> None:
+    its = [intent(metric_phrase="orders"), intent(metric_phrase="gmv")]
+    llm = FakeLLM({"restated_vi": "hai câu", "intents": its}, text=TEXT)
+    jev = FakeJev(lambda s, q: full())
+    sink, _ = await go(req(text="q"), llm=llm, jev=jev, data=data_orders())
+    routing_calls = [c for c in jev.calls if "fits" in c[1]]
+    assert len(routing_calls) == 2
+    assert [e["index"] for e in sink.of("intent_block")] == [1, 2]
+
+
+async def test_more_items_beyond_cap() -> None:
+    its = [intent(metric_phrase=f"m{i}") for i in range(5)]
+    llm = FakeLLM({"restated_vi": "nhiều câu", "intents": its}, text=TEXT)
+    sink, _ = await go(
+        req(text="q"), llm=llm, jev=FakeJev(lambda s, q: full(fits=nl(0.1))), data=data_orders()
+    )
+    assert len(sink.of("intent_block")) == 3 and len(sink.of("more")[0]["items"]) == 2
+
+
+async def test_template_skips_parse_and_routing_and_allows_card_at_any_stop() -> None:
+    llm = FakeLLM(None, text="Đang tìm hiểu: Giảm chi phí.\nChi phí quảng cáo tăng; xem giảm giá.")
+    shop = shop_rows(
+        AS_OF - timedelta(days=40), AS_OF, orders=5.0, views=1000, clicks=100, gmv=500.0
+    )
+    d = FakeData(
+        shop,
+        costs=_costs(300.0, 300.0),
+        critical={
+            "items": [
+                {
+                    "product_id": "p9",
+                    "at_stake_per_day": 5,
+                    "change_kinds": ["ads_budget"],
+                    "cause": {"stage": "roas"},
+                }
+            ]
+        },
+        names={"p9": "Sản phẩm Z"},
+    )
+    jev = FakeJev(lambda s, q: full(kind=ch("ads_budget")))
+    sink, _ = await go(req(template="reduce_cost"), llm=llm, jev=jev, data=d)
+    assert llm.parse_calls == 0 and all("fits" not in c[1] for c in jev.calls)
+    assert sink.of("restated")[0]["text_vi"] == "Đang tìm hiểu: Giảm chi phí"
+    assert sink.of("label")[0]["stop_reason"] == "within_noise"
+    assert sink.of("card") and sink.of("card")[0]["kind"] == "ads_budget"
+    assert any(
+        "Không có thay đổi lớn; cơ hội lớn nhất là" in e["text"] for e in sink.of("text_replace")
+    )
+    assert [t.key for t in TEMPLATES] == [
+        "improve_gmv",
+        "improve_margin",
+        "improve_conversion",
+        "reduce_cost",
+        "increase_visibility",
+    ]
+
+
+async def test_needs_choice_then_resume_from_pending_without_a_new_routing_call() -> None:
+    llm = FakeLLM({"restated_vi": "Vì sao đơn giảm", "intents": [intent()]}, text=TEXT)
+    jev = FakeJev(lambda s, q: full(window=ch("last_7d_vs_prev_7d", 0.55, "last_30d_vs_prev_30d")))
+    sink, res = await go(req(text="q"), llm=llm, jev=jev, data=data_orders())
+    nc = sink.of("needs_choice")[0]
+    assert nc["item"] == "window" and res.stop_reasons == ["needs_choice"] and not sink.of("card")
+    assert nc["options"][0]["label_vi"] == "19/10–25/10 so với 12/10–18/10"
+    n_before = len(jev.calls)
+    llm2 = FakeLLM(None, text=TEXT)
+    jev2 = FakeJev(lambda s, q: full())
+    sink2, _ = await go(
+        req(choice={"item": "window", "value": "last_7d_vs_prev_7d"}, pending=nc["pending"]),
+        llm=llm2,
+        jev=jev2,
+        data=data_orders(),
+    )
+    assert (
+        llm2.parse_calls == 0
+        and all("fits" not in c[1] for c in jev2.calls)
+        and n_before == len(jev.calls)
+    )
+    assert sink2.of("restated")[0]["text_vi"] == "Đang tìm hiểu: Vì sao đơn giảm" and sink2.of(
+        "path"
+    )
+
+
+async def test_unsupported_is_fixed_line_with_templates_and_other_platform_switch() -> None:
+    it = intent(source_phrase="tiktok shop")
+    llm = FakeLLM({"restated_vi": "Doanh thu tiktok", "intents": [it]})
+    sink, res = await go(
+        req(text="q"), llm=llm, jev=FakeJev(lambda s, q: full(fits=nl(0.1))), data=data_orders()
+    )
+    u = sink.of("unsupported")[0]
+    assert (
+        u["text_vi"] == "Juli chưa hỗ trợ câu hỏi này"
+        and len(u["templates"]) == 5
+        and u["switch_platform"] == "tiktok"
+    )
+    assert res.stop_reasons == ["unsupported"] and not sink.of("text_delta") and not sink.of("card")
+
+
+async def test_lookup_renders_data_answer_without_llm_text_or_card() -> None:
+    llm = FakeLLM(
+        {"restated_vi": "Doanh thu bao nhiêu", "intents": [intent(question_type="status")]}
+    )
+    jev = FakeJev(
+        lambda s, q: full(
+            mode=ch("lookup"), lookup=ch("metric_total"), metric=ch("gmv"), chain=ch("gmv_change")
+        )
+    )
+    sink, res = await go(req(text="q"), llm=llm, jev=jev, data=data_orders())
+    da = sink.of("data_answer")[0]
+    assert (
+        da["kind"] == "metric_total"
+        and da["fresh_vi"].startswith("Số liệu đến hết")
+        and da["delta"]["dir"] in ("up", "down", "flat")
+    )
+    assert res.stop_reasons == ["data_answer"] and not sink.of("text_delta") and not sink.of("card")
+
+
+async def test_tiktok_before_w3_says_data_missing_and_no_card() -> None:
+    llm = FakeLLM({"restated_vi": "Vì sao đơn giảm", "intents": [intent()]}, text=TEXT)
+    sink, res = await go(
+        req(text="q", platform="tiktok"),
+        llm=llm,
+        jev=FakeJev(lambda s, q: full()),
+        data=data_orders(),
+    )
+    assert (
+        sink.of("label")[0]["text_vi"] == "Thiếu dữ liệu"
+        and sink.of("no_card")[0]["reason_vi"] == "Chưa có đề xuất cho TikTok"
+    )
+    assert not sink.of("card") and res.stop_reasons == ["data_missing"]
+
+
+async def test_parse_failure_offers_templates() -> None:
+    sink, res = await go(
+        req(text="q"), llm=FakeLLM(None), jev=FakeJev(lambda s, q: full()), data=data_orders()
+    )
+    assert sink.of("unsupported")[0]["templates"] and res.stop_reasons == ["unsupported"]
+
+
+async def test_timeout_is_busy_error_and_done_still_ends_the_stream() -> None:
+    class Slow(FakeData):
+        async def shop_daily(self, end: Any, item: Any = None) -> list[dict[str, Any]]:
+            raise TimeoutError
+
+    shop, srcs = funnel_data()
+    llm = FakeLLM({"restated_vi": "q", "intents": [intent()]}, text=TEXT)
+    sink, res = await go(
+        req(text="q"), llm=llm, jev=FakeJev(lambda s, q: full()), data=Slow(shop, srcs)
+    )
+    assert sink.of("error")[0]["code"] == "busy" and sink.events[-1]["type"] == "done"
+
+
+async def test_engine_module_never_imports_write_paths() -> None:
+    src = (
+        open(engine.__file__).read()
+        + open(
+            engine.cards_service.__file__ if hasattr(engine, "cards_service") else engine.__file__
+        ).read()
+    )
+    assert "materialize" not in src and "create_manual" not in src
+
+
+async def test_service_data_cost_lines_come_from_the_analytics_services(monkeypatch: Any) -> None:
+    from contextlib import asynccontextmanager
+
+    from juli_backend.services.analytics_agent.data_service import ServiceData
+
+    @asynccontextmanager
+    async def factory() -> Any:
+        yield None
+
+    sd = ServiceData(factory, SHOP)
+    calls: list[str] = []
+
+    async def fake_svc(name: str, **kw: Any) -> dict[str, Any]:
+        calls.append(f"{name}:{kw.get('product_id')}")
+        if name == "channel_split":
+            return {
+                "kpis": {
+                    "cost_ads": 10.0,
+                    "cost_affiliate": None,
+                    "cost_offers": 5.0,
+                    "cost_total": 15.0,
+                }
+            }
+        return {"shop_profit": {"net_revenue": 1000.0}}
+
+    monkeypatch.setattr(sd, "_svc", fake_svc)
+    shop = await sd.cost_lines(AS_OF, AS_OF)
+    assert shop == {
+        "net_revenue": 1000.0,
+        "cost_ads": 10.0,
+        "cost_affiliate": None,
+        "cost_offers": 5.0,
+    }
+    prod = await sd.cost_lines(AS_OF, AS_OF, "p1")
+    assert prod["net_revenue"] is None and calls[-1] == "channel_split:p1"
