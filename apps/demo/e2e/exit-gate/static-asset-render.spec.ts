@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 import {
   enterReplayDemo,
-  expectFourDestinationShell,
+  expectPrimaryRailShell,
   navigatePrimaryDestination,
 } from "../helpers/demo-navigation";
 
@@ -63,7 +63,7 @@ test.describe("Phase 2.6 exit gate — static asset render (ADR-035)", () => {
 
     await navigatePrimaryDestination(page, "Quyết định");
     await expect(page).toHaveURL(/\/decisions$/);
-    await expectFourDestinationShell(page);
+    await expectPrimaryRailShell(page);
     await expect(page.getByRole("tab", { name: "Đề xuất" })).toHaveAttribute("aria-selected", "true");
     await expectBrandedComputedStyles(page);
   });
@@ -71,6 +71,6 @@ test.describe("Phase 2.6 exit gate — static asset render (ADR-035)", () => {
   test("Decisions direct load keeps non-default styling", async ({ page }) => {
     await page.goto("/decisions");
     await expectBrandedComputedStyles(page);
-    await expectFourDestinationShell(page);
+    await expectPrimaryRailShell(page);
   });
 });

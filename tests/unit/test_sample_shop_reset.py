@@ -104,3 +104,103 @@ def test_the_orm_schema_plans_without_refusal():
     ):
         assert wiped in got
     assert got.index("shop_proposal_approvals") < got.index("shop_proposals")
+
+
+def test_reload_plan_is_the_generated_subset_in_the_same_order():
+    from scripts.sample_shop.reset import GENERATED_TABLES, plan_reload_deletes
+
+    lines, metrics, cards = "public.order_lines", "public.shop_metrics_daily", "public.action_cards"
+    shop = {"public.shops", lines, metrics, cards}
+    fks = [
+        fk("order_lines", "shops"),
+        fk("shop_metrics_daily", "shops"),
+        fk("action_cards", "shops"),
+    ]
+    got = plan_reload_deletes(shop, fks)
+    assert {s.table for s in got} == {lines, metrics} <= GENERATED_TABLES
+    assert cards not in {s.table for s in got}
+
+
+def test_reload_is_refused_when_a_kept_table_points_at_a_generated_one():
+    from scripts.sample_shop.reset import plan_reload_deletes
+
+    shop = {"public.shops", "public.order_lines", "public.action_cards"}
+    fks = [fk("order_lines", "shops"), fk("action_cards", "order_lines", "line_id")]
+    with pytest.raises(ResetRefused) as refused:
+        plan_reload_deletes(shop, fks)
+    assert "action_cards references public.order_lines" in str(refused.value)
+
+
+def _shop_tables_of_the_orm() -> set[str]:
+    """Every ORM table with a ``shop_id``, plus the ``shop_id``-less ones that point at one."""
+    import importlib
+    import pkgutil
+
+    import juli_backend.models as models
+    from juli_backend.database import Base
+
+    for info in pkgutil.iter_modules(models.__path__):
+        importlib.import_module(f"juli_backend.models.{info.name}")
+
+    def name(t) -> str:
+        return f"{t.schema or 'public'}.{t.name}"
+
+    tables = list(Base.metadata.sorted_tables)
+    direct = {name(t) for t in tables if "shop_id" in t.c}
+    via = {
+        name(t)
+        for t in tables
+        if "shop_id" not in t.c
+        and any(name(fk.referred_table) in direct for fk in t.foreign_key_constraints)
+    }
+    return direct | via
+
+
+def test_every_shop_table_is_classified_for_a_reload():
+    """The ratchet: a new table with a shop_id must be put in exactly one group, or this fails."""
+    from scripts.sample_shop.reset import (
+        GENERATED_TABLES,
+        KEEP_TABLES,
+        REVIEWER_TABLES,
+        SEED_TABLES,
+    )
+
+    groups = {
+        "GENERATED_TABLES": GENERATED_TABLES,
+        "REVIEWER_TABLES": REVIEWER_TABLES,
+        "SEED_TABLES": SEED_TABLES,
+        "KEEP_TABLES": KEEP_TABLES,
+    }
+    tables = _shop_tables_of_the_orm()
+    unclassified = sorted(t for t in tables if not any(t in g for g in groups.values()))
+    assert not unclassified, f"classify in scripts/sample_shop/reset.py: {unclassified}"
+    twice = sorted(t for t in tables if sum(t in g for g in groups.values()) > 1)
+    assert not twice, f"in more than one group: {twice}"
+
+
+def test_reload_clears_a_kept_rows_nullable_pointer_instead_of_refusing():
+    """platform_items (kept) -> ingest_raw_payloads (replaced) through a nullable raw_payload_id."""
+    from scripts.sample_shop.reset import plan_reload_deletes, plan_reload_detaches
+
+    items, raw = "public.platform_items", "public.ingest_raw_payloads"
+    shop = {"public.shops", items, raw}
+    pointer = ForeignKey(items, raw, ("raw_payload_id",), ("id",), nullable=True)
+    fks = [fk("platform_items", "shops"), fk("ingest_raw_payloads", "shops"), pointer]
+    assert plan_reload_detaches(shop, fks) == [pointer]
+    got = {s.table for s in plan_reload_deletes(shop, fks)}
+    assert raw in got
+    assert items not in got
+
+
+def test_reload_still_refuses_a_kept_pointer_that_cannot_be_null():
+    from scripts.sample_shop.reset import plan_reload_detaches
+
+    items, raw = "public.platform_items", "public.ingest_raw_payloads"
+    shop = {"public.shops", items, raw}
+    pointer = ForeignKey(items, raw, ("raw_payload_id",), ("id",), nullable=False)
+    fks = [fk("platform_items", "shops"), fk("ingest_raw_payloads", "shops"), pointer]
+    assert plan_reload_detaches(shop, fks) == []
+    with pytest.raises(ResetRefused, match="platform_items references"):
+        from scripts.sample_shop.reset import plan_reload_deletes
+
+        plan_reload_deletes(shop, fks)
