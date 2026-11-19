@@ -104,3 +104,27 @@ def test_the_orm_schema_plans_without_refusal():
     ):
         assert wiped in got
     assert got.index("shop_proposal_approvals") < got.index("shop_proposals")
+
+
+def test_reload_plan_is_the_generated_subset_in_the_same_order():
+    from scripts.sample_shop.reset import GENERATED_TABLES, plan_reload_deletes
+
+    lines, metrics, cards = "public.order_lines", "public.shop_metrics_daily", "public.action_cards"
+    shop = {"public.shops", lines, metrics, cards}
+    fks = [
+        fk("order_lines", "shops"),
+        fk("shop_metrics_daily", "shops"),
+        fk("action_cards", "shops"),
+    ]
+    got = plan_reload_deletes(shop, fks)
+    assert {s.table for s in got} == {lines, metrics} <= GENERATED_TABLES
+    assert cards not in {s.table for s in got}
+
+
+def test_reload_is_refused_when_a_kept_table_points_at_a_generated_one():
+    from scripts.sample_shop.reset import plan_reload_deletes
+
+    shop = {"public.shops", "public.order_lines", "public.action_cards"}
+    fks = [fk("order_lines", "shops"), fk("action_cards", "order_lines", "line_id")]
+    with pytest.raises(ResetRefused):
+        plan_reload_deletes(shop, fks)

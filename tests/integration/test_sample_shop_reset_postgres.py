@@ -99,3 +99,77 @@ async def test_reset_wipes_then_reload_restores():
                 assert SOURCE_LLM not in sources
     finally:
         await engine.dispose()
+
+
+async def _figures(factory, shop_id):
+    """(order-line count, sum of line GMV, shop-day count, sum of shop GMV, product-day rows)."""
+    from juli_backend.models.shopee_metrics import ShopeeProductMetricsDaily
+    from juli_backend.models.shopee_profit import ShopeeOrderLine
+
+    async with factory() as session:
+        lines = (
+            await session.execute(
+                select(
+                    func.count(),
+                    func.coalesce(func.sum(ShopeeOrderLine.deal_price * ShopeeOrderLine.qty), 0),
+                ).where(ShopeeOrderLine.shop_id == shop_id)
+            )
+        ).one()
+        shop = (
+            await session.execute(
+                select(func.count(), func.coalesce(func.sum(ShopeeShopMetricsDaily.gmv), 0)).where(
+                    ShopeeShopMetricsDaily.shop_id == shop_id
+                )
+            )
+        ).one()
+        products = await session.scalar(
+            select(func.count()).select_from(ShopeeProductMetricsDaily)
+            .where(ShopeeProductMetricsDaily.shop_id == shop_id)
+        )  # fmt: skip
+    return (lines[0], lines[1], shop[0], shop[1], products)
+
+
+async def test_reload_with_a_new_end_date_equals_a_fresh_load():
+    """R1-1, R1-2, R1-4 and a reviewer's row surviving: A loads D1 then D2; B loads D2 once."""
+    from datetime import timedelta
+
+    from scripts.sample_shop.catalog import SAMPLE_SHOPEE_SHOP_ID
+
+    d2 = END
+    d1 = END - timedelta(days=3)
+    other_id = str(SAMPLE_SHOPEE_SHOP_ID + 1)
+    engine = create_async_engine(async_database_url(os.environ["DATABASE_URL"]))
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        fresh = await loader.load(factory, generate(d2, shopee_shop_id=other_id), now=NOW)
+        fresh_figures = await _figures(factory, fresh.shop_id)
+        assert fresh_figures[0] > 0 and fresh_figures[2] > 0
+
+        first = await loader.load(factory, generate(d1), now=NOW)
+        sid = first.shop_id
+        assert sid != fresh.shop_id
+        assert await _figures(factory, sid) != fresh_figures  # the old window really differs
+        proposals = await _count(factory, ShopProposal, sid)
+        item = PRODUCTS[0].item_id
+        async with factory() as session:
+            async with with_shop_scope(session, sid):
+                session.add(
+                    content_specs.llm_title_row(
+                        sid, item, current_title=PRODUCTS[0].name, keywords=[],
+                        drafts=[{"title": "x", "chars": 1}], model="fake", user_id=None, now=NOW,
+                    )
+                )  # fmt: skip
+                await session.commit()
+
+        await loader.load(factory, generate(d2), now=NOW)
+        assert await _figures(factory, sid) == fresh_figures  # R1-1
+        assert await _figures(factory, fresh.shop_id) == fresh_figures  # R1-2
+        assert await _count(factory, ShopProposal, sid) == proposals
+        async with factory() as session:
+            async with with_shop_scope(session, sid):
+                assert await content_specs.live_titles_used(session, sid, item) == 1  # kept
+
+        await loader.load(factory, generate(d2), now=NOW)
+        assert await _figures(factory, sid) == fresh_figures  # R1-4
+    finally:
+        await engine.dispose()
