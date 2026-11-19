@@ -25,6 +25,7 @@ the D31.6 recon confirms them):
 
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal
@@ -38,6 +39,8 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+logger = logging.getLogger(__name__)
 
 #: Hard limits (the route also caps the body at ``MAX_BODY_BYTES``).
 #: Below nginx's default 1 MiB `client_max_body_size` on api.app-juli.com.
@@ -85,13 +88,26 @@ _CARD_LIKE: dict[str, str] = {
     "Giỏ hàng": "cart",
     "Đơn mua của tôi": "my_orders",
     "Khác": "other",
+    # The Connector (traffic/overview ``breakdown[].source``) sends Shopee's raw codes.
+    "psd_label_shop": "shop_page",
+    "psd_label_search": "search",
+    "psd_label_recommendation": "recommend",
+    "psd_label_shopping_cart": "cart",
+    "psd_label_my_orders": "my_orders",
+    "psd_label_others": "other",
 }
 #: Seller Centre's level-2 source labels (``… › Theo nguồn lưu lượng``, every Ory export
 #: 11/2025-10/2026) → Juli's ``segment`` code, per L1 source (ADR-117 §1). An L2 row is a
 #: breakdown of its L1 total (segment ``all``) and is never added to it. A label not
 #: listed is refused (422), never filed under ``other``.
 SHOPEE_L2_SOURCES: dict[str, dict[str, str]] = {
-    "psd_label_product_card": {**_CARD_LIKE, "Khuyến mãi": "promo", "Chat": "chat"},
+    "psd_label_product_card": {
+        **_CARD_LIKE,
+        "Khuyến mãi": "promo",
+        "Chat": "chat",
+        "psd_label_promotion": "promo",
+        "psd_label_chat": "chat",
+    },
     "psd_label_seller_live": {
         **_CARD_LIKE,
         "Thẻ Live": "live_tab",
@@ -103,15 +119,36 @@ SHOPEE_L2_SOURCES: dict[str, dict[str, str]] = {
         "Thẻ Video": "video_tab",
         "Trang chủ Shopee Video": "video_home",
     },
-    "psd_label_affiliate": {"Affiliate Live": "aff_live", "Affiliate Video": "aff_video"},
+    "psd_label_affiliate": {
+        "Affiliate Live": "aff_live",
+        "Affiliate Video": "aff_video",
+        "psd_label_affiliate_live": "aff_live",
+        "psd_label_affiliate_video": "aff_video",
+    },
     "psd_label_shopee_ads": {
         "Quảng cáo GMV tối đa ROAS tùy chỉnh cho sản phẩm": "ads_roas_custom",
         "Quảng cáo GMV tối đa tự động đấu thầu cho sản phẩm": "ads_auto_bid",
         "Quảng cáo cửa hàng": "ads_shop",
         "Product Ads (GMV Max-Shop)": "ads_gmvmax_shop",
         "Khác": "other",
+        "psd_label_productgmvmax_customroas_ads": "ads_roas_custom",
+        "psd_label_shop_ads": "ads_shop",
     },
 }
+#: A raw Shopee source code not listed above (``psd_label_*``) is a new Shopee source, not a
+#: bad row: it is kept as segment ``o:<code>`` and logged (never refused, never ``other``).
+SHOPEE_CODE_PREFIX = "psd_label_"
+
+
+def l2_segment(source: str, sub_source: str) -> str:
+    """The ``segment`` of an L2 row; an unlisted raw ``psd_label_*`` code is kept, logged."""
+    known = SHOPEE_L2_SOURCES[source].get(sub_source)
+    if known is not None:
+        return known
+    logger.warning("ingest.traffic_source_drift source=%s sub_source=%s", source, sub_source)
+    return f"o:{sub_source.removeprefix(SHOPEE_CODE_PREFIX)}"[:16]
+
+
 #: Seller Centre's promotion types (``discount`` › ``Biểu đồ`` / ``Danh sách hiệu suất``)
 #: → Juli's code. ``all`` is Shopee's own total row.
 SHOPEE_PROMO_TYPES: dict[str, str] = {
@@ -187,7 +224,11 @@ class _SourceMetricFields(BaseModel):
 
     @model_validator(mode="after")
     def _known_sub_source(self) -> _SourceMetricFields:
-        if self.sub_source is not None and self.sub_source not in SHOPEE_L2_SOURCES[self.source]:
+        if (
+            self.sub_source is not None
+            and self.sub_source not in SHOPEE_L2_SOURCES[self.source]
+            and not self.sub_source.startswith(SHOPEE_CODE_PREFIX)
+        ):
             raise ValueError(f"unknown sub_source for {self.source}")
         return self
 
@@ -473,6 +514,10 @@ class ShopeeAdsCampaignPeriodRow(PeriodRowBase):
     """
 
     campaign_name: Annotated[str, StringConstraints(min_length=1, max_length=255)]
+    #: F4.5 (Connector 0.3.29): Shopee's campaign id. When present it is the campaign's key
+    #: (the same one ``ads_campaign_daily`` uses), so a campaign keeps one key across days and
+    #: periods; the name and place are only the fallback (an export has no id).
+    campaign_id: Annotated[str, StringConstraints(pattern=r"^[0-9]{1,32}$")] | None = None
     item_id: ItemId | None = None
     #: Place among rows sharing campaign and product in one export.
     ordinal: Annotated[int, Field(ge=0, le=999)] = 0
@@ -504,7 +549,7 @@ class ShopeeAdsCampaignPeriodRow(PeriodRowBase):
     voucher_sales: Money | None = None
 
     def key(self) -> tuple[Any, ...]:
-        return (self.campaign_name, self.item_id, self.ordinal)
+        return (self.campaign_id or self.campaign_name, self.item_id, self.ordinal)
 
 
 # -- affiliate, ad keyword and promotion-total period rows (reco loader wave) ------------

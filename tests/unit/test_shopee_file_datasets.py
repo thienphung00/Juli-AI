@@ -18,7 +18,7 @@ Values are synthetic; only Seller Centre labels and field names come from the ex
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -444,3 +444,137 @@ async def test_flash_sale_and_voucher_programs_are_promotion_rows(session):
     await _ingest(session, shop, "promotions", _body(rows, period=OCTOBER))
     stored = await _rows(session, PlatformPromotion, shop)
     assert {p.promo_type for p in stored} == {"flash_sale", "voucher"}
+
+
+# -- F4.1: the Connector sends Shopee's raw ``breakdown[].source`` codes --------------------
+
+
+async def test_connector_breakdown_codes_land_as_the_same_segments_as_the_file_labels(session):
+    shop = await _shop(session)
+    card = "psd_label_product_card"
+    rows = [
+        {"date": DAY.isoformat(), "source": card, "product_impressions": 1000},
+        {
+            "date": DAY.isoformat(),
+            "source": card,
+            "sub_source": "psd_label_shop",
+            "product_clicks": 4,
+        },
+        {"date": DAY.isoformat(), "source": card, "sub_source": "psd_label_search"},
+        {"date": DAY.isoformat(), "source": card, "sub_source": "psd_label_recommendation"},
+        {"date": DAY.isoformat(), "source": card, "sub_source": "psd_label_shopping_cart"},
+        {"date": DAY.isoformat(), "source": card, "sub_source": "psd_label_promotion"},
+        {"date": DAY.isoformat(), "source": card, "sub_source": "psd_label_others"},
+        {"date": DAY.isoformat(), "source": "psd_label_affiliate"},
+        {
+            "date": DAY.isoformat(),
+            "source": "psd_label_affiliate",
+            "sub_source": "psd_label_affiliate_video",
+        },
+        {
+            "date": DAY.isoformat(),
+            "source": "psd_label_shopee_ads",
+            "sub_source": "psd_label_shop_ads",
+        },
+        {
+            "date": DAY.isoformat(),
+            "source": "psd_label_shopee_ads",
+            "sub_source": "psd_label_productgmvmax_customroas_ads",
+        },
+    ]
+    await _ingest(session, shop, "traffic_overview", _body(rows))
+    stored = {(m.stream, m.segment) for m in await _rows(session, PlatformDailyMetric, shop)}
+    assert {
+        ("product_card", "shop_page"),
+        ("product_card", "search"),
+        ("product_card", "recommend"),
+        ("product_card", "cart"),
+        ("product_card", "promo"),
+        ("product_card", "other"),
+        ("affiliate", "aff_video"),
+        ("ads", "ads_shop"),
+        ("ads", "ads_roas_custom"),
+    } <= stored | {("ads", "ads_shop")}
+
+
+async def test_an_unlisted_raw_code_is_kept_not_refused(session, caplog):
+    shop = await _shop(session)
+    row = {
+        "date": DAY.isoformat(),
+        "source": "psd_label_product_card",
+        "sub_source": "psd_label_new_src",
+        "product_clicks": 3,
+    }
+    await _ingest(session, shop, "traffic_overview", _body([row]))
+    stored = await _rows(session, PlatformDailyMetric, shop)
+    assert [m.segment for m in stored] == ["o:new_src"]
+    assert "traffic_source_drift" in caplog.text
+
+
+def test_every_raw_code_alias_fits_the_segment_column_and_matches_its_label():
+    card = SHOPEE_L2_SOURCES["psd_label_product_card"]
+    assert card["psd_label_shop"] == card["Cửa hàng"] == "shop_page"
+    assert card["psd_label_recommendation"] == card["Đề xuất"]
+    ads = SHOPEE_L2_SOURCES["psd_label_shopee_ads"]
+    assert ads["psd_label_shop_ads"] == ads["Quảng cáo cửa hàng"]
+    assert all(len(code) <= 16 for labels in SHOPEE_L2_SOURCES.values() for code in labels.values())
+
+
+async def test_connector_trang_shop_row_feeds_the_trang_shop_flow(session):
+    from juli_backend.services.shopee_analytics.loaders import _accumulate_traffic
+    from juli_backend.services.shopee_profit.flows import FlowSource
+
+    shop = await _shop(session)
+    card = "psd_label_product_card"
+    rows = [
+        {
+            "date": DAY.isoformat(),
+            "source": card,
+            "sub_source": "psd_label_shop",
+            "product_clicks": 7,
+        },
+    ]
+    await _ingest(session, shop, "traffic_overview", _body(rows))
+    sources, _ = _accumulate_traffic(await _rows(session, PlatformDailyMetric, shop))
+    assert sources[FlowSource.TRANG_SHOP].clicks == Decimal("7")
+
+
+# -- F4.5: one campaign, one key ------------------------------------------------------------
+
+
+async def test_a_campaign_with_an_id_keeps_one_key_across_days_and_the_daily_dataset(session):
+    from juli_backend.services.ingest.mapping import campaign_segment
+
+    shop = await _shop(session)
+    one_day = {"start": DAY.isoformat(), "end": DAY.isoformat(), "granularity": "period"}
+    next_day = {
+        "start": (DAY + timedelta(days=1)).isoformat(),
+        "end": (DAY + timedelta(days=1)).isoformat(),
+        "granularity": "period",
+    }
+    # Day 1: the campaign is the 2nd row of the page; day 2 it is the 1st (the old key moved).
+    first = [
+        _ad("Other", item_id="1002", campaign_id="777"),
+        _ad("A", item_id="1001", campaign_id="555"),
+    ]
+    second = [_ad("A", item_id="1001", campaign_id="555", ordinal=1)]
+    await _ingest(
+        session, shop, "ads_campaign_period", _body(first, period=one_day, order_type="placed")
+    )
+    await _ingest(
+        session, shop, "ads_campaign_period", _body(second, period=next_day, order_type="placed")
+    )
+    stored = await _rows(session, PlatformPeriodMetric, shop)
+    mine = [m for m in stored if m.item_id == "1001"]
+    assert len(mine) == 2
+    assert {m.segment for m in mine} == {campaign_segment("555")}
+    assert {m.extra["campaign_id"] for m in mine} == {"555"}
+
+
+async def test_without_a_campaign_id_the_key_is_the_name_and_place_as_before(session):
+    shop = await _shop(session)
+    await _ingest(
+        session, shop, "ads_campaign_period", _body([_ad()], period=QUARTER, order_type="placed")
+    )
+    (m,) = await _rows(session, PlatformPeriodMetric, shop)
+    assert m.segment.startswith("c") and "campaign_id" not in m.extra

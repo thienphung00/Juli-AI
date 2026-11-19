@@ -10,6 +10,7 @@
 import { type Dataset, type MydataDataset, SHOPEE_NO_VALUE } from "./config";
 import { ENDPOINTS } from "./endpoints";
 import { singleDay } from "../../core/time";
+import { mapPromotionDailyAnswer } from "./promotion-map";
 
 export { ENDPOINTS };
 
@@ -349,14 +350,37 @@ export function mapTrafficOverview(result: unknown, date: string): { rows: Row[]
     for (const field of SOURCE_REQUIRED[key] ?? []) {
       if (!(field in total)) drift.missing.push(`result.${key}.${field}`);
     }
-    if (Array.isArray(block.breakdown) && block.breakdown.length > 0) {
-      // Level-2 sub-sources: schema pending the second recon (D31.6).
-      addExtra(extra, "l2_breakdown_count", block.breakdown.length);
-    }
     keepRatesAboveOne(key, row, extra);
     if (Object.keys(extra).length) row.extra = extra;
     scaleDrift(`result.${key}.`, row, drift);
     rows.push(row);
+    // F4.1: one row per level-2 sub-source (C1): `source` = this block's L1 label, `sub_source` =
+    // Shopee's raw code. An unknown code is kept (the backend logs the drift), never dropped.
+    if (Array.isArray(block.breakdown)) {
+      for (const [index, entry] of block.breakdown.entries()) {
+        if (!isObject(entry) || typeof entry.source !== "string" || !entry.source) {
+          drift.unexpected.push(`result.${key}.breakdown[${index}].source`);
+          continue;
+        }
+        const sub: Row = { date, source: enumValue, sub_source: entry.source };
+        const subExtra: Row = {};
+        for (const [field, value] of Object.entries(entry)) {
+          if (field === "source" || field.endsWith("_pct_diff")) continue;
+          if (RATIO_FIELDS.includes(field)) {
+            addExtra(subExtra, field, toNumber(value));
+            continue;
+          }
+          const number = toNumber(value);
+          if (number === undefined) continue; // -1000000 (not available) and non-numbers: omitted
+          if (SOURCE_ROW_FIELDS.has(field)) sub[field] = number;
+          else addExtra(subExtra, field, number);
+        }
+        keepRatesAboveOne(key, sub, subExtra);
+        if (Object.keys(subExtra).length) sub.extra = subExtra;
+        scaleDrift(`result.${key}.breakdown[${index}].`, sub, drift);
+        rows.push(sub);
+      }
+    }
   }
   return { rows, drift: finish(drift) };
 }
@@ -508,24 +532,35 @@ export function datasetOf(url: URL): MydataDataset | null {
 
 /** One captured response → one ingest post (or null when it is not a finished day). */
 export function mapCaptured(captured: Captured): Mapped | null {
+  return mapCapturedAll(captured)[0] ?? null;
+}
+
+/** Like {@link mapCaptured}, but an answer that holds several order types (product_overview) gives one post each. */
+export function mapCapturedAll(captured: Captured): Mapped[] {
+  return mapCapturedAllInner(captured);
+}
+
+function mapCapturedAllInner(captured: Captured): Mapped[] {
   let url: URL;
   try {
     url = new URL(captured.url, "https://banhang.shopee.vn");
   } catch {
-    return null;
+    return [];
   }
-  if (url.origin !== "https://banhang.shopee.vn") return null;
+  if (url.origin !== "https://banhang.shopee.vn") return [];
   const dataset = datasetOf(url);
-  if (dataset === null) return null;
+  if (dataset === null) return [];
   const date = singleDay(url.searchParams, captured.capturedAt);
-  if (date === null) return null;
+  if (date === null) return [];
+  if (dataset === "product_overview") return mapProductOverviewAnswer(captured.body, date);
+  if (dataset === "promotion_daily") return mapPromotionDailyAnswer(captured.body, date, url.searchParams);
   const unwrapped = unwrap(captured.body);
-  if (unwrapped === null) return null;
+  if (unwrapped === null) return [];
   const orderType = dataset === "shop_traffic" ? null : orderTypeOf(url.searchParams);
   const base = { dataset, endpoint: ENDPOINTS[dataset], date, orderType };
   // An item list found by its row keys outside any known wrapper is data, not drift (0.3.20).
   if (unwrapped.drift && !(dataset === "item_by_source" && itemRowsIn(captured.body) !== undefined)) {
-    return { ...base, rows: [], drift: unwrapped.drift };
+    return [{ ...base, rows: [], drift: unwrapped.drift }];
   }
   const result = unwrapped.drift ? captured.body : unwrapped.result;
   let mapped: { rows: Row[]; drift: Drift | null };
@@ -543,5 +578,87 @@ export function mapCaptured(captured: Captured): Mapped | null {
       mapped = mapShopTraffic(result, date);
       break;
   }
-  return { ...base, ...mapped };
+  return [{ ...base, ...mapped }];
+}
+
+// -- product_overview (F4.8) ---------------------------------------------------------------
+
+/** Order-independent metrics → the file import's field names (scripts/shopee_exports PRODUCT_OVERVIEW). */
+const PRODUCT_OVERVIEW_COMMON: Record<string, string> = {
+  uv: "product_visitors",
+  pv: "product_page_views",
+  iv: "products_visited",
+  bounce_visitors: "bounced_visitors",
+  bounce_rate: "bounce_rate",
+  search_clicks: "search_clicks",
+  like_unit_num: "likes",
+  atc_uv: "atc_visitors",
+  atc_unit_num: "atc_units",
+  atc_rate: "atc_rate",
+};
+/** Per order type: Shopee's `<type>_x` metric → the file field (placed: Đơn đã đặt, confirmed: Đơn đã xác nhận). */
+const PRODUCT_OVERVIEW_BY_ORDER: Record<string, (type: string) => string> = {
+  buyers: (t) => `${t}_buyers`,
+  unit_num: (t) => `${t}_unit_num`,
+  items: (t) => `${t}_items`,
+  gmv: (t) => `${t}_gmv`,
+  rate: (t) => `uv_to_${t}_buyers_rate`,
+};
+const PRODUCT_OVERVIEW_ORDER_FIELDS: Record<string, string> = {
+  buyers: "buyers",
+  unit_num: "units",
+  items: "products_sold",
+  gmv: "sales",
+  rate: "conversion_rate",
+};
+const PRODUCT_OVERVIEW_RATES = new Set(["bounce_rate", "atc_rate", "conversion_rate"]);
+
+/** The value of one `{value, ratio}` metric, or undefined (absent, sentinel, not a number). */
+function flatValue(body: Record<string, unknown>, key: string): number | undefined {
+  const metric = body[key];
+  return isObject(metric) ? toNumber(metric.value) : undefined;
+}
+
+/**
+ * Sản phẩm › Tổng quan for one finished day (flat `{metric: {value, ratio}}`, no wrapper) → one post
+ * per order type (placed, confirmed), the order-independent fields repeated, exactly the file
+ * import's fields (C5). `ratio` (vs the previous period) is not stored; -1000000 is omitted.
+ */
+export function mapProductOverviewAnswer(body: unknown, date: string): Mapped[] {
+  const base = { dataset: "product_overview" as const, endpoint: ENDPOINTS.product_overview, date };
+  if (!isObject(body)) return [];
+  const code = "code" in body ? body.code : body.error;
+  if (code !== undefined && code !== null && code !== 0 && code !== "0") return []; // an error answer is not data
+  const known = Object.keys(PRODUCT_OVERVIEW_COMMON).filter((k) => isObject(body[k]));
+  if (known.length === 0) {
+    return (["placed", "confirmed"] as const).map((orderType) => ({
+      ...base,
+      orderType,
+      rows: [],
+      drift: { unexpected: [], missing: ["uv"] },
+    }));
+  }
+  const posts: Mapped[] = [];
+  for (const orderType of ["placed", "confirmed"] as const) {
+    const row: Row = { date };
+    const common: Record<string, number> = {};
+    for (const [key, field] of Object.entries(PRODUCT_OVERVIEW_COMMON)) {
+      const value = flatValue(body, key);
+      if (value !== undefined) common[field] = value;
+    }
+    Object.assign(row, common);
+    for (const [part, name] of Object.entries(PRODUCT_OVERVIEW_BY_ORDER)) {
+      const value = flatValue(body, name(orderType));
+      if (value !== undefined) row[PRODUCT_OVERVIEW_ORDER_FIELDS[part]!] = value;
+    }
+    const placedToConfirmed = flatValue(body, "placed_buyers_to_confirmed_buyers_rate");
+    if (orderType === "confirmed" && placedToConfirmed !== undefined) row.extra = { placed_to_confirmed_rate: placedToConfirmed };
+    // A rate outside 0..1 must not drop the day (as for the other datasets): the counts stay.
+    for (const key of Object.keys(row)) {
+      const value = row[key];
+      if (PRODUCT_OVERVIEW_RATES.has(key) && typeof value === "number" && (value < 0 || value > 1)) delete row[key];
+    }
+    posts.push({ ...base, orderType, rows: [row], drift: null });
+  }
+  return posts;
 }

@@ -180,6 +180,11 @@ export class IngestClient {
     return this.call("/v1/ingest/market/keywords", { method: "GET" }, token);
   }
 
+  /** 0.3.29 (F4.2, contract C2): per daily dataset, the days of the last 30 with no accepted row. */
+  readDays(token: string): Promise<unknown> {
+    return this.call(`/v1/connector/${this.platform}/read-days`, { method: "GET" }, token);
+  }
+
   /** The shop's order_ref key (affiliate reader): order ids are hashed with it in the browser. */
   orderRefKey(token: string): Promise<unknown> {
     return this.call("/v1/ingest/order-ref-key", { method: "GET" }, token);

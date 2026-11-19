@@ -131,6 +131,12 @@ export interface ReaderRun {
   trigger?: string;
   /** 0.3.22: per section, the login / CAPTCHA walls since its last read (two block its other pages). */
   walls?: Record<string, { count: number; reason: ReaderBlockReason }>;
+  /** 0.3.29 (F4.2): per dataset, the hole days this run read (accepted by Juli). */
+  catchupRead?: Record<string, string[]>;
+  /** 0.3.29 (F4.3): pages already queued a second time in this run after their section answered. */
+  retried?: ReaderId[];
+  /** 0.3.29 (F4.6): the affiliate programme showed data in this run (an empty period after that is an error). */
+  affiliateData?: boolean;
 }
 
 /** `rate_limit`: HTTP 429 / 403 or Shopee wording for "too many requests" (P97). */
@@ -181,7 +187,15 @@ export interface ReaderSchedule {
   lastRun?: { day: string; at: string; outcomes: Record<string, string>; blocked?: ReaderBlockReason };
   run?: ReaderRun;
   /** 0.3.25: pages blocked today by a login / password wall, to read again once the block clears (once per clear). */
-  reread?: { day: string; pages: ReaderId[] };
+  reread?: { day: string; pages: ReaderId[]; /** 0.3.29: the section a data call proved alive. */ section?: string };
+  /** 0.3.29 (F4.3): a data call proved a section while a run was going: re-read its blocked pages when the run ends. */
+  rereadAfterRun?: { day: string; section?: string };
+  /** 0.3.29 (F4.2, contract C2): the backend's hole list of today (days missing per dataset). */
+  holes?: { day: string; datasets: Record<string, string[]> };
+  /** 0.3.29 (F4.4): the items with product views in the last product-table read (most viewed first): item traffic reads these. */
+  viewedItems?: { day: string; ids: string[] };
+  /** 0.3.29 (F4.9): when a per-order income read last landed (ms): orders completed since then are queued. */
+  incomeReadAt?: number;
   /** 0.3.25: re-read starts today (capped, so a dialog that keeps coming back cannot loop). */
   rereadCount?: { day: string; n: number };
   /** 0.3.27 (contract C): pages a read-back job asked for, read in a run of their own as soon as possible. */

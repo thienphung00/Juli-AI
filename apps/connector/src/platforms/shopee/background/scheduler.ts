@@ -46,8 +46,10 @@ import {
   READER_PAGE_LOAD_COST,
   SHOP_TOTALS_BACKFILL_DAYS,
   SHOP_TOTALS_REFRESH_DAYS,
+  READER_CAPTURE_JOB_TIMEOUT_MS,
   READER_DATASETS,
   READER_IDS,
+  READER_RELOAD_ONCE,
   READER_JOB_TIMEOUT_MS,
   READER_LOAD_GRACE_MS,
   READER_PAGE_GAP_JITTER_MS,
@@ -62,8 +64,10 @@ import {
   TRAFFIC_MAX_ITEMS,
 } from "../config";
 import { completedOrders, incomeReadIds, zeroRowsStep } from "../orders-map";
+import { viewedItemIds } from "../product-period-map";
 import { activeItemIds, adsDayAnswer, completedTrafficDays, ongoingAdsCampaigns } from "../reader-map";
 import type { CaptureOutcome } from "./connector";
+import { catchupSummary, daysLeft, isBackfillHole, parseReadDays, type ReadDays, withHoleDays } from "./catchup";
 import { READER_PAGES, readerPageUrl, readerSection } from "../endpoints";
 import { blockedPath, classify, type ReaderJob, type ReaderResponse } from "../reader";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "../../../core/time";
@@ -129,6 +133,8 @@ export interface TickReport {
   at: string;
   outcomes?: Record<string, string>;
 }
+/** 0.3.29 (F4.6): the affiliate pages that read a period (an empty answer after the programme showed data is an error). */
+const AFFILIATE_PERIOD_READERS: ReadonlySet<ReaderId> = new Set<ReaderId>(["affiliate_kols", "affiliate_products", "affiliate_commissions", "affiliate_content"]);
 /** A run older than this is a crash leftover and is dropped. */
 const RUN_MAX_AGE_MS = 3 * 3_600_000;
 const ADS_DONE_KEPT = 14;
@@ -169,6 +175,10 @@ export interface SchedulerDeps {
     reportBlock?(event: BlockEvent): Promise<void>;
     /** 0.3.19: a finished run, or a tick that skipped (each distinct result once a day), told to Juli. */
     reportTick?(report: TickReport): Promise<void>;
+    /** 0.3.29 (F4.2, contract C2): the backend's hole list (undefined when it could not be read). */
+    readDays?(): Promise<ReadDays | undefined>;
+    /** 0.3.29 (F4.2): reopen these days of the per-day backfill (the mydata item datasets). */
+    queueBackfillHoles?(datasets: Record<string, string[]>): Promise<void>;
   };
   /** The 30-day backfill has a day in flight: do not start a run on top of it. */
   backfillBusy: () => Promise<boolean>;
@@ -215,10 +225,15 @@ export function planJobs(args: {
   adsHistoryDays?: readonly string[];
   held?: ReadonlySet<ReaderDataset>;
   readers?: readonly ReaderId[];
+  /** 0.3.29 (F4.2): the hole list (dataset -> missing days), the requests the backfill's part of the budget still has, and the product count. */
+  holes?: Record<string, string[]>;
+  holeRoom?: number;
+  itemCount?: number;
 }): PlannedJob[] {
   const todayDay = gmt7Date(Math.floor(args.nowMs / 1000));
   const held = args.held ?? HELD_DATASETS;
   const jobs: PlannedJob[] = [];
+  const room = args.holeRoom ?? 0;
   for (const id of args.readers ?? READER_IDS) {
     if (!readerActive(id, args.shopId)) continue;
     // A page is only worth opening while at least one of its datasets can be posted.
@@ -227,12 +242,22 @@ export function planJobs(args: {
     if (id === "products") {
       if (!args.productsFresh) jobs.push({ id });
     } else if (id === "traffic") {
-      const days = lastFinishedDays(args.nowMs, 1 + TRAFFIC_OVERVIEW_CATCHUP_DAYS).filter(
-        (day) => !(args.trafficOverviewDone ?? []).includes(day),
+      const days = withHoleDays(
+        id,
+        lastFinishedDays(args.nowMs, 1 + TRAFFIC_OVERVIEW_CATCHUP_DAYS).filter((day) => !(args.trafficOverviewDone ?? []).includes(day)),
+        args.holes,
+        room,
+        0,
       );
       if (days.length > 0) jobs.push({ id, days });
     } else if (id === "ads") {
-      const days = lastFinishedDays(args.nowMs, 1 + ADS_CATCHUP_DAYS).filter((day) => !args.adsDone.includes(day));
+      const days = withHoleDays(
+        id,
+        lastFinishedDays(args.nowMs, 1 + ADS_CATCHUP_DAYS).filter((day) => !args.adsDone.includes(day)),
+        args.holes,
+        room,
+        0,
+      );
       // Every day posted: the list is still opened once a day for its campaign settings, once
       // a first settings capture has been recorded (before that, an open day always exists).
       const settingsDue = args.adsSettingsDay !== undefined && args.adsSettingsDay !== gmt7Date(Math.floor(args.nowMs / 1000));
@@ -242,16 +267,27 @@ export function planJobs(args: {
       }
     } else if (id === "item_traffic") {
       // The item ids are filled in when the job's turn comes (the product list is read first).
-      const days = lastFinishedDays(args.nowMs, 1 + TRAFFIC_CATCHUP_DAYS).filter(
-        (day) => !(args.trafficDone ?? []).includes(day),
+      const days = withHoleDays(
+        id,
+        lastFinishedDays(args.nowMs, 1 + TRAFFIC_CATCHUP_DAYS).filter((day) => !(args.trafficDone ?? []).includes(day)),
+        args.holes,
+        room,
+        args.itemCount ?? 0,
       );
       if (days.length > 0) jobs.push({ id, days });
     } else if (id === "shop_totals") {
       // 30 days right after pairing, then the last 7 finished days once a day (placed / paid settle late).
       if (args.totalsDay !== todayDay) {
         const count = args.totalsBackfilled ? SHOP_TOTALS_REFRESH_DAYS : SHOP_TOTALS_BACKFILL_DAYS;
-        jobs.push({ id, days: lastFinishedDays(args.nowMs, count) });
+        jobs.push({ id, days: withHoleDays(id, lastFinishedDays(args.nowMs, count), args.holes, room, 0) });
+      } else {
+        const holeDays = withHoleDays(id, [], args.holes, room, 0);
+        if (holeDays.length > 0) jobs.push({ id, days: holeDays });
       }
+    } else if (id === "ads_products") {
+      // F4.5: the group campaigns' per-product table, plus the days the backend lacks (ads_campaign_period)
+      const holeDays = withHoleDays(id, [], args.holes, room, 0);
+      jobs.push(holeDays.length > 0 ? { id, days: holeDays } : { id });
     } else if (id === "product_period") {
       // The 30-day product table, once a day (one page open; at most PRODUCT_PERIOD_MAX_PAGES requests).
       if (args.productPeriodDay !== todayDay) jobs.push({ id });
@@ -504,6 +540,8 @@ export class ReaderScheduler {
       await this.setKick(reread ? "reread" : "retry", READER_KICK_RETRY_MINUTES);
       return "backfill_busy";
     }
+    // 0.3.29 (F4.2): the backend's hole list, at the start of every daily run and of the re-read after a block cleared
+    const holes = await this.fetchHoles(sched, today);
     const productsFresh = (sched.productsAt ?? 0) >= stockDueAt(today) && (sched.itemIds?.length ?? 0) > 0;
     const adsHistory = this.adsHistoryPlan(sched, shopId as string);
     const adsHistoryDays = this.adsHistoryToday(adsHistory, sched, backfillRequestsLeft(state, today));
@@ -524,6 +562,9 @@ export class ReaderScheduler {
       ordersCoveredDay: sched.ordersCoveredDay,
       productsFresh,
       adsHistoryDays,
+      holes: holes?.datasets,
+      holeRoom: backfillRequestsLeft(state, today),
+      itemCount: sched.itemIds?.length ?? 0,
       ...(this.deps.readers ? { readers: this.deps.readers } : {}),
     });
     // A same-day re-run opens pages that still have missing days. A manual
@@ -550,15 +591,43 @@ export class ReaderScheduler {
     const rereadCount = reread
       ? { day: today, n: (sched.rereadCount?.day === today ? sched.rereadCount.n : 0) + 1 }
       : sched.rereadCount;
-    const run: ReaderRun = { day: today, startedAt: now, jobs, index: 0, outcomes: {}, ...(reread ? { trigger: "reread" } : {}) };
+    // 0.3.29 (F4.3): the data call that armed the re-read proved its section alive: the first page of the re-read is
+    // never a "logged out" stop for lack of proof (a login redirect there is this page only).
+    const run: ReaderRun = {
+      day: today,
+      startedAt: now,
+      jobs,
+      index: 0,
+      outcomes: {},
+      ...(reread ? { trigger: "reread", ...(reread.section ? { live: [reread.section] } : {}) } : {}),
+    };
     // The re-read is consumed here: if the dialog comes back it is a new block, never a loop.
-    const started: ReaderSchedule = { ...sched, adsHistory, blocked: undefined, run, reread: undefined, ...(rereadCount ? { rereadCount } : {}) };
+    const started: ReaderSchedule = { ...sched, adsHistory, blocked: undefined, run, reread: undefined, ...(holes ? { holes } : {}), ...(rereadCount ? { rereadCount } : {}) };
     await this.save(started);
     await this.deps.alarms.create(READER_WATCHDOG_ALARM, {
       delayInMinutes: READER_WATCHDOG_ALARM_MINUTES,
       periodInMinutes: READER_WATCHDOG_ALARM_MINUTES,
     });
     return this.startNext(started, run);
+  }
+
+  /**
+   * 0.3.29 (F4.2): today's hole list from the backend (kept for the day when a later read fails). The
+   * mydata item datasets reopen their days in the per-day backfill; the rest are planned as reader days.
+   */
+  private async fetchHoles(sched: ReaderSchedule, today: string): Promise<ReaderSchedule["holes"]> {
+    let answer: ReadDays | undefined;
+    try {
+      answer = await this.deps.sink.readDays?.();
+    } catch {
+      answer = undefined;
+    }
+    const parsed = answer ? parseReadDays({ as_of: answer.asOf, datasets: Object.fromEntries(Object.entries(answer.datasets).map(([k, v]) => [k, { missing: v }])) }, today) : undefined;
+    if (!parsed) return sched.holes?.day === today ? sched.holes : undefined;
+    const holes = { day: today, datasets: parsed.datasets };
+    const reopen = Object.fromEntries(Object.entries(parsed.datasets).filter(([dataset]) => isBackfillHole(dataset)));
+    if (Object.keys(reopen).length > 0) await this.deps.sink.queueBackfillHoles?.(reopen).catch(() => undefined);
+    return holes;
   }
 
   /** The shop's ads history: kept while it is this shop's, else a new 90-day plan (newest first). */
@@ -701,9 +770,14 @@ export class ReaderScheduler {
             ? ORDERS_JOB_TIMEOUT_MS
             : jobId === "ads"
               ? ADS_JOB_TIMEOUT_MS
-              : READER_JOB_TIMEOUT_MS;
+              : jobId && READER_RELOAD_ONCE.includes(jobId) && !current.reopened
+                ? READER_CAPTURE_JOB_TIMEOUT_MS
+                : READER_JOB_TIMEOUT_MS;
       if (now - current.openedAt > limit) {
         if (jobId === "ads" && !current.reopened) return this.retryAds(sched, run);
+        // 0.3.29 (F4.6): a page that captures its own request gets one more page load (navigation only) in this run
+        const again = await this.reloadJob(sched, run);
+        if (again) return again;
         return this.finishJob(sched, run, "timeout");
       }
       // 0.3.28 (F5.3): the tab is on Shopee's traffic-check page (at load or later): stop everything
@@ -718,6 +792,10 @@ export class ReaderScheduler {
         }
         const wall = blockedPath(new URL(info.url).pathname);
         if (wall) return this.wall(sched, run, wall);
+        // 0.3.29 (F4.6): the content script was not listening when the tab reported ready, so the job never went
+        // out and the page timed out: send it again now (the watchdog repeats this every minute)
+        const job = run.jobs[run.index];
+        if (job && new URL(info.url).pathname.startsWith(READER_PAGES[job.id].path) && (await this.sendJob(sched, run, current.tabId, job))) return "resent";
       }
       if (current.sentAt !== undefined && run.jobs[run.index]?.id === "orders") {
         // The order list answers late: Chrome may have closed or discarded the tab meanwhile (0.3.15).
@@ -741,7 +819,9 @@ export class ReaderScheduler {
     }
     if (job.id === "item_traffic") {
       // The ids come from the last product-list read; with none there is nothing to open.
-      const itemIds = (sched.itemIds ?? []).slice(0, TRAFFIC_MAX_ITEMS);
+      // 0.3.29 (F4.4): the items with views in the last product table (most viewed first), else the product list
+      const viewed = sched.viewedItems?.ids ?? [];
+      const itemIds = (viewed.length > 0 ? viewed : (sched.itemIds ?? [])).slice(0, TRAFFIC_MAX_ITEMS);
       if (itemIds.length === 0) {
         const skipped: ReaderRun = { ...run, outcomes: { ...run.outcomes, [job.id]: "no_items" }, index: run.index + 1 };
         return skipped.index >= skipped.jobs.length ? this.finishRun(sched, skipped) : this.startNext(sched, skipped);
@@ -893,6 +973,7 @@ export class ReaderScheduler {
       await this.deps.alarms.clear(READER_WATCHDOG_ALARM).catch(() => undefined);
       await this.reportRun("stock", result, run);
       if (!blocked && sched.lastRunDay !== run.day) await this.setKick("after_stock", READER_KICK_DELAY_MINUTES);
+      await this.rereadAfterRun();
       return `stock_${result}`;
     }
     if (run.trigger === "readback") {
@@ -900,8 +981,13 @@ export class ReaderScheduler {
       await this.save({ ...sched, run: undefined });
       await this.deps.alarms.clear(READER_WATCHDOG_ALARM).catch(() => undefined);
       await this.reportRun("readback", result, run);
+      await this.rereadAfterRun();
       return result;
     }
+    // 0.3.29 (F4.2): the hole list's progress, in the run report (`catchup:<dataset>=<n> days left`)
+    const holes = sched.holes?.day === run.day ? sched.holes.datasets : undefined;
+    const progress = holes ? catchupSummary(daysLeft(holes, run.catchupRead)) : "";
+    if (progress) run = { ...run, outcomes: { ...run.outcomes, catchup: `done:${progress}` } };
     await this.save({
       ...sched,
       run: undefined,
@@ -916,7 +1002,18 @@ export class ReaderScheduler {
     });
     await this.deps.alarms.clear(READER_WATCHDOG_ALARM).catch(() => undefined);
     await this.reportRun(run.trigger ?? "daily", result, run);
+    await this.rereadAfterRun();
     return result;
+  }
+
+  /** 0.3.29 (F4.3): a data call proved a section while this run was going: arm the re-read of its blocked pages now. */
+  private async rereadAfterRun(): Promise<void> {
+    const { sched } = await this.load();
+    const pending = sched.rereadAfterRun;
+    if (!pending) return;
+    const cleared = { ...sched, rereadAfterRun: undefined };
+    await this.save(cleared);
+    if (pending.day === gmt7Date(Math.floor(this.deps.now() / 1000))) await this.armReread(cleared, pending.section);
   }
 
   private async reportRun(trigger: string, result: string, run: ReaderRun): Promise<void> {
@@ -949,7 +1046,8 @@ export class ReaderScheduler {
     const walls = run.walls ?? {};
     // The password dialog itself proves the session is logged in: it is always this page only
     // (0.3.25), in any run, even on its first page; no run-wide stop, no cool-down.
-    const proof = reason === "password_recheck" || (run.live ?? []).some((s) => s !== section && !walls[s]);
+    // 0.3.29: a re-read starts from a data call that proved its own section alive (run.live is seeded with it)
+    const proof = reason === "password_recheck" || (run.live ?? []).some((s) => (s !== section || run.trigger === "reread") && !walls[s]);
     if (!proof) return this.block(sched, run, reason, detail);
     const count = (walls[section]?.count ?? 0) + 1;
     await this.deps.sink
@@ -1066,31 +1164,58 @@ export class ReaderScheduler {
         await this.finishJob(sched, run, "redirected");
         return true;
       }
-      try {
-        await this.deps.tabs.send(tabId, {
-          type: "reader-job",
-          job: {
-            id: job.id,
-            ...(job.days ? { days: job.days } : {}),
-            ...(job.itemIds ? { itemIds: job.itemIds } : {}),
-            ...(job.campaignIds ? { campaignIds: job.campaignIds } : {}),
-            // The list titles reach the page (0.3.16): before, the reader never saw them.
-            ...(job.campaignNames ? { campaignNames: job.campaignNames.map((n) => n.slice(0, 255)) } : {}),
-            ...(job.orderIds ? { orderIds: job.orderIds } : {}),
-            ...(job.orderSns ? { orderSns: job.orderSns } : {}),
-            ...(job.history ? { history: job.history } : {}),
-            ...(job.sinceDay ? { sinceDay: job.sinceDay } : {}),
-            ...(job.historyDays ? { historyDays: job.historyDays } : {}),
-            // What is left of today's shared budget for this job's own requests.
-            budget: Math.max(0, this.requestsLeftFor((await this.load()).state, run)),
-          },
-        });
-      } catch {
-        return true; // the content script is not listening yet: the next tab-ready / watchdog retries
-      }
-      await this.save({ ...sched, run: { ...run, current: { ...run.current, sentAt: this.deps.now() } } });
+      await this.sendJob(sched, run, tabId, job); // not listening yet: the watchdog sends it again (advance)
       return true;
     });
+  }
+
+  /** Send the run's current job to its tab and remember it went out; false when the content script is not listening. */
+  private async sendJob(sched: ReaderSchedule, run: ReaderRun, tabId: number, job: PlannedJob): Promise<boolean> {
+    const budget = Math.max(0, this.requestsLeftFor((await this.load()).state, run));
+    try {
+      await this.deps.tabs.send(tabId, {
+        type: "reader-job",
+        job: {
+          id: job.id,
+          ...(job.days ? { days: job.days } : {}),
+          ...(job.itemIds ? { itemIds: job.itemIds } : {}),
+          ...(job.campaignIds ? { campaignIds: job.campaignIds } : {}),
+          // The list titles reach the page (0.3.16): before, the reader never saw them.
+          ...(job.campaignNames ? { campaignNames: job.campaignNames.map((n) => n.slice(0, 255)) } : {}),
+          ...(job.orderIds ? { orderIds: job.orderIds } : {}),
+          ...(job.orderSns ? { orderSns: job.orderSns } : {}),
+          ...(job.history ? { history: job.history } : {}),
+          ...(job.sinceDay ? { sinceDay: job.sinceDay } : {}),
+          ...(job.historyDays ? { historyDays: job.historyDays } : {}),
+          // What is left of today's shared budget for this job's own requests.
+          budget,
+        },
+      });
+    } catch {
+      return false;
+    }
+    const current = run.current as NonNullable<ReaderRun["current"]>;
+    await this.save({ ...sched, run: { ...run, current: { ...current, sentAt: this.deps.now() } } });
+    return true;
+  }
+
+  /**
+   * 0.3.29 (F4.6): a page that captures its own request (affiliate pages, the order page's income call,
+   * promotions) missed it: close the tab and load the page once more in the same run (navigation only,
+   * counted against the budget). Undefined when it was loaded twice already or the budget has no room.
+   */
+  private async reloadJob(sched: ReaderSchedule, run: ReaderRun): Promise<string | undefined> {
+    const job = run.jobs[run.index];
+    const current = run.current;
+    if (!job || !current || current.reopened || !READER_RELOAD_ONCE.includes(job.id)) return undefined;
+    await this.deps.tabs.close(current.tabId).catch(() => undefined);
+    const { state } = await this.load();
+    if (this.requestsLeftFor(state, run) <= READER_PAGE_LOAD_COST) return undefined;
+    const tabId = await this.deps.tabs.open(`${this.deps.origin}${readerPageUrl(job)}`);
+    if (tabId === undefined) return undefined;
+    await addRequests(this.deps.storage, run.day, READER_PAGE_LOAD_COST);
+    await this.save({ ...sched, run: { ...run, current: { tabId, openedAt: this.deps.now(), reopened: true } } });
+    return "reopened";
   }
 
   /** A page hook's answer for the job it was sent. True when the tab is the scheduler's own. */
@@ -1144,6 +1269,11 @@ export class ReaderScheduler {
       }
       // The hook's reason, short and free of order ids / buyer data (endpoint + http status only).
       const note = outcomeNote(message.detail);
+      if (status === "needs_template" || status === "needs_data_page") {
+        // 0.3.29 (F4.6, F4.9): the page's own request was not seen: load the page once more in this run
+        await this.countRequests(run.day, message.responses);
+        if (await this.reloadJob(sched, run)) return true;
+      }
       if (status !== "done") {
         await this.finishJob(sched, run, note ? `${status}:${note}` : status);
         return true;
@@ -1181,6 +1311,8 @@ export class ReaderScheduler {
           : sched.adsPosted;
       const adsHistory = job.id === "ads" ? this.adsHistoryAfter(sched.adsHistory, job, posted, responses, adsPosted ?? []) : sched.adsHistory;
       const itemIds = job.id === "products" ? ids(responses, sched.itemIds) : sched.itemIds;
+      const viewedNow = job.id === "product_period" ? viewedItemIds(responses) : [];
+      const viewedItems = viewedNow.length > 0 ? { day: run.day, ids: viewedNow } : sched.viewedItems;
       const trafficDone =
         job.id === "item_traffic"
           ? [...(sched.trafficDone ?? []), ...completedTrafficDays(readerJob, responses)].slice(-TRAFFIC_DONE_KEPT)
@@ -1204,14 +1336,63 @@ export class ReaderScheduler {
       // The page read: its section's session is alive (0.3.22), and its wall count starts again.
       const section = readerSection(job.id);
       const { [section]: _cleared, ...walls } = run.walls ?? {};
-      const read: ReaderRun = { ...run, live: [...new Set([...(run.live ?? []), section])], walls };
+      // 0.3.29 (F4.3): this section answered, so the pages it blocked earlier in THIS run (a password dialog the
+      // seller has since confirmed) are queued once more at the end of the run; their outcome is replaced by the
+      // new read, so the run's report does not write the cleared block again.
+      const retried = new Set(run.retried ?? []);
+      const again = run.jobs
+        .slice(0, run.index)
+        .filter((j) => readerSection(j.id) === section && !retried.has(j.id) && /^blocked:(login|password_recheck)/.test(run.outcomes[j.id] ?? ""));
+      for (const j of again) retried.add(j.id);
+      const catchupRead = this.catchupRead(run, job, readerJob, posted, responses);
+      let outcome = jobOutcome(job.id, posted, summary, note, responses);
+      // 0.3.29 (F4.6): an affiliate period answered "empty" while the programme showed data in this run is a failed read
+      if (AFFILIATE_PERIOD_READERS.has(job.id) && run.affiliateData && /=empty\b/.test(outcome) && !/=posted\b/.test(outcome)) {
+        outcome = `error:${job.id}:empty_with_data`;
+      }
+      const affiliateData =
+        run.affiliateData === true ||
+        ((job.id === "affiliate" || job.id === "affiliate_dashboard") &&
+          Object.entries(posted).some(([key, result]) => /^affiliate_(order_lines|shop_period)/.test(key) && result === "posted"));
+      const read: ReaderRun = {
+        ...run,
+        live: [...new Set([...(run.live ?? []), section])],
+        walls,
+        jobs: [...run.jobs, ...again],
+        retried: [...retried],
+        ...(catchupRead ? { catchupRead } : {}),
+        ...(affiliateData ? { affiliateData } : {}),
+      };
       await this.finishJob(
-        { ...sched, adsPosted, adsHistory, itemIds, trafficDone, adsSettingsDay, adsCampaigns, productsAt, trafficOverviewDone, ...extra },
+        { ...sched, adsPosted, adsHistory, itemIds, trafficDone, adsSettingsDay, adsCampaigns, productsAt, trafficOverviewDone, viewedItems, ...extra },
         read,
-        jobOutcome(job.id, posted, summary, note, responses),
+        outcome,
       );
       return true;
     });
+  }
+
+  /** 0.3.29 (F4.2): the hole days this job's posts landed (per dataset), added to the run's progress. */
+  private catchupRead(run: ReaderRun, job: PlannedJob, readerJob: ReaderJob, posted: Record<string, string>, responses: ReaderResponse[]): Record<string, string[]> | undefined {
+    const days = job.days ?? [];
+    const landed: Record<string, string[]> = {};
+    const add = (dataset: string, list: string[]) => {
+      if (list.length > 0) landed[dataset] = [...new Set([...(run.catchupRead?.[dataset] ?? []), ...list])];
+    };
+    if (job.id === "traffic") {
+      const ok = days.filter((day) => posted[`traffic_overview:${day}:confirmed`] === "posted");
+      add("traffic_overview", ok);
+      add("shop_traffic", ok);
+    } else if (job.id === "ads") {
+      add("ads_campaign_daily", days.filter((day) => adsDayRead(posted[`ads_campaign_daily:${day}`] as CaptureOutcome | undefined, responses, day)));
+    } else if (job.id === "item_traffic") {
+      add("item_traffic_sources", completedTrafficDays(readerJob, responses));
+    } else if (job.id === "shop_totals" && posted["shop_overview:confirmed"] === "posted") {
+      add("shop_overview", days);
+    } else if (job.id === "ads_products") {
+      if (Object.entries(posted).some(([key, outcome]) => key.startsWith("ads_campaign_period") && outcome === "posted")) add("ads_campaign_period", days);
+    }
+    return Object.keys(landed).length > 0 ? { ...(run.catchupRead ?? {}), ...landed } : undefined;
   }
 
   /** The job's own replayed requests count against today's shared budget (page-made calls do not). */
@@ -1245,7 +1426,12 @@ export class ReaderScheduler {
     }
     if (job.id === "orders") {
       const now = this.deps.now();
-      const since = sched.incomeSince ?? now - ORDER_INCOME_FIRST_RUN_DAYS * 86_400_000;
+      // 0.3.29 (F4.9): orders completed since the last income read that LANDED (not since the last run): a
+      // page that could not be read for days no longer loses those orders. An install that never read
+      // one looks back over the whole queue window.
+      const since =
+        sched.incomeReadAt ??
+        (sched.incomeSince !== undefined ? now - ORDER_INCOME_QUEUE_DAYS * 86_400_000 : now - ORDER_INCOME_FIRST_RUN_DAYS * 86_400_000);
       const known = new Set((sched.incomeQueue ?? []).map((o) => o.id));
       const fresh = completedOrders(responses)
         .filter((o) => o.completedAt >= since && !known.has(o.id))
@@ -1280,7 +1466,7 @@ export class ReaderScheduler {
         const failedDays = (o.failedDays ?? 0) + 1;
         return failedDays >= ORDER_INCOME_MAX_FAILED_DAYS ? [] : [{ ...o, failedDays, failedDay: run.day }];
       });
-      return { incomeDay: run.day, incomeQueue };
+      return { incomeDay: run.day, incomeQueue, ...(read.size > 0 ? { incomeReadAt: this.deps.now() } : {}) };
     }
     if (job.id === "affiliate" && job.history && shopId) {
       // The history is done once every window posted (or Shopee answered it empty); a failed
@@ -1317,12 +1503,17 @@ export class ReaderScheduler {
    * re-read of today's blocked pages a few minutes from now (0.3.25). Not while a run is going, not
    * when one is armed already, and at most READER_REREAD_MAX_PER_DAY starts a day.
    */
-  private async armReread(sched: ReaderSchedule): Promise<void> {
+  private async armReread(sched: ReaderSchedule, section?: string): Promise<void> {
     const today = gmt7Date(Math.floor(this.deps.now() / 1000));
     const pages = this.blockedPages(sched, today);
-    if (pages.length === 0 || sched.run || sched.reread?.day === today) return;
+    if (sched.run) {
+      // 0.3.29 (F4.3): a run is going: its end arms the re-read (before, the clear was simply lost)
+      if (sched.rereadAfterRun?.day !== today) await this.save({ ...sched, rereadAfterRun: { day: today, ...(section ? { section } : {}) } });
+      return;
+    }
+    if (pages.length === 0 || sched.reread?.day === today) return;
     if (sched.rereadCount?.day === today && sched.rereadCount.n >= READER_REREAD_MAX_PER_DAY) return;
-    await this.save({ ...sched, reread: { day: today, pages }, kick: { reason: "reread", at: this.iso() } });
+    await this.save({ ...sched, reread: { day: today, pages, ...(section ? { section } : {}) }, kick: { reason: "reread", at: this.iso() } });
     await this.deps.alarms.create(READER_KICK_ALARM, { delayInMinutes: READER_REREAD_DELAY_MINUTES });
   }
 
@@ -1336,13 +1527,14 @@ export class ReaderScheduler {
       let { sched } = await this.load();
       // 0.3.28 (F5.3): a data call never lifts nor works around a traffic-check pause
       if (firm(sched.blocked?.reason) && sched.blocked!.until > this.deps.now()) return;
-      const lifts = sched.blocked?.reason === "login";
+      // 0.3.29 (F4.3): a password_recheck stop (a fill page asked for it) is lifted by a data call too
+      const lifts = sched.blocked?.reason === "login" || sched.blocked?.reason === "password_recheck";
       if (lifts) {
-        const wasRunWide = sched.lastRun?.blocked === "login";
+        const wasRunWide = sched.lastRun?.blocked === "login" || sched.lastRun?.blocked === "password_recheck";
         sched = { ...sched, blocked: undefined, lastRunDay: wasRunWide ? undefined : sched.lastRunDay };
         await this.save(sched);
       }
-      if (lifts || section === "datacenter") await this.armReread(sched);
+      if (lifts || section === "datacenter") await this.armReread(sched, section);
     });
   }
 

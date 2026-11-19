@@ -686,6 +686,7 @@ PROFIT_RULE_KEYS: frozenset[str] = frozenset(
         rules_view.PACK_COUNT,
         rules_view.PACK_COMPONENTS,
         rules_view.VAT_RATE,
+        rules_view.VAT_RATE_DEFAULT,
         rules_view.PRICES_INCLUDE_VAT,
         rules_view.COST_INCLUDES_VAT,
         rules_view.EXCLUDED,

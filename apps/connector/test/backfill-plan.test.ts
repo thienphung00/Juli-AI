@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Pacer, runDay, type DayRequest } from "../src/platforms/shopee/runner";
-import { backfillDatasets, buildBackfillDayPlan, waitBefore } from "../src/platforms/shopee/sync";
+import { backfillDatasets, buildBackfillDayPlan, ITEM_SOURCE_PAGES, waitBefore } from "../src/platforms/shopee/sync";
 import { gmt7DateStart, lastFinishedDays, singleDay } from "../src/core/time";
 
 const NOW = Date.UTC(2026, 9, 26, 3, 0, 0); // 2026-10-26 10:00 GMT+7
@@ -14,7 +14,7 @@ describe("backfill day plan", () => {
     for (const [index, plan] of plans.entries()) {
       const day = days[index]!;
       const start = gmt7DateStart(day);
-      expect(plan.map((p) => p.dataset)).toEqual(["traffic_overview", "traffic_overview", "shop_traffic"]);
+      expect(plan.map((p) => p.dataset)).toEqual(["traffic_overview", "traffic_overview", "shop_traffic", "product_overview", "promotion_daily", "promotion_daily"]);
       const [overview, placed, traffic] = plan;
       expect(placed!.params).toEqual({ ...overview!.params, order_type: "placed" });
       if (index === 0) {
@@ -55,13 +55,17 @@ describe("backfill day plan", () => {
   it("skips accepted / stopped datasets; item datasets only while their readers are active", () => {
     expect(buildBackfillDayPlan("2026-10-01", NOW, new Set(["traffic_overview"] as const), false).map((p) => p.dataset)).toEqual([
       "shop_traffic",
+      "product_overview",
+      "promotion_daily",
+      "promotion_daily",
     ]);
-    expect(backfillDatasets(false)).toEqual(["traffic_overview", "shop_traffic"]);
+    expect(backfillDatasets(false)).toEqual(["traffic_overview", "shop_traffic", "product_overview", "promotion_daily"]);
     // 0.3.19: the item readers are on by default
-    expect(backfillDatasets()).toEqual(["traffic_overview", "item_by_source", "item_performance", "shop_traffic"]);
+    expect(backfillDatasets()).toEqual(["traffic_overview", "item_by_source", "item_performance", "shop_traffic", "product_overview", "promotion_daily"]);
     const withItems = buildBackfillDayPlan("2026-10-01", NOW, new Set(), true);
     expect(withItems.filter((p) => p.dataset === "item_performance")).toHaveLength(5);
-    expect(withItems.filter((p) => p.dataset === "item_by_source")).toHaveLength(5);
+    expect(withItems.filter((p) => p.dataset === "item_by_source" && p.params.page_num === "1")).toHaveLength(5);
+    expect(withItems.filter((p) => p.dataset === "item_by_source")).toHaveLength(5 * ITEM_SOURCE_PAGES);
     const item = withItems.find((p) => p.dataset === "item_performance")!;
     expect(item.params).toMatchObject({ period: "day", end_time: String(OCT1 + 86400), order_by: "confirmed_sales.desc" });
   });

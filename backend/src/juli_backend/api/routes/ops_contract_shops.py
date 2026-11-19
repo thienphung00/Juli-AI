@@ -12,6 +12,8 @@
 - ``GET /v1/ops/shops/{id}/ingest-tokens`` (Xem+) and ``DELETE
   /v1/ops/shops/{id}/ingest-tokens/{token_id}`` (Vận hành, "Thu hồi") -- the connected
   sources; never the token or its hash. Audited ``ingest_token_revoke``.
+- ``GET /v1/ops/shops/{id}/connector-problems`` (Xem+) -- the readers whose newest outcome is
+  not done / fresh / skipped, with since when (F4.13).
 
 The service is ``services/ops/contract_shops.py``.
 """
@@ -30,6 +32,7 @@ from juli_backend.api.routes.ops import MaskedRoute, OpsContext, _shop, operator
 from juli_backend.database import get_session
 from juli_backend.services import ingest as ingest_service
 from juli_backend.services.ops import audit, contract_shops
+from juli_backend.services.shopee_recommendations import reader_problems
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
 
@@ -194,6 +197,19 @@ async def ops_list_ingest_tokens(
             for t in tokens
         ]
     }
+
+
+@router.get("/shops/{shop_id}/connector-problems")
+async def ops_connector_problems(
+    shop_id: uuid.UUID,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """F4.13: the Connector readers whose newest outcome is not done / fresh / skipped."""
+    await _shop(session, shop_id)
+    data = await reader_problems.reader_problems(session, shop_id, now=_now())
+    await session.commit()
+    return {"data": data}
 
 
 @router.delete("/shops/{shop_id}/ingest-tokens/{token_id}", status_code=204)

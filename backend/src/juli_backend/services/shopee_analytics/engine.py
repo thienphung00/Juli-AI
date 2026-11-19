@@ -186,6 +186,18 @@ def _first_present(*values: Decimal | None) -> Decimal | None:
     return next((v for v in values if v is not None), None)
 
 
+def item_vat_rates(vat_rate: Mapping[str, Decimal]) -> dict[str, Decimal]:
+    """The item-level VAT rate for a line with no variation (owner 2026-11-19): an item whose
+    rated variations (``item:variation`` scopes) all carry ONE rate gets that rate; an item whose
+    variations disagree gets none (the shop default then applies)."""
+    seen: dict[str, set[Decimal]] = {}
+    for scope, rate in vat_rate.items():
+        item, sep, variation = scope.partition(":")
+        if sep and item and variation:
+            seen.setdefault(item, set()).add(rate)
+    return {item: next(iter(rates)) for item, rates in seen.items() if len(rates) == 1}
+
+
 def to_shop_lines(
     raw: Sequence[RawLine],
     catalog: Catalog,
@@ -198,6 +210,7 @@ def to_shop_lines(
     rows by ``order_ref`` (each order's actuals are split over its lines by value)."""
     rules = rules or ProfitRules()
     out: list[ShopLine] = []
+    item_rates = item_vat_rates(rules.vat_rate)
     for r in raw:
         if r.paid_at is None or r.qty <= 0:
             continue
@@ -219,7 +232,12 @@ def to_shop_lines(
         fees = [
             f for f in (r.fee_fixed, r.fee_service, r.fee_payment, r.fee_other) if f is not None
         ]
-        rate = _first_present(rules.vat_rate.get(scope), rules.vat_rate.get(base))
+        rate = _first_present(
+            rules.vat_rate.get(scope),
+            rules.vat_rate.get(base),
+            item_rates.get(item_id),
+            rules.vat_rate_default,
+        )
         out.append(
             ShopLine(
                 line=OrderLine(
