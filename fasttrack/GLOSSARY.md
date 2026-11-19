@@ -48,6 +48,7 @@ Every term here was misread by an agent at least once and then corrected by the 
 | **Juli Connector** | the Chrome extension that reads Seller Centre pages and fills forms. The seller confirms; it syncs status back. |
 | **Sample shop** | the ISV reviewer's mock shop. It copies the real app; sample-only code exists only for safety. |
 | **Reader block** | a Connector page that could not be read on a run; shown on Thực hiện with its section and reason (`reader_blocks`). It clears as soon as that page's data arrives again. |
+| **Shopee tạm chặn** (`traffic_check`) | Shopee sent a Connector tab to its traffic-check page (`shopee.vn/verify/traffic…`). Connector 0.3.28 stops every read, fill and read-back for 6 h (nothing lifts it early) and Thực hiện shows "Shopee tạm chặn — Juli dừng đến HH:mm". Cause seen 19/11: untrusted clicks by the fill; since 0.3.28 the Connector never clicks on Shopee (guided fill). |
 | **password_recheck** | Shopee's "vui lòng nhập mật khẩu Shopee của bạn" dialog on Phân tích bán hàng (/datacenter). The owner confirms it once; the Connector never types it. Not a logout (that is `login`). |
 | **Re-read (`reread`)** | the Connector reading again, the same day, the pages a block stopped, right after the block clears. |
 | **Real client shop** | production data. Read-only for agents, and never written without the owner. |
