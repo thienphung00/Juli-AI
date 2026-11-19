@@ -35,9 +35,8 @@ from juli_backend.services.shopee_recommendations import (
 from juli_backend.services.shopee_recommendations.loader import load_env
 from juli_backend.services.shopee_recommendations.plan import MetricStats
 from juli_backend.services.shopee_recommendations.plan_aggregate import combine_predicted
-from tests.support import shopee_analytics as shopee_analytics_support
 from tests.support.api import authenticate, build_app, client_for
-from tests.support.shopee_reco import AS_OF, CUR_START, seed_reco_shop
+from tests.support.shopee_reco import AS_OF, seed_reco_shop
 from tests.unit.test_ops_shopee_dashboards import _ops_client
 from tests.unit.test_shopee_reco_manual import _combo, _discount
 
@@ -51,7 +50,7 @@ _USER_IDS: dict[uuid.UUID, uuid.UUID] = {}
 
 @pytest.fixture
 async def shop(session):
-    seeded = await seed_reco_shop(session)
+    seeded = await seed_reco_shop(session, traffic_days=True)
     await materialize.backfill_shop(session, seeded.shop_id)  # the stored funnel (P98)
     await session.commit()
     _USER_IDS[seeded.shop_id] = seeded.user.id  # a rollback expires the ORM user: keep the id
@@ -465,19 +464,6 @@ async def test_the_aggregate_is_joint_not_the_sum_of_the_cards(session, shop):
 async def test_cards_on_different_products_add(session, shop):
     seeded, env = shop
     sid = seeded.shop_id
-    # C1: the F2 base needs MIN_TRAFFIC_DAYS days with product traffic rows, and a product has
-    # them only on its order days; 1002 sold on 4 days, so give it two more (this test is about
-    # adding cards on different products, not sparse traffic)
-    session.add_all(
-        shopee_analytics_support._line(
-            sid, 201 + i, CUR_START + timedelta(days=d), "N1", original=60_000, deal=54_000
-        )
-        for i, d in enumerate((1, 3))
-    )
-    await session.flush()
-    await materialize.backfill_shop(session, sid)
-    await session.commit()
-    env = await load_env(session, sid, as_of=AS_OF)
     a = uuid.UUID((await _manual(session, seeded, env, _discount(15)))["id"])
     other = {"change_kind": "product_discount", "items": ["1002"], "inputs": {"discount_pct": 15}}
     b = uuid.UUID((await _manual(session, seeded, env, other))["id"])
