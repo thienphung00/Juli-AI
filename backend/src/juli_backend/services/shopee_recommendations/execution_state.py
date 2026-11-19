@@ -295,6 +295,9 @@ def _head(p: Any, card: Mapping[str, Any]) -> dict[str, Any]:
         "change_kind": card["change_kind"],
         "product_id": p.item_id,
         "status": p.status,
+        # F7.8: the Thực hiện row shows the same "dự kiến · hiện tại" amounts as Đề xuất
+        "forecast": card.get("forecast"),
+        "data_through": card.get("data_through"),
     }
 
 
