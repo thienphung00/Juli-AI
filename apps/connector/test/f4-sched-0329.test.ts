@@ -17,14 +17,16 @@ import { GatewayClient, type TokenInfo } from "../src/platforms/shopee/ingest/cl
 import { mapOrderIncome } from "../src/platforms/shopee/orders-map";
 import { problemLabel, problemLines } from "../src/platforms/shopee/popup/guide";
 import { mapCapturedAll } from "../src/platforms/shopee/map";
-import { buildBackfillDayPlan } from "../src/platforms/shopee/sync";
+import { buildBackfillDayPlan, buildSyncPlan } from "../src/platforms/shopee/sync";
 import { classify } from "../src/platforms/shopee/reader";
 import { gmt7DateStart } from "../src/core/time";
-import { isDatacenterPath } from "../src/platforms/shopee/config";
+import { CATCHUP_BACKFILL_DATASETS, isDatacenterPath } from "../src/platforms/shopee/config";
+import { isNoCampaign } from "../src/platforms/shopee/promotion-map";
+import { mapTrafficJob } from "../src/platforms/shopee/reader-map";
 import { type FetchedReaderResponse, pollingWaitFor, type ReaderEnv, type ReaderRequest, type ReaderResponse, runReaderJob, type Template } from "../src/platforms/shopee/reader";
 import type { ReadDays } from "../src/platforms/shopee/background/catchup";
 import type { ReaderEndpoint } from "../src/platforms/shopee/endpoints";
-import { Pacer } from "../src/platforms/shopee/runner";
+import { isDataAnswer, Pacer } from "../src/platforms/shopee/runner";
 
 const SC = "https://banhang.shopee.vn";
 const SHOP = "5b0c1d2e-3f40-4a51-8b62-7c83d94e0a15";
@@ -162,7 +164,7 @@ describe("F4.2: the hole list", () => {
   it("withHoleDays: after yesterday's days, oldest first, capped per job and by the budget room", () => {
     const h = { traffic_overview: ["2026-11-10", "2026-11-05", "2026-11-18"], shop_traffic: ["2026-11-05", "2026-11-06"] };
     expect(withHoleDays("traffic", ["2026-11-18"], h, 1000, 0)).toEqual(["2026-11-18", "2026-11-05", "2026-11-06", "2026-11-10"]);
-    expect(withHoleDays("traffic", ["2026-11-18"], h, 6, 0)).toEqual(["2026-11-18", "2026-11-05", "2026-11-06"]); // 3 requests a day
+    expect(withHoleDays("traffic", ["2026-11-18"], h, 16, 0)).toEqual(["2026-11-18", "2026-11-05", "2026-11-06"]); // 8 requests a day (F6: product overview, promotions, flash sale)
     expect(withHoleDays("traffic", ["2026-11-18"], h, 0, 0)).toEqual(["2026-11-18"]);
     const many = { item_traffic_sources: Array.from({ length: 10 }, (_, i) => `2026-11-${String(i + 1).padStart(2, "0")}`) };
     expect(withHoleDays("item_traffic", ["2026-11-18"], many, 800, 100)).toEqual(["2026-11-18", "2026-11-01", "2026-11-02"]);
@@ -218,9 +220,9 @@ describe("F4.2: the hole list", () => {
     expect(backfill?.status).toBe("running");
     expect(backfill?.days).toEqual(["2026-11-18", "2026-11-10", "2026-11-17"]);
     expect(backfill?.done).toEqual([]);
-    expect(backfill?.accepted["2026-11-10"]).toEqual(["traffic_overview", "shop_traffic", "product_overview", "promotion_daily"]);
-    expect(backfill?.accepted["2026-11-18"]).toEqual(["traffic_overview", "item_by_source", "shop_traffic", "product_overview", "promotion_daily"]);
-    expect(backfill?.accepted["2026-11-17"]).toEqual(["item_by_source", "item_performance", "shop_traffic", "product_overview", "promotion_daily"]);
+    expect(backfill?.accepted["2026-11-10"]).toEqual(["traffic_overview", "shop_traffic", "product_overview", "promotion_daily", "flash_sale"]);
+    expect(backfill?.accepted["2026-11-18"]).toEqual(["traffic_overview", "item_by_source", "shop_traffic", "product_overview", "promotion_daily", "flash_sale"]);
+    expect(backfill?.accepted["2026-11-17"]).toEqual(["item_by_source", "item_performance", "shop_traffic", "product_overview", "promotion_daily", "flash_sale"]);
   });
 
   it("Connector.readDays fetches the contract route and parses it; a failure is undefined", async () => {
@@ -446,6 +448,77 @@ describe("F4.9: order income", () => {
     expect(queued({ incomeSince: T0 - 1000 })).toEqual(["SN0001", "SN0002"]);
     // a brand-new install: the last 3 days only
     expect(queued({})).toEqual(["SN0002"]);
+  });
+});
+
+describe("F6.4: flash sale reader (promotion_daily rows, promo_type Flash Sale)", () => {
+  const DAYSTART = gmt7DateStart("2026-11-17");
+  const FLASH = "/api/mydata/marketing/flash-sale/key-metrics/";
+  const url = (orderType: string, end = DAYSTART + 86_400, period = "day") =>
+    `${SC}${FLASH}?start_time=${DAYSTART}&end_time=${end}&period=${period}&order_type=${orderType}`;
+  const metric = (value: number) => ({ value, chain_ratio: 0.1, points: [{ timestamp: DAYSTART, value }] });
+  const body = {
+    code: 0,
+    result: { sales: metric(900_000), orders: metric(6), buyers: metric(4), sales_per_buyer: metric(225_000), product_impression: metric(1200), product_clicks: metric(80), reminder_clicks: metric(9), conversion_rate: metric(0.05) },
+  };
+  const none = { code: 40001, msg: "err:no campaign, detail:no campaign" };
+
+  it("is in the sync plan and the backfill day plan: placed and confirmed, end = next midnight, own dataset", () => {
+    for (const plan of [buildBackfillDayPlan("2026-11-17", T0, new Set(), false), buildBackfillDayPlan("2026-11-18", T0, new Set(), false)]) {
+      const flash = plan.filter((p) => p.dataset === "flash_sale");
+      expect(flash.map((p) => p.params.order_type)).toEqual(["placed", "confirmed"]);
+      const start = Number(flash[0]?.params.start_time);
+      expect(flash[0]?.params).toMatchObject({ end_time: String(start + 86_400), period: "day" });
+      expect(flash[0]?.path).toBe(FLASH);
+    }
+    expect(buildBackfillDayPlan("2026-11-17", T0, new Set(["flash_sale"] as const), false).some((p) => p.dataset === "flash_sale")).toBe(false);
+    expect(buildSyncPlan(T0, new Set(), false).filter((p) => p.dataset === "flash_sale")).toHaveLength(2);
+    expect(buildSyncPlan(T0, new Set(["flash_sale"] as const), false).some((p) => p.dataset === "flash_sale")).toBe(false);
+    expect(CATCHUP_BACKFILL_DATASETS).toContain("flash_sale");
+  });
+
+  it("maps the values only into one promotion_daily row; impressions / clicks stay in extra", () => {
+    const posts = mapCapturedAll({ url: url("placed"), body, capturedAt: T0 });
+    expect(posts).toHaveLength(1);
+    expect(posts[0]).toMatchObject({ dataset: "promotion_daily", date: "2026-11-17", orderType: "placed", drift: null });
+    expect(posts[0]?.rows).toEqual([
+      {
+        date: "2026-11-17",
+        promo_type: "Flash Sale",
+        sales: 900_000,
+        orders: 6,
+        buyers: 4,
+        sales_per_buyer: 225_000,
+        extra: { product_impression: 1200, product_clicks: 80, reminder_clicks: 9, conversion_rate: 0.05 },
+      },
+    ]);
+    expect(mapCapturedAll({ url: url("confirmed"), body, capturedAt: T0 })[0]?.orderType).toBe("confirmed");
+  });
+
+  it("code 40001 'no campaign' is an empty day: a zero row, not drift or an error", () => {
+    const posts = mapCapturedAll({ url: url("placed"), body: none, capturedAt: T0 });
+    expect(posts).toHaveLength(1);
+    expect(posts[0]?.rows).toEqual([{ date: "2026-11-17", promo_type: "Flash Sale", sales: 0, orders: 0, buyers: 0 }]);
+    expect(posts[0]?.drift).toBeNull();
+    expect(isNoCampaign(none)).toBe(true);
+    expect(isNoCampaign({ code: 40001, msg: "something else" })).toBe(false);
+    expect(isDataAnswer(200, none)).toBe(true);
+    expect(isDataAnswer(200, { code: 40001, msg: "something else" })).toBe(false);
+    expect(classify(200, none)).toBe("ok");
+    expect(classify(200, { code: 40001, msg: "something else" })).toBe("error");
+  });
+
+  it("other error codes, the paid basis, today (real_time) and a partial day are not posted", () => {
+    expect(mapCapturedAll({ url: url("placed"), body: { code: 10006, msg: "err" }, capturedAt: T0 })).toEqual([]);
+    expect(mapCapturedAll({ url: url("paid"), body, capturedAt: T0 })).toEqual([]);
+    expect(mapCapturedAll({ url: url("placed", DAYSTART + 3600, "real_time"), body, capturedAt: T0 })).toEqual([]);
+    expect(mapCapturedAll({ url: url("placed", DAYSTART + 86_399), body, capturedAt: T0 })).toEqual([]);
+  });
+
+  it("the traffic reader maps a flash answer and an empty-day answer through mapTrafficJob", () => {
+    const answers = ["placed", "confirmed"].map((order_type, i) => ({ endpoint: "flash_sale", url: url(order_type), status: 200, body: i === 0 ? body : none, capturedAt: T0 }));
+    const posts = mapTrafficJob(answers as never);
+    expect(posts.map((p) => [p.dataset, p.orderType, p.rows[0]?.sales])).toEqual([["promotion_daily", "placed", 900_000], ["promotion_daily", "confirmed", 0]]);
   });
 });
 
