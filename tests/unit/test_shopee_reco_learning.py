@@ -33,6 +33,21 @@ NOW = datetime(2026, 10, 31, 12, 0)
 UPLIFT = 0.20
 
 
+@pytest.fixture(autouse=True)
+def _every_result_is_clean(monkeypatch):
+    """These tests are about the calibration math; the clean gate (L-5: no other change, no
+    sale day, 5 traffic days each side) is tested in ``test_shopee_reco_running``."""
+
+    async def clean(*a, **k):
+        return list(_WHY)
+
+    _WHY.clear()
+    monkeypatch.setattr(measure, "clean_reasons", clean)
+
+
+_WHY: list[str] = []
+
+
 async def _shop_with_items(session, items=("1001", "1002", "1003", "1004", "1005")):
     user = await make_user(session)
     shop = await make_shop(session, user, platform="shopee", shop_name="Learning Shop")
@@ -513,7 +528,7 @@ async def test_the_backfill_of_a_shop_with_no_history_reports_zeros(session):
 async def test_two_changes_on_one_product_on_one_day_are_one_change_set_read_jointly(session):
     """P91 D-7: the unit of measurement is the product's change set. Two cards of one product
     executed the same day are read ONCE against the product's baseline; the joint prediction is
-    calibrated, and each kind counts at the reduced weight -- never as a clean sample."""
+    shown, and never calibrated (not a clean sample)."""
     user, shop, sid = await _series_shop(session, uplift=UPLIFT)
     first, c1 = await _executed_card(session, sid, user)
     second, c2 = await _executed_card(session, sid, user)  # the same product, the same day
@@ -524,10 +539,10 @@ async def test_two_changes_on_one_product_on_one_day_are_one_change_set_read_joi
     report = await reco.run_learning(session, sid, now=NOW)
     await session.commit()
     states = await store.load_calibrations(session, sid)
-    assert report.readings == 1 and states[("joint", "gmv")].n_results == 1
-    kind = states[("flash_sale", "orders")]
-    assert kind.n_results == 0 and kind.pooled_ratio is not None  # 2 x 0.25 = half a sample
-    assert kind.n_bundle_excluded == 0
+    # L-3 / L-5: two cards on the same days are not a clean result: read and shown, never
+    # calibrated (no joint row, no per-kind row)
+    assert report.readings == 1 and ("joint", "gmv") not in states
+    assert ("flash_sale", "orders") not in states and report.observations_total == 0
     events = (
         await session.scalars(select(CardEvent).where(CardEvent.event_type == "impact_final"))
     ).all()
@@ -535,6 +550,7 @@ async def test_two_changes_on_one_product_on_one_day_are_one_change_set_read_joi
     assert all(e.payload["joint"] and e.payload["change_set"] for e in events)
     (cs,) = await change_sets.sets_for(session, sid)
     assert cs.status == "done" and cs.result["joint"] is True and len(cs.card_ids) == 2
+    assert cs.result["clean"] is False
     assert cs.result["impact_pct"] == pytest.approx(UPLIFT, abs=0.1)
 
 
@@ -581,3 +597,16 @@ async def test_a_running_plan_gets_one_preliminary_reading_at_day_7_that_never_c
     assert rows["impact_preliminary"]["post_days"] == 7
     assert set(rows["impact_final"]) >= {"impact_pct", "confidence", "reason"}
     assert "controls" not in rows["impact_final"] and "method" not in rows["impact_final"]
+
+
+async def test_a_result_that_is_not_clean_is_shown_but_never_calibrates(session, monkeypatch):
+    user, shop, sid = await _series_shop(session, uplift=UPLIFT)
+    await _executed_card(session, sid, user)
+    _WHY.append("sale_day")
+    report = await reco.run_learning(session, sid, now=NOW)
+    await session.commit()
+    assert report.skipped.get("not_clean_sale_day") == 1 and report.observations_total == 0
+    (cs,) = await change_sets.sets_for(session, sid)
+    assert cs.status == "done" and cs.result["clean"] is False
+    assert cs.result["clean_reasons"] == ["sale_day"] and cs.result["measurement"]["clean"] is False
+    assert ("flash_sale", "orders") not in await store.load_calibrations(session, sid)
