@@ -36,7 +36,7 @@ import {
   trimCaptured,
   answerCode,
 } from "../reader";
-import { goToNextOrderPage, orderLinksIn, orderListEmptyIn } from "../order-dom";
+import { moreOrderPagesIn, orderLinksIn, orderListEmptyIn } from "../order-dom";
 import { Pacer, runDay, type DayRequest } from "../runner";
 import { type PlannedRequest, requestUrl } from "../sync";
 import { gmt7Date } from "../../../core/time";
@@ -476,10 +476,11 @@ async function runReader(job: ReaderJob): Promise<void> {
     // The shared daily request budget: what the service worker granted this job.
     ...(typeof job.budget === "number" ? { budget: { left: job.budget } } : {}),
     pause: sleep,
-    // The order list page (0.3.20): its order links, its empty state and its own pager.
+    // The order list page (0.3.20): its order links, its empty state, and (0.3.28) whether its pager
+    // shows more pages (looked at, never pressed)
     orderLinks: () => orderLinksIn(document),
     orderListEmpty: () => orderListEmptyIn(document),
-    nextOrderPage: () => goToNextOrderPage(document),
+    moreOrderPages: () => moreOrderPagesIn(document),
   };
   const outcome = await runReaderJob(job, env);
   window.postMessage(

@@ -470,14 +470,14 @@ async def test_zero_sellable_with_available_stock_is_not_out_of_stock(session):
     assert "Đã hết hàng" not in text
 
 
-async def test_same_sku_on_every_variation_shows_the_variation_name(session):
+async def test_same_sku_on_every_variation_still_shows_product_variation_and_code(session):
     from juli_backend.services.stock_alert import data
 
     _, shop = await _shop(session)
     parent = _item(shop.id, "1", "", "Găng tay")
     parent.seller_sku = "G500001"
     items = [parent]
-    for model, name in (("11", "Combo 3"), ("12", "Combo 5")):
+    for model, name in (("11", "Combo 3 hộp"), ("12", "Combo 5 hộp"), ("13", "Combo 10 hộp")):
         v = _item(shop.id, "1", model, "Găng tay", name)
         v.seller_sku = "G500001"
         items.append(v)
@@ -487,15 +487,16 @@ async def test_same_sku_on_every_variation_shows_the_variation_name(session):
 
     catalog = (await load_context(session, shop.id)).catalog
     skus = {}
-    for model in ("11", "12"):
+    for model in ("11", "12", "13"):
         s = data.SkuData("1", model)
         s.reads.append(data.sb.Read(READ, 7))
         skus[s.key] = s
     facts = [st.facts for st in data.facts_of(skus, catalog, [], TODAY, NOW)]
-    assert [f.sku_code for f in facts] == [None, None]
+    assert [f.sku_code for f in facts] == ["G500001"] * 3
     assert [cp.row_title(AlertRow(f, Forecast(1.0, 3, TODAY), "days_left")) for f in facts] == [
-        "Găng tay · Combo 3",
-        "Găng tay · Combo 5",
+        "Găng tay · Combo 3 hộp · SKU G500001",
+        "Găng tay · Combo 5 hộp · SKU G500001",
+        "Găng tay · Combo 10 hộp · SKU G500001",
     ]
     only = skus["1:11"]
     parent.seller_sku = None

@@ -3,9 +3,11 @@
 // Seller Centre's list page (/portal/sale/order) loads its orders through Shopee's DRM bundle, so
 // no list answer reaches the hook. What the page still shows (captured 2026-11-15): every order
 // card links to `/portal/sale/order/<order_id>` and shows "Mã đơn hàng <order_sn>". Only those two
-// ids are read; no buyer name, address or anything else on the card. The pager's "next" control is
-// the page's own navigation (a read): it is the only element the reader ever activates, and only
-// when it is enabled and inside a pager.
+// ids are read; no buyer name, address or anything else on the card. 0.3.28 (F5.1b, owner
+// 2026-11-19: the Connector never clicks on Shopee): the pager is only LOOKED at (is there an
+// enabled "next"?); it is never pressed. No page / offset address of the list is known (the list
+// loads through the DRM bundle and an address change would reload the page and end the reader), so
+// the reader reads the page it was opened on and says when more pages were left.
 //
 // TODO(live check): the pager selector below is a best guess at Shopee's design system
 // (eds-pager); confirm on the real list page.
@@ -86,10 +88,7 @@ export function pagerNextIn(doc: Document): HTMLElement | null {
   return null;
 }
 
-/** Go to the next list page with the page's own pager; false when there is no enabled one. */
-export function goToNextOrderPage(doc: Document): boolean {
-  const next = pagerNextIn(doc);
-  if (!next) return false;
-  next.click();
-  return true;
+/** The pager shows an enabled "next" (more orders on later pages). Read only: never pressed. */
+export function moreOrderPagesIn(doc: Document): boolean {
+  return pagerNextIn(doc) !== null;
 }

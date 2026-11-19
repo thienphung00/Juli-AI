@@ -57,8 +57,12 @@ export interface FillJobsDeps<J extends CoreJob = CoreJob> {
   };
   /** Another run (readers, backfill, market) holds the pace: wait. */
   busy(): Promise<boolean>;
-  /** A stop for the whole shop (cool-down like a login wall + a connector event for Ops). */
-  halt(reason: "login", page: string, detail: string): Promise<void>;
+  /**
+   * A stop for the whole shop (a cool-down + a connector event for Ops): "login" for a password
+   * prompt, "traffic_check" (0.3.28) for the platform's anti-bot page: ONE pause the readers, the
+   * fills and the read-backs share.
+   */
+  halt(reason: "login" | "traffic_check", page: string, detail: string): Promise<void>;
 }
 
 /** How long a freshly opened job page holds the readers back. */
@@ -106,6 +110,41 @@ export class FillJobs<J extends CoreJob = CoreJob> {
     }
   }
 
+  /**
+   * 0.3.28 (F5.3): the job tab is on the platform's anti-bot page: the job fails with the pack's
+   * code and the whole shop pauses (fills here, readers and read-backs through `halt`). The code, or
+   * null when the URL is fine. Never works around the page.
+   */
+  private async walled(jobId: string, url: string | undefined): Promise<string | null> {
+    const wall = this.deps.pack.blockedUrl?.(url) ?? null;
+    if (!wall) return null;
+    await this.report(jobId, "failed", { error: wall });
+    await this.setFill({ active: undefined, pausedUntil: this.deps.now() + FILL_HALT_MS });
+    let page = "";
+    try {
+      page = new URL(url ?? "").pathname;
+    } catch {
+      page = "";
+    }
+    await this.deps.halt("traffic_check", page, wall).catch(() => undefined);
+    return wall;
+  }
+
+  /** 0.3.28 (F5.3): a tab's address changed; the active job's tab on the anti-bot page stops it at once. */
+  async onTabUrl(tabId: number, url: string | undefined): Promise<string | null> {
+    const active = (await this.fill()).active;
+    if (!active || active.tabId !== tabId) return null;
+    return this.walled(active.id, url);
+  }
+
+  /** 0.3.28 (F5.4): a fill / revert / read-back job's tab is open now (the readers open no page meanwhile). */
+  async tabOpen(): Promise<boolean> {
+    const active = (await this.fill()).active;
+    if (!active || active.tabId === undefined) return false;
+    if (this.deps.now() - active.openedAt >= FILL_JOB_STALE_MS) return false;
+    return (await this.deps.tabs.inspect(active.tabId)).open;
+  }
+
   /** A job page was opened a moment ago: the readers wait (one page at a time overall). */
   async isBusy(): Promise<boolean> {
     const active = (await this.fill()).active;
@@ -142,20 +181,19 @@ export class FillJobs<J extends CoreJob = CoreJob> {
     if (state.consentBlocked) return this.noted("consent_required");
     let fill = state.fill ?? EMPTY;
     if ((fill.pausedUntil ?? 0) > now) return this.noted("paused");
+    // the job tab as it is now (0.3.28: checked on every poll, before anything else opens)
+    const info = fill.active?.tabId === undefined ? { open: false } : await this.deps.tabs.inspect(fill.active.tabId);
+    if (fill.active && info.open) {
+      const wall = await this.walled(fill.active.id, info.url);
+      if (wall) return this.noted(wall);
+    }
     if (this.deps.readback) {
-      await this.readbacks(token.token);
+      // F5.4: a read-back's pages are not started while the person's fill tab is open
+      await this.readbacks(token.token, !!fill.active && info.open);
       fill = await this.fill();
     }
     if (fill.active) {
       const age = now - fill.active.openedAt;
-      const info = fill.active.tabId === undefined ? { open: false } : await this.deps.tabs.inspect(fill.active.tabId);
-      // the platform's anti-bot page: stop this job and open no job page for a while; never work around it
-      const wall = info.open ? (this.deps.pack.blockedUrl?.(info.url) ?? null) : null;
-      if (wall) {
-        await this.report(fill.active.id, "failed", { error: wall });
-        await this.setFill({ active: undefined, pausedUntil: now + FILL_HALT_MS });
-        return this.noted(wall);
-      }
       // One page at a time: wait for the person to finish with it (or for the tab to go away).
       if (info.open && age < FILL_JOB_STALE_MS) return this.noted("job_open");
       await this.setFill({ active: undefined });
@@ -183,7 +221,7 @@ export class FillJobs<J extends CoreJob = CoreJob> {
    * until read: the call is idempotent), reported `opened`, then `captured` once every page posted
    * after the hand-over. One no reader can do is reported `failed` (`readback_unsupported`).
    */
-  private async readbacks(token: string): Promise<void> {
+  private async readbacks(token: string, fillOpen = false): Promise<void> {
     const rb = this.deps.readback!;
     const listed = await this.list(token);
     if (listed === "unpaired" || listed === "error" || !listed.enabled) return;
@@ -208,7 +246,7 @@ export class FillJobs<J extends CoreJob = CoreJob> {
         pending[job.id] = this.deps.now();
         await this.report(job.id, "opened");
       }
-      await rb.start(pages);
+      if (!fillOpen) await rb.start(pages);
     }
     for (const id of Object.keys(pending)) if (!live.has(id)) delete pending[id];
     await this.setFill({ readbacks: pending });
@@ -266,7 +304,8 @@ export class FillJobs<J extends CoreJob = CoreJob> {
         await this.setFill({ active: undefined });
         // a read-back's page was only read: its tab goes (never the person's own tab of a fill)
         const tabId = fill.active.tabId;
-        if (status === "captured" && tabId !== undefined && fill.active.closeWhenDone && this.deps.tabs.close) await this.deps.tabs.close(tabId).catch(() => undefined);
+        // 0.3.28: a read-back that could not read (failed) also closes its background tab
+        if ((status === "captured" || status === "failed") && tabId !== undefined && fill.active.closeWhenDone && this.deps.tabs.close) await this.deps.tabs.close(tabId).catch(() => undefined);
       }
     }
   }

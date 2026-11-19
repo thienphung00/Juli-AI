@@ -15,6 +15,7 @@ import { OpsShopConsent } from "./ops-contract-shop";
 import { OpsRules } from "./ops-rules";
 import { OpsExclusions } from "../exclusions/ops-exclusions";
 import { OpsPlannedChanges } from "../planned-changes/ops-planned-changes";
+import { OpsStockAlert } from "../ops-stock-alert/ops-stock-alert";
 import { OpsShopInputs } from "./ops-shop-inputs";
 import { OpsShopTeam } from "./ops-shop-team";
 import { C, OpsHeader, OpsPage, STAGE_STYLE, card } from "./ops-shell";
@@ -482,6 +483,7 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
           <OpsCardGroups canEdit={canEdit} create={api.createGroup} load={api.groups} platform={platform} setReason={api.setGroupReason} shopId={shopId} />
           <OpsRules canEdit={canEdit} platform={platform} shopName={shopName} shopId={shopId} />
           <OpsShopInputs canEdit={canEdit} shopId={shopId} />
+          {platform === "shopee" ? <OpsStockAlert canEdit={canEdit} shopId={shopId} /> : null}
           {platform === "shopee" ? <OpsPlannedChanges canEdit={canEdit} shopId={shopId} /> : null}
           {platform === "shopee" ? <OpsExclusions canEdit={canEdit} shopId={shopId} /> : null}
         </section>
