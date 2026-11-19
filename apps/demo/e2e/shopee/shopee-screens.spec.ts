@@ -102,11 +102,11 @@ test.describe("seller: Shopee shop", () => {
     await expect(page).toHaveURL(/\/decisions\?the=c_bep_voucher&from=tong-quan$/);
   });
 
-  test("a TikTok shop keeps Trang chủ / Quyết định / Phân tích / Juli", async ({ page }) => {
+  test("a TikTok shop gets the same rail: Tổng quan / Phân tích / Quyết định", async ({ page }) => {
     await stubSeller(page, { shopee: false });
     await page.goto("/decisions");
     const nav = page.getByRole("navigation", { name: "Điều hướng chính" });
-    await expect(nav.getByRole("link")).toHaveText([/^Trang chủ/, /^Quyết định/, /^Phân tích/, /^Juli/]);
+    await expect(nav.getByRole("link")).toHaveText([/^Tổng quan/, /^Phân tích/, /^Quyết định/]);
   });
 
   test("no request is anything but a GET to the Shopee read API", async ({ page }) => {

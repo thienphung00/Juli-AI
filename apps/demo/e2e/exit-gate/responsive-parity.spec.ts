@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   HOME_MATRIX_REGION,
   enterReplayDemo,
-  expectFourDestinationShell,
+  expectPrimaryRailShell,
 } from "../helpers/demo-navigation";
 
 test.describe("Phase 2.6 exit gate — responsive IA parity", () => {
@@ -26,7 +26,7 @@ test.describe("Phase 2.6 exit gate — responsive IA parity", () => {
     };
 
     const desktop = await collectLabels();
-    await expectFourDestinationShell(page);
+    await expectPrimaryRailShell(page);
     // P11: the signed-out Quyết định is the P10 sample; the card h3 is the product.
     expect(desktop.cardTitles[0]).toBe("Son môi số 12");
     expect(desktop.cardTitles.length).toBeGreaterThanOrEqual(4);
@@ -61,7 +61,7 @@ test.describe("Phase 2.6 exit gate — responsive IA parity", () => {
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/decisions");
-    await expectFourDestinationShell(page);
+    await expectPrimaryRailShell(page);
     const rail = await nav.boundingBox();
     expect(rail).not.toBeNull();
     expect(rail!.x).toBeLessThan(120);
@@ -69,7 +69,7 @@ test.describe("Phase 2.6 exit gate — responsive IA parity", () => {
     await expect(page.getByRole("link", { name: "Juli — Trang chủ" })).toBeVisible();
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await expectFourDestinationShell(page);
+    await expectPrimaryRailShell(page);
     const bar = await nav.boundingBox();
     expect(bar).not.toBeNull();
     expect(bar!.width).toBeGreaterThan(bar!.height);
