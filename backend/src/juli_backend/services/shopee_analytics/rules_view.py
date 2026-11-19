@@ -30,6 +30,7 @@ DEFAULT_MAX_DISCOUNT_PCT = "default_max_discount_pct"
 PACK_COUNT = "pack_count"
 PACK_COMPONENTS = "pack_components"
 VAT_RATE = "vat_rate"
+VAT_RATE_DEFAULT = "vat_rate_default"
 PRICES_INCLUDE_VAT = "prices_include_vat"
 COST_INCLUDES_VAT = "cost_includes_vat"
 #: P92 B-1: listings the shop leaves out of cards and product lists (scope = item id).
@@ -59,6 +60,7 @@ RULE_KEYS_READ: tuple[str, ...] = (
     VAT_RATE,
     PRICES_INCLUDE_VAT,
     COST_INCLUDES_VAT,
+    VAT_RATE_DEFAULT,
     EXCLUDED,
     EXCLUDE_REASON,
     *(alias for aliases in TARGET_ALIASES.values() for alias in aliases),
@@ -99,6 +101,8 @@ class ProfitRules:
     pack_components: dict[str, tuple[Component, ...]] = field(default_factory=dict)
     #: scope or seller SKU -> VAT rate as a fraction (0.08 for 8 %).
     vat_rate: dict[str, Decimal] = field(default_factory=dict)
+    #: owner 2026-11-19: the shop-wide rate for a SKU with no rate of its own (None = not set).
+    vat_rate_default: Decimal | None = None
     #: None = the seller has not said (profit is then shown before VAT).
     prices_include_vat: bool | None = None
     cost_includes_vat: bool | None = None
@@ -157,6 +161,8 @@ def read_rules(rows: Iterable[RuleRow]) -> ProfitRules:
                 rules.pack_count[scope] = int(number)
         elif row.rule_key == VAT_RATE and scope:
             rules.vat_rate[scope] = number / 100
+        elif row.rule_key == VAT_RATE_DEFAULT and not scope:
+            rules.vat_rate_default = number / 100
         elif row.rule_key == MAX_DISCOUNT_PCT and scope:
             rules.max_discount_pct[scope] = number
         elif row.rule_key == DEFAULT_MAX_DISCOUNT_PCT and not scope:
