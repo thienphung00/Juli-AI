@@ -484,6 +484,9 @@ const INCOME_LABELS: [RegExp, string][] = [
   [/^phi co dinh/, "fee_fixed"],
   [/^phi dich vu piship/, "fee_piship"],
   [/^phi dich vu$/, "fee_service"],
+  // 0.3.29 (F4.9): the two fee columns inside Phí Dịch Vụ (the backend never adds them to fee_service)
+  [/^phi ha tang/, "fee_infra"],
+  [/^phi (chuong trinh )?voucher xtra/, "fee_voucher_xtra"],
   [/^phi (xu ly giao dich|thanh toan)/, "fee_payment"],
   [/^phi van chuyen.*(nguoi mua tra|nguoi mua)/, "ship_buyer_paid"],
   [/^phi van chuyen.*(tro gia|shopee tro)/, "ship_shopee_subsidy"],

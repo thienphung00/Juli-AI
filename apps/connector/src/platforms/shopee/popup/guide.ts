@@ -35,6 +35,11 @@ export const READER_GUIDE: Record<ReaderId, PageGuide> = {
     path: "/portal/marketing/vouchers/list",
     pulls: "Voucher của shop: mức giảm, đơn tối thiểu, thời gian, lượt đã dùng.",
   },
+  promotions: {
+    title: "Kênh Marketing › Khuyến mãi của Shop",
+    path: "/portal/marketing/discount/list",
+    pulls: "Chương trình khuyến mãi của shop: tên, thời gian chạy, doanh số, đơn, người mua theo ngày.",
+  },
   ads: {
     title: "Kênh Marketing › Quảng Cáo Shopee",
     path: "/portal/marketing/pas/index",
@@ -148,6 +153,8 @@ export const DATASET_LABELS: Record<Dataset, string> = {
   product_period: "Hiệu quả sản phẩm 30 ngày",
   order_lines: "Dòng đơn hàng",
   order_income: "Doanh thu từng đơn",
+  promotions: "Chương trình khuyến mãi",
+  promotion_daily: "Khuyến mãi theo ngày",
   affiliate_order_lines: "Đơn KOL",
   affiliate_partner_period: "KOL theo kỳ",
   affiliate_shop_period: "Tiếp thị liên kết theo ngày",
@@ -448,4 +455,62 @@ export function adsHistoryLine(readers: ReaderSchedule | null | undefined): stri
       : `Quảng cáo ${total} ngày trước: đã lấy đủ`;
   }
   return `Quảng cáo ${total} ngày trước: ${history.done.length}/${total} ngày`;
+}
+
+/** 0.3.29 (F4.13, contract C6): the short label of an outcome that is not done / fresh / skipped; null = nothing to say. */
+export function problemLabel(outcome: string): string | null {
+  const head = outcome.split(/[:|]/, 1)[0] ?? outcome;
+  if (head === "done") return /\|partial/.test(outcome) ? "Mới đọc một phần" : null;
+  switch (head) {
+    case "no_items":
+    case "no_campaigns":
+    case "no_group_campaigns":
+    case "no_orders":
+      return null;
+    case "needs_template":
+    case "needs_data_page":
+      return "Chưa đọc được trang";
+    case "timeout":
+      return "Quá thời gian";
+    case "waiting_budget":
+      return "Hết lượt hôm nay";
+    case "open_failed":
+      return "Không mở được tab";
+    case "closed":
+    case "redirected":
+      return "Tab bị đóng";
+    case "partial":
+      return "Mới đọc một phần";
+    case "blocked_captcha":
+      return "Cần xác minh";
+    case "blocked_login":
+      return "Cần đăng nhập";
+    case "blocked_rate_limit":
+      return "Shopee báo quá nhiều lượt";
+    case "blocked":
+      if (outcome.startsWith("blocked:password_recheck")) return "Cần xác nhận mật khẩu";
+      if (outcome.startsWith("blocked:no_permission")) return "Cần quyền Tài chính";
+      if (outcome.startsWith("blocked:traffic_check")) return "Shopee tạm chặn";
+      return outcome.startsWith("blocked:captcha") ? "Cần xác minh" : "Cần đăng nhập";
+    case "error":
+      return /empty_with_data/.test(outcome) ? "Trang trống dù có số liệu" : "Lỗi khi đọc";
+    default:
+      return "Lỗi khi đọc";
+  }
+}
+
+/** One line per page whose outcome today is not done / fresh / skipped: "<page>: <short label>". */
+export function problemLines(readers: ReaderSchedule | null | undefined, today: string): { id: string; text: string }[] {
+  const outcomes: Record<string, string> = {
+    ...(readers?.lastRun?.day === today ? readers.lastRun.outcomes : {}),
+    ...(readers?.run?.day === today ? readers.run.outcomes : {}),
+  };
+  const lines: { id: string; text: string }[] = [];
+  for (const [id, outcome] of Object.entries(outcomes)) {
+    const guide = (READER_GUIDE as Record<string, PageGuide | undefined>)[id];
+    const label = problemLabel(String(outcome));
+    if (!guide || !label) continue;
+    lines.push({ id, text: `${guide.title}: ${label}` });
+  }
+  return lines;
 }

@@ -84,6 +84,8 @@ const scheduler: ReaderScheduler = new ReaderScheduler({
     postReader: (job, responses) => connector.postReader(job, responses),
     reportBlock: (event) => connector.reportBlock(event),
     reportTick: (report) => connector.reportTick(report),
+    readDays: () => connector.readDays(),
+    queueBackfillHoles: (datasets) => connector.reopenBackfillDays(datasets),
   },
   backfillBusy: async () => (await connector.backfillInFlight()) || (await market.isBusy()) || (await fillJobs.isBusy()),
   // 0.3.28 (F5.4): never two Shopee automations at once: no reader page while a fill tab is open

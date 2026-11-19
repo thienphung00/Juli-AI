@@ -60,6 +60,9 @@ export type ReaderDataset =
   | "ads_campaign_period"
   | "order_lines"
   | "order_income"
+  /** 0.3.29 (F4.7): Kênh Marketing › Khuyến mãi của Shop (Chương trình của Shop). */
+  | "promotions"
+  | "promotion_daily"
   | "affiliate_order_lines"
   | "affiliate_partner_period"
   | "affiliate_shop_period"
@@ -88,6 +91,8 @@ export type ReaderId =
   | "ads_products"
   | "orders"
   | "order_income"
+  /** Connector 0.3.29 (F4.7): the shop's discount programmes (Khuyến mãi của Shop). */
+  | "promotions"
   /** Connector 0.3.19: Phân Tích Bán Hàng › Truy cập read in the scheduler's own tab (no open tab needed). */
   | "traffic"
   | AffiliateReaderId;
@@ -103,8 +108,9 @@ export type AffiliateReaderId =
   | "affiliate_bills";
 export const AFFILIATE_READER_IDS: readonly AffiliateReaderId[] = [
   "affiliate",
-  "affiliate_kols",
+  // 0.3.29 (F4.6): the shop's own daily numbers first: they tell whether an empty KOL / product / campaign period is real.
   "affiliate_dashboard",
+  "affiliate_kols",
   "affiliate_products",
   "affiliate_campaigns",
   "affiliate_commissions",
@@ -123,6 +129,8 @@ export const READER_IDS: readonly ReaderId[] = [
   "orders",
   "order_income",
   "vouchers",
+  // Connector 0.3.29 (F4.7): the shop's discount programmes, a /portal page like the vouchers.
+  "promotions",
   "ads",
   // Connector 0.3.7: right after the list, on the ongoing campaigns the list just named.
   "ads_detail",
@@ -154,6 +162,7 @@ export const READERS_ACTIVE: Record<ReaderId, boolean> = {
   ads_products: true,
   orders: true,
   order_income: true,
+  promotions: true,
   traffic: true,
   affiliate: true,
   affiliate_kols: true,
@@ -195,6 +204,7 @@ export const READER_DATASETS: Record<ReaderId, readonly Dataset[]> = {
   ads_products: ["ads_campaign_period"],
   orders: ["order_lines"],
   order_income: ["order_income"],
+  promotions: ["promotions", "promotion_daily"],
   traffic: ["traffic_overview", "shop_traffic"],
   affiliate: ["affiliate_order_lines"],
   affiliate_kols: ["affiliate_partner_period"],
@@ -267,8 +277,9 @@ export const ORDER_INCOME_MAX_PER_DAY = 100;
 /** On the first run only orders completed in the last this-many days are queued (never a sweep). */
 export const ORDER_INCOME_FIRST_RUN_DAYS = 3;
 /** Completed orders waiting for their income read are kept at most this long / this many. */
-export const ORDER_INCOME_QUEUE_MAX = 300;
-export const ORDER_INCOME_QUEUE_DAYS = 14;
+export const ORDER_INCOME_QUEUE_MAX = 600;
+/** 0.3.29 (F4.9): 30 days (was 14): an income page that could not be read for two weeks lost its orders. */
+export const ORDER_INCOME_QUEUE_DAYS = 30;
 /** 0.3.26: an order whose income read failed on this many days is dropped from the queue. */
 export const ORDER_INCOME_MAX_FAILED_DAYS = 3;
 /** Shop totals: the 30 days after pairing, then the last 7 each day (placed / paid settle late). */
@@ -308,6 +319,33 @@ export const READER_KICK_DELAY_MINUTES = 1;
 export const READER_REREAD_DELAY_MINUTES = 2;
 /** 0.3.25: at most this many re-read starts a day (a dialog that keeps coming back cannot loop). */
 export const READER_REREAD_MAX_PER_DAY = 3;
+
+/**
+ * 0.3.29 (F4.2, contract C2): the backend's hole list names, per dataset, the days of the last
+ * CATCHUP_WINDOW_DAYS with no accepted row. A run reads at most this many hole days per page (after
+ * yesterday's reads, oldest first), and only while the backfill's part of the budget has room; a
+ * day's cost is the requests it takes (item traffic: one per product).
+ */
+export const CATCHUP_WINDOW_DAYS = 30;
+export const CATCHUP_DAYS_PER_JOB: Partial<Record<string, number>> = { traffic: 5, ads: 5, item_traffic: 2, shop_totals: 30, ads_products: 10 };
+export const CATCHUP_DAY_COST: Partial<Record<string, number>> = { traffic: 3, ads: 3, item_traffic: 40, shop_totals: 1, ads_products: 6 };
+/** Mydata datasets (daily sync / backfill) a hole is closed through the per-day backfill plan. */
+export const CATCHUP_BACKFILL_DATASETS: readonly string[] = ["item_performance", "item_by_source"];
+
+/** 0.3.29 (F4.6): pages that capture the page's own request: a miss opens the page once more, in the same run. */
+export const READER_RELOAD_ONCE: readonly ReaderId[] = [
+  "affiliate_kols",
+  "affiliate_dashboard",
+  "affiliate_products",
+  "affiliate_campaigns",
+  "affiliate_commissions",
+  "affiliate_content",
+  "affiliate_bills",
+  "order_income",
+  "promotions",
+];
+/** 0.3.29 (F4.6): the captured-only affiliate / promotion pages answer within about 90 s; the first open gets this long. */
+export const READER_CAPTURE_JOB_TIMEOUT_MS = 2 * 60_000;
 
 /** Ads: yesterday plus up to this many earlier finished days not read yet (one day per call). */
 export const ADS_CATCHUP_DAYS = 3;
@@ -371,7 +409,7 @@ export const MAX_ROWS_PER_POST = 400;
  * 550 000 = 5,5); product prices and vouchers arrive in VND. A reader divides by these; the
  * plausibility ceilings below still turn a wrong scale into drift instead of a wrong number.
  */
-export const MONEY_DIVISOR = { products: 1, ads: 100_000, vouchers: 1 } as const;
+export const MONEY_DIVISOR = { products: 1, ads: 100_000, vouchers: 1, promotions: 1 } as const;
 /** The ads service's ratio scale for ROAS targets (`roi_two_target`, `roi_target_setting.value`). */
 export const ADS_TARGET_DIVISOR = 100_000;
 /** Shopee's "no value" placeholder in mydata metrics (e.g. paid_ads ctr / conversion). */

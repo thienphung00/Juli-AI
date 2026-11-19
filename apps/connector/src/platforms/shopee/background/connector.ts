@@ -21,7 +21,8 @@ import { RAW_ORDER_ID } from "../affiliate-map";
 import { mapReaderJob } from "../reader-map";
 import { classify, type ReaderJob, type ReaderResponse } from "../reader";
 import { isDataAnswer, type RequestResult } from "../runner";
-import { buildBackfillDayPlan, buildSyncPlan } from "../sync";
+import { backfillDatasets, buildBackfillDayPlan, buildSyncPlan } from "../sync";
+import { parseReadDays, type ReadDays } from "./catchup";
 import { gmt7Date, lastFinishedDays, yesterdayRange } from "../../../core/time";
 import type { BlockEvent, TickReport } from "./scheduler";
 import {
@@ -252,7 +253,7 @@ export class Connector {
     const capturedAt = responses.reduce((latest, r) => Math.max(latest, r.capturedAt), 0) || this.deps.now();
     const outcomes: Record<string, CaptureOutcome> = {};
     // "affiliate": one post per purchase window (0.3.17 history), keyed by the window's end.
-    const perDate = new Set(["ads", "item_traffic", "affiliate", "affiliate_dashboard", "affiliate_bills"]);
+    const perDate = new Set(["ads", "item_traffic", "affiliate", "affiliate_dashboard", "affiliate_bills", "promotions"]);
     for (const raw of mapReaderJob(job, responses, capturedAt)) {
       const key =
         job.id === "shop_totals" || job.id === "product_period"
@@ -370,6 +371,59 @@ export class Connector {
       readers: { ...sched, blocked: { at: this.iso(), reason, page: "products", until } },
     });
     await this.reportBlock({ reader, page, status: reason, code, at: this.iso() });
+  }
+
+  /**
+   * 0.3.29 (F4.2, contract C2): the days of the last 30 Juli has no accepted row for, per daily
+   * dataset. Undefined when Juli could not answer (the run goes on without catch-up).
+   */
+  async readDays(): Promise<ReadDays | undefined> {
+    const state = await this.state();
+    if (!state.token || state.consentBlocked) return undefined;
+    try {
+      return parseReadDays(await this.deps.client.readDays(state.token.token), gmt7Date(Math.floor(this.deps.now() / 1000)));
+    } catch (error) {
+      if (!(await this.onAuthError(error))) await this.onRefusal(error);
+      return undefined;
+    }
+  }
+
+  /**
+   * 0.3.29 (F4.2): reopen days of the per-day backfill for the mydata item datasets the hole list names:
+   * yesterday first, then oldest first; a reopened day asks only for the datasets that were missing.
+   */
+  reopenBackfillDays(datasets: Record<string, string[]>): Promise<void> {
+    return this.exclusive(async () => {
+      const state = await this.state();
+      const backfill = state.backfill;
+      if (!state.token || !backfill || backfill.shopId !== state.token.shop_id) return;
+      const all = backfillDatasets() as Dataset[];
+      const yesterday = yesterdayRange(this.deps.now()).date;
+      const missing = new Map<string, Set<Dataset>>();
+      for (const [dataset, days] of Object.entries(datasets)) {
+        if (!all.includes(dataset as Dataset)) continue;
+        for (const day of days) missing.set(day, new Set([...(missing.get(day) ?? []), dataset as Dataset]));
+      }
+      if (missing.size === 0) return;
+      const holeDays = [...missing.keys()].sort();
+      const ordered = holeDays.includes(yesterday) ? [yesterday, ...holeDays.filter((d) => d !== yesterday)] : holeDays;
+      const accepted = { ...backfill.accepted };
+      for (const [day, wanted] of missing) {
+        const have = new Set<Dataset>(accepted[day] ?? (backfill.done.includes(day) ? all : []));
+        for (const dataset of wanted) have.delete(dataset);
+        accepted[day] = [...have];
+      }
+      const days = [...ordered, ...backfill.days.filter((d) => !missing.has(d))];
+      await saveState(this.deps.storage, {
+        backfill: {
+          ...backfill,
+          days,
+          done: backfill.done.filter((d) => !missing.has(d)),
+          accepted,
+          status: backfill.status === "done" ? "running" : backfill.status,
+        },
+      });
+    });
   }
 
   /** Tell Juli a stop happened (reader, page, status, time). Best effort: a failed post changes nothing. */
