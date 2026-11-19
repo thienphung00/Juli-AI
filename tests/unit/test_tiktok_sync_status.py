@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
+import pytest_asyncio
 
 from juli_backend.models.ingestion import (
     BOOTSTRAP_FAILED,
@@ -19,8 +20,25 @@ from juli_backend.models.ingestion import (
 from juli_backend.models.models import User
 from juli_backend.repositories import ShopIngestionStateRepo, TikTokCredentialRepo
 from juli_backend.services.tiktok_sync_status import build_sync_status, shop_sync_status
-from tests.unit.test_onboarding_speed import _client, app  # noqa: F401  (fixture re-export)
+from tests.unit.test_onboarding_speed import _client
 from tests.unit.test_shop_ingestion import _make_shop
+
+
+@pytest_asyncio.fixture
+async def app(session):
+    """The API app on the test session (same shape as test_onboarding_speed's)."""
+    from juli_backend.api.app import create_app
+    from juli_backend.database import get_session
+
+    application = create_app()
+
+    async def _test_session():
+        yield session
+
+    application.dependency_overrides[get_session] = _test_session
+    yield application
+    application.dependency_overrides.clear()
+
 
 # 10:00 Asia/Ho_Chi_Minh on 20 Nov 2026 -> yesterday is 19 Nov.
 AFTER_NINE = datetime(2026, 11, 20, 3, 0, tzinfo=UTC)
@@ -110,7 +128,7 @@ async def test_a_failed_refresh_reads_needs_reauth_and_reauth_resumes_it(session
 
 
 @pytest.mark.asyncio
-async def test_the_route_returns_progress_and_data_through(app, session):  # noqa: F811
+async def test_the_route_returns_progress_and_data_through(app, session):
     shop = await _make_shop(session, label="b5route")
     await ShopIngestionStateRepo(session).update(
         shop.id,
@@ -139,7 +157,7 @@ async def test_the_route_returns_progress_and_data_through(app, session):  # noq
 
 
 @pytest.mark.asyncio
-async def test_the_route_needs_a_signed_in_shop(app):  # noqa: F811
+async def test_the_route_needs_a_signed_in_shop(app):
     from httpx import ASGITransport, AsyncClient
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
