@@ -94,7 +94,8 @@ async def test_writing_twice_is_the_same_rows(two_tenants):
 
     assert await _write(shop, lines, settlements) == (2, 1)
     first = await _rows(shop, sql)
-    assert await _write(shop, lines, settlements) == (2, 1)
+    # S-3: a re-post of the same values changes nothing and is not counted
+    assert await _write(shop, lines, settlements) == (0, 0)
 
     assert await _rows(shop, sql) == first
     assert len(first) == 2 and {r.source for r in first} == {"api"}
