@@ -126,8 +126,9 @@ def test_reload_is_refused_when_a_kept_table_points_at_a_generated_one():
 
     shop = {"public.shops", "public.order_lines", "public.action_cards"}
     fks = [fk("order_lines", "shops"), fk("action_cards", "order_lines", "line_id")]
-    with pytest.raises(ResetRefused):
+    with pytest.raises(ResetRefused) as refused:
         plan_reload_deletes(shop, fks)
+    assert "action_cards references public.order_lines" in str(refused.value)
 
 
 def _shop_tables_of_the_orm() -> set[str]:
