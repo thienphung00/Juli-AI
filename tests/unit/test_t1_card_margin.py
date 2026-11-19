@@ -26,7 +26,13 @@ from juli_backend.services.shopee_builder.engine_families.integrate import (
     sum_results,
 )
 from juli_backend.services.shopee_profit.fees import FeeComponent, FeeFormula, FeeKind, FeeSchedule
-from juli_backend.services.shopee_profit.order_profit import OrderLine, SkuCost, profit_lines
+from juli_backend.services.shopee_profit.income import LineIncome
+from juli_backend.services.shopee_profit.order_profit import (
+    OrderLine,
+    OrderStatus,
+    SkuCost,
+    profit_lines,
+)
 from juli_backend.services.shopee_profit.shop_profit import scope_margin_pct, shop_profit
 from juli_backend.services.shopee_recommendations import config
 
@@ -138,3 +144,36 @@ def test_funnel_base_defaults_to_no_basis():
 def test_sample_title_spec_uses_the_one_title_limit():
     spec, _ = content_specs.title_spec(0)
     assert spec["inputs"]["max_chars"] == config.MAX_TITLE_CHARS == 120
+
+
+def _income(payout):
+    z = D(0)
+    return LineIncome((), z, z, z, z, z, z, z, z, D(payout))
+
+
+def test_only_the_sale_is_in_net_revenue_and_in_the_covered_gmv():
+    """Owner rule: refunded / returned / cancelled / undelivered goods are not doanh thu thuc.
+    One order of each status plus one normal order: R and the covered GMV are the normal one's."""
+    S = OrderStatus
+    lines = [OrderLine("ok", "S1", "P1", DAY, 1, D(100_000), D(100_000), D(6_000))]
+    # the refund statuses carry a settlement row (they cost its deduction), so they are in the
+    # profit base; cancelled and in transit are outside it
+    for i, st in enumerate(
+        (S.REFUNDED_ACCEPTED, S.REFUNDED_NOT_RECEIVED, S.RETURNED, S.CANCELLED, S.IN_TRANSIT)
+    ):
+        lines.append(
+            OrderLine(
+                f"x{i}", "S1", "P1", DAY, 1, D(70_000), D(70_000), status=st, income=_income(-5_000)
+            )
+        )
+    pairs = profit_lines(lines, {"S1": SkuCost("S1", D(30_000), D(1_000))}, schedule=SCHEDULE)
+    sp = shop_profit(pairs, campaigns=[], product_ad_spend={})
+    normal_net, normal_gmv = D(94_000), D(100_000)
+    p = sp.products["P1"]
+    assert sp.buyer_paid == p.buyer_paid == normal_net
+    assert sp.buyer_paid_covered == p.buyer_paid_covered == normal_net
+    assert sp.gmv_covered == p.gmv_covered == normal_gmv
+    # headline GMV is unchanged: it still counts cancelled and in-transit orders (not refunds)
+    assert sp.gmv == p.gmv == normal_gmv + 2 * D(70_000)
+    b = margin_basis(sp, ())
+    assert b is not None and (b.net_revenue, b.gmv) == (normal_net, normal_gmv)

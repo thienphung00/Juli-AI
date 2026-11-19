@@ -125,15 +125,17 @@ def base_for(env: RecoEnv, item_ids: Sequence[str], shop_id: str = "") -> Funnel
 def margin_basis(profit: shop_profit.ShopProfit, item_ids: Sequence[str]) -> MarginBasis | None:
     """T1 (A1.1): the dashboard's margin inputs for the scope -- the very figures behind
     ``shop_profit.scope_margin_pct`` (covered profit, covered ``buyer_paid`` = doanh thu thực) --
-    plus the window's GMV for the net/GMV ratio. None when the scope has no covered revenue."""
+    plus ``gmv_covered``, the GMV of the same sale lines (no cancelled, undelivered or refund
+    order), so net / GMV compares like with like. None when the scope has no covered revenue."""
     items = tuple(dict.fromkeys(i for i in item_ids if i))
     if not items:
-        net, num, gmv = profit.buyer_paid_covered, profit.covered_margin_profit, profit.gmv
+        net, num = profit.buyer_paid_covered, profit.covered_margin_profit
+        gmv = profit.gmv_covered
     else:
         rows = [profit.products[i] for i in items if i in profit.products]
         net = sum((p.buyer_paid_covered for p in rows), ZERO)
         num = sum((p.profit for p in rows), ZERO) if rows else None
-        gmv = sum((p.gmv for p in rows), ZERO)
+        gmv = sum((p.gmv_covered for p in rows), ZERO)
     if net <= 0 or gmv <= 0:
         return None
     return MarginBasis(profit=num, net_revenue=net, gmv=gmv)

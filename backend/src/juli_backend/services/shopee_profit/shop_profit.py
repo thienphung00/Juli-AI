@@ -98,6 +98,9 @@ class ProductProfit:
     gmv: Decimal
     buyer_paid: Decimal
     buyer_paid_covered: Decimal
+    #: GMV of the sale lines inside ``buyer_paid_covered`` (no cancelled / undelivered / refund
+    #: order): ``buyer_paid_covered / gmv_covered`` is the covered net/GMV ratio
+    gmv_covered: Decimal
     contribution: Decimal  # covered lines, before ads
     ad_spend: Decimal  # from the ads report by product
     profit: Decimal  # contribution - ad_spend (partial when coverage < 100 %)
@@ -166,6 +169,7 @@ class ShopProfit:
     gmv: Decimal
     buyer_paid: Decimal
     buyer_paid_covered: Decimal
+    gmv_covered: Decimal  # see ``ProductProfit.gmv_covered``
     contribution: Decimal  # covered lines, before ads
     total_ad_spend: Decimal  # all campaigns
     product_ad_spend: Decimal  # sum of the by-product spend
@@ -275,6 +279,7 @@ def product_profits(
             gmv=sum((ln.order_value for ln, _ in all_items if counts_in_sales(ln)), ZERO),
             buyer_paid=sum((pb.revenue for _, pb in items), ZERO),
             buyer_paid_covered=sum((pb.revenue for _, pb in covered), ZERO),
+            gmv_covered=sum((ln.order_value for ln, _ in covered if counts_in_sales(ln)), ZERO),
             contribution=contribution,
             ad_spend=spend,
             profit=contribution - spend,
@@ -323,6 +328,7 @@ def shop_profit(
         gmv=sum((ln.order_value for ln, _ in pairs if counts_in_sales(ln)), ZERO),
         buyer_paid=sum((p.buyer_paid for p in products.values()), ZERO),
         buyer_paid_covered=sum((p.buyer_paid_covered for p in products.values()), ZERO),
+        gmv_covered=sum((p.gmv_covered for p in products.values()), ZERO),
         contribution=contribution,
         total_ad_spend=total_ads,
         product_ad_spend=by_product,
