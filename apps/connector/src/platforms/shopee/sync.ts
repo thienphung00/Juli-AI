@@ -116,6 +116,21 @@ function productOverviewRequest(range: Range): PlannedRequest {
   };
 }
 
+/**
+ * F4.7: Phân tích bán hàng › Khuyến mãi, every programme type of one day (`promotion_type=1`), on the
+ * two order bases the file import has (placed, confirmed). `end_time` must be the next midnight
+ * (start + 86399 is refused with code 10006), for yesterday too (recorded 2026-11-19).
+ */
+export const PROMOTION_ORDER_TYPES = ["placed", "confirmed"] as const;
+function promotionRequests(range: Range): PlannedRequest[] {
+  const start = Number(range.start_time);
+  return PROMOTION_ORDER_TYPES.map((order_type) => ({
+    dataset: "promotion_daily" as const,
+    path: ENDPOINTS.promotion_daily,
+    params: { start_time: String(start), end_time: String(start + DAY), period: "day", promotion_type: "1", order_type },
+  }));
+}
+
 export function buildSyncPlan(
   nowMs: number,
   stopped: ReadonlySet<Dataset>,
@@ -139,6 +154,7 @@ export function buildSyncPlan(
     plan.push({ dataset: "shop_traffic", path: ENDPOINTS.shop_traffic, params: {}, useTemplate: true });
   }
   if (wanted("product_overview")) plan.push(productOverviewRequest(range));
+  if (wanted("promotion_daily")) plan.push(...promotionRequests(range));
   if (itemReadersActive) plan.push(...itemRequests(range, wanted));
   return plan;
 }
@@ -183,6 +199,7 @@ export function buildBackfillDayPlan(
     });
   }
   if (wanted("product_overview")) plan.push(productOverviewRequest(range));
+  if (wanted("promotion_daily")) plan.push(...promotionRequests(range));
   if (itemReadersActive) plan.push(...itemRequests(range, wanted));
   return plan;
 }

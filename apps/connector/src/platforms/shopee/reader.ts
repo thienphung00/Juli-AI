@@ -30,6 +30,7 @@ import {
   PRODUCT_PERIOD_PAGE_SIZE,
   VOUCHER_PAGE_LIMIT_DEFAULT,
 } from "./config";
+import { isDatacenterPath, isMydataPath } from "./config";
 import { isReadOnlyOrderDetailPath, isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, type ReaderEndpoint } from "./endpoints";
 import { trimOrderCards, trimOrderDetail, trimOrderIndex } from "./orders-map";
 import type { Pacer } from "./runner";
@@ -284,6 +285,8 @@ export function classify(status: number, body: unknown): Verdict {
   if (!isRecord(body)) return "login"; // a login page instead of JSON
   const code = body.code ?? body.error;
   if (code === undefined || code === 0 || code === "0" || code === null) return "ok";
+  // 0.3.29: code 10000 ("permission denied" / "not login") is mydata's answer to a call from outside /datacenter/
+  if (Number(code) === 10000) return "error";
   const text = `${String(body.msg ?? "")} ${String(body.message ?? "")} ${typeof code === "string" ? code : ""}`;
   if (Number(code) === 429 || RATE_WORDS.test(text)) return "rate";
   return LOGIN_WORDS.test(text) ? "login" : "error";
@@ -400,6 +403,11 @@ async function send(
   permissionAware = false,
 ): Promise<ReaderResponse> {
   if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_password_recheck", collected, "password_modal"));
+  // 0.3.29: a mydata call from a page outside /datacenter/ is answered "not login": never sent
+  const pathname = env.pathname?.();
+  if (pathname !== undefined && pathname !== "" && isMydataPath(new URL(request.publicUrl).pathname) && !isDatacenterPath(pathname)) {
+    throw new Stop(fail("needs_data_page", collected, "not_datacenter"));
+  }
   const wall = env.captchaVisible?.() ? "captcha" : blockedPath(env.pathname?.() ?? "");
   if (wall) throw new Stop(fail(wall === "captcha" ? "blocked_captcha" : wall === "traffic_check" ? "blocked_traffic_check" : "blocked_login", collected, "page"));
   // The shared daily budget is checked before EVERY replay.
@@ -729,7 +737,7 @@ async function readTraffic(env: ReaderEnv, days: string[], collected: ReaderResp
   const template: Template = { query: {}, headers: env.mydataHeaders?.() };
   for (const day of days) {
     for (const planned of buildBackfillDayPlan(day, env.now(), new Set(), false)) {
-      if (planned.dataset !== "traffic_overview" && planned.dataset !== "shop_traffic" && planned.dataset !== "product_overview") continue;
+      if (planned.dataset !== "traffic_overview" && planned.dataset !== "shop_traffic" && planned.dataset !== "product_overview" && planned.dataset !== "promotion_daily") continue;
       const request = buildReaderRequest(env.origin, planned.dataset, template, { query: planned.params }, env.session());
       await send(env, request, collected, { day }, true);
     }
@@ -761,53 +769,6 @@ async function readVouchers(env: ReaderEnv, collected: ReaderResponse[]): Promis
     const total = totalOf(response.body, found.parent);
     if (fresh.length === 0 || found.list.length < limit) break;
     if (total !== undefined && seen.size >= total) break;
-  }
-}
-
-/**
- * The query keys of a template that carry its range (Seller Centre calls them start_time / end_time
- * on the marketing service; any start / from / end / to spelling is accepted), or undefined.
- */
-export function rangeKeysOf(query: Record<string, string>): { start: string; end: string } | undefined {
-  const keys = Object.keys(query);
-  const start = keys.find((k) => /^(start|from|begin)(_?time|_?date)?$/i.test(k));
-  const end = keys.find((k) => /^(end|to)(_?time|_?date)?$/i.test(k));
-  return start && end ? { start, end } : undefined;
-}
-
-/**
- * Khuyến mãi của Shop (0.3.29, F4.7). Page load only: the page's own list / active / metrics answers
- * are kept as it loaded them, and the metrics GET (the page's own request) is replayed once per
- * missing day with only its range changed. Nothing on the page is pressed.
- */
-async function readPromotions(env: ReaderEnv, days: string[], collected: ReaderResponse[]): Promise<void> {
-  await waitForPage(env, ["promotion_metrics"], collected);
-  for (const endpoint of ["promotion_list", "promotion_active", "promotion_metrics"] as const) {
-    const own = env.template(endpoint);
-    if (own?.lastResponse === undefined) continue;
-    collected.push({
-      endpoint,
-      url: `${env.origin}${READER_ENDPOINTS[endpoint].path}`,
-      status: 200,
-      body: own.lastResponse,
-      capturedAt: env.now(),
-      source: "page",
-    });
-  }
-  if (days.length === 0) return;
-  const template = env.template("promotion_metrics") as Template;
-  const keys = rangeKeysOf(template.query);
-  if (!keys) throw new Stop(fail("needs_template", collected, "promotion_metrics:range"));
-  for (const day of days) {
-    const bounds = dayBounds(day);
-    const request = buildReaderRequest(
-      env.origin,
-      "promotion_metrics",
-      template,
-      { query: { [keys.start]: String(bounds.start_time), [keys.end]: String(bounds.end_time) } },
-      env.session(),
-    );
-    await send(env, request, collected, { day }, true);
   }
 }
 
@@ -1703,9 +1664,6 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         break;
       case "vouchers":
         await readVouchers(env, collected);
-        break;
-      case "promotions":
-        await readPromotions(env, job.days ?? [], collected);
         break;
       case "product_period":
         await readProductPeriod(env, collected);

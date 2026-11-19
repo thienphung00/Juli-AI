@@ -215,7 +215,6 @@ describe("planJobs", () => {
       "orders",
       "order_income",
       "vouchers",
-      "promotions",
       "ads",
       "ads_detail",
       "ads_products",

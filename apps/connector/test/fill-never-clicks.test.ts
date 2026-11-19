@@ -196,7 +196,7 @@ describe("no Shopee source clicks, focuses or builds a UI event (F5.1b)", () => 
 
   it("covers the readers and the page hooks", () => {
     const names = Object.keys(sources).map((n) => n.replace("../src/", ""));
-    for (const must of ["platforms/shopee/order-dom.ts", "platforms/shopee/page/hook.ts", "platforms/shopee/page/market-hook.ts", "platforms/shopee/reader.ts", "platforms/shopee/reader-map.ts", "platforms/shopee/market.ts", "platforms/shopee/promotions-map.ts", "platforms/shopee/background/catchup.ts"]) {
+    for (const must of ["platforms/shopee/order-dom.ts", "platforms/shopee/page/hook.ts", "platforms/shopee/page/market-hook.ts", "platforms/shopee/reader.ts", "platforms/shopee/reader-map.ts", "platforms/shopee/market.ts", "platforms/shopee/promotion-map.ts", "platforms/shopee/background/catchup.ts"]) {
       expect(names).toContain(must);
     }
   });

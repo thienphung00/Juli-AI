@@ -8,6 +8,7 @@ export const ENDPOINTS: Record<MydataDataset, string> = {
   item_by_source: "/api/mydata/v1/product/traffic/item-list/",
   item_performance: "/api/mydata/v4/product/performance/",
   shop_traffic: "/api/mydata/traffic/dashboard/overview/",
+  promotion_daily: "/api/mydata/marketing/new-discount/performance-list/",
   product_overview: "/api/mydata/v2/product/overview/",
 };
 
@@ -69,9 +70,7 @@ export const READER_ENDPOINTS = {
   voucher_list: { method: "GET", path: "/api/marketing/v3/voucher/list/" },
   // -- Khuyến mãi của Shop (0.3.29, F4.7; captured 2026-11-19, shapes only). The page's own list /
   // active calls are kept as it loads them; metrics is kept AND replayed (GET) with one day's range.
-  promotion_list: { method: "GET", path: "/api/marketing/v3/public/discount/list/", capture: true },
-  promotion_active: { method: "GET", path: "/api/marketing/v3/public/discount/active/", capture: true },
-  promotion_metrics: { method: "GET", path: "/api/marketing/v3/public/discount/metrics/", capture: true },
+  promotion_daily: { method: "GET", path: "/api/mydata/marketing/new-discount/performance-list/" },
   // -- shop traffic (Connector 0.3.19): the same two GET reads the daily sync and the backfill send
   // (ENDPOINTS above), replayed in the scheduler's own Truy cập tab for each day still missing.
   traffic_overview: { method: "GET", path: "/api/mydata/v1/product/traffic/overview/" },
@@ -137,8 +136,6 @@ export const READER_PAGES: Record<ReaderId, { path: string }> = {
   products: { path: "/portal/product/list/all" },
   item_traffic: { path: "/datacenter/product/traffic" },
   vouchers: { path: "/portal/marketing/vouchers/list" },
-  // 0.3.29: Khuyến mãi của Shop (the page path is Shopee's menu; a wrong guess ends as "redirected", never a click).
-  promotions: { path: "/portal/marketing/discount/list" },
   ads: { path: "/portal/marketing/pas/index" },
   // The prefix of every campaign edit page; readerPageUrl names the campaign.
   ads_detail: { path: "/portal/marketing/pas/product/" },

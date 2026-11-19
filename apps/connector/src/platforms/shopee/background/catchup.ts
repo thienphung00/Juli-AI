@@ -1,6 +1,6 @@
 // The hole list (0.3.29, F4.2, contract C2): the backend names, per daily dataset, the days of the
 // last 30 (before today, GMT+7) with no accepted row. The Connector turns each into a per-day read:
-// a reader job with those days (traffic, ads, item traffic, shop totals, promotions) or, for the two
+// a reader job with those days (traffic, ads, item traffic, shop totals) or, for the two
 // mydata item datasets, a reopened day of the per-day backfill (buildBackfillDayPlan). Yesterday's
 // reads come first; hole days follow oldest first, a few a run, only while the budget has room.
 
@@ -45,7 +45,6 @@ export const HOLE_READER: Record<string, ReaderId> = {
   ads_campaign_daily: "ads",
   item_traffic_sources: "item_traffic",
   shop_overview: "shop_totals",
-  promotion_daily: "promotions",
   // F4.5 (t1a): the per-product ads read takes days (a 1-day window each, at most 60 requests a job)
   ads_campaign_period: "ads_products",
 };

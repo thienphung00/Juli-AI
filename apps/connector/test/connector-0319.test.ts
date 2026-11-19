@@ -104,7 +104,7 @@ describe("the traffic reader (Truy cập in the scheduler's own tab)", () => {
     const h = readerHarness((request) => ({ body: bodyFor(request) }));
     const outcome = await runReaderJob({ id: "traffic", days: ["2026-11-13", "2026-11-12"] }, h.env);
     expect(outcome.status).toBe("done");
-    expect(h.sent).toHaveLength(8); // per day: overview x 2 order bases, shop traffic, product overview (F4.8)
+    expect(h.sent).toHaveLength(12); // per day: overview x 2 order bases, shop traffic, product overview (F4.8), promotions x 2 order bases (F4.7)
     expect(h.sent.every((r) => r.method === "GET")).toBe(true);
     const first = new URL(h.sent[0]!.url).searchParams;
     expect(Object.fromEntries(first)).toMatchObject({
@@ -115,7 +115,7 @@ describe("the traffic reader (Truy cập in the scheduler's own tab)", () => {
       SPC_CDS: "s",
     });
     expect(new URL(h.sent[2]!.url).pathname).toBe("/api/mydata/traffic/dashboard/overview/");
-    expect(Object.fromEntries(new URL(h.sent[6]!.url).searchParams)).toMatchObject({ period: "day", dt: "20261112" });
+    expect(Object.fromEntries(new URL(h.sent[8]!.url).searchParams)).toMatchObject({ period: "day", dt: "20261112" });
     expect(new URL(h.sent[3]!.url).pathname).toBe("/api/mydata/v2/product/overview/");
     expect(h.sent[0]!.headers["x-sap-ri"]).toBe("r");
     // the session params never reach what is posted
@@ -129,7 +129,7 @@ describe("the traffic reader (Truy cập in the scheduler's own tab)", () => {
     const odd = readerHarness((request) => (request.url.includes("placed") ? { body: { code: 10006, msg: "err:invalid param" } } : { body: bodyFor(request) }));
     const outcome = await runReaderJob({ id: "traffic", days: ["2026-11-13"] }, odd.env);
     expect(outcome.status).toBe("done");
-    expect(odd.sent).toHaveLength(4);
+    expect(odd.sent).toHaveLength(6);
     // and a rate answer stops it like every reader
     const rate = readerHarness(() => ({ status: 429, body: { error: 429 } }));
     expect((await runReaderJob({ id: "traffic", days: ["2026-11-13"] }, rate.env)).status).toBe("blocked_rate");

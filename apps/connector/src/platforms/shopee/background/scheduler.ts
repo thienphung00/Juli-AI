@@ -288,9 +288,6 @@ export function planJobs(args: {
       // F4.5: the group campaigns' per-product table, plus the days the backend lacks (ads_campaign_period)
       const holeDays = withHoleDays(id, [], args.holes, room, 0);
       jobs.push(holeDays.length > 0 ? { id, days: holeDays } : { id });
-    } else if (id === "promotions") {
-      // yesterday's numbers every day, then the days the backend lacks (F4.7)
-      jobs.push({ id, days: withHoleDays(id, lastFinishedDays(args.nowMs, 1), args.holes, room, 0) });
     } else if (id === "product_period") {
       // The 30-day product table, once a day (one page open; at most PRODUCT_PERIOD_MAX_PAGES requests).
       if (args.productPeriodDay !== todayDay) jobs.push({ id });
@@ -1394,8 +1391,6 @@ export class ReaderScheduler {
       add("shop_overview", days);
     } else if (job.id === "ads_products") {
       if (Object.entries(posted).some(([key, outcome]) => key.startsWith("ads_campaign_period") && outcome === "posted")) add("ads_campaign_period", days);
-    } else if (job.id === "promotions") {
-      add("promotion_daily", days.filter((day) => posted[`promotion_daily:${day}`] === "posted"));
     }
     return Object.keys(landed).length > 0 ? { ...(run.catchupRead ?? {}), ...landed } : undefined;
   }

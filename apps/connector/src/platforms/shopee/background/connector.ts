@@ -260,7 +260,7 @@ export class Connector {
     const capturedAt = responses.reduce((latest, r) => Math.max(latest, r.capturedAt), 0) || this.deps.now();
     const outcomes: Record<string, CaptureOutcome> = {};
     // "affiliate": one post per purchase window (0.3.17 history), keyed by the window's end.
-    const perDate = new Set(["ads", "item_traffic", "affiliate", "affiliate_dashboard", "affiliate_bills", "promotions"]);
+    const perDate = new Set(["ads", "item_traffic", "affiliate", "affiliate_dashboard", "affiliate_bills"]);
     for (const raw of mapReaderJob(job, responses, capturedAt)) {
       const key =
         job.id === "shop_totals" || job.id === "product_period"
@@ -711,6 +711,12 @@ export class Connector {
       return status;
     }
     if (!state.token) return this.stopBackfill(backfill, "unpaired", { day });
+    // 0.3.29: code 10000 "not login" is mydata's answer to a call made outside /datacenter/: not a stop, the
+    // day waits for a Phân tích bán hàng tab (the page's next data call resumes it)
+    if (results.some((r) => (r.body as { code?: unknown } | null)?.code === 10000)) {
+      await saveState(this.deps.storage, { backfill: { ...backfill, needsDataPage: true } });
+      return "needs_data_page";
+    }
     const accepted = new Set<Dataset>(backfill.accepted[day] ?? []);
     const keepAccepted = (): Backfill => ({
       ...backfill,

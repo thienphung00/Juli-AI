@@ -14,7 +14,7 @@
 // cookies, no other URLs, and sends nothing but those queries: it never clicks, applies or
 // saves anything.
 
-import { CHANNEL, FILL_HASH_KEY, READER_IDS, SELLER_CENTRE_ORIGIN } from "../config";
+import { CHANNEL, FILL_HASH_KEY, isDatacenterPath, READER_IDS, SELLER_CENTRE_ORIGIN } from "../config";
 import { savedSignal } from "../fill/saved";
 import {
   isCapturedEndpoint,
@@ -374,7 +374,13 @@ function hasSession(): boolean {
   return SESSION_PARAMS.every((key) => key in session);
 }
 
+/** Mydata calls are only answered inside Phân tích bán hàng: from any other page they come back "not login" (code 10000). */
+function inDatacenter(): boolean {
+  return isDatacenterPath(location.pathname);
+}
+
 async function runPlan(plan: PlannedRequest[]): Promise<void> {
+  if (!inDatacenter()) return reply("needs_data_page");
   if (!hasSession()) {
     // The page has not made a data call in this tab yet: never invent the session params.
     return reply("needs_data_page");
@@ -412,6 +418,7 @@ function replyBackfill(day: string, status: string, results: unknown[] = []): vo
 }
 
 async function runBackfillDay(day: string, plan: PlannedRequest[]): Promise<void> {
+  if (!inDatacenter()) return replyBackfill(day, "needs_data_page");
   if (!hasSession()) return replyBackfill(day, "needs_data_page");
   const requests: DayRequest[] = [];
   for (const request of plan) {

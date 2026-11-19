@@ -69,7 +69,7 @@ function harness(
       return { status: answer.status ?? 200, text: async () => answer.text ?? JSON.stringify(answer.body ?? null) };
     },
     captchaVisible: options.captcha,
-    pathname: () => options.pathname ?? "/portal/x",
+    pathname: () => options.pathname ?? "/datacenter/x",
   };
   return { env, sent, sleeps };
 }

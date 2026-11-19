@@ -35,11 +35,6 @@ export const READER_GUIDE: Record<ReaderId, PageGuide> = {
     path: "/portal/marketing/vouchers/list",
     pulls: "Voucher của shop: mức giảm, đơn tối thiểu, thời gian, lượt đã dùng.",
   },
-  promotions: {
-    title: "Kênh Marketing › Khuyến mãi của Shop",
-    path: "/portal/marketing/discount/list",
-    pulls: "Chương trình khuyến mãi của shop: tên, thời gian chạy, doanh số, đơn, người mua theo ngày.",
-  },
   ads: {
     title: "Kênh Marketing › Quảng Cáo Shopee",
     path: "/portal/marketing/pas/index",

@@ -16,8 +16,12 @@ import { DAILY_REQUEST_BUDGET, READER_CAPTURE_JOB_TIMEOUT_MS, READER_LOAD_GRACE_
 import { GatewayClient, type TokenInfo } from "../src/platforms/shopee/ingest/client";
 import { mapOrderIncome } from "../src/platforms/shopee/orders-map";
 import { problemLabel, problemLines } from "../src/platforms/shopee/popup/guide";
-import { mapPromotions } from "../src/platforms/shopee/promotions-map";
-import { type FetchedReaderResponse, pollingWaitFor, rangeKeysOf, type ReaderEnv, type ReaderRequest, type ReaderResponse, runReaderJob, type Template } from "../src/platforms/shopee/reader";
+import { mapCapturedAll } from "../src/platforms/shopee/map";
+import { buildBackfillDayPlan } from "../src/platforms/shopee/sync";
+import { classify } from "../src/platforms/shopee/reader";
+import { gmt7DateStart } from "../src/core/time";
+import { isDatacenterPath } from "../src/platforms/shopee/config";
+import { type FetchedReaderResponse, pollingWaitFor, type ReaderEnv, type ReaderRequest, type ReaderResponse, runReaderJob, type Template } from "../src/platforms/shopee/reader";
 import type { ReadDays } from "../src/platforms/shopee/background/catchup";
 import type { ReaderEndpoint } from "../src/platforms/shopee/endpoints";
 import { Pacer } from "../src/platforms/shopee/runner";
@@ -214,9 +218,9 @@ describe("F4.2: the hole list", () => {
     expect(backfill?.status).toBe("running");
     expect(backfill?.days).toEqual(["2026-11-18", "2026-11-10", "2026-11-17"]);
     expect(backfill?.done).toEqual([]);
-    expect(backfill?.accepted["2026-11-10"]).toEqual(["traffic_overview", "shop_traffic", "product_overview"]);
-    expect(backfill?.accepted["2026-11-18"]).toEqual(["traffic_overview", "item_by_source", "shop_traffic", "product_overview"]);
-    expect(backfill?.accepted["2026-11-17"]).toEqual(["item_by_source", "item_performance", "shop_traffic", "product_overview"]);
+    expect(backfill?.accepted["2026-11-10"]).toEqual(["traffic_overview", "shop_traffic", "product_overview", "promotion_daily"]);
+    expect(backfill?.accepted["2026-11-18"]).toEqual(["traffic_overview", "item_by_source", "shop_traffic", "product_overview", "promotion_daily"]);
+    expect(backfill?.accepted["2026-11-17"]).toEqual(["item_by_source", "item_performance", "shop_traffic", "product_overview", "promotion_daily"]);
   });
 
   it("Connector.readDays fetches the contract route and parses it; a failure is undefined", async () => {
@@ -445,74 +449,110 @@ describe("F4.9: order income", () => {
   });
 });
 
-describe("F4.7: promotions", () => {
-  const metrics = (day: string, m: Record<string, number>): ReaderResponse => {
-    const start = Math.floor(Date.parse(`${day}T00:00:00+07:00`) / 1000);
-    return { endpoint: "promotion_metrics", url: "u", status: 200, capturedAt: T0, source: "replay", day, body: { code: 0, message: "ok", data: { date_range: { start_time: start, end_time: start + 86_399 }, metrics: m } } };
-  };
+describe("F4.7: promotion_daily from the per-programme performance list", () => {
+  const DAYSTART = gmt7DateStart("2026-11-17");
+  const url = (orderType: string, type = "1", end = DAYSTART + 86_400) =>
+    `${SC}/api/mydata/marketing/new-discount/performance-list/?start_time=${DAYSTART}&end_time=${end}&period=day&promotion_type=${type}&order_type=${orderType}`;
+  const programme = (over: Record<string, unknown>) => ({ promotion_id: 1, promotion_name: "Giảm giá thử", promotion_type: 2, status: 1, create_time: DAYSTART - 99, start_time: DAYSTART - 86_400, end_time: DAYSTART + 86_400 * 5, units: 4, orders: 3, buyers: 2, sales: 400_000, sales_per_buyer: 200_000, ...over });
+  const answer = (orderType: string, result: unknown, type = "1") => mapCapturedAll({ url: url(orderType, type), body: { code: 0, result }, capturedAt: T0 });
 
-  it("promotion_daily: one row per single-day answer, with the file import's field names", () => {
-    const mapped = mapPromotions([metrics("2026-11-17", { sales: 1_500_000, orders: 12, units: 20, buyers: 11, sales_pct_diff: 3 }), metrics("2026-11-18", { sales: 0, orders: 0, units: 0, buyers: 0 })], T0);
-    expect(mapped.map((m) => [m.dataset, m.date])).toEqual([["promotion_daily", "2026-11-17"], ["promotion_daily", "2026-11-18"]]);
-    expect(mapped[0]?.rows).toEqual([{ promo_type: "Chương Trình Khuyến Mãi", sales: 1_500_000, orders: 12, units: 20, buyers: 11 }]);
+  it("is a mydata day request in the sync plan and the backfill day plan, placed and confirmed, end = next midnight", () => {
+    for (const plan of [buildBackfillDayPlan("2026-11-17", T0, new Set(), false), buildBackfillDayPlan("2026-11-18", T0, new Set(), false)]) {
+      const promos = plan.filter((p) => p.dataset === "promotion_daily");
+      expect(promos.map((p) => p.params.order_type)).toEqual(["placed", "confirmed"]);
+      const start = Number(promos[0]?.params.start_time);
+      expect(promos[0]?.params).toMatchObject({ end_time: String(start + 86_400), period: "day", promotion_type: "1" });
+      expect(promos[0]?.path).toBe("/api/mydata/marketing/new-discount/performance-list/");
+    }
+    expect(buildBackfillDayPlan("2026-11-17", T0, new Set(["promotion_daily"] as const), false).some((p) => p.dataset === "promotion_daily")).toBe(false);
   });
 
-  it("a multi-day answer (the page's own range) is not a day; an unreadable list posts nothing", () => {
-    const wide = metrics("2026-11-17", { sales: 1, orders: 1, units: 1, buyers: 1 });
-    ((wide.body as { data: { date_range: { end_time: number } } }).data.date_range.end_time as number) += 3 * 86_400;
-    expect(mapPromotions([wide, { endpoint: "promotion_list", url: "u", status: 200, capturedAt: T0, source: "page", body: { code: 0, data: { stuff: [1, 2] } } }], T0)).toEqual([]);
+  it("one row per promotion type and day plus the total, with the file import's fields", () => {
+    const posts = answer("placed", [programme({}), programme({ promotion_id: 2, promotion_name: "Khác", sales: 100_000, orders: 1, units: 1, buyers: 1 }), programme({ promotion_id: 3, promotion_type: 3, promotion_name: "Combo thử", sales: 50_000, orders: 1, units: 2, buyers: 1 })]);
+    const daily = posts.find((p) => p.dataset === "promotion_daily");
+    expect(daily).toMatchObject({ date: "2026-11-17", orderType: "placed", drift: null });
+    expect(daily?.rows).toEqual([
+      { date: "2026-11-17", promo_type: "Tất cả", sales: 550_000, orders: 5, units: 7, buyers: 4, sales_per_buyer: 137_500 },
+      { date: "2026-11-17", promo_type: "Chương Trình Khuyến Mãi", sales: 500_000, orders: 4, units: 5, buyers: 3, sales_per_buyer: 166_666.67 },
+      { date: "2026-11-17", promo_type: "Combo Khuyến Mãi", sales: 50_000, orders: 2 - 1, units: 2, buyers: 1, sales_per_buyer: 50_000 },
+    ]);
   });
 
-  it("promotions: programme entries of the list answer, wall-clock times, de-duplicated", () => {
-    const entry = { id: 77, name: "Giảm giá mùa mưa", start_time: Math.floor(Date.parse("2026-11-10T00:00:00+07:00") / 1000), end_time: Math.floor(Date.parse("2026-11-20T00:00:00+07:00") / 1000), status: "Đang diễn ra" };
-    const list: ReaderResponse = { endpoint: "promotion_list", url: "u", status: 200, capturedAt: T0, source: "page", body: { code: 0, data: { list: [entry] } } };
-    const mapped = mapPromotions([list, { ...list, endpoint: "promotion_active" }], T0);
-    expect(mapped).toHaveLength(1);
-    expect(mapped[0]).toMatchObject({ dataset: "promotions", granularity: "period", date: "2026-11-19" });
-    expect(mapped[0]?.rows).toEqual([{ program_name: "Giảm giá mùa mưa", promo_type: "Chương Trình Khuyến Mãi", starts_at: "2026-11-10T00:00:00", ordinal: 0, ends_at: "2026-11-20T00:00:00", status: "Đang diễn ra" }]);
+  it("an unknown type only counts in the total; result null is an empty day posted as zeros, not an error", () => {
+    const unknown = answer("confirmed", [programme({ promotion_type: 9, promotion_name: "Lạ" })]);
+    expect(unknown[0]?.rows).toEqual([{ date: "2026-11-17", promo_type: "Tất cả", sales: 400_000, orders: 3, units: 4, buyers: 2, sales_per_buyer: 200_000 }]);
+    const empty = answer("confirmed", null);
+    expect(empty).toHaveLength(1);
+    expect(empty[0]?.rows).toEqual([{ date: "2026-11-17", promo_type: "Tất cả", sales: 0, orders: 0, units: 0, buyers: 0 }]);
+    expect(empty[0]?.drift).toBeNull();
   });
 
-  it("the reader replays the page's own metrics GET once per day with only the range changed", async () => {
-    let clock = 1_000_000;
-    const sleep = async (ms: number) => void (clock += ms);
-    const sent: ReaderRequest[] = [];
-    const templates: Partial<Record<ReaderEndpoint, Template>> = {
-      promotion_metrics: { query: { start_time: "1", end_time: "2", scope: "all" }, lastResponse: { code: 0, data: { metrics: {} } } },
-      promotion_list: { query: {}, lastResponse: { code: 0, data: { list: [] } } },
-    };
-    const env: ReaderEnv = {
+  it("a single-type answer, an error answer and an unfinished / partial day are not the day's total", () => {
+    expect(answer("placed", [programme({})], "2")).toEqual([]);
+    expect(mapCapturedAll({ url: url("placed"), body: { code: 10006, msg: "err" }, capturedAt: T0 })).toEqual([]);
+    expect(mapCapturedAll({ url: url("placed", "1", DAYSTART + 86_399), body: { code: 0, result: null }, capturedAt: T0 })).toEqual([]);
+    expect(mapCapturedAll({ url: url("paid"), body: { code: 0, result: null }, capturedAt: T0 })).toEqual([]);
+  });
+
+  it("the promotions snapshot comes from the placed answer's programmes (known types, terms only)", () => {
+    const posts = answer("placed", [programme({}), programme({}), programme({ promotion_type: 9, promotion_name: "Lạ" })]);
+    const snapshot = posts.find((p) => p.dataset === "promotions");
+    expect(snapshot).toMatchObject({ granularity: "period", date: "2026-11-17", periodStart: "2026-11-17" });
+    expect(snapshot?.rows).toEqual([
+      { program_name: "Giảm giá thử", promo_type: "Chương Trình Khuyến Mãi", starts_at: "2026-11-16T00:00:00", ordinal: 0, ends_at: "2026-11-22T00:00:00" },
+      { program_name: "Giảm giá thử", promo_type: "Chương Trình Khuyến Mãi", starts_at: "2026-11-16T00:00:00", ordinal: 1, ends_at: "2026-11-22T00:00:00" },
+    ]);
+    expect(answer("confirmed", [programme({})]).some((p) => p.dataset === "promotions")).toBe(false);
+  });
+});
+
+describe("mydata replays only from /datacenter/ (finding 2026-11-19)", () => {
+  it("isDatacenterPath", () => {
+    expect(isDatacenterPath("/datacenter/traffic/overview")).toBe(true);
+    expect(isDatacenterPath("/portal/marketing/list/discount")).toBe(false);
+  });
+
+  it("a code 10000 'not login' answer is never a login verdict", () => {
+    expect(classify(200, { code: 10000, msg: "permission denied", result: "not login" })).toBe("error");
+    expect(classify(200, { code: 10000, msg: "not login" })).toBe("error");
+  });
+
+  it("the reader sends no mydata request from a page outside /datacenter/: needs_data_page, nothing sent", async () => {
+    let sent = 0;
+    const sleep = async () => {};
+    const env = {
       origin: SC,
-      pacer: new Pacer({ sleep, now: () => clock, random: () => 0 }),
-      now: () => clock,
+      pacer: new Pacer({ sleep, now: () => 0, random: () => 0 }),
+      now: () => 1_000_000,
       session: () => ({ SPC_CDS: "s", SPC_CDS_VER: "2" }),
       hasSession: () => true,
-      template: (endpoint) => templates[endpoint],
-      waitFor: pollingWaitFor(sleep, () => clock),
-      fetch: async (request): Promise<FetchedReaderResponse> => {
-        sent.push(request);
-        return { status: 200, text: async () => JSON.stringify({ code: 0, data: { metrics: {} } }) };
+      template: () => undefined,
+      waitFor: async () => true,
+      fetch: async (): Promise<FetchedReaderResponse> => {
+        sent += 1;
+        return { status: 200, text: async () => JSON.stringify({ code: 10000, msg: "permission denied", result: "not login" }) };
       },
-      pathname: () => "/portal/marketing/discount/list",
-    };
-    const outcome = await runReaderJob({ id: "promotions", days: ["2026-11-17", "2026-11-18"] }, env);
-    expect(outcome.status).toBe("done");
-    expect(sent.map((r) => [r.method, new URL(r.url).pathname, new URL(r.url).searchParams.get("start_time"), new URL(r.url).searchParams.get("scope")])).toEqual([
-      ["GET", "/api/marketing/v3/public/discount/metrics/", String(Math.floor(Date.parse("2026-11-17T00:00:00+07:00") / 1000)), "all"],
-      ["GET", "/api/marketing/v3/public/discount/metrics/", String(Math.floor(Date.parse("2026-11-18T00:00:00+07:00") / 1000)), "all"],
-    ]);
-    expect(outcome.responses.filter((r) => r.source === "page").map((r) => r.endpoint)).toEqual(["promotion_list", "promotion_metrics"]);
+      pathname: () => "/portal/marketing/list/discount",
+    } as unknown as ReaderEnv;
+    const outcome = await runReaderJob({ id: "traffic", days: ["2026-11-17"] }, env);
+    expect(outcome.status).toBe("needs_data_page");
+    expect(sent).toBe(0);
   });
 
-  it("no range keys in the page's own call: needs_template, never a guessed request", async () => {
-    expect(rangeKeysOf({ page: "1" })).toBeUndefined();
-    expect(rangeKeysOf({ from: "1", to: "2" })).toEqual({ start: "from", end: "to" });
-    const env = { origin: SC, pacer: new Pacer({ sleep: async () => {}, now: () => 0, random: () => 0 }), now: () => 0, session: () => ({}), hasSession: () => true, template: (e: string) => (e === "promotion_metrics" ? { query: { page: "1" }, lastResponse: {} } : undefined), waitFor: async () => true, fetch: async () => ({ status: 200, text: async () => "{}" }) } as unknown as ReaderEnv;
-    expect((await runReaderJob({ id: "promotions", days: ["2026-11-17"] }, env)).status).toBe("needs_template");
-  });
-
-  it("a daily run plans promotions with yesterday and the hole days", () => {
-    const jobs = planJobs({ shopId: SHOP, nowMs: T0, stopped: new Set<never>(), adsDone: [], readers: ["promotions"], holes: { promotion_daily: ["2026-11-01"] }, holeRoom: 100 });
-    expect(jobs).toEqual([{ id: "promotions", days: ["2026-11-18", "2026-11-01"] }]);
+  it("a backfill day answered 10000 waits for a Phân tích bán hàng tab instead of stopping or blocking", async () => {
+    const storage = new MemoryStorage();
+    const tabs: Tabs = { sellerCentreTabs: async () => [7], send: async () => undefined };
+    const connector = new Connector({ storage, client: new GatewayClient(async () => new Response("{}")), tabs, version: "0.3.29", now: () => T0 });
+    storage.data.token = TOKEN;
+    await connector.backfillStep();
+    const day = (await loadState(storage)).backfill?.inFlight?.day as string;
+    const results = [{ dataset: "traffic_overview" as const, url: "u", status: 200, body: { code: 10000, msg: "permission denied", result: "not login" }, capturedAt: T0 }];
+    expect(await connector.backfillResult(day, "done", results)).toBe("needs_data_page");
+    const backfill = (await loadState(storage)).backfill;
+    expect(backfill?.status).toBe("running");
+    expect(backfill?.needsDataPage).toBe(true);
+    expect(backfill?.stop).toBeUndefined();
+    expect((await loadState(storage)).readers?.blocked).toBeUndefined();
   });
 });
 
