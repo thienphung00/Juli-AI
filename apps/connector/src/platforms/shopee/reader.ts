@@ -186,8 +186,8 @@ export interface ReaderEnv {
   orderLinks?: () => OrderLink[];
   /** orders (0.3.20): the list page shows its "no orders" state. */
   orderListEmpty?: () => boolean;
-  /** orders (0.3.20): go to the next list page with the page's own pager; false when there is none. */
-  nextOrderPage?: () => boolean;
+  /** orders (0.3.28): the list's pager shows more pages (read only: the Connector never presses it). */
+  moreOrderPages?: () => boolean;
   /** 0.3.26: the page shows Seller Centre's "no permission" page or message (a sub-account without the right). */
   permissionDeniedVisible?: () => boolean;
 }
@@ -1014,39 +1014,25 @@ export function orderSnDay(sn: string | undefined): string | undefined {
 /**
  * The order list as the page shows it (0.3.20). Seller Centre's list page no longer calls the
  * list endpoints the hook could replay (it loads through Shopee's DRM bundle), so: the order ids
- * are read from the page's own order links, page after page with the page's own pager (spaced like
- * the list replays, 20-45 s), until every order on a page was placed before `sinceDay` (by the
- * order number's day) or ORDER_LIST_MAX_PAGES_PER_RUN; then each order placed since `sinceDay` is
- * read with GET get_one_order (paced, counted against the budget) and trimmed in the page.
+ * are read from the page's own order links on the page shown (0.3.28: the pager is never pressed);
+ * then each order placed since `sinceDay` (by the order number's day) is read with GET
+ * get_one_order (paced, counted against the budget) and trimmed in the page.
  * Returns a note: "no_new_orders" when none was placed since `sinceDay`, a "partial:..." note when
- * the read stopped early (the pager, the cap, the budget), else undefined.
+ * the read stopped early (more list pages left: "partial:first_page", the caps, the budget), else
+ * undefined.
  */
 async function readOrdersFromList(env: ReaderEnv, collected: ReaderResponse[], sinceDay?: string): Promise<string | undefined> {
-  const links = () => env.orderLinks?.() ?? [];
   const orders = new Map<string, OrderLink>();
-  const random = env.random ?? Math.random;
   let note: string | undefined;
-  for (let page = 1; ; page += 1) {
-    const shown = links();
-    for (const link of shown) if (!orders.has(link.id)) orders.set(link.id, link);
-    if (sinceDay === undefined) break;
+  // 0.3.28 (F5.1b): the page the list was opened on only; its pager is never pressed. When orders
+  // since sinceDay may sit on later pages, the note is "partial:first_page": the job is not complete,
+  // so ordersCoveredDay stays and the next run reads from the same day again.
+  const shown = env.orderLinks?.() ?? [];
+  for (const link of shown) if (!orders.has(link.id)) orders.set(link.id, link);
+  if (sinceDay !== undefined) {
     const days = shown.map((link) => orderSnDay(link.sn));
-    if (shown.length > 0 && days.every((day) => day !== undefined && day < sinceDay)) break;
-    if (page >= ORDER_LIST_MAX_PAGES_PER_RUN) {
-      note = "partial:page_cap";
-      break;
-    }
-    if (!env.nextOrderPage) break;
-    await env.pause?.(ORDER_LIST_PAGE_GAP_MS + Math.floor(random() * ORDER_LIST_PAGE_GAP_JITTER_MS));
-    if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_password_recheck", collected, "password_modal"));
-    if (env.captchaVisible?.()) throw new Stop(fail("blocked_captcha", collected, "page"));
-    const before = new Set(shown.map((link) => link.id));
-    if (!env.nextOrderPage()) break; // the last page
-    const moved = await env.waitFor(() => links().some((link) => !before.has(link.id)), READER_TEMPLATE_WAIT_MS);
-    if (!moved) {
-      note = "partial:pager";
-      break;
-    }
+    const olderSeen = shown.length > 0 && days.every((day) => day !== undefined && day < sinceDay);
+    if (!olderSeen && env.moreOrderPages?.()) note = "partial:first_page";
   }
   const wanted = [...orders.values()].filter((link) => {
     const day = orderSnDay(link.sn);

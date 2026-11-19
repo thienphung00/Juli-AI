@@ -180,3 +180,45 @@ describe("F5.2 guided affiliate rate (live open campaign under the notice)", () 
     expect(wire.forbidden).toEqual([]);
   });
 });
+
+describe("F5.2 guided steps, one by one (verifier follow-up)", () => {
+  it("the combo type is the person's step: its radio highlighted, never chosen; ✓ once the form shows it", async () => {
+    loadPage("combo-tiers.html");
+    wire = wireEds(document);
+    const pct = () => document.querySelector('input[name="ctype"][value="pct"]') as HTMLInputElement;
+    let highlighted = false;
+    let checkedByJuli = true;
+    const { first } = await run(comboJob({ tiers: [{ qty: 2, value: 10 }] }), () => {
+      highlighted = pct().closest("label")!.getAttribute("data-juli-guide") === "1";
+      checkedByJuli = pct().checked;
+      choose(pct());
+    });
+    expect(first).toContain("✗ 1. Chọn «Giảm giá theo %» ở «Loại Combo»");
+    expect(highlighted).toBe(true);
+    expect(checkedByJuli).toBe(false);
+    expect(panelText()).toContain("✓ 1. Chọn «Giảm giá theo %» ở «Loại Combo»");
+    expect(click).not.toHaveBeenCalled();
+  });
+
+  it("the list pager is the person's step: «next» highlighted, never pressed; ✓ once the row shows", async () => {
+    loadPage("affiliate-live.html");
+    wire = wireEds(document);
+    personClicks(document.querySelector("#notice [aria-label='close']")!); // the notice was closed before
+    document.getElementById("notice")!.remove();
+    const pager = () => document.querySelector<HTMLElement>("[data-next-page]")!;
+    const page2 = () => document.querySelectorAll<HTMLElement>(".page-body")[1]!;
+    let highlighted = false;
+    let page2Hidden = false;
+    const { first } = await run(affiliateJob({ product_ids: ["2002"], commission_pct: 12 }), () => {
+      highlighted = pager().getAttribute("data-juli-guide") === "1";
+      page2Hidden = page2().hasAttribute("hidden");
+      personClicks(pager());
+    });
+    expect(first).toContain("✗ 1. Tìm ID 2002 (ô tìm kiếm rồi bấm «Tìm», hoặc chuyển trang)");
+    expect(highlighted).toBe(true);
+    expect(page2Hidden).toBe(true); // Juli never paged
+    expect(panelText()).toContain("✓ 1. Tìm ID 2002");
+    expect(wire.clicks).toHaveLength(2); // the person's two clicks (the notice, the pager)
+    expect(click).not.toHaveBeenCalled();
+  });
+});

@@ -159,6 +159,19 @@ describe("F5.3 the traffic-check page is its own reason (contract R)", () => {
     expect(w.reports.find((r) => r.id === JOB_ID && r.body.status === "failed")?.body).toEqual({ status: "failed", error: "shopee_traffic_check" });
     expect(await w.blocked()).toMatchObject({ reason: "traffic_check", until: T0 + READER_BLOCK_TRAFFIC_MS });
     expect(w.events).toEqual([expect.objectContaining({ reader: "fill", status: "traffic_check" })]);
+    // F5.3b: told to Juli as a block too: a run tick the backend's validator takes (trigger [a-z_],
+    // result [A-Za-z0-9_.:-], outcome key [a-z_]) and stores as a seller_centre block
+    const until = new Date(T0 + READER_BLOCK_TRAFFIC_MS).toISOString();
+    expect(w.ticks).toEqual([
+      { kind: "run", trigger: "fill", result: "blocked:traffic_check", day: "2026-11-19", at: new Date(T0).toISOString(), outcomes: { fill: `blocked:traffic_check|until=${until}` } },
+    ]);
+    const tick = w.ticks[0]!;
+    expect(tick.trigger).toMatch(/^[a-z_]{1,32}$/);
+    expect(tick.result).toMatch(/^[A-Za-z0-9_.:\-]{1,80}$/);
+    for (const [key, outcome] of Object.entries(tick.outcomes!)) {
+      expect(key).toMatch(/^[a-z_]{1,48}$/);
+      expect(outcome.length).toBeLessThanOrEqual(160);
+    }
     // during the pause: no reader page, no fill page, no read-back
     w.fillTab.open = false;
     for (const later of [60_000, 3_600_000, READER_BLOCK_TRAFFIC_MS - 60_000]) {
@@ -194,7 +207,10 @@ describe("F5.3 the traffic-check page is its own reason (contract R)", () => {
     w.clock.now += 60_000;
     await w.scheduler.clearBlock();
     await w.scheduler.sessionSeen("datacenter");
+    const ticks = w.ticks.length;
     await w.scheduler.haltFor("login", "/portal/product/1001", "password_prompt");
+    await w.scheduler.haltFor("traffic_check", "/portal/product/1001", "shopee_traffic_check"); // already in force: kept, not told again
+    expect(w.ticks).toHaveLength(ticks);
     expect(await w.blocked()).toEqual(before);
     expect((await loadState(w.storage)).readers?.reread).toBeUndefined();
     expect(w.alarms.has(READER_KICK_ALARM)).toBe(false);

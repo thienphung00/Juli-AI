@@ -181,3 +181,30 @@ describe("the source never presses anything", () => {
     }
   });
 });
+
+// 0.3.28 (F5.1b, owner 2026-11-19: "the Connector never clicks on Shopee"): the readers too. The
+// order list's pager was the last .click() (order-dom.ts goToNextOrderPage); every Shopee source
+// (readers, the page hooks, the content scripts, the background, the popup) is scanned, no
+// exemption. TikTok's pack is out of scope.
+describe("no Shopee source clicks, focuses or builds a UI event (F5.1b)", () => {
+  const sources = import.meta.glob(["../src/platforms/shopee/**/*.ts", "../src/core/**/*.ts", "../src/background/*.ts"], {
+    query: "?raw",
+    import: "default",
+    eager: true,
+  }) as Record<string, string>;
+  const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  it("covers the readers and the page hooks", () => {
+    const names = Object.keys(sources).map((n) => n.replace("../src/", ""));
+    for (const must of ["platforms/shopee/order-dom.ts", "platforms/shopee/page/hook.ts", "platforms/shopee/page/market-hook.ts", "platforms/shopee/reader.ts", "platforms/shopee/reader-map.ts", "platforms/shopee/market.ts"]) {
+      expect(names).toContain(must);
+    }
+  });
+
+  it.each(Object.entries(sources))("%s", (name, source) => {
+    const code = stripComments(source);
+    for (const banned of [/\.(click|focus|blur)\s*\(/, /new\s+(\w+\.)?(Mouse|Pointer|Keyboard|Touch|Focus|Wheel|Drag)Event/, /dispatchEvent\([^)]*["'](click|mouse\w*|pointer\w*|key\w*|focus\w*)["']/]) {
+      expect(code, `${name}: ${banned}`).not.toMatch(banned);
+    }
+  });
+});
