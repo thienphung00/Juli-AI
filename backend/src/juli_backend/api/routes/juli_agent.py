@@ -13,8 +13,10 @@ Gates, in order:
 3. Writes (ask, cancel, send, dismiss) need ``require_writable_shop``: a read-only shop or a
    pending account deletion answers 403. Card send is for a member of the shop
    (``get_active_shop``).
-4. A partner reviewer reaches the tab on the sample shop and on Juli's writable sandbox pin
-   only (any other pin: 403 ``read_only``); the card send there is the same Tự tạo path.
+4. A partner reviewer (``api/reviewer.py`` ``JULI_PIN_ENDPOINTS``, ``admit_juli_pin``, checked
+   before the capability): the sample pin (no card send: 403) and Juli's writable sandbox pin;
+   any other pin 403 ``read_only``. The sandbox send is the same Tự tạo card path, audited
+   ``reviewer_sandbox_approve``.
 """
 
 from __future__ import annotations
@@ -31,14 +33,15 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.api import reviewer as reviewer_gate
-from juli_backend.api.capability_gate import require_capability
-from juli_backend.api.dependencies import require_writable_shop
+from juli_backend.api.capability_gate import check_open
+from juli_backend.api.dependencies import get_active_shop, require_writable_shop
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.database.database import ensure_worker_session_factory
 from juli_backend.services import agent_runs, juli_agent_api
 from juli_backend.services.agent import abuse_limits as agent_abuse_limits
 from juli_backend.services.juli_agent_api import ChatError, Engine, PortsFactory
+from juli_backend.services.ops import audit
 
 logger = logging.getLogger(__name__)
 
@@ -54,29 +57,33 @@ async def _flag_on() -> None:
 
 router = APIRouter(prefix="/demo/juli", tags=["juli-agent"], dependencies=[Depends(_flag_on)])
 
-_read_gate = require_capability(CAPABILITY, requires_data_on=DATA_PLATFORMS)
-_write_gate = require_capability(
-    CAPABILITY, requires_data_on=DATA_PLATFORMS, shop_dependency=require_writable_shop
-)
 
-
-def _admit(request: Request, shop: Shop) -> Shop:
+async def _admit(request: Request, session: AsyncSession, shop: Shop) -> Shop:
+    """The flag for this shop (404), a reviewer's pin (403, ``admit_juli_pin``), then the
+    capability (``read_shop_totals`` on Shopee or TikTok; a TikTok shop reaches the engine)."""
     if not juli_agent_api.config.flag_state().allows(shop.id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
     context = reviewer_gate.reviewer_context(request)
     if context is not None:
-        pin = context.pin
-        if pin is None or not (pin.sample or (pin.sandbox and pin.writes_enabled)):
-            raise reviewer_gate.deny("read_only")
+        await reviewer_gate.admit_juli_pin(session, context)
+    check_open(shop.platform, CAPABILITY, DATA_PLATFORMS)
     return shop
 
 
-async def juli_shop(request: Request, shop: Shop = Depends(_read_gate)) -> Shop:
-    return _admit(request, shop)
+async def juli_shop(
+    request: Request,
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> Shop:
+    return await _admit(request, session, shop)
 
 
-async def juli_writable_shop(request: Request, shop: Shop = Depends(_write_gate)) -> Shop:
-    return _admit(request, shop)
+async def juli_writable_shop(
+    request: Request,
+    shop: Shop = Depends(require_writable_shop),
+    session: AsyncSession = Depends(get_session),
+) -> Shop:
+    return await _admit(request, session, shop)
 
 
 # -- overridable dependencies --------------------------------------------------------------------
@@ -355,6 +362,7 @@ async def get_conversation(
 async def send_card(
     draft_ref: str,
     body: SendBody,
+    request: Request,
     shop: Shop = Depends(juli_writable_shop),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -372,6 +380,15 @@ async def send_card(
             acknowledge_breaches=body.acknowledge_breaches,
             create=create,
         )
+        if not out["already_sent"]:
+            # D73: a reviewer's real write on the sandbox pin is audited (no-op for a seller)
+            await reviewer_gate.audit_reviewer_run_action(
+                session,
+                request,
+                audit.ACTION_REVIEWER_SANDBOX_APPROVE,
+                shop_id=shop.id,
+                after={"endpoint": "juli_agent:send_card", "card_code": out["card_code"]},
+            )
         await session.commit()
     except ChatError as exc:
         await session.rollback()

@@ -241,6 +241,30 @@ SAMPLE_SHOP_LLM_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
 )
 
 
+#: batch-1120 (owner U6, reviewed by juli-ai-v2-ed): the Juli tab. On the allowlist for every
+#: pin; :func:`admit_juli_pin` (called by the route once the shop is entered) admits them ONLY on
+#: the ``sample`` pin or Juli's writable sandbox pin -- any other pin: 403 ``read_only``, audited.
+#: They write Juli's own ``agent_*`` rows of that shop; nothing outbound.
+JULI_PIN_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
+    {
+        (_GET, _R + "juli_agent:list_templates"),  # /v1/demo/juli/templates
+        ("POST", _R + "juli_agent:ask"),  # /v1/demo/juli/ask
+        (_GET, _R + "juli_agent:stream_message_events"),  # …/messages/{id}/events
+        ("POST", _R + "juli_agent:cancel_message"),  # …/messages/{id}/cancel
+        (_GET, _R + "juli_agent:list_conversations"),  # /v1/demo/juli/conversations
+        (_GET, _R + "juli_agent:get_conversation"),  # …/conversations/{id}
+        ("POST", _R + "juli_agent:send_card"),  # …/cards/{draft_ref}/send
+        ("POST", _R + "juli_agent:dismiss_card"),  # …/cards/{draft_ref}/dismiss
+    }
+)
+#: The Juli writes (each sample-pin one audited ``reviewer_sample_write``: route + shop only).
+JULI_PIN_WRITE_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
+    key for key in JULI_PIN_ENDPOINTS if key[0] != _GET
+)
+#: No cards on the sample shop: "Gửi" is the sandbox pin's only (the Tự tạo card path, D73).
+JULI_SAMPLE_REFUSED: frozenset[tuple[str, str]] = frozenset({("POST", _R + "juli_agent:send_card")})
+
+
 #: Contract §2. Keyed by the matched endpoint (``module:function``) and method:
 #: unambiguous whatever router prefix a route sits under (FastAPI ≥ 0.13x keeps
 #: only the innermost router's prefix in ``route.path``). A renamed or moved
@@ -275,20 +299,7 @@ ALLOWED_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
         (_GET, _R + "reviewer:reviewer_shop"),  # /v1/reviewer/shop
         ("POST", _R + "reviewer:reviewer_sync_shop"),  # /v1/reviewer/shop/sync
     }
-    | {
-        # batch-1120 (owner U6): the Juli tab. The route admits a reviewer ONLY on the sample
-        # pin or Juli's writable sandbox pin (``juli_agent._admit``; any other pin: 403
-        # ``read_only``). It writes Juli's own agent_* rows of that shop; Gửi is the Tự tạo
-        # card path (``manual.create_manual``, origin ``agent``), never anything outbound.
-        (_GET, _R + "juli_agent:list_templates"),  # /v1/demo/juli/templates
-        ("POST", _R + "juli_agent:ask"),  # /v1/demo/juli/ask
-        (_GET, _R + "juli_agent:stream_message_events"),  # …/messages/{id}/events
-        ("POST", _R + "juli_agent:cancel_message"),  # …/messages/{id}/cancel
-        (_GET, _R + "juli_agent:list_conversations"),  # /v1/demo/juli/conversations
-        (_GET, _R + "juli_agent:get_conversation"),  # …/conversations/{id}
-        ("POST", _R + "juli_agent:send_card"),  # …/cards/{draft_ref}/send
-        ("POST", _R + "juli_agent:dismiss_card"),  # …/cards/{draft_ref}/dismiss
-    }
+    | JULI_PIN_ENDPOINTS
     | SANDBOX_ONLY_ENDPOINTS
 )
 
@@ -855,6 +866,36 @@ async def require_sandbox_pin(
     return shop
 
 
+async def admit_juli_pin(session: AsyncSession, context: ReviewerContext) -> None:
+    """batch-1120: a reviewer on a Juli tab route, once its shop is entered (else 403).
+
+    Admitted on the ``sample`` pin (send excepted: no cards there) and on Juli's writable sandbox
+    pin. Any other pin -- masked real shop, read-only sandbox -- answers 403 ``read_only`` with the
+    usual refusal audit row. A sample-pin write is audited ``reviewer_sample_write`` (route and
+    shop only, never the question's text), joining the route's transaction.
+    """
+    pin = context.pin
+    key = (context.method, context.endpoint or "")
+    sample = pin is not None and pin.sample
+    if (
+        key not in JULI_PIN_ENDPOINTS
+        or not (sample or _sandbox_writable(context))
+        or (sample and key in JULI_SAMPLE_REFUSED)
+    ):
+        logger.warning("reviewer_juli_route_refused", extra={"platform": context.platform})
+        await _audit_refusal(
+            session,
+            context.account,
+            shop_id=context.shop_id,
+            method=context.method,
+            endpoint=context.endpoint,
+            path=None,
+        )
+        raise deny("read_only")
+    if sample and key in JULI_PIN_WRITE_ENDPOINTS and not context.sample_write_audited:
+        await _audit_sample_write(session, context)
+
+
 async def audit_reviewer_run_action(
     session: AsyncSession,
     request: Request,
@@ -1039,6 +1080,9 @@ def install(app: FastAPI) -> None:
 
 __all__ = [
     "ALLOWED_ENDPOINTS",
+    "JULI_PIN_ENDPOINTS",
+    "JULI_PIN_WRITE_ENDPOINTS",
+    "JULI_SAMPLE_REFUSED",
     "SAMPLE_SHOP_ENDPOINTS",
     "SAMPLE_SHOP_LLM_ENDPOINTS",
     "SAMPLE_SHOP_REFUSED",
@@ -1047,6 +1091,7 @@ __all__ = [
     "SANDBOX_ONLY_ENDPOINTS",
     "SANDBOX_RULE_ENDPOINTS",
     "SANDBOX_RUN_ENDPOINTS",
+    "admit_juli_pin",
     "audit_reviewer_confirmation",
     "audit_reviewer_run_action",
     "endpoint_key",
