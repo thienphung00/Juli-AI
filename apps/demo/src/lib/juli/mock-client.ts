@@ -18,6 +18,7 @@ export interface MockJuliOptions {
   /** Picks the events for an ask; defaults to the template fixture, else "unsupported". */
   script?: (request: { text?: string; template?: string; choice?: { item: string; value: string } }) => readonly JuliAgentEvent[];
   history?: readonly JuliConversation[];
+  readOnly?: boolean;
 }
 
 export function createMockJuliClient(options: MockJuliOptions = {}): JuliClient & {
@@ -35,7 +36,7 @@ export function createMockJuliClient(options: MockJuliOptions = {}): JuliClient 
 
   return {
     calls,
-    templates: async () => TEMPLATES,
+    templates: async () => ({ templates: TEMPLATES, shop_state: { read_only: options.readOnly ?? false } }),
     async ask(request) {
       calls.ask.push(request);
       counter += 1;

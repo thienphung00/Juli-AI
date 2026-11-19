@@ -13,7 +13,9 @@ import {
   type JuliConversation,
   type JuliConversationSummary,
   type JuliSendCardResponse,
-  type JuliTemplate,
+  type JuliServerMessage,
+  type JuliStoredMessage,
+  type JuliTemplatesResponse,
 } from "@juli/contracts";
 
 import { buildAgentEventStreamHeaders, extractSseFrames, parseSseFrame } from "../agent-event-stream";
@@ -24,11 +26,14 @@ export class JuliApiError extends Error {
   readonly status: number;
   /** 429: when the limit lifts (ISO timestamp). */
   readonly retryAt?: string;
-  constructor(status: number, retryAt?: string) {
+  /** The server's error code (`detail.code`), e.g. `juli_limited`, `juli_card_refused`. */
+  readonly code?: string;
+  constructor(status: number, retryAt?: string, code?: string) {
     super(`juli api failed with status ${status}`);
     this.name = "JuliApiError";
     this.status = status;
     this.retryAt = retryAt;
+    this.code = code;
   }
 }
 
@@ -46,7 +51,7 @@ export interface JuliStreamHandle {
 }
 
 export interface JuliClient {
-  templates(): Promise<readonly JuliTemplate[]>;
+  templates(): Promise<JuliTemplatesResponse>;
   ask(request: JuliAskRequest): Promise<JuliAskResponse>;
   stream(messageId: string, handlers: JuliStreamHandlers): JuliStreamHandle;
   cancel(messageId: string): Promise<void>;
@@ -72,6 +77,32 @@ function backoff(attempt: number): number {
   return Math.min(1000 * 2 ** (attempt - 1), 15_000);
 }
 
+/** Server rows (user + assistant, events as `{seq, type, payload}`) -> the pairs the page renders. */
+export function adaptConversation(raw: { id: string; title: string; messages: readonly JuliServerMessage[] }): JuliConversation {
+  const messages: JuliStoredMessage[] = [];
+  let asked: JuliServerMessage | null = null;
+  for (const row of raw.messages) {
+    if (row.role === "user") {
+      asked = row;
+      continue;
+    }
+    const events = (row.events ?? [])
+      .map((e) => parseJuliEvent(e.payload, e.type))
+      .filter((e): e is JuliAgentEvent => e !== null);
+    messages.push({
+      id: row.id,
+      question: asked?.text ?? asked?.template ?? asked?.choice?.value ?? "",
+      template: asked?.template ?? undefined,
+      events,
+      created_at: row.created_at,
+      data_until_vi: row.data_until_vi ?? undefined,
+      cards: row.cards,
+    });
+    asked = null;
+  }
+  return { id: raw.id, title: raw.title, messages };
+}
+
 export function createJuliClient(config: JuliClientConfig): JuliClient {
   const base = config.base ?? JULI_BASE;
   const doFetch: typeof fetch = (...args) => (config.fetchImpl ?? fetch)(...args);
@@ -88,15 +119,18 @@ export function createJuliClient(config: JuliClientConfig): JuliClient {
     const response = await doFetch(`${base}${path}`, { ...init, headers: headers(json) });
     if (!response.ok) {
       let retryAt: string | undefined;
-      if (response.status === 429) {
-        try {
-          const body = (await response.json()) as { retry_at?: string; detail?: { retry_at?: string } };
-          retryAt = body.retry_at ?? body.detail?.retry_at;
-        } catch {
-          retryAt = undefined;
+      let code: string | undefined;
+      try {
+        // FastAPI: {"detail": {"code", "message", "retry_at"?}}; `detail` can also be a plain string.
+        const body = (await response.json()) as { detail?: { code?: string; retry_at?: string } | string };
+        if (typeof body.detail === "object" && body.detail !== null) {
+          retryAt = body.detail.retry_at;
+          code = body.detail.code;
         }
+      } catch {
+        /* no JSON body */
       }
-      throw new JuliApiError(response.status, retryAt);
+      throw new JuliApiError(response.status, retryAt, code);
     }
     if (response.status === 204) return undefined as T;
     const text = await response.text();
@@ -190,12 +224,13 @@ export function createJuliClient(config: JuliClientConfig): JuliClient {
   }
 
   return {
-    templates: () => call<readonly JuliTemplate[]>("/templates"),
+    templates: () => call<JuliTemplatesResponse>("/templates"),
     ask: (request) => call<JuliAskResponse>("/ask", { method: "POST", body: JSON.stringify(request) }, true),
     stream,
     cancel: (id) => call<void>(`/messages/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
-    conversations: () => call<readonly JuliConversationSummary[]>("/conversations"),
-    conversation: (id) => call<JuliConversation>(`/conversations/${encodeURIComponent(id)}`),
+    conversations: async () => (await call<{ conversations: readonly JuliConversationSummary[] }>("/conversations")).conversations,
+    conversation: async (id) =>
+      adaptConversation(await call<{ id: string; title: string; messages: readonly JuliServerMessage[] }>(`/conversations/${encodeURIComponent(id)}`)),
     sendCard: (draftRef, versionLabel) =>
       call<JuliSendCardResponse>(
         `/cards/${encodeURIComponent(draftRef)}/send`,

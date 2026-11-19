@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { parseJuliEvent, type JuliAgentEvent } from "@juli/contracts";
 
-import { createJuliClient, JuliApiError } from "../client";
+import { adaptConversation, createJuliClient, JuliApiError } from "../client";
 import { EXPLANATION_CARD, EXPLANATION_REPLACED, MULTI_INTENT, RUNNING } from "../fixtures";
 import { formatDong, formatPercent, formatSignedDong, dirOfChange } from "../format";
 import { juliHref } from "../links";
@@ -76,7 +76,8 @@ function sseResponse(frames: string[], keepOpen = false): Response {
   });
   return new Response(body, { status: 200 });
 }
-const frame = (id: number, ev: JuliAgentEvent) => `id: ${id}\ndata: ${JSON.stringify(ev)}\n\n`;
+/** The server's wire format: `id`, `event` and the payload as data. */
+const frame = (id: number, ev: JuliAgentEvent) => `id: ${id}\nevent: ${ev.type}\ndata: ${JSON.stringify(ev.data)}\n\n`;
 
 describe("createJuliClient", () => {
   it("sends bearer + shop headers, resumes with Last-Event-ID and dedupes the replay", async () => {
@@ -105,9 +106,15 @@ describe("createJuliClient", () => {
   });
 
   it("surfaces the 429 retry_at and does not retry a 404 stream", async () => {
-    const limited = vi.fn(async () => new Response(JSON.stringify({ retry_at: "2026-11-20T08:40:00Z" }), { status: 429 })) as unknown as typeof fetch;
+    const limited = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ detail: { code: "juli_limited", message: "m", retry_at: "2026-11-20T08:40:00Z", retry_after_seconds: 60 } }), {
+          status: 429,
+          headers: { "Retry-After": "60" },
+        }),
+    ) as unknown as typeof fetch;
     const client = createJuliClient({ token: "t", shopId: "s", fetchImpl: limited });
-    await expect(client.ask({ text: "x" })).rejects.toMatchObject({ status: 429, retryAt: "2026-11-20T08:40:00Z" });
+    await expect(client.ask({ text: "x" })).rejects.toMatchObject({ status: 429, retryAt: "2026-11-20T08:40:00Z", code: "juli_limited" });
     expect(new JuliApiError(403).status).toBe(403);
 
     const missing = vi.fn(async () => new Response("", { status: 404 })) as unknown as typeof fetch;
@@ -115,5 +122,50 @@ describe("createJuliClient", () => {
     const reason = await new Promise((resolve) => c2.stream("m", { onEvent: () => undefined, onClose: resolve }));
     expect(reason).toBe("failed");
     expect(missing).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("T3 shapes", () => {
+  it("parses event: + payload frames, comments, and keeps the flat fallbacks", () => {
+    expect(parseJuliEvent({ code: "failed" }, "error")).toEqual({ type: "error", data: { code: "failed" } });
+    expect(parseJuliEvent({ type: "error", payload: { code: "busy" } })?.data).toEqual({ code: "busy" });
+  });
+
+  it("GET /templates and /conversations are unwrapped", async () => {
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL) =>
+      String(url).endsWith("/templates")
+        ? new Response(JSON.stringify({ templates: [{ key: "improve_gmv", label_vi: "Cải thiện GMV" }], shop_state: { read_only: true } }))
+        : new Response(JSON.stringify({ conversations: [{ id: "c1", platform: "shopee", title: "t", created_at: "x", updated_at: "y" }] })),
+    ) as unknown as typeof fetch;
+    const client = createJuliClient({ token: "t", shopId: "s", fetchImpl });
+    expect((await client.templates()).shop_state.read_only).toBe(true);
+    expect((await client.conversations())[0]!.id).toBe("c1");
+  });
+
+  it("pairs user + assistant rows and turns {seq,type,payload} into events", () => {
+    const conv = adaptConversation({
+      id: "c1",
+      title: "t",
+      messages: [
+        { id: "u1", role: "user", status: "done", created_at: "2026-11-16T03:00:00Z", text: null, template: "improve_gmv" },
+        {
+          id: "a1",
+          role: "assistant",
+          status: "done",
+          created_at: "2026-11-16T03:00:05Z",
+          events: [
+            { seq: 1, type: "restated", payload: { text_vi: "Đang tìm hiểu: x" } },
+            { seq: 2, type: "mystery", payload: {} },
+            { seq: 3, type: "done", payload: { stop_reasons: [] } },
+          ],
+          data_until_vi: "15/11",
+          cards: [{ draft_ref: "d1", status: "sent", sent_card_code: "JC-1", version_label: "v" }],
+        },
+      ],
+    });
+    expect(conv.messages).toHaveLength(1);
+    expect(conv.messages[0]!.template).toBe("improve_gmv");
+    expect(conv.messages[0]!.events.map((e) => e.type)).toEqual(["restated", "done"]);
+    expect(conv.messages[0]!.cards![0]!.sent_card_code).toBe("JC-1");
   });
 });

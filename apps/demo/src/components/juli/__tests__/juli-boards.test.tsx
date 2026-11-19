@@ -184,6 +184,18 @@ describe("board 7 choices (U5)", () => {
     pair(F.CHOICE_PRODUCT);
     expect(document.querySelector(".juli-opts--stack")).not.toBeNull();
   });
+  it("Jev outage (needs_choice item template) renders the template buttons", async () => {
+    const { a } = pair([
+      { type: "needs_choice", data: { item: "template", question_vi: "Bạn muốn xem gì?", options: F.TEMPLATES.map((t) => ({ label_vi: t.key, value: t.key })), pending: {} } },
+      { type: "done", data: { stop_reasons: [] } },
+    ]);
+    const group = screen.getByRole("group", { name: "Mẫu câu hỏi" });
+    expect(within(group).getAllByRole("button")).toHaveLength(5);
+    expect(screen.queryByRole("button", { name: "Khác…" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Giảm chi phí" }));
+    expect(a.onTemplate).toHaveBeenCalledWith({ key: "reduce_cost", label_vi: "Giảm chi phí" });
+  });
+
   it("unsupported: fixed line + 5 templates, no platform switch", async () => {
     const { a } = pair(F.UNSUPPORTED);
     expect(screen.getByText("Juli chưa hỗ trợ câu hỏi này")).toBeInTheDocument();
@@ -305,6 +317,22 @@ describe("whole page flows (mock client)", () => {
     expect(await screen.findByText(/Bạn đã hỏi nhiều trong giờ này, thử lại sau \d{2}:\d{2}/)).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toBeDisabled();
     expect(screen.queryByRole("group", { name: "Mẫu câu hỏi" })).toBeNull();
+  });
+
+  it("a 422 juli_card_refused shows the no-card line", async () => {
+    const client: JuliClient = { ...createMockJuliClient(), sendCard: vi.fn().mockRejectedValue(new JuliApiError(422, undefined, "juli_card_refused")) };
+    render(<JuliChat client={client} {...props} />);
+    await userEvent.click(screen.getByRole("button", { name: /Cải thiện GMV/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Gửi vào Đề xuất" }));
+    expect(await screen.findByText("Juli chưa tạo được thẻ này")).toBeInTheDocument();
+  });
+
+  it("shop_state.read_only from GET /templates hides the send button", async () => {
+    const client = createMockJuliClient({ readOnly: true });
+    render(<JuliChat client={client} platform="shopee" shopKey="ro" />);
+    await userEvent.click(await screen.findByRole("button", { name: /Cải thiện GMV/ }));
+    await screen.findByRole("radiogroup", { name: "Phương án" });
+    expect(screen.queryByRole("button", { name: "Gửi vào Đề xuất" })).toBeNull();
   });
 
   it("403 on ask flips the card block to read-only", async () => {

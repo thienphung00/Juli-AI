@@ -9,6 +9,7 @@ import type { CardState } from "../../lib/juli/use-juli-chat";
 import { Directed } from "./delta";
 
 const NOT_ENOUGH = "Chưa đủ dữ liệu";
+export const CARD_REFUSED_TEXT = "Juli chưa tạo được thẻ này";
 
 function initialSelection(versions: readonly JuliCardVersion[]): number | null {
   const i = versions.findIndex((v) => v.recommended && v.estimable); // U6d: an unestimable version is never preselected
@@ -65,10 +66,11 @@ export function CardBlock({
   const phase = state?.phase;
 
   if (phase === "sent" && state?.code) {
-    const label = selected !== null ? card.versions[selected]?.label_vi : undefined;
+    const label = state.versionLabel ?? (selected !== null ? card.versions[selected]?.label_vi : undefined);
     return <SentLine code={state.code} detail={label ?? card.title_vi} />;
   }
   if (phase === "dismissed") return <div className="juli-none">Đã bỏ qua</div>;
+  if (phase === "refused") return <div className="juli-none">{CARD_REFUSED_TEXT}</div>;
 
   const busy = phase === "sending";
   return (

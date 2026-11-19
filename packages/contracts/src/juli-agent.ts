@@ -112,7 +112,8 @@ export interface JuliNoCardData {
   readonly existing_card_code?: string;
 }
 export interface JuliNeedsChoiceData {
-  readonly item: "metric" | "window" | "product" | "chain";
+  /** "template": the Jev outage fallback; options are the template keys. */
+  readonly item: "metric" | "window" | "product" | "chain" | "template";
   readonly question_vi: string;
   readonly options: readonly JuliChoiceOption[];
   readonly pending: Readonly<Record<string, unknown>>;
@@ -134,6 +135,7 @@ export interface JuliDoneData {
   readonly stop_reasons: readonly string[];
   readonly cost_usd?: number;
   readonly ms?: number;
+  readonly data_until_vi?: string;
 }
 export interface JuliErrorData {
   readonly code: "busy" | "failed";
@@ -192,13 +194,17 @@ export function isJuliTerminalEvent(event: JuliAgentEvent): boolean {
  */
 export function parseJuliEvent(raw: unknown, eventName?: string | null): JuliAgentEvent | null {
   if (typeof raw !== "object" || raw === null) return null;
+  const known = (name: string | null | undefined): name is JuliEventType =>
+    typeof name === "string" && (JULI_EVENT_TYPES as readonly string[]).includes(name);
+  // Primary wire format (agent_runs `format_sse`): `event: <type>` + `data: <payload JSON>`.
+  if (known(eventName)) return { type: eventName, data: raw } as JuliAgentEvent;
   const record = raw as Record<string, unknown>;
-  const type = (typeof record.type === "string" ? record.type : eventName) ?? null;
-  if (type === null || !(JULI_EVENT_TYPES as readonly string[]).includes(type)) return null;
+  const type = typeof record.type === "string" ? record.type : null;
+  if (!known(type)) return null;
   let data: unknown;
-  if (typeof record.data === "object" && record.data !== null && !Array.isArray(record.data)) {
-    data = record.data;
-  } else {
+  if (typeof record.payload === "object" && record.payload !== null) data = record.payload;
+  else if (typeof record.data === "object" && record.data !== null && !Array.isArray(record.data)) data = record.data;
+  else {
     const { type: _type, ...rest } = record;
     void _type;
     data = rest;
@@ -211,6 +217,21 @@ export function parseJuliEvent(raw: unknown, eventName?: string | null): JuliAge
 export interface JuliTemplate {
   readonly key: string;
   readonly label_vi: string;
+}
+
+/** `GET /templates`. */
+export interface JuliTemplatesResponse {
+  readonly templates: readonly JuliTemplate[];
+  readonly shop_state: { readonly read_only: boolean };
+}
+
+export type JuliDraftStatus = "drafted" | "sent" | "dismissed" | string;
+
+export interface JuliStoredCard {
+  readonly draft_ref: string;
+  readonly status: JuliDraftStatus;
+  readonly sent_card_code: string | null;
+  readonly version_label: string | null;
 }
 
 export interface JuliAskRequest {
@@ -227,7 +248,9 @@ export interface JuliAskResponse {
 
 export interface JuliConversationSummary {
   readonly id: string;
+  readonly platform?: "shopee" | "tiktok";
   readonly title: string;
+  readonly created_at?: string;
   /** ISO timestamp of the last message. */
   readonly updated_at: string;
 }
@@ -235,12 +258,13 @@ export interface JuliConversationSummary {
 export interface JuliStoredMessage {
   readonly id: string;
   readonly question: string;
+  /** The template key when the seller tapped a template (the page maps it to its label). */
+  readonly template?: string;
   readonly events: readonly JuliAgentEvent[];
   readonly created_at: string;
+  readonly cards?: readonly JuliStoredCard[];
   /** The "Số liệu đến dd/mm" line of the saved answer. */
   readonly data_until_vi?: string;
-  /** The JC code of a card this answer sent. */
-  readonly sent_card_code?: string;
 }
 
 export interface JuliConversation {
@@ -250,5 +274,25 @@ export interface JuliConversation {
 }
 
 export interface JuliSendCardResponse {
-  readonly card_code: string;
+  readonly card_code: string | null;
+  readonly card_id?: string | null;
+  readonly status?: string | null;
+  readonly already_sent?: boolean;
+}
+
+/** A message of `GET /conversations/{id}` as the server sends it (user rows and assistant rows). */
+export interface JuliServerMessage {
+  readonly id: string;
+  readonly role: "user" | "assistant";
+  readonly status: string;
+  readonly created_at: string;
+  readonly text?: string | null;
+  readonly template?: string | null;
+  readonly choice?: { readonly item: string; readonly value: string } | null;
+  readonly events?: readonly { readonly seq: number; readonly type: string; readonly payload: unknown }[];
+  readonly stop_reasons?: readonly string[];
+  readonly cost_usd?: number | null;
+  readonly ms?: number | null;
+  readonly data_until_vi?: string | null;
+  readonly cards?: readonly JuliStoredCard[];
 }

@@ -33,10 +33,11 @@ export interface ChatMessage {
   readonly request?: JuliAskRequest;
 }
 
-export type CardPhase = "sending" | "sent" | "dismissed" | "failed" | "forbidden";
+export type CardPhase = "sending" | "sent" | "dismissed" | "failed" | "forbidden" | "refused";
 export interface CardState {
   readonly phase: CardPhase;
   readonly code?: string;
+  readonly versionLabel?: string;
 }
 
 export interface JuliChatOptions {
@@ -67,16 +68,17 @@ export interface JuliChat {
   dismissCard: (draftRef: string) => Promise<void>;
 }
 
-function fromStored(m: JuliStoredMessage): ChatMessage {
+function fromStored(m: JuliStoredMessage, templates: readonly JuliTemplate[]): ChatMessage {
+  const label = m.template ? templates.find((t) => t.key === m.template)?.label_vi : undefined;
   return {
     id: m.id,
-    question: m.question,
+    question: label ?? m.question,
     events: m.events,
     status: "saved",
     reconnecting: false,
     createdAt: m.created_at,
-    dataUntilVi: m.data_until_vi,
-    sentCardCode: m.sent_card_code,
+    dataUntilVi: m.data_until_vi && !m.data_until_vi.startsWith("Số liệu") ? `Số liệu đến ${m.data_until_vi}` : m.data_until_vi,
+    sentCardCode: m.cards?.find((c) => c.status === "sent")?.sent_card_code ?? undefined,
   };
 }
 
@@ -108,7 +110,11 @@ export function useJuliChat({ client, templates: fixedTemplates }: JuliChatOptio
     if (!fixedTemplates) {
       client
         .templates()
-        .then((list) => alive && setTemplates(list))
+        .then((res) => {
+          if (!alive) return;
+          setTemplates(res.templates);
+          if (res.shop_state.read_only) setReadOnlyDetected(true);
+        })
         .catch(() => undefined);
     }
     client
@@ -206,17 +212,20 @@ export function useJuliChat({ client, templates: fixedTemplates }: JuliChatOptio
       runningIdRef.current = null;
       const conversation = await client.conversation(id);
       setConversationId(conversation.id);
-      setMessages(conversation.messages.map(fromStored));
+      setMessages(conversation.messages.map((m) => fromStored(m, templates)));
       setCardStates((prev) => {
         const next = { ...prev };
         for (const m of conversation.messages) {
-          const card = m.events.find((e) => e.type === "card");
-          if (card && card.type === "card" && m.sent_card_code) next[card.data.draft_ref] = { phase: "sent", code: m.sent_card_code };
+          for (const c of m.cards ?? []) {
+            if (c.status === "sent" && c.sent_card_code) {
+              next[c.draft_ref] = { phase: "sent", code: c.sent_card_code, versionLabel: c.version_label ?? undefined };
+            } else if (c.status === "dismissed") next[c.draft_ref] = { phase: "dismissed" };
+          }
         }
         return next;
       });
     },
-    [client],
+    [client, templates],
   );
 
   const sendCard = useCallback(
@@ -224,11 +233,15 @@ export function useJuliChat({ client, templates: fixedTemplates }: JuliChatOptio
       setCardStates((prev) => ({ ...prev, [draftRef]: { phase: "sending" } }));
       try {
         const { card_code } = await client.sendCard(draftRef, versionLabel);
-        setCardStates((prev) => ({ ...prev, [draftRef]: { phase: "sent", code: card_code } }));
+        setCardStates((prev) => ({
+          ...prev,
+          [draftRef]: card_code ? { phase: "sent", code: card_code, versionLabel } : { phase: "failed" },
+        }));
       } catch (error) {
         const forbidden = error instanceof JuliApiError && error.status === 403;
+        const refused = error instanceof JuliApiError && error.code === "juli_card_refused";
         if (forbidden) setReadOnlyDetected(true);
-        setCardStates((prev) => ({ ...prev, [draftRef]: { phase: forbidden ? "forbidden" : "failed" } }));
+        setCardStates((prev) => ({ ...prev, [draftRef]: { phase: forbidden ? "forbidden" : refused ? "refused" : "failed" } }));
       }
     },
     [client],

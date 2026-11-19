@@ -179,14 +179,36 @@ export function DataAnswer({ data, platform }: { readonly data: JuliDataAnswerDa
 export function NeedsChoice({
   data,
   interactive,
+  templates,
   onChoose,
   onOther,
+  onTemplate,
 }: {
   readonly data: JuliNeedsChoiceData;
   readonly interactive: boolean;
+  readonly templates: readonly JuliTemplate[];
   readonly onChoose: (item: string, option: JuliChoiceOption) => void;
   readonly onOther: () => void;
+  readonly onTemplate: (template: JuliTemplate) => void;
 }) {
+  if (data.item === "template") {
+    // Jev outage (J11): the options are the template keys; render them as the template buttons.
+    return (
+      <div className="juli-choice">
+        <p className="juli-ask">{data.question_vi}</p>
+        <div className="juli-opts" role="group" aria-label="Mẫu câu hỏi">
+          {data.options.map((o) => {
+            const template = templates.find((t) => t.key === o.value) ?? { key: o.value, label_vi: o.label_vi };
+            return (
+              <button key={o.value} type="button" className="juli-opt" disabled={!interactive} onClick={() => onTemplate(template)}>
+                {template.label_vi}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
   const stacked = data.item === "product";
   return (
     <div className="juli-choice">

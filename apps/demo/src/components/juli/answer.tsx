@@ -66,8 +66,10 @@ function Block({
         <NeedsChoice
           data={block.needsChoice}
           interactive={interactive}
+          templates={actions.templates}
           onChoose={(item, option) => actions.onChoose(item, option, question)}
           onOther={actions.onOther}
+          onTemplate={actions.onTemplate}
         />
       ) : null}
       {block.unsupported ? (
