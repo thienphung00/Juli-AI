@@ -291,8 +291,7 @@ async def test_a_card_that_is_not_estimable_counts_for_its_cost_only(session, sh
     assert both["cost"]["delta_per_month"] == pytest.approx(
         only_discount["cost"]["delta_per_month"]
     )
-    # A2.5: the card says "Chưa ước tính được" itself; the total no longer says "Tổng chưa gồm"
-    assert both["totals_partial"] is True and both["totals_note"] is None
+    assert both["totals_partial"] is True and "chưa ước tính được" in both["totals_note"]
 
 
 async def test_a_plan_with_no_estimable_card_still_answers(session, shop, monkeypatch):

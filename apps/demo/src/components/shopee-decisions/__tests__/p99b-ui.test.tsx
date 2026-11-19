@@ -71,7 +71,7 @@ describe("P99b Kế hoạch: horizon, counted days, cost", () => {
   });
 
   it("unknown plan cost is said, not summed", async () => {
-    const p = withAgg(result(), { totals_partial: true, cost_unknown_cards: ["card-tr"] });
+    const p = withAgg(result(), { totals_partial: true, totals_note: "Tổng chưa gồm 1 thẻ chưa ước tính được.", cost_unknown_cards: ["card-tr"] });
     const cost = { ...p.aggregate!.cost!, horizon: span("2026-11-11", "2026-12-10", 30), horizon_spend_before: 30_000_000, horizon_spend_delta: null, horizon_spend_after: null, horizon_cap: 36_000_000, over_by_horizon: null, cost_complete: false, cost_note: "Thiếu chi phí của 1 thẻ.", cost_unknown_cards: ["card-tr"] };
     open({ ...p, aggregate: { ...p.aggregate!, cost } });
     expect(await screen.findByTestId("kh-agg-chi")).toHaveTextContent("chưa biết chi phí");

@@ -467,29 +467,19 @@ class Counted:
 def count_in_horizon(
     results: Sequence[CardResult], h: Horizon, ads: AdsShares | None = None
 ) -> dict[str, Counted]:
-    """Each leaf's Δ inside the horizon (its counted days only).
+    """Each estimable leaf's Δ inside the horizon (its counted days only).
 
-    A2.1: a card that cannot be estimated still costs money whatever the sales effect; its
-    certain cost (the engine's ``cost_total`` on its counted days) is a profit Δ of ``-cost`` at
-    P10, P50 and P90 alike (no half-width). A2.2: an ads card's cost is its campaign's share
-    (``ads``); an estimable card's Δ already holds its own full cost, so the difference to its
-    share is put back."""
+    A2.2: an ads card's cost is its campaign's share (``ads``); an estimable card's Δ already
+    holds its own full cost, so the difference to its share is put back. A card that cannot be
+    estimated contributes nothing here (its certain cost stays in the spend line)."""
     out: dict[str, Counted] = {}
     for r in results:
-        if r.result is None:
+        if not r.ok:
             continue
         own_cost = r.cost_in(h)
         cost = own_cost
         if ads is not None and r.card_id in ads.cost:
             cost = ads.cost[r.card_id]
-        if not r.ok:
-            if cost:
-                only: dict[str, dict[str, float | None]] = {
-                    q: {m: (-cost if m == "dprofit" else 0.0) for m in RESULT_METRICS}
-                    for q, _ in COLUMNS
-                }
-                out[r.card_id] = Counted(r.card_id, only, r.counted_days(h), cost)
-            continue
         cols: dict[str, dict[str, float | None]] = {
             q: dict(r.delta(col, h) or {}) for q, col in COLUMNS
         }
@@ -1821,17 +1811,20 @@ def aggregate(
 
 
 def _totals_note(j: Joint, unavailable: Sequence[str]) -> str | None:
-    """Says when there is no total at all. A card that cannot be estimated no longer gets a
-    "Tổng chưa gồm" line (A2.5): its certain cost is in the total and the card says
-    "Chưa ước tính được" itself."""
+    """Says which cards the totals leave out (never a silent partial sum)."""
+    parts = []
     if j.none_estimable:
         return (
             f"Chưa ước tính được: {len(j.not_estimable)} thẻ chưa có kết quả ước tính "
             "(chỉ có chi phí và điểm hoà vốn)."
         )
+    if j.not_estimable:
+        parts.append(f"{len(j.not_estimable)} thẻ chưa ước tính được")
     if unavailable:
-        return f"{len(unavailable)} thẻ không tính lại được."
-    return None
+        parts.append(f"{len(unavailable)} thẻ không tính lại được")
+    if not parts:
+        return None
+    return "Tổng chưa gồm " + " và ".join(parts) + "."
 
 
 def _sub(a: float | None, b: float | None) -> float | None:
@@ -1991,9 +1984,12 @@ def _merge_note(out: Mapping[str, Any], estimable: bool) -> str | None:
             f"Chưa ước tính được: {n_bad} thẻ chưa có kết quả ước tính "
             "(chỉ có chi phí và điểm hoà vốn)."
         )
+    parts = []
+    if n_bad:
+        parts.append(f"{n_bad} thẻ chưa ước tính được")
     if out.get("unavailable_cards"):
-        return f"{len(out['unavailable_cards'])} thẻ không tính lại được."
-    return None
+        parts.append(f"{len(out['unavailable_cards'])} thẻ không tính lại được")
+    return "Tổng chưa gồm " + " và ".join(parts) + "." if parts else None
 
 
 __all__ = [
