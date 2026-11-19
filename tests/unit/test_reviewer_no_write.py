@@ -103,6 +103,16 @@ EXPECTED_TEMPLATES: dict[tuple[str, str], str] = {
     # (``api/reviewer.py`` ``SANDBOX_RULE_ENDPOINTS``).
     ("PUT", "/v1/demo/rules/{rule_key}"): "demo_rules:put_shop_rule",
     ("DELETE", "/v1/demo/rules/{rule_key}"): "demo_rules:delete_shop_rule",
+    # batch-1120: the Juli tab -- the sample pin or the writable sandbox pin only
+    # (``api/reviewer.py`` ``JULI_PIN_ENDPOINTS``; ``tests/unit/test_reviewer_juli.py``).
+    ("GET", "/v1/demo/juli/templates"): "juli_agent:list_templates",
+    ("POST", "/v1/demo/juli/ask"): "juli_agent:ask",
+    ("GET", "/v1/demo/juli/messages/{message_id}/events"): "juli_agent:stream_message_events",
+    ("POST", "/v1/demo/juli/messages/{message_id}/cancel"): "juli_agent:cancel_message",
+    ("GET", "/v1/demo/juli/conversations"): "juli_agent:list_conversations",
+    ("GET", "/v1/demo/juli/conversations/{conversation_id}"): "juli_agent:get_conversation",
+    ("POST", "/v1/demo/juli/cards/{draft_ref}/send"): "juli_agent:send_card",
+    ("POST", "/v1/demo/juli/cards/{draft_ref}/dismiss"): "juli_agent:dismiss_card",
 }
 #: The live sandbox routes: on a non-sandbox pin (this module's world) each must refuse.
 SANDBOX_ROUTES = {
@@ -116,6 +126,18 @@ SANDBOX_ROUTES = {
     "/v1/demo/runs/{run_id}/decline",
     "/v1/demo/runs/{run_id}/revert",
     "/v1/demo/rules/{rule_key}",
+}
+#: The Juli tab: on the reference (masked) pin each must refuse 403 ``read_only`` -- no row
+#: changed, no LLM client built (a write refusal is audited like any refused write).
+JULI_ROUTES = {
+    "/v1/demo/juli/templates",
+    "/v1/demo/juli/ask",
+    "/v1/demo/juli/messages/{message_id}/events",
+    "/v1/demo/juli/messages/{message_id}/cancel",
+    "/v1/demo/juli/conversations",
+    "/v1/demo/juli/conversations/{conversation_id}",
+    "/v1/demo/juli/cards/{draft_ref}/send",
+    "/v1/demo/juli/cards/{draft_ref}/dismiss",
 }
 
 
@@ -187,6 +209,11 @@ def tripwire(monkeypatch) -> Tripwire:
     )
     monkeypatch.setattr(httpx.HTTPTransport, "handle_request", wire.trip("httpx network request"))
     monkeypatch.setattr(requests.Session, "send", wire.trip("requests network request"))
+    # batch-1120: no Juli tab LLM / Jev port is ever opened, no engine run started
+    from juli_backend.services.juli_agent_api import engine as juli_engine
+
+    monkeypatch.setattr(juli_engine, "gate_ports", wire.trip("Juli gate_ports()"))
+    monkeypatch.setattr(juli_engine.AnalyticsAgentEngine, "run", wire.trip("Juli engine run"))
     return wire
 
 
@@ -196,6 +223,7 @@ def reviewer_env(monkeypatch):
     monkeypatch.setenv("REVIEWER_ACCOUNT_CACHE_SECONDS", "0")
     monkeypatch.setenv("ENVIRONMENT", "development")  # every router mounted, debug included
     monkeypatch.delenv("OPS_CF_ACCESS_BYPASS", raising=False)
+    monkeypatch.setenv("JULI_AGENT_ENABLED", "true")  # the Juli routes live, so they must refuse
     rv.reset_caches()
     yield
     rv.reset_caches()
@@ -219,6 +247,37 @@ async def world(session, monkeypatch):
     monkeypatch.setenv("REVIEWER_SHOP_ID", str(ref.shop.id))
     reviewer_id = await rv.make_reviewer(session)
     return ref, other, run, reviewer_id
+
+
+@pytest.fixture
+async def juli_thread(session, world) -> dict[str, str]:
+    """A real Juli conversation, answer and card draft of the reference shop (ids for the path)."""
+    from juli_backend.models.agent_chat import AgentCardDraft, AgentConversation, AgentMessage
+
+    ref = world[0]
+    now = dt.datetime(2026, 11, 20, 3, 0)
+    conv = AgentConversation(
+        id=uuid.uuid4(), shop_id=ref.shop.id, platform="tiktok", title="GMV?", created_at=now,
+        updated_at=now,
+    )  # fmt: skip
+    msg = AgentMessage(
+        id=uuid.uuid4(), shop_id=ref.shop.id, conversation_id=conv.id, role="assistant",
+        events=[], status="done", created_at=now, updated_at=now,
+    )  # fmt: skip
+    session.add_all([conv, msg])
+    await session.flush()
+    draft = AgentCardDraft(
+        id=uuid.uuid4(), shop_id=ref.shop.id, message_id=msg.id, draft_ref="d_0123456789ab",
+        card={"draft_ref": "d_0123456789ab", "kind": "price", "engine_card": {}},
+        status="drafted", created_at=now,
+    )  # fmt: skip
+    session.add(draft)
+    await session.commit()
+    return {
+        "conversation_id": str(conv.id),
+        "message_id": str(msg.id),
+        "draft_ref": draft.draft_ref,
+    }
 
 
 def _fill(template: str, values: dict[str, str]) -> str:
@@ -255,19 +314,30 @@ def test_allowlist_is_pinned_to_real_routes():
         "juli_backend.api.routes.demo_run_changes:decline_run",
         "juli_backend.api.routes.demo_run_changes:start_run_revert",
         "juli_backend.api.routes.demo_run_flows:submit_run_photo",
+        "juli_backend.api.routes.juli_agent:ask",
+        "juli_backend.api.routes.juli_agent:cancel_message",
+        "juli_backend.api.routes.juli_agent:dismiss_card",
+        "juli_backend.api.routes.juli_agent:send_card",
         "juli_backend.api.routes.reviewer:reviewer_sync_shop",
         "juli_backend.api.routes.reviewer:simulate_decision",
     ]
-    # Every seller write a reviewer may reach is a sandbox-only run route.
+    # Every seller write a reviewer may reach is a sandbox-only run route or a Juli tab route
+    # (sample pin / writable sandbox pin only, ``admit_juli_pin``).
     assert {
         (m, e) for m, e in reviewer_gate.ALLOWED_ENDPOINTS if not e.endswith(":simulate_decision")
     } >= reviewer_gate.SANDBOX_ONLY_ENDPOINTS
+    seller_writes = {
+        (m, e)
+        for m, e in reviewer_gate.ALLOWED_ENDPOINTS
+        if m != "GET" and not e.startswith("juli_backend.api.routes.reviewer:")
+    }
+    assert seller_writes <= reviewer_gate.SANDBOX_ONLY_ENDPOINTS | reviewer_gate.JULI_PIN_ENDPOINTS
     assert reviewer_gate.SANDBOX_RULE_ENDPOINTS <= reviewer_gate.SANDBOX_ONLY_ENDPOINTS
 
 
 @pytest.mark.parametrize("pinned", [True, False], ids=["fujiwa_pin", "sample_no_pin"])
 async def test_every_route_as_reviewer_writes_nothing(
-    session, world, tripwire, pinned, monkeypatch
+    session, world, juli_thread, tripwire, pinned, monkeypatch
 ):
     """Both modes (D42 amendment): pinned to the reference shop, and no pin (sample shop)."""
     ref, other, run, reviewer_id = world
@@ -308,6 +378,7 @@ async def test_every_route_as_reviewer_writes_nothing(
         "job_id": str(uuid.uuid4()),  # P97 D85.6: POST /v1/ingest/fill-jobs/{job_id}
         "sku_key": "1001:11",  # P100 Part S: PUT /v1/demo/shopee/stock/{sku_key}/tracking
         "business_id": str(uuid.uuid4()),  # P101 W1: /v1/businesses/{business_id}/...
+        **juli_thread,  # batch-1120: /v1/demo/juli/... (a real conversation, answer and draft)
     }
     headers = {
         "Authorization": f"Bearer {rv.token(reviewer_id)}",
@@ -335,6 +406,17 @@ async def test_every_route_as_reviewer_writes_nothing(
                 checked.append(f"{method} {route.path} -> {response.status_code}")
                 allowed = reviewer_gate.is_allowed(method, endpoint)
                 if allowed:
+                    if route.path in JULI_ROUTES:
+                        # Not the sample pin nor the writable sandbox (or no pin): refused.
+                        denied = response.headers.get("x-juli-reviewer-denied")
+                        if response.status_code != 403 or (pinned and denied != "read_only"):
+                            problems.append(
+                                f"{method} {route.path}: {response.status_code} {denied} "
+                                "(want 403 read_only)"
+                            )
+                        if pinned and method != "GET":
+                            refused_writes += 1  # audited by admit_juli_pin
+                        continue
                     if route.path in SANDBOX_ROUTES:
                         # Not a sandbox pin (or no pin): refused before any read or write.
                         if response.status_code != 403:
@@ -392,6 +474,8 @@ async def test_every_route_as_reviewer_writes_nothing(
         "GET /v1/reviewer/me -> 200",
         "POST /v1/reviewer/decisions/{action_card_id}/simulate -> " + ("200" if pinned else "403"),
         "POST /v1/reviewer/shop/sync -> 403",
+        "POST /v1/demo/juli/ask -> 403",
+        "POST /v1/demo/juli/cards/{draft_ref}/send -> 403",
     ):
         assert needle in checked, (needle, checked)
     # Every refused write left an audit row; nothing else was written.
@@ -429,7 +513,7 @@ async def test_simulated_approve_and_execute_change_nothing(session, world, trip
     assert not tripwire.hits
 
 
-async def test_two_tenant_reviewer_never_sees_the_other_shop(session, world, tripwire):
+async def test_two_tenant_reviewer_never_sees_the_other_shop(session, world, juli_thread, tripwire):
     """Every allowlisted read: the other shop's values never appear, its id is refused."""
     ref, other, run, reviewer_id = world
     alias = str(shop_alias_id(ref.shop.id))
@@ -447,6 +531,7 @@ async def test_two_tenant_reviewer_never_sees_the_other_shop(session, world, tri
         "action_card_id": str(ref.card.id),
         "run_id": str(run.id),
         "analysis_id": str(uuid.uuid4()),
+        **juli_thread,
     }
     async with client_for(build_app(session)) as client:
         for template in reads:
