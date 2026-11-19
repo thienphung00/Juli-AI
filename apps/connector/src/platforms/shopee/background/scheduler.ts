@@ -999,14 +999,31 @@ export class ReaderScheduler {
       const { sched } = await this.load();
       const now = this.deps.now();
       const until = now + blockMs(reason);
-      // a firm stop in force (traffic check, rate limit) is never replaced by a liftable one nor shortened
-      if (sched.blocked && firm(sched.blocked.reason) && sched.blocked.until > now && (!firm(reason) || sched.blocked.until >= until)) return;
+      // a firm stop in force (traffic check, rate limit) is never replaced by a liftable one, never
+      // shortened, and the same stop seen again is neither extended nor told twice
+      const held = sched.blocked;
+      if (held && firm(held.reason) && held.until > now && (!firm(reason) || held.reason === reason || held.until >= until)) return;
       const blocked = { at: this.iso(), reason, page: sched.run?.jobs[sched.run.index]?.id ?? ("products" as ReaderId), until };
       if (sched.run) await this.finishRun({ ...sched, blocked }, sched.run, reason);
       else await this.save({ ...sched, blocked });
       await this.deps.sink
         .reportBlock?.({ reader: "fill", page, status: reason, ...(detail ? { code: detail.slice(0, 40) } : {}), at: this.iso() })
         .catch(() => undefined);
+      if (reason === "traffic_check") {
+        // 0.3.28 (F5.3b): a traffic check seen by a FILL tab reaches Juli as a block too: a run tick
+        // whose one page outcome is the fill's (the backend merges a non-daily run's blocks, section
+        // seller_centre), with the pause's end in the outcome's note
+        await this.deps.sink
+          .reportTick?.({
+            kind: "run",
+            trigger: "fill",
+            result: "blocked:traffic_check",
+            day: gmt7Date(Math.floor(now / 1000)),
+            at: this.iso(),
+            outcomes: { fill: `blocked:traffic_check|until=${new Date(until).toISOString()}` },
+          })
+          .catch(() => undefined);
+      }
     });
   }
 
