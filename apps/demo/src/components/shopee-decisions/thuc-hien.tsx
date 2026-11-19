@@ -6,6 +6,8 @@ import { DASH, fmt } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { FILLABLE_CHANGE_KINDS } from "../../lib/shopee-decisions/model";
+import { newestDataThrough } from "../../lib/shopee-decisions/forecast-display";
+import { ActualLines, DataThrough, MetricLines } from "./forecast-lines";
 import type { ExecutionCard, ExecutionState, ReaderBlock } from "../../lib/shopee-decisions/types";
 import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { fillJobHref } from "../planned-changes/listing-extras";
@@ -183,6 +185,8 @@ export function Row({
           {c.title}
         </NavLink>
         {name ? <span className="sd-th-row__product">{name}</span> : null}
+        {c.forecast ? <MetricLines forecast={c.forecast} testId={`sd-th-fc-${c.card_id}`} /> : null}
+        {c.measurement?.actual ? <ActualLines measurement={c.measurement} testId={`sd-th-ac-${c.card_id}`} /> : null}
       </div>
       {c.state === "hoan_tac" ? <span /> : <Steps c={c} sample={sample} />}
       <div className="sd-th-row__side">
@@ -304,6 +308,7 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
             </section>
             )}
             {host.reco.board && !sample && !readOnly && !host.staff ? <BoardActions board={host.reco.board} onChanged={() => setTick((t) => t + 1)} /> : null}
+            <DataThrough iso={newestDataThrough(data.cards)} testId="sd-th-through" />
             <ul className="sd-th-list">
               {data.cards.map((c) => (
                 <Row c={c} key={c.card_id} name={(names.status === "ready" && c.product_id ? names.data.get(c.product_id) : null) ?? null} onDone={() => setTick((t) => t + 1)} readOnly={readOnly} sample={sample} />

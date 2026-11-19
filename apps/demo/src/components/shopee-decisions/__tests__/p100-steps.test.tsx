@@ -48,7 +48,7 @@ function res(profit: number, gmv: number, over: Partial<OptionResult> = {}): Opt
     after: { days: 30, label: "30 ngày", gmv_before: 1, gmv_after: 1, profit_before: 1, profit_after: 1 },
     per_30d: { profit: profit, gmv: gmv, orders: -18 },
     roi: { value: 1.95, text: null },
-    detail: { before: col, low: null, likely: col, high: null },
+    detail: { before: col, low: null, likely: { ...col, profit: (col.profit ?? 0) + profit, gmv: col.gmv + gmv, orders: col.orders - 18 }, high: null },
     notes: [],
     ads: ads(),
     ...over,
@@ -89,15 +89,15 @@ function renderStep3(r: OptionResult, extra: Record<string, unknown> = {}) {
 }
 
 describe("P100 step ③ Phương án", () => {
-  it("a profitable ads edit: finding title, verdict, period totals with ≈ per day, CPA bar and the ads rows", async () => {
+  it("a profitable ads edit: finding title, dự kiến amounts with hiện tại, CPA bar and the ads rows", async () => {
     renderStep3(res(150000, -1170000));
     expect(screen.getByTestId("p3-title")).toHaveTextContent("Chiến dịch đang có lãi: CPA 33.333đ, hoà vốn 50.000đ");
-    expect(screen.getByTestId("p3-verdict")).toHaveTextContent("Có lãi");
-    expect(screen.getByTestId("p3-dprofit")).toHaveTextContent("Δ lợi nhuận cả 30 ngày");
-    expect(screen.getByTestId("p3-dprofit")).toHaveTextContent("+150.000đ");
-    expect(screen.getByTestId("p3-dprofit-perday")).toHaveTextContent("≈ +5.000đ/ngày");
-    expect(screen.getByTestId("p3-dgmv")).toHaveTextContent("−1.170.000đ");
-    expect(screen.getByTestId("p3-dgmv-perday")).toHaveTextContent("≈ −39.000đ/ngày");
+    expect(screen.queryByTestId("p3-verdict")).toBeNull();
+    expect(screen.getByTestId("p3-fc-profit")).toHaveTextContent("Lợi nhuận dự kiến (30 ngày): 3.150.000 đ");
+    expect(screen.getByTestId("p3-fc-profit-sub")).toHaveTextContent("hiện tại: 3.000.000 đ · +150.000 đ (+5,0 %)");
+    expect(screen.getByTestId("p3-fc-gmv")).toHaveTextContent("GMV dự kiến: 16.830.000 đ");
+    expect(screen.getByTestId("p3-fc-gmv-sub")).toHaveTextContent("hiện tại: 18.000.000 đ · −1.170.000 đ (−6,5 %)");
+    expect(screen.getByTestId("p3-fc-orders-sub")).toHaveTextContent("hiện tại: 90 đơn · −18 (−20,0 %)");
     expect(screen.getByTestId("p3-cpa")).toHaveTextContent("Hoà vốn 50.000đ");
     expect(screen.getByTestId("p3-cpa-mark")).toBeInTheDocument();
     expect(screen.getByTestId("p3-row-spend")).toHaveTextContent("Chi phí cả kỳ3.000.000đ → 2.400.000đ");
@@ -111,16 +111,25 @@ describe("P100 step ③ Phương án", () => {
     expect(screen.getByTestId("p3-ads-today")).toHaveTextContent("Hiện tại:");
   });
 
-  it("a losing edit reads Lỗ phần thêm with the amount", () => {
+  it("a negative Δ on a positive profit is neutral; Lỗ and red only when the profit forecast itself is below 0", () => {
     renderStep3(res(-150000, 1170000));
-    expect(screen.getByTestId("p3-verdict")).toHaveTextContent("Lỗ phần thêm 150.000đ");
-    expect(screen.getByTestId("p3-dprofit-perday")).toHaveTextContent("≈ −5.000đ/ngày");
+    expect(screen.getByTestId("p3-fc-profit-value")).toHaveTextContent("2.850.000 đ");
+    expect(screen.getByTestId("p3-fc-profit-value")).not.toHaveClass("sa-tone--down");
+    expect(screen.getByTestId("p3-fc-profit-sub")).toHaveTextContent("−150.000 đ (−5,0 %)");
+    expect(screen.queryByTestId("p3-verdict")).toBeNull();
+  });
+
+  it("a profit forecast below 0 reads Lỗ in red", () => {
+    renderStep3(res(-3150000, 0));
+    expect(screen.getByTestId("p3-fc-profit-value")).toHaveTextContent("Lỗ 150.000 đ");
+    expect(screen.getByTestId("p3-fc-profit-value")).toHaveClass("sa-tone--down");
+    expect(screen.getByTestId("p3-verdict")).toHaveTextContent("Lỗ");
   });
 
   it("another kind keeps only its own rows (no CPA bar)", () => {
     renderStep3(res(90000, 500000, { kind: "voucher", ads: null, cost: { total: 90000, break_even_orders: null, break_even_aov: null, text: "" } }), { kind: "voucher", kindLabel: "Voucher" });
     expect(screen.queryByTestId("p3-cpa")).toBeNull();
-    expect(screen.getByTestId("p3-dprofit-perday")).toHaveTextContent("≈ +3.000đ/ngày");
+    expect(screen.getByTestId("p3-fc-profit-sub")).toHaveTextContent("+90.000 đ");
     expect(screen.getByTestId("p3-row-cost")).toHaveTextContent("90.000đ");
     expect(screen.queryByTestId("p3-row-spend")).toBeNull();
   });
@@ -170,38 +179,39 @@ function renderStep4(api: ReturnType<typeof compareApi>) {
   return { onBack };
 }
 
-const three = (): BuilderOutcome[] => [outcome(0, res(150000, -1170000)), outcome(1, res(-150000, 1170000, { ads: ads({ cpa: { now: 33333, after: 60000 }, verdict: { now: "co_lai", after: "lo" } }) })), outcome(2, res(200000, -260000))];
+const three = (): BuilderOutcome[] => [outcome(0, res(150000, -1170000)), outcome(1, res(-3150000, 1170000, { ads: ads({ cpa: { now: 33333, after: 60000 }, verdict: { now: "co_lai", after: "lo" } }) })), outcome(2, res(200000, -260000))];
 
 describe("P100 step ④ So sánh & lưu", () => {
-  it("names the best version in the title with the period total; bars: gain grey on the right, loss red on the left; per-day lines", async () => {
+  it("names the best version in the title with its dự kiến amount; bars from the amount: positive grey on the right, a profit below 0 red on the left", async () => {
     renderStep4(compareApi(three()));
     // the title shows the product name until the three results arrive: wait for the comparison
-    await waitFor(() => expect(screen.getByTestId("p4-title")).toHaveTextContent("P3 lãi thêm nhiều nhất: +200.000đ trong 30 ngày"));
+    await waitFor(() => expect(screen.getByTestId("p4-title")).toHaveTextContent("P3 có lợi nhuận dự kiến cao nhất: 3.200.000 đ"));
     expect(screen.getByTestId("p4-bar-fill-1")).toHaveAttribute("data-sign", "gain");
     expect(screen.getByTestId("p4-bar-fill-2")).toHaveAttribute("data-sign", "loss");
     expect(screen.getByTestId("p4-bar-fill-3").style.width).toBe("50%");
     expect(screen.getByTestId("p4-bar-fill-2").style.right).toBe("50%");
     expect(screen.getByTestId("p4-bar-fill-1").style.left).toBe("50%");
-    expect(screen.getByTestId("p4-profit-1")).toHaveTextContent("+150.000đ");
-    expect(screen.getByTestId("p4-profit-perday-3")).toHaveTextContent("≈ +6.667đ/ngày");
-    expect(screen.getByTestId("p4-profit-2")).toHaveTextContent("−150.000đ");
+    expect(screen.getByTestId("p4-profit-1")).toHaveTextContent("3.150.000 đ");
+    expect(screen.getByTestId("p4-profit-1-sub")).toHaveTextContent("hiện tại: 3.000.000 đ · +150.000 đ (+5,0 %)");
+    expect(screen.getByTestId("p4-profit-2")).toHaveTextContent("Lỗ 150.000 đ");
+    expect(screen.getByTestId("p4-profit-2")).toHaveClass("sa-tone--down");
   });
 
-  it("the table has Δ GMV (total + per day), Chi phí, Đơn QC, CPA / hoà vốn, ROI and the verdict", async () => {
+  it("the table has GMV dự kiến (with hiện tại), Chi phí, Đơn QC, CPA / hoà vốn, ROI and the loss chip", async () => {
     renderStep4(compareApi(three()));
     await screen.findByTestId("p4-table");
     const heads = within(screen.getByTestId("p4-table")).getAllByRole("columnheader").map((h) => h.textContent);
-    expect(heads).toEqual(["cả 30 ngày", "Δ GMV", "Chi phí", "Đơn QC", "CPA / hoà vốn", "ROAS Shopee", "ΔGMV / chi phí", "Kết luận"]);
+    expect(heads).toEqual(["cả 30 ngày", "GMV dự kiến", "Chi phí", "Đơn QC", "CPA / hoà vốn", "ROAS Shopee", "ΔGMV / chi phí", "Kết luận"]);
     const row = screen.getByTestId("p4-row-1");
-    expect(row).toHaveTextContent("−1.170.000đ");
-    expect(row).toHaveTextContent("≈ −39.000đ/ngày");
+    expect(row).toHaveTextContent("16.830.000 đ");
+    expect(row).toHaveTextContent("hiện tại: 18.000.000 đ · −1.170.000 đ (−6,5 %)");
     expect(row).toHaveTextContent("Giảm 600.000đ");
     expect(row).toHaveTextContent("72 (−18)");
     expect(row).toHaveTextContent("33.333 / 50.000");
     expect(row).toHaveTextContent("5,0");
     expect(row).toHaveTextContent("1,95");
-    expect(screen.getByTestId("p4-verdict-1")).toHaveTextContent("Có lãi");
-    expect(screen.getByTestId("p4-verdict-2")).toHaveTextContent("Lỗ phần thêm 150.000đ");
+    expect(screen.queryByTestId("p4-verdict-1")).toBeNull();
+    expect(screen.getByTestId("p4-verdict-2")).toHaveTextContent("Lỗ");
   });
 
   it("saves the picked main version with the Quyết định checkbox as `primary`; the others stay versions", async () => {

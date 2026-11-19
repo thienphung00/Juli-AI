@@ -7,6 +7,8 @@ import { DASH, fmt, vnd } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { WITHDRAWABLE, changedInputs, describeInputs, maxInputsFor, rankingLinkOf, stepText } from "../../lib/shopee-decisions/model";
+import type { ForecastBlock } from "../../lib/shopee-decisions/forecast-display";
+import { ActualLines, DataThrough } from "./forecast-lines";
 import type { Breach, Card, CardDetail, CardResultBlock as ResultBlock, CardSummary, CardTarget, CardVersion, ExecutionSheet } from "../../lib/shopee-decisions/types";
 import {
   MAX_TITLE_CHARS,
@@ -219,6 +221,7 @@ function CardBody({ detail, initial, onChanged, onRefresh }: { readonly detail: 
   );
 
   const v = versions[sel] ?? versions[0]!;
+  const resultBlock = v.result ?? (v.version === 1 ? (detail.card.result ?? null) : null);
   const patch: Patch = patches[sel] ?? NO_PATCH;
   const shown = adjustable ? (detail.card.family === "mega_sale" ? (megaFresh ?? detail.card) : cardOfVersion(detail.card, v)) : final.card;
   const isMega = shown.family === "mega_sale";
@@ -574,8 +577,14 @@ function CardBody({ detail, initial, onChanged, onRefresh }: { readonly detail: 
         <section className="sa-card" data-testid="sd-result-card">
           <div className="sa-card__head">
             <h2 className="sa-h2">Kết quả</h2>
+            <DataThrough iso={resultBlock?.data_through ?? detail.data_through ?? detail.forecast?.data_through} testId="sd-through" />
           </div>
-          <CardResultBlock block={v.result ?? (v.version === 1 ? (detail.card.result ?? null) : null)} name={name} />
+          <CardResultBlock block={resultBlock} forecast={resultBlock?.forecast ?? (v.version === (detail.chosen_version ?? 1) ? detail.forecast : null)} name={name} />
+          {detail.measurement?.actual ? (
+            <div data-testid="sd-actual">
+              <ActualLines measurement={detail.measurement} />
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -639,11 +648,11 @@ function CardBody({ detail, initial, onChanged, onRefresh }: { readonly detail: 
 
 /**
  * Kết quả (one card, one number, 2026-11-14): the card's stored engine result drawn exactly as Tự tạo's
- * step ③ card — Δ lợi nhuận and Δ GMV for the whole period with ≈/ngày, Δ đơn, Chi phí, ROI, biên a → b,
- * the verdict and "Hoà vốn cần ≥ N đơn". Not estimable: "Chưa ước tính được" and Chi phí.
+ * step ③ card — Lợi nhuận / GMV / Đơn / AOV dự kiến (one amount, hiện tại and the change under it), Chi phí, ROI, biên a → b,
+ * "Lỗ" only when the profit forecast is below 0 and "Hoà vốn cần ≥ N đơn". Not estimable: "Chưa ước tính được" and Chi phí.
  */
-export function CardResultBlock({ block, name }: { readonly block: ResultBlock | null; readonly name: string }) {
-  if (block?.option && block.estimable) return <ResultCard breakEven name={name} result={block.option} />;
+export function CardResultBlock({ block, name, forecast }: { readonly block: ResultBlock | null; readonly name: string; readonly forecast?: ForecastBlock | null }) {
+  if (block?.option && block.estimable) return <ResultCard breakEven forecast={forecast} name={name} result={block.option} />;
   const cost = block?.cost_total;
   return (
     <div className="p3-result" data-testid="sd-not-estimable">
