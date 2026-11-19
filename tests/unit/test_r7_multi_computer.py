@@ -310,3 +310,34 @@ async def test_without_a_token_the_shop_row_is_written_as_before(session, shop):
     out = await cs.read(session, seeded.shop_id, now=NOW)
     assert out["alive"] is True and out["connector_version"] == "0.3.20"
     assert out["computers"] == [] and out["reader_blocks"] == []
+
+
+async def test_each_datacenter_reader_clears_on_its_own_dataset_and_the_shop_aggregate(
+    session, shop
+):
+    """F4.3: product_period, shop_totals, traffic and item_traffic share the password section;
+    a read of one dataset clears that reader only, on the computer's row and the shop row."""
+    seeded, _ = shop
+    before = _wall() - timedelta(hours=1)
+    block = {
+        "section": "phan_tich_ban_hang",
+        "reason": "password_recheck",
+        "readers": ["product_period", "shop_totals", "traffic", "item_traffic"],
+    }
+    session.add(
+        ShopeeConnectorTokenState(
+            token_id=uuid.uuid4(), shop_id=seeded.shop_id, heartbeat_at=before,
+            reader_blocks=[block], reader_blocks_at=before,
+        )
+    )  # fmt: skip
+    session.add(
+        ShopeeConnectorState(shop_id=seeded.shop_id, reader_blocks=[block], reader_blocks_at=before)
+    )
+    await session.flush()
+    for dataset in ("product_period", "shop_overview", "item_traffic_sources"):
+        await cs.clear_blocks_for_dataset(session, seeded.shop_id, dataset, captured_at=_wall())
+    row = await session.get(ShopeeConnectorState, seeded.shop_id)
+    assert [r for b in row.reader_blocks for r in b["readers"]] == ["traffic"]
+    await cs.clear_blocks_for_dataset(session, seeded.shop_id, "shop_traffic", captured_at=_wall())
+    row = await session.get(ShopeeConnectorState, seeded.shop_id)
+    assert row.reader_blocks == []

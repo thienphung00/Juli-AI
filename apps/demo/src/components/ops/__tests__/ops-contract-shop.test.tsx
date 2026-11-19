@@ -50,4 +50,32 @@ describe("Kết nối dữ liệu", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Tạo mã kết nối" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("chưa có đồng ý");
   });
+
+  it("lists the readers that did not finish well: reader, short outcome, since", async () => {
+    const api = {
+      ingestTokens: vi.fn().mockResolvedValue({ data: [TOKEN] }),
+      connectorProblems: vi.fn().mockResolvedValue({
+        data: [
+          { reader: "traffic", outcome: "blocked:password_recheck", since: "2026-11-18T03:00:00Z" },
+          { reader: "orders", outcome: "partial:first_page", since: "2026-11-19T03:00:00Z" },
+        ],
+      }),
+    };
+    render(<OpsShopConsent api={api} canEdit={false} shopId="s1" />);
+    const list = await screen.findByLabelText("Reader lỗi");
+    expect(list).toHaveTextContent("traffic");
+    expect(list).toHaveTextContent("Cần nhập lại mật khẩu");
+    expect(list).toHaveTextContent("Đọc chưa đủ");
+    expect(list).toHaveTextContent("orders");
+  });
+
+  it("shows no problem list when every reader is fine", async () => {
+    const api = {
+      ingestTokens: vi.fn().mockResolvedValue({ data: [TOKEN] }),
+      connectorProblems: vi.fn().mockResolvedValue({ data: [] }),
+    };
+    render(<OpsShopConsent api={api} canEdit={false} shopId="s1" />);
+    expect(await screen.findByText("1 nguồn đang kết nối")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Reader lỗi")).toBeNull();
+  });
 });

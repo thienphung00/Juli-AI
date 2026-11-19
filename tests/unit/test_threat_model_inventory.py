@@ -210,6 +210,8 @@ UNAUTHENTICATED_ALLOWLIST = {
     "/v1/ingest/connector-events",
     # Connector 0.3.19 scheduler tick (trigger, result, per-page outcomes): same ingest token.
     "/v1/ingest/connector-ticks",
+    # F4.2: the days the Connector still has to read, same ingest token, read-only.
+    "/v1/connector/shopee/read-days",
     # P97 D85.6: the Connector's fill queue, its token's shop only (list + report progress).
     "/v1/ingest/fill-jobs",
     "/v1/ingest/fill-jobs/{job_id}",
