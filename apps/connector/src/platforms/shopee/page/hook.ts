@@ -37,7 +37,7 @@ import {
   answerCode,
 } from "../reader";
 import { moreOrderPagesIn, orderLinksIn, orderListEmptyIn } from "../order-dom";
-import { Pacer, runDay, type DayRequest } from "../runner";
+import { Pacer, pageRowCount, runDay, type DayRequest } from "../runner";
 import { type PlannedRequest, requestUrl } from "../sync";
 import { gmt7Date } from "../../../core/time";
 
@@ -380,8 +380,10 @@ async function runPlan(plan: PlannedRequest[]): Promise<void> {
     return reply("needs_data_page");
   }
   let sent = 0;
+  const exhausted = new Set<string>();
   for (const request of plan) {
     if (!WATCHED_PATHS.has(request.path)) continue;
+    if (request.page && exhausted.has(request.page.group)) continue;
     const template = templates.get(request.path);
     const url = requestUrl(
       SELLER_CENTRE_ORIGIN,
@@ -392,8 +394,13 @@ async function runPlan(plan: PlannedRequest[]): Promise<void> {
     if (!url) continue;
     await pacer.beforeRequest();
     // Through the wrapped fetch: the response is captured like the page's own.
-    await window.fetch(url, { method: "GET", credentials: "include" }).catch(() => undefined);
+    const response = await window.fetch(url, { method: "GET", credentials: "include" }).catch(() => undefined);
     sent += 1;
+    if (request.page) {
+      // F4.4: a short page ends its group (the page's own capture of this answer is unaffected).
+      const body: unknown = await response?.clone().json().catch(() => null);
+      if (pageRowCount(body) < request.page.pageSize) exhausted.add(request.page.group);
+    }
   }
   reply("done", { sent });
 }
@@ -411,7 +418,12 @@ async function runBackfillDay(day: string, plan: PlannedRequest[]): Promise<void
     if (!WATCHED_PATHS.has(request.path) || request.useTemplate) continue;
     const url = requestUrl(SELLER_CENTRE_ORIGIN, request, session);
     if (!url) continue;
-    requests.push({ dataset: request.dataset, url, publicUrl: publicUrl(new URL(url)) });
+    requests.push({
+      dataset: request.dataset,
+      url,
+      publicUrl: publicUrl(new URL(url)),
+      ...(request.page ? { page: request.page } : {}),
+    });
   }
   // The unwrapped fetch: the service worker posts these results itself (and
   // learns per request whether Seller Centre accepted the day), so they must not

@@ -24,11 +24,22 @@ export interface PlannedRequest {
   params: Record<string, string>;
   /** Replay the page's own last call to this path instead of `params` (unknown param formats). */
   useTemplate?: boolean;
+  /**
+   * F4.4: one page of a paged list. The pages of one `group` are sent in order and the rest of the
+   * group is skipped once a page comes back with fewer than `pageSize` rows (no more pages).
+   */
+  page?: { group: string; pageSize: number };
 }
 
 /** Item pages per L1 source, at the page size the UI uses. */
 const ITEM_PAGES = 5;
 const ITEM_PAGE_SIZE = "10";
+/**
+ * F4.4: `item_by_source` pages per L1 source (the page size is the UI's 10). Until 0.3.28 only page 1
+ * was asked, so a source never showed more than its first 10 products. The pages after a short one
+ * are not sent, so a small shop costs one request per source.
+ */
+export const ITEM_SOURCE_PAGES = 8;
 
 type Range = { start_time: string; end_time: string; period: string };
 
@@ -55,21 +66,24 @@ function itemRequests(range: Range, wanted: (dataset: MydataDataset) => boolean)
   }
   if (wanted("item_by_source")) {
     for (const source of L1_SOURCES) {
-      plan.push({
-        dataset: "item_by_source",
-        path: ENDPOINTS.item_by_source,
-        params: {
-          ...range,
-          keyword: "",
-          order_by: "",
-          page_size: ITEM_PAGE_SIZE,
-          page_num: "1",
-          category_type: "shopee",
-          category_id: "-1",
-          l1_source: source,
-          order_type: "confirmed",
-        },
-      });
+      for (let page = 1; page <= ITEM_SOURCE_PAGES; page += 1) {
+        plan.push({
+          dataset: "item_by_source",
+          path: ENDPOINTS.item_by_source,
+          params: {
+            ...range,
+            keyword: "",
+            order_by: "",
+            page_size: ITEM_PAGE_SIZE,
+            page_num: String(page),
+            category_type: "shopee",
+            category_id: "-1",
+            l1_source: source,
+            order_type: "confirmed",
+          },
+          page: { group: `item_by_source:${source}`, pageSize: Number(ITEM_PAGE_SIZE) },
+        });
+      }
     }
   }
   return plan;
@@ -87,6 +101,19 @@ function trafficOverviewRequests(range: Range): PlannedRequest[] {
     path: ENDPOINTS.traffic_overview,
     params: { ...range, order_type },
   }));
+}
+
+/**
+ * F4.8: Sản phẩm › Tổng quan for one day, as the page sends it (recorded 2026-11-19):
+ * `period=day`, end = the next midnight, for yesterday too (the page's `real_time` is for today).
+ */
+function productOverviewRequest(range: Range): PlannedRequest {
+  const start = Number(range.start_time);
+  return {
+    dataset: "product_overview",
+    path: ENDPOINTS.product_overview,
+    params: { start_time: String(start), end_time: String(start + DAY), period: "day" },
+  };
 }
 
 export function buildSyncPlan(
@@ -111,6 +138,7 @@ export function buildSyncPlan(
     // the backfill uses the recorded `period=day&dt=YYYYMMDD` shape instead.
     plan.push({ dataset: "shop_traffic", path: ENDPOINTS.shop_traffic, params: {}, useTemplate: true });
   }
+  if (wanted("product_overview")) plan.push(productOverviewRequest(range));
   if (itemReadersActive) plan.push(...itemRequests(range, wanted));
   return plan;
 }
@@ -154,6 +182,7 @@ export function buildBackfillDayPlan(
       params: { period: "day", dt: compactDate(date) },
     });
   }
+  if (wanted("product_overview")) plan.push(productOverviewRequest(range));
   if (itemReadersActive) plan.push(...itemRequests(range, wanted));
   return plan;
 }

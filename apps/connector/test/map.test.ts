@@ -102,7 +102,7 @@ describe("traffic overview → shopee.traffic_overview", () => {
     expect(capture(url, "period=real_time", overview)).toBeNull();
     expect(capture(url, "period=past30days", overview)).toBeNull();
     expect(mapCaptured({ url: `https://evil.example${url}?${RANGE}`, body: overview, capturedAt: NOW })).toBeNull();
-    expect(capture("/api/mydata/v2/product/overview/", RANGE, overview)).toBeNull();
+    expect(capture("/api/mydata/v2/product/unknown/", RANGE, overview)).toBeNull();
   });
 
   it("flags a response without the {code,msg,result} wrapper", () => {

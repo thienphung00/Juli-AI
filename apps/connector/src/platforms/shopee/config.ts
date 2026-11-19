@@ -36,12 +36,19 @@ export const BACKFILL_MAX_DAY_ATTEMPTS = 3;
 export const ITEM_READERS_ACTIVE = true;
 
 /** The four `/api/mydata` datasets the page's own responses feed (passive capture + daily sync). */
-export type MydataDataset = "traffic_overview" | "item_by_source" | "item_performance" | "shop_traffic";
+export type MydataDataset =
+  | "traffic_overview"
+  | "item_by_source"
+  | "item_performance"
+  | "shop_traffic"
+  | "product_overview";
 export const DATASETS: readonly MydataDataset[] = [
   "traffic_overview",
   "item_by_source",
   "item_performance",
   "shop_traffic",
+  // F4.8 (Connector 0.3.29): the shop's product funnel by day (Sản phẩm › Tổng quan).
+  "product_overview",
 ];
 
 /** Datasets the page readers post (ADR-120 d.14); the gateway's names, see services/ingest. */
@@ -195,7 +202,7 @@ export const READER_DATASETS: Record<ReaderId, readonly Dataset[]> = {
   ads_products: ["ads_campaign_period"],
   orders: ["order_lines"],
   order_income: ["order_income"],
-  traffic: ["traffic_overview", "shop_traffic"],
+  traffic: ["traffic_overview", "shop_traffic", "product_overview"],
   affiliate: ["affiliate_order_lines"],
   affiliate_kols: ["affiliate_partner_period"],
   affiliate_dashboard: ["affiliate_shop_period"],

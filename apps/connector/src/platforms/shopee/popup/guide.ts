@@ -134,6 +134,7 @@ export const DATASET_LABELS: Record<Dataset, string> = {
   item_by_source: "Sản phẩm theo nguồn",
   item_performance: "Hiệu quả sản phẩm",
   shop_traffic: "Truy cập shop",
+  product_overview: "Tổng quan sản phẩm",
   item_catalog: "Danh sách sản phẩm",
   item_snapshot: "Giá và tồn kho sản phẩm",
   item_traffic_sources: "Nguồn truy cập sản phẩm",
