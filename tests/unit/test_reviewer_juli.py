@@ -313,3 +313,64 @@ async def test_a_masked_pin_refuses_every_juli_route_and_writes_nothing(
     assert runner._TASKS == {}
     assert len(await _audits(session, "reviewer_write_refused")) == 4
     assert not tripwire.hits
+
+
+# -- a reviewer's limits and the LLM cost guard (held for the owner's OK) ----------------------
+
+
+async def _answer(session, shop_id, *, user_id, cost=None) -> None:
+    now = utc_now_naive()
+    conv = AgentConversation(
+        id=uuid.uuid4(), shop_id=shop_id, platform="shopee", title="t", created_at=now,
+        updated_at=now,
+    )  # fmt: skip
+    session.add(conv)
+    await session.flush()
+    session.add(
+        AgentMessage(
+            id=uuid.uuid4(), shop_id=shop_id, conversation_id=conv.id, role="assistant",
+            events=[], status="done", created_by_user_id=user_id, cost_usd=cost,
+            created_at=now, updated_at=now,
+        )
+    )  # fmt: skip
+    await session.commit()
+
+
+async def test_a_reviewers_limit_is_its_own_not_the_shops(session, engine, world, monkeypatch):
+    monkeypatch.setenv("JULI_AGENT_LIMIT_PER_HOUR", "1")
+    sid, reviewer_id = world["sample"].shop_id, world["reviewer_id"]
+    await _answer(session, sid, user_id=world["sample"].user.id)  # another user's ask this hour
+    h = _headers(reviewer_id, sid)
+    async with client_for(_app(session, engine)) as client:
+        first = await client.post(f"{J}/ask", json={"template": "improve_gmv"}, headers=h)
+        await _wait_runs()
+        second = await client.post(f"{J}/ask", json={"template": "improve_gmv"}, headers=h)
+    assert first.status_code == 202, first.text
+    assert second.status_code == 429 and second.json()["detail"]["code"] == "juli_limited"
+
+
+async def test_the_cost_guard_counts_the_juli_tabs_own_spend(session, engine, world):
+    from decimal import Decimal
+
+    sid, reviewer_id = world["sample"].shop_id, world["reviewer_id"]
+    await _answer(session, sid, user_id=world["sample"].user.id, cost=Decimal("6"))  # > the $5 cap
+    async with client_for(_app(session, engine)) as client:
+        r = await client.post(
+            f"{J}/ask", json={"template": "improve_gmv"}, headers=_headers(reviewer_id, sid)
+        )
+    assert r.status_code == 429
+    assert r.json()["detail"]["code"] == "juli_cost_cap" and r.json()["detail"]["scope"] == "shop"
+    assert runner._TASKS == {}
+
+
+async def test_the_system_cap_stops_a_reviewers_ask(session, engine, world, monkeypatch):
+    async def reached(session, *, now=None):
+        return True
+
+    monkeypatch.setattr("juli_backend.services.ops.system_cap.system_cap_reached", reached)
+    sid, reviewer_id = world["sample"].shop_id, world["reviewer_id"]
+    async with client_for(_app(session, engine)) as client:
+        r = await client.post(
+            f"{J}/ask", json={"template": "improve_gmv"}, headers=_headers(reviewer_id, sid)
+        )
+    assert r.status_code == 429 and r.json()["detail"]["scope"] == "system"

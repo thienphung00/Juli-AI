@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func, select, update
@@ -65,9 +66,17 @@ class AskStarted:
 
 
 async def check_limits(
-    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    now: datetime,
+    user_id: uuid.UUID | None = None,
 ) -> tuple[AbuseLimitDecision, datetime | None]:
     """30 asks per rolling hour and 200 per rolling day per shop, counted on stored answers.
+
+    ``user_id`` (a partner reviewer): the limit is that reviewer's own, not the shop's -- the
+    sample shop is shared by every reviewer, so one must not use up another's asks. The count
+    runs under the pinned shop's scope (RLS), so it is per reviewer on that pin.
 
     Postgres-counted (not Redis): the answers are the record of what was asked, they survive
     a restart, and the retry time is exact -- when the oldest ask in the full window leaves it.
@@ -82,6 +91,8 @@ async def check_limits(
             AgentMessage.role == ROLE_ASSISTANT,
             AgentMessage.created_at > since,
         )
+        if user_id is not None:
+            base = base.where(AgentMessage.created_by_user_id == user_id)
         count = await session.scalar(select(func.count()).select_from(base.subquery()))
         if (count or 0) >= limit:
             oldest = await session.scalar(
@@ -91,6 +102,50 @@ async def check_limits(
             seconds = max(1, int((retry_at - now).total_seconds()))
             return AbuseLimitDecision(allowed=False, retry_after_seconds=seconds), retry_at
     return AbuseLimitDecision(allowed=True, retry_after_seconds=0), None
+
+
+# -- cost guard --------------------------------------------------------------------------------
+
+ERROR_COST_CAP = "juli_cost_cap"
+
+
+async def agent_spend_this_month(
+    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime
+) -> Decimal:
+    """The Juli tab's LLM cost this (UTC+7) month for the shop (``agent_messages.cost_usd``)."""
+    from juli_backend.services.shop_rules.openai_cap import month_start_utc
+
+    total = await session.scalar(
+        select(func.coalesce(func.sum(AgentMessage.cost_usd), 0)).where(
+            AgentMessage.shop_id == shop_id,
+            AgentMessage.created_at >= month_start_utc(now.replace(tzinfo=UTC)),
+        )
+    )
+    return Decimal(str(total or 0))
+
+
+async def check_cost_guard(session: AsyncSession, shop_id: uuid.UUID, *, now: datetime) -> None:
+    """The existing LLM cost guard, with the Juli tab's own spend counted in.
+
+    Refused (429 ``juli_cost_cap``) when the system-wide monthly cap is reached
+    (``ops.system_cap.system_cap_reached``) or when the shop's spend -- its OpenAI spend
+    (``shop_rules.openai_cap.openai_spend_this_month``) plus the Juli tab's -- reaches the shop's
+    monthly cap (``openai_monthly_cap_usd``).
+    """
+    from juli_backend.services.ops.system_cap import system_cap_reached
+    from juli_backend.services.shop_rules.openai_cap import (
+        openai_monthly_cap_usd,
+        openai_spend_this_month,
+    )
+
+    aware = now.replace(tzinfo=UTC)
+    if await system_cap_reached(session, now=aware):
+        raise ChatError(ERROR_COST_CAP, 429, "the monthly LLM limit is reached", scope="system")
+    spend = await openai_spend_this_month(session, shop_id, now=aware)
+    spend += await agent_spend_this_month(session, shop_id, now=now)
+    cap = await openai_monthly_cap_usd(session, shop_id)
+    if spend >= cap.usd:
+        raise ChatError(ERROR_COST_CAP, 429, "the monthly LLM limit is reached", scope="shop")
 
 
 # -- ask ---------------------------------------------------------------------------------------
@@ -153,6 +208,7 @@ async def start_ask(
     choice: dict[str, Any] | None,
     templates: list[TemplateInfo],
     now: datetime,
+    reviewer: bool = False,
 ) -> AskStarted:
     """Write the question and a ``running`` answer; the caller commits, then starts the run.
 
@@ -188,7 +244,10 @@ async def start_ask(
         if pending is None:
             raise ChatError(ERROR_NO_PENDING_CHOICE, 422, "nothing is waiting for a choice")
 
-    decision, retry_at = await check_limits(session, shop_id, now=now)
+    # a partner reviewer: the limits are the reviewer's own, and the cost guard applies
+    decision, retry_at = await check_limits(
+        session, shop_id, now=now, user_id=user_id if reviewer else None
+    )
     if not decision.allowed:
         assert retry_at is not None
         raise ChatError(
@@ -198,6 +257,8 @@ async def start_ask(
             retry_at=retry_at.isoformat() + "Z",
             retry_after_seconds=decision.retry_after_seconds,
         )
+    if reviewer:
+        await check_cost_guard(session, shop_id, now=now)
 
     if conversation_id is None:
         conv = AgentConversation(
@@ -396,6 +457,7 @@ async def get_conversation(
 __all__ = [
     "ERROR_BAD_ASK",
     "ERROR_BUSY",
+    "ERROR_COST_CAP",
     "ERROR_LIMITED",
     "ERROR_NOT_FOUND",
     "ERROR_NO_PENDING_CHOICE",
@@ -403,6 +465,8 @@ __all__ = [
     "STALE_RUNNING_AFTER",
     "AskStarted",
     "ChatError",
+    "agent_spend_this_month",
+    "check_cost_guard",
     "check_limits",
     "get_conversation",
     "list_conversations",

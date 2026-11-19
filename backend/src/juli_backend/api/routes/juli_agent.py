@@ -212,6 +212,7 @@ async def list_templates(
 @router.post("/ask", status_code=status.HTTP_202_ACCEPTED, response_model=AskOut)
 async def ask(
     body: AskBody,
+    request: Request,
     shop: Shop = Depends(juli_writable_shop),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -239,6 +240,7 @@ async def ask(
             choice=body.choice.model_dump() if body.choice is not None else None,
             templates=templates,
             now=_now(),
+            reviewer=reviewer_gate.reviewer_context(request) is not None,
         )
         switch_platforms = await juli_agent_api.other_platforms(session, shop, user.id)
         await session.commit()
