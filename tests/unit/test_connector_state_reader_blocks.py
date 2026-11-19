@@ -110,3 +110,33 @@ def test_a_done_that_only_ignored_or_queued_leaves_the_block():
         "traffic": "done:shop_traffic:2026-11-14=ignored,traffic_overview=queued",
     }
     assert cs.merge_reader_blocks([LOGIN], outcomes) == [LOGIN]
+
+
+def test_traffic_check_is_a_seller_centre_block_even_for_datacenter_readers():
+    blocks = cs.reader_blocks_of(
+        {"shop_totals": "blocked:traffic_check", "orders": "blocked:traffic_check|verify_traffic"}
+    )
+    assert blocks == [
+        {
+            "section": "seller_centre",
+            "reason": "traffic_check",
+            "readers": ["shop_totals", "orders"],
+        }
+    ]
+
+
+def test_a_run_stopping_traffic_check_is_a_seller_centre_block():
+    blocks = cs.reader_blocks_of({"traffic": "blocked_traffic_check"})
+    assert blocks == [
+        {"section": "seller_centre", "reason": "traffic_check", "readers": ["traffic"]}
+    ]
+
+
+def test_traffic_check_merges_and_clears_like_the_other_reasons():
+    merged = cs.merge_reader_blocks([LOGIN], {"orders": "blocked:traffic_check"})
+    assert merged == [
+        LOGIN,
+        {"section": "seller_centre", "reason": "traffic_check", "readers": ["orders"]},
+    ]
+    cleared = cs.merge_reader_blocks(merged, {"orders": "done:orders=posted"})
+    assert cleared == [LOGIN]

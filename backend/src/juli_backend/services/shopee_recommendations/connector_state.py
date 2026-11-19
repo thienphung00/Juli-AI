@@ -69,7 +69,9 @@ SECTION_DATACENTER = "phan_tich_ban_hang"
 SECTION_SELLER_CENTRE = "seller_centre"
 #: ``no_permission`` (Connector 0.3.26): the sub-account may not open Tài chính (the income page);
 #: page-only, a Seller Centre section block.
-_BLOCK_REASONS = ("login", "captcha", "password_recheck", "no_permission")
+#: ``traffic_check`` (Connector 0.3.28): Shopee sent the tab to ``/verify/traffic``; it stops the
+#: whole Seller Centre, so it is always a Seller Centre block, whichever reader hit it.
+_BLOCK_REASONS = ("login", "captcha", "password_recheck", "no_permission", "traffic_check")
 
 #: Reader -> the datasets it posts; kept equal to ``READER_DATASETS`` in
 #: ``apps/connector/src/platforms/shopee/config.ts`` (a test reads that file). An accepted
@@ -335,8 +337,8 @@ def _block_of(reader: str, outcome: object) -> tuple[str, str] | None:
         return None
     for reason in _BLOCK_REASONS:
         if outcome == f"blocked:{reason}" or outcome.startswith(f"blocked:{reason}|"):
-            section = SECTION_DATACENTER if reader in DATACENTER_READERS else SECTION_SELLER_CENTRE
-            return section, reason
+            datacenter = reader in DATACENTER_READERS and reason != "traffic_check"
+            return (SECTION_DATACENTER if datacenter else SECTION_SELLER_CENTRE), reason
         if outcome == f"blocked_{reason}":
             # The password dialog only exists on /datacenter; a login wall or CAPTCHA stops the
             # whole Seller Centre session.
