@@ -175,3 +175,31 @@ def test_every_shop_table_is_classified_for_a_reload():
     assert not unclassified, f"classify in scripts/sample_shop/reset.py: {unclassified}"
     twice = sorted(t for t in tables if sum(t in g for g in groups.values()) > 1)
     assert not twice, f"in more than one group: {twice}"
+
+
+def test_reload_clears_a_kept_rows_nullable_pointer_instead_of_refusing():
+    """platform_items (kept) -> ingest_raw_payloads (replaced) through a nullable raw_payload_id."""
+    from scripts.sample_shop.reset import plan_reload_deletes, plan_reload_detaches
+
+    items, raw = "public.platform_items", "public.ingest_raw_payloads"
+    shop = {"public.shops", items, raw}
+    pointer = ForeignKey(items, raw, ("raw_payload_id",), ("id",), nullable=True)
+    fks = [fk("platform_items", "shops"), fk("ingest_raw_payloads", "shops"), pointer]
+    assert plan_reload_detaches(shop, fks) == [pointer]
+    got = {s.table for s in plan_reload_deletes(shop, fks)}
+    assert raw in got
+    assert items not in got
+
+
+def test_reload_still_refuses_a_kept_pointer_that_cannot_be_null():
+    from scripts.sample_shop.reset import plan_reload_detaches
+
+    items, raw = "public.platform_items", "public.ingest_raw_payloads"
+    shop = {"public.shops", items, raw}
+    pointer = ForeignKey(items, raw, ("raw_payload_id",), ("id",), nullable=False)
+    fks = [fk("platform_items", "shops"), fk("ingest_raw_payloads", "shops"), pointer]
+    assert plan_reload_detaches(shop, fks) == []
+    with pytest.raises(ResetRefused, match="platform_items references"):
+        from scripts.sample_shop.reset import plan_reload_deletes
+
+        plan_reload_deletes(shop, fks)

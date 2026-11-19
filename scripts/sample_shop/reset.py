@@ -154,7 +154,9 @@ _FOREIGN_KEYS = sa.text(
                  ORDER BY k.i),
            ARRAY(SELECT a.attname FROM unnest(con.confkey) WITH ORDINALITY k(n, i)
                  JOIN pg_attribute a ON a.attrelid = con.confrelid AND a.attnum = k.n
-                 ORDER BY k.i)
+                 ORDER BY k.i),
+           (SELECT bool_and(NOT a.attnotnull) FROM unnest(con.conkey) k(n)
+            JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.n)
     FROM pg_constraint con
     JOIN pg_class cc ON cc.oid = con.conrelid
     JOIN pg_namespace cn ON cn.oid = cc.relnamespace
@@ -175,6 +177,8 @@ class ForeignKey:
     parent: str
     child_cols: tuple[str, ...]
     parent_cols: tuple[str, ...]
+    #: every child column may be NULL: the pointer can be cleared instead of deleting the row
+    nullable: bool = False
 
 
 @dataclass(frozen=True)
@@ -248,24 +252,50 @@ def plan_deletes(
     return [Step(t, via.get(t)) for t in order]
 
 
+def _kept_pointers(shop_tables: set[str], fks: list[ForeignKey]) -> list[ForeignKey]:
+    """Foreign keys from a table a reload keeps to a table it replaces."""
+    planned = {step.table for step in plan_deletes(shop_tables, fks)}
+    return [
+        fk
+        for fk in fks
+        if fk.parent in GENERATED_TABLES
+        and fk.child in planned
+        and fk.child not in GENERATED_TABLES
+        and fk.child != fk.parent
+    ]
+
+
+def plan_reload_detaches(shop_tables: set[str], fks: list[ForeignKey]) -> list[ForeignKey]:
+    """The reload's pointer clears, run before its DELETEs: a kept row of the shop whose nullable
+    pointer names a replaced row (``platform_items.raw_payload_id``: the payload it was read from)
+    keeps the row and loses only the pointer; the next ingest sets it again."""
+    return [
+        fk for fk in _kept_pointers(shop_tables, fks) if fk.nullable and fk.child in shop_tables
+    ]
+
+
 def plan_reload_deletes(shop_tables: set[str], fks: list[ForeignKey]) -> list[Step]:
     """The reload's DELETEs: the generated tables of :func:`plan_deletes`, in the same order.
 
-    Refused (nothing deleted) when a table that stays points at a generated one: the DELETE would
-    fail on the foreign key, or leave a reviewer's row dangling."""
-    steps = plan_deletes(shop_tables, fks)
-    planned = {step.table for step in steps}
-    for fk in fks:
-        if (
-            fk.parent in GENERATED_TABLES
-            and fk.child in planned
-            and fk.child not in GENERATED_TABLES
-            and fk.child != fk.parent
-        ):
+    Refused (nothing deleted) when a table that stays points at a generated one through a pointer
+    that cannot be cleared (:func:`plan_reload_detaches`): the DELETE would fail on the foreign
+    key, or leave a reviewer's row dangling."""
+    detached = set(plan_reload_detaches(shop_tables, fks))
+    for fk in _kept_pointers(shop_tables, fks):
+        if fk not in detached:
             raise ResetRefused(
                 f"{fk.child} references {fk.parent}, which a reload replaces: classify it"
             )
-    return [step for step in steps if step.table in GENERATED_TABLES]
+    return [step for step in plan_deletes(shop_tables, fks) if step.table in GENERATED_TABLES]
+
+
+def _detach(fk: ForeignKey, shop_id: uuid.UUID) -> sa.Update:
+    child = _table(fk.child, "shop_id", *fk.child_cols)
+    return (
+        sa.update(child)
+        .where(child.c.shop_id == shop_id, *(child.c[c].is_not(None) for c in fk.child_cols))
+        .values({c: None for c in fk.child_cols})
+    )
 
 
 def _metadata_reload_steps() -> list[Step]:
@@ -303,8 +333,8 @@ def _delete(step: Step, shop_id: uuid.UUID) -> sa.Delete:
 async def read_catalogue(session: AsyncSession) -> tuple[set[str], list[ForeignKey]]:
     shop_tables = {f"{s}.{t}" for s, t in (await session.execute(_SHOP_TABLES)).all()}
     fks = [
-        ForeignKey(f"{cs}.{ct}", f"{ps}.{pt}", tuple(cc), tuple(pc))
-        for cs, ct, ps, pt, cc, pc in (await session.execute(_FOREIGN_KEYS)).all()
+        ForeignKey(f"{cs}.{ct}", f"{ps}.{pt}", tuple(cc), tuple(pc), bool(nullable))
+        for cs, ct, ps, pt, cc, pc, nullable in (await session.execute(_FOREIGN_KEYS)).all()
     ]
     return shop_tables, fks
 
@@ -335,12 +365,18 @@ async def wipe(
             shopee_shop_id=shop.shopee_shop_id,
             has_credentials=await _has_credentials(session, shop.id),
         )
+        detaches: list[ForeignKey] = []
         if generated_only and session.get_bind().dialect.name != "postgresql":
             steps = _metadata_reload_steps()  # the unit tests' SQLite: no pg catalogue to read
         else:
+            catalogue = await read_catalogue(session)
             plan = plan_reload_deletes if generated_only else plan_deletes
-            steps = plan(*await read_catalogue(session))
+            steps = plan(*catalogue)
+            if generated_only:
+                detaches = plan_reload_detaches(*catalogue)
         async with with_shop_scope(session, shop_id):
+            for fk in detaches:
+                await session.execute(_detach(fk, shop_id))
             for step in steps:
                 result = await session.execute(_delete(step, shop_id))
                 if result.rowcount:
@@ -371,6 +407,7 @@ __all__ = [
     "Step",
     "plan_deletes",
     "plan_reload_deletes",
+    "plan_reload_detaches",
     "replace_generated",
     "read_catalogue",
     "wipe",
