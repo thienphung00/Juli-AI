@@ -26,6 +26,11 @@ Rules (owner 2026-11-13):
   (``aggregate.products[].today``: the plan's per-product rows); a product with no row there (or
   no executed plan) takes its level from the stored data of the 30 days before that plan (before
   today without one). ``None`` when neither exists, so there is no goal, never a 0.
+- **Cards outside any plan** (F8.5: "Làm ngoài Juli" / "Tự tạo" executed with no plan, change set
+  ``plan_id`` None) count like plan cards: their stored forecast Δ (GMV / profit) is spread
+  over the forecast's days and counted for the days of their measuring window inside the range.
+  With no executed plan the baseline is the shop's (or product's) own 30-day level before the
+  earliest such card, so a shop whose cards all ran outside Juli still gets a goal.
 - Any period: :func:`range_plans` is the one computation; the month is a thin wrapper over it
   (goal = baseline per day x days + the running cards' uplift on the days inside the range).
 """
@@ -42,14 +47,21 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.shopee_plans import PLAN_EXECUTED, ShopRecoPlan
+from juli_backend.models.shop_proposals import STATUS_EXECUTED
+from juli_backend.models.shopee_plans import (
+    PLAN_EXECUTED,
+    SET_DONE,
+    SET_MEASURING,
+    ShopRecoChangeSet,
+    ShopRecoPlan,
+)
 from juli_backend.services.shopee_analytics import loaders, service
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import num
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_analytics.stored import RowsNotMaterialized
 from juli_backend.services.shopee_analytics.windows import Window
-from juli_backend.services.shopee_recommendations import plans
+from juli_backend.services.shopee_recommendations import change_sets, plans, store
 from juli_backend.services.shopee_recommendations.plan_aggregate import HORIZON_DAYS
 
 SCOPE_RUNNING = "running"
@@ -141,6 +153,83 @@ async def _executed(session: AsyncSession, shop_id: uuid.UUID) -> list[ShopRecoP
             .order_by(ShopRecoPlan.confirmed_at, ShopRecoPlan.created_at)
         )
     )
+
+
+def unplanned_blocks(
+    sets: Iterable[ShopRecoChangeSet], cards: Mapping[str, Mapping[str, Any]]
+) -> list[dict[str, Any]]:
+    """F8.5: plan-card-shaped evaluation blocks for the executed cards of ``sets`` (change sets
+    with no plan), from each card's stored ``forecast.metrics`` Δ over the forecast's days. A card
+    with no stored Δ is left out (unknown stays unknown, never 0)."""
+    out: list[dict[str, Any]] = []
+    for cs in sets:
+        for cid in cs.card_ids or []:
+            card = cards.get(str(cid))
+            metrics = ((card or {}).get("forecast") or {}).get("metrics") or {}
+            dgmv = (metrics.get("gmv") or {}).get("delta")
+            dprofit = (metrics.get("profit") or {}).get("delta")
+            if card is None or (dgmv is None and dprofit is None):
+                continue
+            f_days = int((metrics.get("gmv") or metrics.get("profit") or {}).get("days") or 0)
+            if f_days <= 0:
+                f_days = int(cs.window_days or 0)
+            if f_days <= 0:
+                continue
+            start = cs.started_at.date()
+            end = start + timedelta(days=max(int(cs.window_days or f_days), 1) - 1)
+            out.append(
+                {
+                    "card_id": str(cid),
+                    "product_id": cs.product_id,
+                    "result": {
+                        "estimable": True,
+                        "own": {
+                            "dates": {"from": start.isoformat(), "to": end.isoformat()},
+                            "days": f_days,
+                            "delta": {"p50": {"dgmv": dgmv, "dprofit": dprofit}},
+                        },
+                    },
+                }
+            )
+    return out
+
+
+async def _unplanned_blocks(session: AsyncSession, shop_id: uuid.UUID) -> list[dict[str, Any]]:
+    """The executed cards outside any plan, as :func:`unplanned_blocks` blocks."""
+    sets = [
+        cs
+        for cs in await change_sets.sets_for(
+            session, shop_id, status=[SET_MEASURING, SET_DONE], plan_id=None
+        )
+        if cs.plan_id is None
+    ]
+    if not sets:
+        return []
+    cards = {
+        str(p.id): card
+        for p, card in await store.list_cards(session, shop_id, statuses=[STATUS_EXECUTED])
+        if p.lever_plan_id is None
+    }
+    return unplanned_blocks(sets, cards)
+
+
+async def _shop_level(
+    session: AsyncSession, shop_id: uuid.UUID, before: date
+) -> Mapping[str, Any] | None:
+    """The shop's 30-day level ``{gmv_30d, profit_30d}`` of the ``HORIZON_DAYS`` days before
+    ``before``; ``None`` when the stored rows are missing."""
+    last = before - timedelta(days=1)
+    try:
+        view = await _view_of(
+            session, shop_id, Window(last - timedelta(days=HORIZON_DAYS - 1), last)
+        )
+    except RowsNotMaterialized:
+        return None
+    gmv, profit = view.shop_gmv, shop_profit_of(view).profit
+    return {
+        "gmv_30d": None if gmv is None else float(gmv),
+        "profit_30d": None if profit is None else float(profit),
+    }
 
 
 async def _view_of(session: AsyncSession, shop_id: uuid.UUID, window: Window) -> PeriodView:
@@ -300,6 +389,15 @@ async def range_plans(
             first_out = out
             stamp = plan.confirmed_at or plan.created_at
             first_day = plans.plan_today(stamp) if stamp is not None else None
+    extra = await _unplanned_blocks(session, shop_id)  # F8.5: running cards outside any plan
+    running_cards += extra
+    extra_start = min(
+        (date.fromisoformat(b["result"]["own"]["dates"]["from"]) for b in extra), default=None
+    )
+    if extra_start is not None and baseline is None and product_id is None:
+        baseline = await _shop_level(session, shop_id, extra_start)
+    if extra_start is not None and (first_day is None or extra_start < first_day):
+        first_day = extra_start
     dout: Mapping[str, Any] | None = None
     draft_cards: list[Mapping[str, Any]] = []
     draft_today: Mapping[str, Any] | None = None
