@@ -194,10 +194,10 @@ def test_calibration_keeps_manual_and_engine_apart_and_weights_multi_card_sample
     assert light.n_results == 1
     heavy = learning.calibrate([obs(measured=0.30), obs(weight=0.25, measured=0.0)])
     assert heavy[("price", "orders")].pooled_ratio > 1.5  # the light sample barely moves it
-    # L-1 / L-4: the shop's state pools every origin; manual and engine cards are Juli's
+    # L-1 / L-4: the shop's state pools every origin; only the engine card is a Juli card
     allstates = learning.calibrate_all([obs("manual"), obs(), obs("import")])
     assert allstates[("price", "orders")].n_results == 3
-    assert allstates[("price", "orders")].n_juli == 2
+    assert allstates[("price", "orders")].n_juli == 1  # only the engine card is Juli
     back = learning.Observation.from_json(obs("manual", 0.25).json())
     assert back.origin == "manual" and back.weight == 0.25
 

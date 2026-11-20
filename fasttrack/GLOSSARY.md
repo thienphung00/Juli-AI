@@ -17,6 +17,7 @@ Every term here was misread by an agent at least once and then corrected by the 
 | **Dịch vụ hiển thị Sản phẩm** (DVHT SP) | Shopee product ads (both GMV-max bidding modes). They land on **Thẻ sản phẩm**. It is part of the main ads builder, **not a separate builder**. |
 | **Dịch vụ hiển thị Shop+** (DVHT Shop+) | Shopee shop ads (formerly "Quảng cáo cửa hàng"). They land on the Shop tab. |
 | **Organic / TTLK / Quảng cáo** | the three traffic sources. TTLK = Tiếp thị liên kết (affiliate). TTLK has clicks and orders, no views. Organic = all sources minus "trong đó Quảng cáo". |
+| **Juli card** (prediction type "Juli") | a card Juli's engine generated (origin engine). Tự tạo (manual), imported (Làm ngoài Juli) cards and past promotions are shop data, not Juli (owner 2026-11-20). |
 | **Thẻ sản phẩm** | the product-card surface. Tổng quan shows it separately from the Shop tab. |
 | **Two ad bases** | the traffic overview's "trong đó Quảng cáo" and the ads report are different numbers. Name each one where it's shown; **never add them together**. |
 

@@ -118,19 +118,18 @@ class Observation:
         )
 
 
-#: Observation origins that are Juli's own cards ("engine" = a generated card, "manual" = built in
-#: Tự tạo and run through Juli).
-JULI_ORIGINS = frozenset({"engine", "manual"})
+#: Observation origins that are Juli's own cards: only "engine" (a card Juli generated).
+JULI_ORIGINS = frozenset({"engine"})
 
 
 def is_juli_card(o: Observation) -> bool:
     """Does the result count toward the "Juli" prediction type (L-4)?
 
-    Coordinator default, 2026-11-20 (owner to confirm): a Juli card is an observation with
-    ``source == "card"`` and ``origin`` "engine" or "manual" -- a manual card is built in Juli's
-    builder and executed through Juli. ``origin == "import"`` (changes planned outside Juli, "Làm
-    ngoài Juli") and ``source == "natural"`` (``backfill_natural``: past promotions) do NOT count;
-    they still count toward "dữ liệu shop" when clean. This is the one place the rule lives."""
+    Owner 2026-11-20: Tự tạo is manual, not Juli. A Juli card is an observation with
+    ``source == "card"`` and ``origin == "engine"`` only. ``origin == "manual"`` (Tự tạo),
+    ``origin == "import"`` (changes planned outside Juli, "Làm ngoài Juli") and
+    ``source == "natural"`` (``backfill_natural``: past promotions) do NOT count; they still count
+    toward "dữ liệu shop" when clean. This is the one place the rule lives."""
     return o.source == "card" and o.origin in JULI_ORIGINS
 
 
