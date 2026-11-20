@@ -205,13 +205,13 @@ def test_history_row_has_status_dates_core_rows_and_a_difference_formula():
     assert [ws.cell(4, c).value for c in (16, 17, 18)] == [1_000_000.0, 1_140_000.0, 1_100_000.0]
     assert ws["S4"].value == '=IF(OR(Q4="",R4=""),"",R4-Q4)'  # a formula string, recalculated
     assert ws["R5"].value is None and ws["P5"].value is None  # unknown stays empty, never 0
-    assert ws.cell(4, 35).value == "Trong khoảng"
+    assert ws.cell(4, 36).value == "Trong khoảng"
 
 
 def test_history_has_dao_do_and_do_chung_voi_and_empty_when_unmeasured():
     ws = kh.build(_kh_data())[kh.SHEET_HISTORY]
-    assert (ws.cell(4, 33).value, ws.cell(4, 34).value) == ("5/14 ngày", "VC-P2, B-7")
-    assert ws.cell(5, 33).value is None and ws.cell(5, 34).value is None
+    assert (ws.cell(4, 34).value, ws.cell(4, 35).value) == ("5/14 ngày", "VC-P2, B-7")
+    assert ws.cell(5, 34).value is None and ws.cell(5, 35).value is None
 
 
 def test_ads_sheet_fills_cpa_and_roas_where_the_reading_has_them_and_never_zero():
