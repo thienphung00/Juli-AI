@@ -7,9 +7,11 @@ import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderOutcome } from "../../../lib/shopee-decisions/builder-api";
 import { bandText, breakEvenText, floorWarningText, marginText, metricValue, refusalText, unitLines, voucherMaxText, voucherUsageText } from "../../../lib/shopee-decisions/builder-p92";
 import { TextChip } from "../../shopee-analytics/ui";
+import { forecastOfResult, type ForecastBlock } from "../../../lib/shopee-decisions/forecast-display";
+import { MetricLines } from "../forecast-lines";
 import { OptionCard } from "../option-card";
-import { perDayText, periodLabel, resultDays, signedCount, signedMoney } from "../option-card/format";
-import { NOISE_TAG, deltaOf, hasCost, profitVerdict, reasonLine, strategyOfResult } from "../../../lib/shopee-decisions/card-rows";
+import { resultDays, signedCount } from "../option-card/format";
+import { hasCost, profitVerdict, reasonLine, strategyOfResult } from "../../../lib/shopee-decisions/card-rows";
 import { roiLabel, staleText, type OptionResult } from "../../../lib/shopee-decisions/option-result";
 import { TargetRows } from "./targets";
 
@@ -222,6 +224,13 @@ export function verdictOf(r: OptionResult): { readonly text: string; readonly to
   return profitVerdict(r);
 }
 
+/** F7.8: "Lỗ" (red) only when the profit forecast itself is below 0; a negative Δ on a positive profit is not a loss. No chip otherwise. */
+export function lossChip(forecast: ForecastBlock | null | undefined, r: OptionResult): { readonly text: string; readonly tone: VerdictTone } | null {
+  if (!r.estimable) return { text: "Chưa ước tính", tone: "flat" };
+  const du = forecast?.metrics?.profit?.du_kien;
+  return typeof du === "number" && du < 0 ? { text: "Lỗ", tone: "down" } : null;
+}
+
 /** A finding for the ads edit, e.g. "Chiến dịch đang có lãi: CPA 33.333đ, hoà vốn 50.000đ". */
 export function adsTitle(r: OptionResult): string | null {
   const a = r.ads;
@@ -256,18 +265,6 @@ export function CpaBar({ cpaNow, cpaAfter, breakEven }: { readonly cpaNow: numbe
   );
 }
 
-function Tile({ label, total, days, testId, why, noise = false }: { readonly label: string; readonly total: number | null | undefined; readonly days: number; readonly testId: string; readonly why?: string; readonly noise?: boolean }) {
-  const per = perDayText(total, days);
-  const tone = total === null || total === undefined ? "flat" : total < 0 ? "down" : "up";
-  return (
-    <div className="p3-tile" data-testid={testId}>
-      <div className="p3-tile__label">{label}</div>
-      <div className={`p3-tile__value sa-tone--${tone}`} title={total === null || total === undefined ? why : undefined}>{signedMoney(total)}{noise && total !== null && total !== undefined ? ` ${NOISE_TAG}` : ""}</div>
-      {per ? <div className="p3-tile__per" data-testid={`${testId}-perday`}>{per}</div> : null}
-    </div>
-  );
-}
-
 /** Step ③ right-hand card (artboard Flow3): verdict, Δ lợi nhuận and Δ GMV for the whole period with ≈ per day, then the rows the kind has. */
 export function VersionResult({ outcome: o, result: r, name }: { readonly outcome: BuilderOutcome; readonly result: OptionResult; readonly name: string }) {
   return (
@@ -281,10 +278,10 @@ export function VersionResult({ outcome: o, result: r, name }: { readonly outcom
  * The result card itself, from an `OptionResult` alone: Tự tạo's step ③ and the card page's Kết quả
  * (one card, one number: the card stores this result). `breakEven` adds "Hoà vốn cần ≥ N đơn".
  */
-export function ResultCard({ result: r, name, breakEven = false, children }: { readonly result: OptionResult; readonly name: string; readonly breakEven?: boolean; readonly children?: ReactNode }) {
+export function ResultCard({ result: r, name, breakEven = false, forecast: given, children }: { readonly result: OptionResult; readonly name: string; readonly breakEven?: boolean; /** The server's `forecast` of the card; else it is built from the result. */ readonly forecast?: ForecastBlock | null; readonly children?: ReactNode }) {
   const days = resultDays(r);
-  const period = periodLabel(days);
-  const v = verdictOf(r);
+  const forecast = given ?? forecastOfResult(r);
+  const v = lossChip(forecast, r);
   const a = r.ads;
   const rows: { readonly key: string; readonly label: string; readonly text: string }[] = [];
   if (a) {
@@ -304,7 +301,6 @@ export function ResultCard({ result: r, name, breakEven = false, children }: { r
     } else if (strat === "affiliate") {
       if (hasCost(r)) rows.push({ key: "cost", label: "Chi phí hoa hồng", text: vnd(r.cost.total) });
     } else {
-      rows.push({ key: "orders", label: "Δ đơn", text: `${signedCount(deltaOf(r, "orders").value)}${deltaOf(r, "orders").noise ? ` ${NOISE_TAG}` : ""}` });
       // the cost line only when it costs; a zero cost says nothing
       if (hasCost(r)) rows.push({ key: "cost", label: "Chi phí", text: r.cost.total > 0 ? vnd(r.cost.total) : `Giảm ${vnd(-r.cost.total)}` });
       if (hasCost(r) && r.roi?.value !== null && r.roi?.value !== undefined) rows.push({ key: "roi", label: roiLabel(r), text: fmt(r.roi.value, 1) });
@@ -325,14 +321,15 @@ export function ResultCard({ result: r, name, breakEven = false, children }: { r
       ) : null}
       <div className="p3-result__head">
         <b>{name}</b>
-        <span className={`p3-verdict p3-verdict--${v.tone}`} data-testid="p3-verdict">
-          {v.text}
-        </span>
+        {v ? (
+          <span className={`p3-verdict p3-verdict--${v.tone}`} data-testid="p3-verdict">
+            {v.text}
+          </span>
+        ) : null}
       </div>
       {strategyOfResult(r) === "listing" ? null : (
-        <div className="p3-tiles">
-          <Tile days={days} label={`Δ lợi nhuận ${period}`} noise={deltaOf(r, "profit").noise} testId="p3-dprofit" total={r.estimable ? deltaOf(r, "profit").value : null} why={r.reason_text ?? undefined} />
-          <Tile days={days} label={`Δ GMV ${period}`} noise={deltaOf(r, "gmv").noise} testId="p3-dgmv" total={r.estimable ? deltaOf(r, "gmv").value : null} why={r.reason_text ?? undefined} />
+        <div className="p3-tiles" data-testid="p3-forecast">
+          <MetricLines days={days} fallbackWhy={r.reason_text} forecast={forecast} testId="p3-fc" />
         </div>
       )}
       {a ? <CpaBar breakEven={a.break_even_cpa} cpaAfter={a.cpa.after} cpaNow={a.cpa.now} /> : null}

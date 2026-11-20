@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { DoLuongView, scaleOf } from "../do-luong";
+import { DoLuongView } from "../do-luong";
 import { ThucHienView, detailOf, readerBlockText, valueText } from "../thuc-hien";
 import { fakeReco } from "../../../lib/shopee-decisions/__tests__/fixtures";
 import type { ExecutionCard, ExecutionStates, MeasurementCard, MeasurementStates } from "../../../lib/shopee-decisions/types";
@@ -86,16 +86,21 @@ describe("Thực hiện", () => {
 const measure = (over: Partial<MeasurementCard>): MeasurementCard => ({
   card_id: "m1", code: null, title: "Voucher giảm 5 %", family: "voucher", family_label: "Ưu đãi · Voucher", change_kind: "min_spend_voucher", product_id: "P1",
   started: "2026-10-20", ends: "2026-11-19", days: 30, days_measured: 9, done: false, verdict: "dang_do", impact_pct: null,
-  lift: { p10: 0.05, p50: 0.1, p90: 0.15 }, band: { p10: 1_000_000, p50: 2_000_000, p90: 3_000_000 }, actual: null, metrics: [], partial: false, label: null, ...over,
+  lift: { p10: 0.05, p50: 0.1, p90: 0.15 }, actual: null, metrics: [], partial: false, label: null, ...over,
 });
 const meas = (cards: MeasurementCard[]): MeasurementStates => ({ platform: "shopee", cards });
 
 describe("Đo lường", () => {
-  it("shows days measured, the band against the actual, chips with change and the verdict", async () => {
+  const actual = (thuc: number, hien: number, final: boolean, verdict?: string) => ({
+    metrics: { profit: { thuc_te: thuc, hien_tai: hien, delta: thuc - hien, delta_pct: ((thuc - hien) / hien) * 100, days_measured: 30, days: 30 }, gmv: { thuc_te: 9_000_000, hien_tai: 8_000_000, delta: 1_000_000, delta_pct: 12.5, days_measured: 30, days: 30 } },
+    days_measured: 30, days: 30, label: final ? "Đã đo 30/30 ngày" : "Đã đo 9/30 ngày", final, verdict: verdict ? { key: "k", label: verdict } : null,
+  });
+
+  it("shows days measured, Thực tế against hiện tại (no range), chips with change and the final verdict", async () => {
     const cards = [
       measure({ card_id: "run" }),
-      measure({ card_id: "in", days_measured: 30, done: true, verdict: "trong_khoang", actual: 2_100_000, metrics: [{ metric: "aov", change_pct: 0.08 }] }),
-      measure({ card_id: "low", days_measured: 30, done: true, verdict: "duoi_khoang", actual: -300_000, metrics: [{ metric: "orders", change_pct: -0.04 }] }),
+      measure({ card_id: "in", days_measured: 30, done: true, verdict: "trong_khoang", actual: actual(2_100_000, 1_900_000, true, "Trong khoảng"), label: "Đã đo 30/30 ngày", measured_with: ["GIA-1", "DS-01b"], metrics: [{ metric: "aov", change_pct: 0.08 }] }),
+      measure({ card_id: "low", days_measured: 30, done: true, verdict: "duoi_khoang", actual: actual(-300_000, 100_000, true, "Dưới khoảng"), metrics: [{ metric: "orders", change_pct: -0.04 }] }),
     ];
     renderReco(<DoLuongView />, fakeReco({ measurements: meas(cards) }));
     expect(await screen.findByTestId("sd-dl-days-run")).toHaveTextContent("9/30");
@@ -103,15 +108,19 @@ describe("Đo lường", () => {
     expect(screen.getByTestId("sd-dl-verdict-in")).toHaveTextContent("Trong khoảng");
     expect(screen.getByTestId("sd-dl-verdict-low")).toHaveTextContent("Dưới khoảng");
     const row = screen.getByTestId("sd-dl-in");
-    expect(row).toHaveTextContent("Khoảng +1.000.000đ – +3.000.000đ");
-    expect(row).toHaveTextContent("Thực tế +2.100.000đ");
+    expect(screen.getByTestId("sd-dl-ac-in-profit")).toHaveTextContent("Thực tế: 2.100.000 đ · hiện tại: 1.900.000 đ · +200.000 đ (+10,5 %)");
+    expect(screen.getByTestId("sd-dl-ac-in-gmv")).toHaveTextContent("Thực tế: 9.000.000 đ · hiện tại: 8.000.000 đ · +1.000.000 đ (+12,5 %)");
+    expect(screen.getByTestId("sd-dl-ac-in-label")).toHaveTextContent("Đã đo 30/30 ngày");
+    expect(screen.getByTestId("sd-dl-ac-in-with")).toHaveTextContent("đo chung với GIA-1, DS-01b");
+    expect(screen.queryByTestId("sd-dl-ac-low-with")).toBeNull();
+    expect(row).not.toHaveTextContent("Khoảng");
     expect(row).toHaveTextContent("AOV");
     expect(row).toHaveTextContent("▲ 8,0 %");
     expect(screen.getByTestId("sd-dl-low")).toHaveTextContent("▼ 4,0 %");
   });
 
   it("gives the Tối ưu row only to finished cards, with the builder prefilled", async () => {
-    renderReco(<DoLuongView />, fakeReco({ measurements: meas([measure({ card_id: "run" }), measure({ card_id: "done", done: true, verdict: "vuot_khoang", actual: 5_000_000 })]) }));
+    renderReco(<DoLuongView />, fakeReco({ measurements: meas([measure({ card_id: "run" }), measure({ card_id: "done", done: true, verdict: "vuot_khoang" })]) }));
     await screen.findByTestId("sd-dl-run");
     expect(screen.queryByTestId("sd-dl-opt-run")).toBeNull();
     const opt = screen.getByTestId("sd-dl-opt-done");
@@ -127,12 +136,22 @@ describe("Đo lường", () => {
     expect(await screen.findByRole("button", { name: "Thử phiên bản mới" })).toBeDisabled();
   });
 
-  it("places the band and the dot on one scale that includes zero", () => {
-    const s = scaleOf({ band: { p10: 100, p50: 200, p90: 300 }, actual: -100 })!;
-    expect(s.dot).toBe(0);
-    expect(s.from).toBeCloseTo(50);
-    expect(s.to).toBeCloseTo(100);
-    expect(scaleOf({ band: { p10: null, p50: null, p90: null }, actual: null })).toBeNull();
+  it("a running card shows Đã đo k/N ngày and no verdict amount before the end", async () => {
+    renderReco(<DoLuongView />, fakeReco({ measurements: meas([measure({ card_id: "run", actual: actual(500_000, 450_000, false) })]) }));
+    expect(await screen.findByTestId("sd-dl-ac-run-label")).toHaveTextContent("Đã đo 9/30 ngày");
+    expect(screen.queryByTestId("sd-dl-ac-run-verdict")).toBeNull();
+    expect(screen.getByTestId("sd-dl-verdict-run")).toHaveTextContent("Đang đo");
+  });
+});
+
+describe("Thực hiện · dự kiến", () => {
+  it("a card with a forecast shows the amounts and one Số liệu đến dd/mm for the list", async () => {
+    const forecast = { data_through: "2026-11-18", metrics: { profit: { hien_tai: 162572, du_kien: 153500, delta: -9072, delta_pct: -5.6, days: 14 } } };
+    renderReco(<ThucHienView />, fakeReco({ execution: states([exec({ card_id: "f", forecast, data_through: "2026-11-18" }), exec({ card_id: "g" })]) }));
+    expect(await screen.findByTestId("sd-th-fc-f-profit")).toHaveTextContent("Lợi nhuận dự kiến (14 ngày): 153.500 đ");
+    expect(screen.getByTestId("sd-th-fc-f-profit-sub")).toHaveTextContent("hiện tại: 162.572 đ · −9.072 đ (−5,6 %)");
+    expect(screen.getByTestId("sd-th-through")).toHaveTextContent("Số liệu đến 18/11");
+    expect(screen.queryByTestId("sd-th-fc-g")).toBeNull();
   });
 });
 

@@ -207,9 +207,9 @@ export function confirmWarnings(p: PlanResponse): string[] {
 
 export const hasBreach = (p: PlanResponse): boolean => planBreaches(p).length > 0;
 
-/** What a running measurement keeps when the plan is executed today (the backend's own sentence). */
+/** F7.6: a running measurement is not cut; the plan's changes on its product are measured together with it ("đo chung"). */
 export function cutText(c: MeasurementCut): string {
-  return `${c.name ?? c.product_id}: đang đo, mới ${c.days_measured}/${c.window_days} ngày. Cắt hôm nay → “${c.label.toLowerCase()}”${c.state === "inconclusive" ? " (dưới 3 ngày)" : " (độ tin cậy thấp hơn)"}. Nhóm thay đổi mới bắt đầu đo.`;
+  return `${c.name ?? c.product_id}: đang đo, mới ${c.days_measured}/${c.window_days} ngày. Thay đổi mới được đo chung với phép đo này.`;
 }
 
 /** "chỉ thấy thay đổi ≥ 45%" over the products of the plan, for a preset of `days`. */

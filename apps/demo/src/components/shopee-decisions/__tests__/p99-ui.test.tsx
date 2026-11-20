@@ -65,7 +65,7 @@ describe("P99 Ads tab: Chọn / Thêm vào kế hoạch from the setup row's spe
     expect(card).toHaveTextContent("—");
     expect(card).toHaveTextContent("3.000.000đ");
     expect(screen.getByTestId("oc-breakeven")).toHaveTextContent("cần thêm 25 đơn để hoà vốn");
-    expect(screen.getByTestId("oc-orders")).not.toHaveTextContent("+0");
+    expect(screen.getByTestId("oc-fc-orders")).not.toHaveTextContent("+0");
   });
 
   it("'Thêm vào kế hoạch' sends the spec to group (30-day horizon without an end date); 'Chọn' to choose", async () => {
@@ -91,7 +91,7 @@ describe("P99 Affiliate: the single-product commission card is the OptionResult 
     render(<OutcomeBody costLink="/x" outcome={o} />);
     expect(screen.getByTestId("option-card")).toBeInTheDocument();
     expect(screen.getByTestId("oc-cost")).toHaveTextContent("3.000.000đ");
-    expect(screen.getByTestId("oc-gmv")).toHaveTextContent("—");
+    expect(screen.getByTestId("oc-fc-gmv-value")).toHaveTextContent("—");
     expect(screen.getByTestId("oc-cost-days")).toHaveTextContent("12 ngày có dữ liệu chi phí");
     expect(screen.queryByTestId("p2-dgmv")).toBeNull();
   });

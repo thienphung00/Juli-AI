@@ -170,6 +170,7 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
         kol = build_kol_card(env, cand, now=now)
         if kol is not None:
             kol["freshness"] = freshness.stamp(env, cand.items, now)
+            kol["data_through"] = env.as_of.isoformat()
         return kol
     s = spec(cand.kind)
     ev0 = evaluate(env, cand)
@@ -306,6 +307,8 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
         "stale": stale,
         "bundle": False,
         "freshness": freshness.stamp(env, scope_items, now),
+        # F7.4: the newest complete data day the numbers are on ("Số liệu đến dd/mm")
+        "data_through": env.as_of.isoformat(),
     }
     return card
 

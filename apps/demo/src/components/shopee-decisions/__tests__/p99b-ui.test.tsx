@@ -149,7 +149,7 @@ describe("P99b Tự tạo / So sánh: the version's set dates, no per_30d column
     cost: { total: 80_000, break_even_orders: null, break_even_aov: null, text: "" },
     after: { days: 10, label: "Sau 10 ngày", gmv_before: 1, gmv_after: 2, profit_before: 1, profit_after: 2 },
     per_30d: { profit: p30, gmv: 3_000_000, orders: 15, secondary: true, label: "Quy đổi 30 ngày (tham khảo)" },
-    detail: { before: col, low: null, likely: null, high: null },
+    detail: { before: { ...col, profit: 0 }, low: null, likely: { ...col, profit: 100_000, gmv: col.gmv + 1_000_000, orders: col.orders + 5 }, high: null },
     notes: [],
   });
   const dates = { from: "2026-12-01", to: "2026-12-10", days: 10, set: true, label: "01/12 – 10/12 (10 ngày)" };
@@ -158,8 +158,8 @@ describe("P99b Tự tạo / So sánh: the version's set dates, no per_30d column
     render(<OptionCard dates={dates} result={res("V1", 300_000)} />);
     expect(screen.getByTestId("oc-dates")).toHaveTextContent("Tính cho: 01/12 – 10/12 (10 ngày)");
     expect(screen.queryByTestId("oc-per30")).toBeNull();
-    expect(screen.getByTestId("oc-profit")).toHaveTextContent("+100.000đ");
-    expect(screen.getByTestId("oc-profit")).not.toHaveTextContent("300.000");
+    expect(screen.getByTestId("oc-fc-profit-sub")).toHaveTextContent("+100.000 đ");
+    expect(screen.getByTestId("oc-fc-profit")).not.toHaveTextContent("300.000");
     expect(screen.getByTestId("oc-cost")).toHaveTextContent("80.000đ");
   });
   it("dates not set: the label says the first N days", () => {

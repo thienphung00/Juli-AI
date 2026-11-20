@@ -31,6 +31,10 @@ DATA_DAYS = 7
 REASON_ENGINE = "engine_version_changed"
 REASON_INPUTS = "inputs_changed"
 REASON_MISSING = "never_stamped"
+#: F7.4: the shop's newest complete data day moved on since the card was computed. It refreshes the
+#: card's result/forecast each morning (``result_store.is_fresh``) but never makes the CARD stale:
+#: a moved data anchor alone must not re-version or re-send a card.
+REASON_DATA = "data_advanced"
 
 
 def _canon(obj: Any) -> Any:
@@ -90,7 +94,19 @@ def stamp(env: RecoEnv, items: Iterable[str], now: datetime) -> dict[str, Any]:
         "engine_version": config.ENGINE_VERSION,
         "inputs_fingerprint": fingerprint(env, list(items), env.as_of),
         "as_of": env.as_of.isoformat(),
+        "data_through": env.as_of.isoformat(),
     }
+
+
+def data_through_of(card: Mapping[str, Any]) -> date | None:
+    """The newest data day a card (or version) was computed on (``freshness.data_through``, else
+    its ``as_of``); None when unknown."""
+    block = card.get("freshness") or {}
+    raw = block.get("data_through") or block.get("as_of")
+    try:
+        return date.fromisoformat(str(raw))
+    except (TypeError, ValueError):
+        return None
 
 
 def stale_reason(card: Mapping[str, Any], env: RecoEnv | None = None) -> str | None:
@@ -127,4 +143,11 @@ def card_stale_reason(card: Mapping[str, Any], env: RecoEnv | None = None) -> st
     return None
 
 
-__all__ = ["card_stale_reason", "fingerprint", "stale_reason", "stamp"]
+__all__ = [
+    "REASON_DATA",
+    "card_stale_reason",
+    "data_through_of",
+    "fingerprint",
+    "stale_reason",
+    "stamp",
+]

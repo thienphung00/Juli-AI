@@ -26,10 +26,10 @@ export function strategyOf(kind: string | null | undefined, family?: string | nu
 
 export const strategyOfResult = (r: Pick<OptionResult, "kind" | "ads">): Strategy => strategyOf(r.kind, null, Boolean(r.ads));
 
-export type Metric = "gmv" | "profit" | "cost" | "orders" | "margin" | "breakeven" | "ads_orders" | "cpa" | "roas" | "roi" | "views" | "ctr";
+export type Metric = "gmv" | "profit" | "cost" | "orders" | "aov" | "margin" | "breakeven" | "ads_orders" | "cpa" | "roas" | "roi" | "views" | "ctr";
 
 /** Master order of the step-4 columns. */
-const ORDER: readonly Metric[] = ["views", "ctr", "gmv", "profit", "cost", "orders", "margin", "breakeven", "ads_orders", "cpa", "roas", "roi"];
+const ORDER: readonly Metric[] = ["views", "ctr", "gmv", "profit", "cost", "orders", "aov", "margin", "breakeven", "ads_orders", "cpa", "roas", "roi"];
 
 const NO_COST = 0.5;
 
@@ -51,7 +51,7 @@ export function metricsFor(results: readonly (OptionResult | null)[]): Metric[] 
       want.add("gmv");
       if (hasCost(r)) want.add("cost");
     } else {
-      (["gmv", "profit", "orders", "margin"] as const).forEach((m) => want.add(m));
+      (["gmv", "profit", "orders", "aov", "margin"] as const).forEach((m) => want.add(m));
       if (hasCost(r)) {
         want.add("cost");
         if (r.cost.break_even_orders != null) want.add("breakeven");
