@@ -150,14 +150,18 @@ class ServiceData:
         from juli_backend.models.platform_data import ITEM_LEVEL_VARIATION
         from juli_backend.repositories.shopee_analytics import PlatformItemsRepo
 
+        out: dict[str, tuple[str, str | None]] = {}
         async with self._f() as s:
             try:
                 rows = await PlatformItemsRepo(s).all_items(self.shop)
+                # copy the fields inside the session: the rollback below expires the ORM objects
+                plain = [(r.item_id, r.variation_id, r.name, r.seller_sku) for r in rows]
             finally:
                 await s.rollback()
-        out: dict[str, tuple[str, str | None]] = {}
-        for r in sorted(rows, key=lambda r: r.variation_id != ITEM_LEVEL_VARIATION):
-            out.setdefault(r.item_id, (r.name or r.item_id, r.seller_sku))
+        for item_id, variation_id, name, sku in sorted(
+            plain, key=lambda r: r[1] != ITEM_LEVEL_VARIATION
+        ):
+            out.setdefault(item_id, (name or item_id, sku))
         return out
 
     async def item_names(self, ids: list[str]) -> dict[str, str]:
