@@ -231,7 +231,9 @@ async def test_scoring_interval_read_is_the_kpi_window_of_one_shop(two_shops):
     from juli_backend.services.aggregates.computed_kpis import ROLLING_WINDOW_DAYS
 
     shop_a, _shop_b = two_shops
-    anchor = datetime.now(UTC)
+    # the same day the fixtures were built on (TODAY), never a fresh now(): a run crossing
+    # midnight UTC saw 29 days instead of 30 (deploy 2026-11-19T2357Z)
+    anchor = datetime(TODAY.year, TODAY.month, TODAY.day, 12, tzinfo=UTC)
     rows, counter = await _app_session_call(
         shop_a, lambda s: _rolling_window_intervals(s, shop_a, anchor, 10_000)
     )
