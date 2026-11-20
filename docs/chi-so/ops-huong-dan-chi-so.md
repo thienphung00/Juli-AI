@@ -1,34 +1,455 @@
 # Hướng dẫn chỉ số cho đội ngũ Juli Ops
 
-Tài liệu nội bộ. Giải thích mọi con số và nhãn trên màn hình Juli Ops và trên thẻ của người bán:
-nghĩa là gì, tính thế nào, đọc ra sao, và trả lời người bán thế nào.
+Tài liệu nội bộ. Giải thích mọi con số và nhãn trên màn hình Shopee của Juli (Tổng quan, Phân tích, Quyết định, Dữ liệu shop,
+Cài đặt, Ops): nghĩa là gì, tính thế nào, lấy từ bảng nào, và trả lời người bán ra sao.
 
-Quy ước (D31.8): **một bộ từ cho cả hệ thống**. Nhãn trên màn hình được viết **đúng nguyên văn**
-(in đậm hoặc trong ngoặc kép) — khi nói với người bán, dùng đúng nhãn đó. Từ của đội (band,
-window-mean, p10–p90, CV, D29…) chỉ dùng trong tài liệu này và khi nói chuyện nội bộ, không bao giờ
-nói với người bán. Tài liệu gửi người bán là `docs/chi-so/nguoi-ban-huong-dan-chi-so.md`; hai tài liệu
-dùng chung bảng thuật ngữ bên dưới (cùng hàng, cùng cột nhãn — có test
-`tests/unit/test_chi_so_docs_vocabulary.py` kiểm tra).
+Quy ước: **một bộ từ cho cả hệ thống**. Nhãn trên màn hình được viết **đúng nguyên văn**; khi nói với người bán, dùng đúng nhãn
+đó. Từ của đội (tên bảng, tên trường, mã nội bộ…) chỉ dùng trong tài liệu này và khi nói chuyện nội bộ. Tài liệu gửi người bán là
+`docs/chi-so/nguoi-ban-huong-dan-chi-so.md`; hai tài liệu dùng chung bảng thuật ngữ bên dưới (cùng hàng, cùng cột nhãn; test
+`tests/unit/test_chi_so_docs_vocabulary.py` kiểm tra). Phần TikTok Shop nằm ở **Phụ lục** cuối tài liệu.
 
-Nguồn: `fasttrack/DECISIONS.md` D25–D31; `services/ops/simulation.py`;
-`services/optimize_product/volatility.py`, `tunables.py`; `services/lever_flows/measurement.py`;
-`services/run_changes/default_bands.py`; giao diện `apps/demo/src/components/ops/*`,
-`components/quyet-dinh/*`, `lib/quyet-dinh/*`, `components/phan-tich/*`.
+Nguồn đã đối chiếu khi viết (cập nhật 2026-11-20): `services/metrics/{registry,components,compute,allocation}.py`;
+`services/shopee_analytics/{channel_split,metric_view,data_through,margins,loaders,shared}.py`; `services/shopee_profit/*`
+(lợi nhuận, VAT); `services/shopee_recommendations/{forecast,prediction,learning,measure,running,execution_state,config,month_plan,stale}.py`;
+`services/card_events/verification.py`; `services/exports/{tong_quan_xlsx,ke_hoach_xlsx,collect,profit_bridge}.py` (bản F8, PR #2342);
+`services/planned_changes/external_rows.py`; `services/shop_inputs/importer.py`; `services/ingest/status.py`; giao diện
+`apps/demo/src/components/{shopee-analytics,shopee-decisions,connector,ops,shop-inputs}/*`; Connector
+`apps/connector/src/platforms/shopee/{config.ts,background/scheduler.ts,popup/guide.ts}`.
 
 ## Bảng thuật ngữ
 
 | Nhãn trên màn hình | Ý nghĩa | Cách tính |
 |---|---|---|
-| **Thẻ sản phẩm** | Luồng 1: khách thấy sản phẩm dạng thẻ (tìm kiếm, gợi ý, trang For You…) | Số liệu TikTok của nguồn "product card"; TikTok tính kênh này là **phần còn lại** sau LIVE và video (mục 5.5) |
+| **Tổng quan** | Màn hình đầu: số tổng của shop (hoặc một sản phẩm) trong kỳ đã chọn, kèm thay đổi so với kỳ trước cùng độ dài. | `channel_split.channel_split`: `kpis`, `kpis_prev` (cùng số của `Window.previous()`), `rows`, `plan`, `data_through`. |
+| **Phân tích** | Xem từng chỉ số một: theo luồng và theo sản phẩm, kèm bước tiếp theo (Đề xuất hoặc Tự tạo). | `metric_view`: mỗi hàng `now`, `prev`, `change`, `impact`; đếm thẻ mở theo chỉ số (`METRIC_OF_KPI`). |
+| **Quyết định** | Nơi Juli đề xuất việc cần làm và theo dõi kết quả, qua ba bước Đề xuất, Thực hiện, Đo lường. | Nhãn dùng chung `ACTIONS_DESTINATION_LABEL`; ba tab `TABS` (`de-xuat`, `thuc-hien`, `do-luong`). |
+| **Dữ liệu shop** | Số liệu gốc theo loại: Sản phẩm, Từ khóa, Dịch vụ hiển thị, Đơn hàng, Luồng. | Một mục điều hướng với năm tab con (`DATA_SHOP_TABS`); shop mẫu chỉ có Sản phẩm. |
+| **Đề xuất** | Các thẻ Juli (hoặc bạn) đề xuất, chưa làm gì trên Shopee. | `reco.list` (hàng chờ thẻ mở; người bán thấy thẻ đã xuất bản, Ops thấy cả nháp). |
+| **Thực hiện** | Các thẻ đã duyệt: Connector điền, bạn lưu, Juli xác minh. | `execution_state.derive_state` từ sự kiện `executed` / `verified` / `mismatch` / `not_seen` và lệnh điền `shopee_fill_jobs`. |
+| **Đo lường** | Kết quả thật của từng thẻ đã thực hiện, đo từng ngày. | `running.build_actual` (Thực tế, hiện tại, Δ) và `execution_state.measurement_row` (nhãn kết luận). |
+| **Kế hoạch** | Mục tiêu GMV và Lợi nhuận của kỳ, từ các thẻ đang chạy: nền cộng phần tăng thêm dự kiến. | `month_plan.range_plans`: `goal = baseline + uplift`; baseline = mức 30 ngày đã đóng băng của kế hoạch chạy sớm nhất ÷ `HORIZON_DAYS` (30) × số ngày; uplift = tổng P50 Δ của thẻ đang chạy, trải đều trên ngày của thẻ và chỉ tính ngày trong kỳ. Không có thẻ chạy → `goal = None`. |
+| **Kế hoạch nháp** | Các thẻ bạn gom lại để xem tổng chênh lệch và duyệt một lượt. | Kế hoạch `draft` của shop (`plans.get_plan(None)`); thêm thẻ không chạy gì, chỉ `Duyệt kế hoạch` mới duyệt. |
+| **Cả kế hoạch** | Kỳ xem lấy theo ngày bắt đầu đến ngày kết thúc của các thẻ đang chạy. | `period = plan`: `month_plan.running_range`, cắt ở ngày dữ liệu mới nhất; không có thẻ chạy thì về 30 ngày. |
+| **Tùy chọn** | Kỳ xem do bạn chọn từ ngày – đến ngày (một tháng lịch cũng là Tùy chọn). | `period = custom` với `from`, `to` (GMT+7). |
+| **Trung bình / ngày** | Cùng số liệu nhưng chia cho số ngày của kỳ. | `inMode`: `total ÷ days` cho số cộng được; các tỷ lệ không chia. |
+| **Số liệu đến** | Ngày cuối cùng mà số liệu của khối đó đã đủ (hiện dạng "Số liệu đến dd/mm"). | `data_through`: ngày **cũ nhất** trong các bộ số liệu của khối (`SECTION_DATASETS`), không quá ngày cuối của kỳ; mỗi bộ lấy ngày mới nhất có hàng (`load_freshness`). |
+| **Cập nhật** | Lần gần nhất Juli nhận số liệu từ shop của bạn. | `max(coalesce(last_captured_at, last_ingest_at))` của mọi bộ số liệu (`ingest_dataset_status`). |
+| **Tải Excel** | Tải số liệu đang xem về tệp Excel. | `exports.tong_quan_xlsx` (Tổng quan) và `exports.ke_hoach_xlsx` (Kế hoạch nháp); mục 12. |
+| **GMV** | Doanh số của shop theo Seller Centre. | Tổng của Seller Centre (`shop_overview.gmv`), không tự tính từ dòng đơn (owner T8). Mỗi nơi chỉ có một nguồn GMV. |
+| **Đơn hàng** | Số đơn theo Seller Centre. | `shop_overview.orders`. Hoàn tiền không tính (GLOSSARY D2). |
+| **AOV** | Giá trị trung bình của một đơn. | `gmv ÷ orders` (tính từ tổng). |
+| **Lượt xem** | Số lần khách thấy sản phẩm. | `traffic_overview.views` theo nguồn; Tiếp thị liên kết không có. |
+| **Lượt nhấp** | Số lần khách bấm vào sản phẩm. | `traffic_overview.product_clicks` theo nguồn. |
+| **CTR** | Trong 100 lượt xem có bao nhiêu lượt nhấp. | `clicks ÷ views` (cộng cả kỳ rồi chia). Dòng DVHT: trên những ngày có đủ cả hai số. |
+| **CTOR** | Trong 100 lượt nhấp có bao nhiêu thành đơn. | `orders ÷ clicks`. Dòng DVHT: đơn đã đặt ÷ clicks. |
+| **Lợi nhuận** | Tiền còn lại sau giá vốn, phí sàn, đóng gói, vận chuyển, quảng cáo, tiếp thị liên kết (ưu đãi đã trừ trong doanh thu), theo thiết lập VAT của shop. | `known_cost_profit`: Σ (doanh thu thực − giá vốn − đóng gói − phí sàn − vận chuyển − hoa hồng AFF) trên đơn có chi phí − quảng cáo tính vào − chi phí marketing khác; mục 3.1. |
+| **Tổng chi phí** | Quảng cáo + Tiếp thị liên kết + Ưu đãi của kỳ. | `kpis_of`: `cost_ads + cost_affiliate + cost_offers`; `None` nếu không khoản nào biết. (Excel Tổng quan chỉ cộng QC + AFF: mục 3.2.) |
+| **Ưu đãi** | Khuyến mãi, voucher của shop và combo đã áp dụng cho đơn; đã được trừ sẵn vào số tiền khách trả. | `promo_discount + voucher + bundle` của các dòng đơn (`_offers_cost`); không trừ lần hai trong lợi nhuận. |
+| **ROI** | Lợi nhuận chia cho Tổng chi phí; một số lần, không phải phần trăm. | `profit ÷ cost_total` (màn hình, `kpis_of`); `None` khi chi phí = 0. Hiện một chữ số thập phân. |
+| **Biên lợi nhuận** | Phần lợi nhuận trong doanh thu thực của kỳ. | `margin = profit ÷ net_revenue_known` (đơn có chi phí). Excel Tổng quan chia cho GMV. |
+| **Biên ở giá bán** | Biên của một đơn vị ở giá bán hiện tại, chỉ cần giá bán và giá vốn. | `(price_after_vat − fees − cogs − packaging) ÷ price_after_vat` (`variations.margin_pct`); thiếu giá vốn → "chưa tính". |
+| **Biên cuối** | Biên ở giá bán trừ phần voucher, hoa hồng và quảng cáo thật của 30 ngày gần nhất. | `margins.final_margin = Biên ở giá bán − 100 × (voucher + hoa hồng + quảng cáo)` theo tỷ lệ đo 30 ngày; `final_margin_basis` = variation \| product. |
+| **GMV ảnh hưởng** | Số tiền GMV mà riêng thay đổi của chỉ số này giải thích được (âm là đã mất). | `metric_view.impact_of`: GMV: Δ; Đơn: Δđơn × AOV trước; AOV: ΔAOV × đơn nay; Lượt xem: Δviews × GMV/lượt trước; CTR: ΔCTR × views nay × CTOR trước × AOV trước; CTOR: ΔCTOR × clicks nay × AOV trước; Biên: Δbiên × GMV nay. |
+| **Thay đổi** | Tăng hay giảm so với kỳ liền trước có cùng số ngày (▲ / ▼). | `(now − prev) ÷ prev`, `None` khi `prev ≤ 0` hoặc thiếu (`change_of`). |
+| **Kỳ này** | Giá trị trong kỳ đang xem. | Cột `now` của `metric_view`. |
+| **Kỳ trước** | Giá trị trong kỳ liền trước cùng độ dài. | Cột `prev`: cùng chỉ số trên `Window.previous()`. |
+| **Organic** | GMV không đến từ quảng cáo hay tiếp thị liên kết: Thẻ sản phẩm, Trang shop, Video, Live. | Tổng bốn dòng con (mục 2); cấp Sản phẩm: phần dư của GMV sản phẩm sau quảng cáo và liên kết. |
+| **Quảng cáo** | GMV đến từ quảng cáo (phần "trong đó Quảng cáo" của Thẻ sản phẩm) và chi phí quảng cáo. | GMV: lớp phủ `traffic_overview.ads_overlay`, đơn đã xác nhận; chi phí: `ads_report.expense` (một trình giải: `ads_days`). |
+| **Tiếp thị liên kết** | GMV, đơn và hoa hồng của các KOL. | GMV: nguồn `lien_ket`; chi phí = hoa hồng `affiliate_lines.commission`; không có Lượt xem. |
+| **Thẻ sản phẩm** | Khách thấy sản phẩm dạng thẻ (tìm kiếm, gợi ý) ngoài Trang shop. | Organic: `the_san_pham_khac` + phần dư − "trong đó Quảng cáo", mỗi ô ≥ 0. |
+| **Trang shop** | Khách vào trang cửa hàng của bạn (Tab cửa hàng của Shopee). | Nguồn `trang_shop`. |
+| **Video** | Video bạn đăng có gắn sản phẩm. | Nguồn `video`. |
+| **Live** | Phiên Live bạn phát. | Nguồn `live`. |
+| **DVHT Sản phẩm** | Dịch vụ hiển thị Sản phẩm: quảng cáo sản phẩm, rơi vào Thẻ sản phẩm. | Báo cáo quảng cáo, mọi loại trừ Shop+ (`is_shop_plus`); đơn đã đặt. |
+| **DVHT Shop+** | Dịch vụ hiển thị Shop+: quảng cáo shop, rơi vào Trang shop (cùng thực thể với Trang shop). | Báo cáo quảng cáo, loại `ads_shop` (tệp) hoặc `shop_*` (Connector); đơn đã đặt. Cấp Sản phẩm không có. |
+| **% GMV** | Phần GMV của luồng trong GMV cả shop. | `share = gmv_dòng ÷ gmv_tổng`; `None` ở dòng `ads_report`. |
+| **Lưu lượng** | Nhãn nhỏ: số của dòng lấy từ báo cáo lưu lượng (cơ sở đơn đã xác nhận). | `ad_base = traffic_overview`. |
+| **Báo cáo DVHT** | Nhãn nhỏ: số của dòng lấy từ báo cáo quảng cáo (cơ sở đơn đã đặt). Không cộng với Lưu lượng. | `ad_base = ads_report`. |
+| **CPA** | Chi phí quảng cáo cho mỗi đơn quảng cáo. | `spend ÷ orders` (đơn trực tiếp điều chỉnh theo tỷ lệ huỷ; thẻ: `AdsEvaluation.cpa_now / cpa_after`). |
+| **CPA hoà vốn** | CPA tối đa để quảng cáo không lỗ: lợi nhuận mỗi đơn trước quảng cáo. | `profit_per_order_before_ads` của sản phẩm trong chiến dịch (`break_even_cpa`); thiếu giá vốn → "chưa tính". |
+| **ROAS Shopee** | GMV quảng cáo chia cho chi phí quảng cáo, chỉ để tham khảo. | `ads_gmv_platform ÷ cost_ads` (đơn đã đặt, "broad"); `roas_direct` = GMV trực tiếp ÷ chi phí. |
+| **ROAS hoà vốn** | Mức ROAS cần đạt để quảng cáo không lỗ. | `roas_break_even = net_revenue_known ÷ contribution`, `contribution = profit + ads_spend`. |
+| **ΔGMV / chi phí** | Mỗi đồng chi phí của thẻ mang lại bao nhiêu GMV tăng thêm. | `card_return = card_delta_gmv ÷ card_cost` (nhãn `CARD_RETURN_LABEL`). |
+| **Duyệt** | Bạn đồng ý để Juli chuẩn bị thực hiện thẻ; thẻ chuyển sang Thực hiện. | `approve(chosenVersion, acknowledgeBreaches)`; chỉ người bán duyệt, Ops không duyệt thay. |
+| **Duyệt kế hoạch** | Duyệt một lượt mọi thẻ trong Kế hoạch nháp. | `plans.confirm`; vi phạm sàn / trần ghi lại xác nhận kèm giờ. |
+| **Tự tạo** | Thẻ do chính bạn tạo bằng "Tự tạo phương án". | `origin = manual`; Excel Nguồn = Tự tạo; chỉ số học riêng, không đổi hệ số của engine. |
+| **Lợi nhuận dự kiến** | Lợi nhuận nếu thẻ chạy đủ số ngày: một con số, kèm số ngày. | `forecast.metrics.profit.du_kien = hien_tai + delta` (delta = P50 của engine), trên N ngày của thẻ. |
+| **GMV dự kiến** | GMV nếu thẻ chạy đủ số ngày. | `forecast.metrics.gmv.du_kien`. |
+| **Đơn dự kiến** | Số đơn nếu thẻ chạy đủ số ngày. | `forecast.metrics.orders.du_kien`. |
+| **AOV dự kiến** | AOV nếu thẻ chạy đủ số ngày. | `forecast.metrics.aov.du_kien` (GMV ÷ đơn của kịch bản `likely`). |
+| **hiện tại** | Mức nền của chính phạm vi thẻ, quy ra cùng số ngày của thẻ (dòng xám: "hiện tại: … · ±Δ"). | Thẻ: `result.before` = số mỗi ngày trên 30 ngày × N. Đo lường: tổng k ngày ngay trước ngày bắt đầu. |
+| **Thực tế** | Con số thật của các ngày đã đo ("Thực tế: A đ · hiện tại: B đ · +Δ"). | `running.totals` trên các ngày đã đo (`product_metrics_daily` / `shop_metrics_daily`); Δ = thực tế − hiện tại; ngày thiếu dữ liệu không tính. |
+| **Đã đo** | Số ngày đã đo trên tổng số ngày của thẻ ("Đã đo k/N ngày"). | `label = f"Đã đo {k}/{n} ngày"`; `k` = số ngày từ ngày bắt đầu tới ngày có dữ liệu đơn mới nhất. |
+| **đo chung với** | Các thẻ khác của cùng sản phẩm (hoặc cả shop) chạy chồng lên, được đo thành một nhóm. | `running.group_sets`: cùng phạm vi + sản phẩm, cửa sổ chồng hoặc `cut_by_change_set`; kết quả nhóm không sạch (không học). Excel: Đo chung với. |
+| **Đo trong bao lâu** | Số ngày đo của kế hoạch (trong Kế hoạch nháp). | `window_days`: Tự động theo sản phẩm (ngắn nhất có MDE ≤ 30 %) \| 7 / 14 / 28 \| Tuỳ chọn 3–90 (`WINDOW_MIN_DAYS`, `WINDOW_MAX_DAYS`). |
+| **Chờ điền** | Đã duyệt, Connector chưa điền. | `cho_dien`: chưa có lệnh điền `filled`. |
+| **Đã điền · chờ bạn lưu** | Connector đã điền form trên Shopee; việc còn lại là của bạn. | `da_dien`, `completed = 2`; lệnh `filled` / `saved` / `captured` với `progress.filled == total`, hoặc người bấm Đã làm. |
+| **Đã lưu · chờ xác minh** | Bạn đã báo đã làm; Juli chờ đọc lại Seller Centre. | `da_dien` có `executed_at` hoặc `completed ≥ 3`; `not_seen` → "Chưa thấy thay đổi". |
+| **Khớp Seller Centre** | Seller Centre đang đúng như thẻ; đồng hồ đo bắt đầu. | `khop`: sự kiện `verified` (lần đọc đầu tiên sau `executed_at` thấy đúng giá trị); `measure_start` = lúc đó. |
+| **Lệch Seller Centre** | Seller Centre hiện giá trị khác thẻ. | `lech`: `mismatch` ở hạn `VERIFY_WINDOW` = 48 h; kèm trường, giá trị đọc được và giá trị thẻ. |
+| **Mở Seller Centre** | Mở trang Shopee cần sửa để Connector điền sẵn; bạn tự kiểm tra và bấm Lưu. | `fillJobHref(open_job)`: `#juli-fill=<job id>`; Connector không bấm nút nào trên Shopee. |
+| **Đã làm** | Bạn báo đã lưu thay đổi trên Shopee. | `reco.executed(card, { voucherId? })` → sự kiện `executed`; voucher cần mã Seller Centre để đọc lại. |
+| **Hoàn tác** | Các bước đưa nội dung cũ trở lại; Juli không bao giờ tự hoàn tác. | `RevertBlock`: `revertFill` xếp lệnh điền cho giá trị cũ; `Đã hoàn tác` cần lệnh `ready`. |
+| **Đã hoàn tác** | Bạn đã đưa nội dung về như cũ; thẻ dừng đo. | `state = hoan_tac`: ghi người + giờ, dừng đo, loại khỏi dữ liệu học. |
+| **Đối chiếu ngay** | Bảo Juli Connector đọc lại để xác minh các thẻ đang chờ. | `POST …/execution/reconcile` → `connector_state.request_reconcile`; không mở được chặn `traffic_check` trước `until`. |
+| **Đang đo** | Thẻ còn trong thời gian đo. | `VERDICT_RUNNING = dang_do` (chưa đủ N ngày). |
+| **Trong khoảng** | Đo đủ ngày: lợi nhuận thật nằm trong khoảng Juli dự kiến lúc duyệt. | `Δ lợi nhuận` giữa P10 và P90 của dải lúc duyệt (`running.verdict_of`) hoặc thay đổi tương đối trong P10–P90 lift (`execution_state.verdict_of`). |
+| **Dưới khoảng** | Đo đủ ngày: lợi nhuận thật thấp hơn khoảng dự kiến. | `Δ < P10` của dải. |
+| **Vượt khoảng** | Đo đủ ngày: lợi nhuận thật cao hơn khoảng dự kiến. | `Δ > P90` của dải. |
+| **Nhập thẻ đã làm ngoài Juli** | Nhập từ tệp .xlsx các thay đổi bạn đã làm ngoài Juli để Juli đo kết quả. | `planned_changes.external_rows` + `import_job`; mục 11.1. Thẻ có `origin = external`, Nguồn = Làm ngoài Juli. |
+| **Juli Connector** | Tiện ích Chrome đọc báo cáo Seller Centre (chỉ đọc) và điền sẵn form khi bạn duyệt thẻ. | `apps/connector`: reader + scheduler (mục 10); hạn mức `DAILY_REQUEST_BUDGET = 800` / ngày. |
+| **Đồng bộ hôm qua** | Nút trong tiện ích: đọc ngay số liệu của ngày vừa kết thúc và thử lại các trang đang bị chặn. | `tick({ manual })`: nâng chặn đăng nhập / CAPTCHA, đọc lại trang chưa gửi; không nâng `traffic_check`. |
+| **Juli đã nhận gì** | Bảng cho thấy từng loại số liệu: đến ngày nào, nhận lúc nào. | `GET /v1/ingest/status` (`ingest/status.dataset_status`): `last_period_end`, `last_ingest_at`, `drift`. |
+| **Máy cũ** | Các máy tính đã kết nối nhưng quá 14 ngày không thấy; có thể gỡ cùng lúc. | `splitMachines`: `last_seen_at` (hoặc `last_used_at`, `created_at`) cách đây ≥ `INACTIVE_DAYS = 14`; `Gỡ tất cả máy cũ` thu hồi token. |
+| **Thông số shop** | Giá vốn, đóng gói, tồn kho, VAT và mục tiêu bạn nhập bằng tệp .xlsx. | Quy tắc theo SKU / tháng (`shop_rules`) có phiên bản; mục 11.2. |
+
+## 1. Tab, kỳ xem và chế độ xem số
+
+- Thanh điều hướng Shopee: **Tổng quan**, **Phân tích**, **Quyết định**, **Dữ liệu shop** (và tab Juli khi shop được bật:
+  `/v1/demo/juli/enabled`). Cài đặt ở menu ảnh đại diện shop. Tab Juli là batch riêng, chưa có trong nhánh này; kiểm tra lại
+  khi nó được gộp.
+- Kỳ xem: 7 / 30 / 90 ngày, **Tùy chọn** (từ – đến), **Cả kế hoạch** (`period = plan`: khoảng ngày của các thẻ đang chạy, cắt ở
+  ngày dữ liệu mới nhất; không có thẻ chạy thì chuyển về 30 ngày và nút mờ). Không có nút đổi kỳ so sánh: kỳ trước luôn là
+  khoảng liền kề trước, cùng độ dài (`Window.previous()`).
+- **Tổng** | **Trung bình / ngày** (`cach=tb` trên URL): tổng chia cho số ngày của kỳ cho các số cộng được (GMV, đơn, lượt xem, tiền);
+  các tỷ lệ (CTR, CTOR, AOV, biên, % GMV) giữ nguyên.
+- **Thay đổi** = (kỳ này − kỳ trước) ÷ |kỳ trước|; `None` khi kỳ trước bằng 0 hoặc thiếu. Hiển thị `▲ 12 %`, một chữ số thập phân khi < 10 %.
+- ROI hiện là số lần một chữ số thập phân ("5,4"), không bao giờ là %.
+
+## 2. Phễu, luồng và hai cơ sở quảng cáo
+
+Phễu: `GMV = Lượt xem × CTR × CTOR × AOV`. Các tỷ lệ luôn là tỷ lệ của tổng (cộng tử, cộng mẫu, rồi chia).
+
+**Nguồn luồng** (Seller Centre, bảng `traffic_overview`): `the_san_pham_khac` (Thẻ sản phẩm), `trang_shop`, `live`, `video`,
+`lien_ket` (Tiếp thị liên kết) và phần dư `chenh_lech_nguon`. Một dòng bảng luồng của Tổng quan (`channel_split.split_rows`):
+
+| Dòng | Lượt xem / Lượt nhấp / Đơn / GMV |
+|---|---|
+| **Organic** | tổng bốn dòng con (không để con thiếu số làm trống cha nếu Thẻ sản phẩm có số) |
+| ↳ **Thẻ sản phẩm** | (Thẻ sản phẩm + phần dư) − phần "trong đó Quảng cáo", mỗi ô kẹp ≥ 0 |
+| ↳ **Trang shop**, **Video**, **Live** | số của nguồn tương ứng |
+| **Quảng cáo** (tag **Lưu lượng**) | "trong đó Quảng cáo" của Thẻ sản phẩm (xem dưới) |
+| ↳ **DVHT Sản phẩm**, **DVHT Shop+** (tag **Báo cáo DVHT**) | báo cáo quảng cáo, đơn đã đặt; DVHT Shop+ = `is_shop_plus` (tệp `ads_shop`, Connector `shop_*`); DVHT Sản phẩm = mọi loại còn lại |
+| **Tiếp thị liên kết** | chỉ lượt nhấp, đơn, GMV; Lượt xem = `None` |
+
+**Hai cơ sở quảng cáo không bao giờ cộng với nhau:** "trong đó Quảng cáo" của báo cáo lưu lượng (đơn đã xác nhận, một cơ sở đơn
+với các nguồn) và báo cáo quảng cáo (đơn đã đặt). Quy tắc chọn ô (B.4a): nếu lớp phủ có lượt nhấp thì **Quảng cáo** lấy lượt xem /
+lượt nhấp từ lớp phủ; không có thì lấy impressions / clicks của báo cáo quảng cáo (mọi loại trừ Shop+). Đơn và GMV của Quảng cáo luôn từ
+lớp phủ (cơ sở xác nhận; nếu chỉ có hàng đã đặt thì nhân với tỷ lệ xác nhận ÷ đặt của chính Thẻ sản phẩm: `materialize.ads_overlay`).
+Dòng DVHT: CTR = clicks ÷ impressions, CTOR = đơn ÷ clicks, cả hai trên những ngày có đủ cả hai số (`ad_rate_basis`).
+
+**`share`** (% GMV) = GMV dòng ÷ GMV tổng (`base.total("gmv")`); `None` ở dòng `ad_base = ads_report` hoặc khi tổng bằng 0.
+
+**Ở cấp Sản phẩm** (`_partition_product_rows`, C4): ba kênh cộng lại bằng GMV sản phẩm: Quảng cáo kẹp ở tổng, Tiếp thị liên kết lấy phần còn
+lại, Organic = phần dư; Thẻ sản phẩm (con) là phần dư của Organic sau Trang shop / Video / Live. Giá trị Quảng cáo gốc giữ ở `overlay_gmv`.
+Không có nguồn nào cho sản phẩm thì Organic = GMV sản phẩm − quảng cáo − liên kết, không âm.
+
+## 3. Lợi nhuận, chi phí, ROI và các mức biên
+
+### 3.1 Lợi nhuận (`shop_profit_of` = `known_cost_profit`)
+
+Một đơn "có chi phí" khi **mọi** dòng được tính của đơn đó có đủ giá vốn, phí, đóng gói, hoa hồng; đơn khác bị bỏ khỏi lợi nhuận,
+khỏi mẫu số của biên, khỏi phần chia quảng cáo, và tính vào độ phủ (`cost_coverage = cogs_known_gmv ÷ line_gmv`). Không có đơn nào có
+chi phí thì Lợi nhuận là `None` ("—"), không phải 0.
+
+```
+profit = Σ doanh thu thực (đơn có chi phí)
+       − giá vốn − đóng gói − phí sàn − vận chuyển shop chịu (shipping_net) − hoa hồng AFF
+       − quảng cáo tính vào − chi phí marketing khác (other_marketing_costs, Thông số shop)
+net_revenue (buyer_paid) = giá bán × SL − voucher shop − combo − VAT đầu ra   # 0 với hoàn tiền "accepted"
+```
+
+- Phí sàn: phí thật (`order_income`: income / actual) thắng; không có thì tính theo biểu phí (`fee_table`).
+- Giá vốn: `sku_cost × pack_count` (hoặc `pack_components`), trừ phần VAT đầu vào khi `cost_includes_vat` (mục 4).
+- Đóng gói: `packaging_cost`; không có quy tắc = 0 và gắn cờ "chưa nhập chi phí đóng gói".
+- Quảng cáo (R11, `ADS_SHARE_DAILY`): chi phí từng ngày (một trình giải duy nhất: `ads_days`) × (GMV đơn có chi phí ÷ GMV mọi đơn của ngày đó);
+  ngày có chi phí nhưng **không có đơn nào**, trong số ngày mà dữ liệu đơn nói được (`order_data_days`), tính nguyên vào dòng riêng
+  `NO_ORDER_DAYS_ADS_LABEL`; ngày ngoài dữ liệu đơn không tính (thiếu ≠ 0). Chi phí marketing khác chia theo tỷ trọng cả kỳ.
+- Đơn huỷ / đang giao: ngoài lợi nhuận (vẫn nằm trong GMV theo Seller Centre). Hoàn tiền (`returned`, `refunded_accepted`,
+  `refunded_not_received`): doanh thu 0, không tính vào số đơn / GMV / AOV; chi phí hoàn = `max(0, −payout)` của dòng đối soát
+  (chưa có dòng đối soát = chưa có chi phí) — quy tắc D2 của GLOSSARY.
+- Ưu đãi (`promo + voucher + combo`): đã nằm trong số tiền khách trả; hiện ở Tổng quan nhưng không trừ lần hai khi tính lợi nhuận.
+
+Bảng **Lợi nhuận** của tệp Excel (`profit_bridge`) cộng được đúng bằng số này (tới từng đồng, cộng sai số làm tròn theo dòng) và ghi từng
+khoản là "Thật" hay "Giả định" theo `real_pct`.
+
+### 3.2 Tổng chi phí và ROI (hai nơi hai cách)
+
+| Nơi | Tổng chi phí | ROI |
+|---|---|---|
+| Màn hình Tổng quan (`kpis_of`) | Quảng cáo + Tiếp thị liên kết + Ưu đãi (cộng các khoản biết được; `None` nếu không khoản nào biết) | Lợi nhuận ÷ Tổng chi phí; `None` khi chi phí = 0 hoặc thiếu |
+| Tệp Excel Tổng quan (`cost_of`) | Quảng cáo + Tiếp thị liên kết; Ưu đãi chỉ hiện, không cộng ("đã trừ trong doanh thu") | `ROI (lợi nhuận ÷ chi phí QC + AFF)` |
+| Registry `roi` | `cost_marketing` = `cost_ads + cost_affiliate + cost_offers` | `profit ÷ cost_marketing` |
+| Registry `cost_total` (chưa nối vào màn hình) | tám khoản gồm giá vốn, đóng gói, phí sàn, vận chuyển, quảng cáo, liên kết, ưu đãi, chi phí khác | — |
+
+Màn hình và registry giống nhau; Excel và GLOSSARY ("Ưu đãi is deducted from revenue, never a cost", chủ 2026-11-18, phương án A) khác.
+Nếu người bán so ROI trên màn hình với ROI trong Excel mà lệch, đây là nguyên nhân (mục 13).
+
+### 3.3 Các mức biên
+
+| Nhãn | Cách tính | Nơi hiện |
+|---|---|---|
+| **Biên lợi nhuận** (màn hình) | `margin = profit ÷ net_revenue_known` (đơn có chi phí) | Phân tích (chip), trang sản phẩm, thẻ ("Biên lợi nhuận a % → b %") |
+| **Biên lợi nhuận** (Excel Tổng quan) | Lợi nhuận ÷ **GMV** ("Biên lợi nhuận (% GMV)") | Tệp Excel |
+| **Biên ở giá bán** | `margin_sale = (price_after_vat − fees − cogs − packaging) ÷ price_after_vat`, một đơn vị ở giá bán hiện tại (`variations.margin_pct`); không có giá vốn → `None` / "chưa tính" (không bao giờ dùng 1/3 giá) | Trang sản phẩm, so sánh phân loại, combo |
+| **Biên cuối** | `Biên ở giá bán − 100 × (voucher + hoa hồng + quảng cáo)`, các tỷ lệ đo 30 ngày trên số tiền khách trả (`margins.final_margin`); quảng cáo chia cho các SKU của sản phẩm theo doanh thu; `final_margin_basis` = `variation` hoặc `product` | cùng nơi |
+
+Ghi chú tên: GLOSSARY còn ghi hai biên là "Biên cuối ở giá hiện tại" và "Biên thực hiện 30 ngày"; trên màn hình hiện là **Biên ở giá
+bán** (chắc chắn) và **Biên cuối** (ước tính). Dùng nhãn trên màn hình khi nói với người bán.
+
+### 3.4 Các chỉ số khác trong registry
+
+`aov = gmv ÷ orders`; `ctr = clicks ÷ views`; `ctor = orders ÷ clicks`; `roas = ads_gmv_platform ÷ cost_ads` (đơn đã đặt, gọi là
+**ROAS Shopee** ở thẻ quảng cáo); `roas_direct = ads_gmv_direct ÷ cost_ads` (ROAS trực tiếp); `roas_break_even = net_revenue_known ÷ contribution` với
+`contribution = profit + ads_spend` (lợi nhuận trước quảng cáo; nhãn **ROAS hoà vốn**); `card_return = card_delta_gmv ÷ card_cost`
+(nhãn **ΔGMV / chi phí**, đo trên các đơn tăng thêm). CPA: xem mục 5.3. Mọi tỷ lệ cộng thành phần trước rồi chia; thành phần thiếu → `None`.
+Làm tròn: đồng nửa lên, % và x một chữ số (`shopee_profit/money.py`). Đổi công thức = nâng `DERIVATION_VERSION`
+(hiện `2026-11-15.1`) và sinh lại `registry.generated.ts`.
+
+## 4. Thuế VAT (mặc định và theo sản phẩm)
+
+Màn hình: Ops › Cài đặt shop › **Thuế VAT** (`ops-vat.tsx`, chỉ Vận hành+ ghi, Xem chỉ đọc).
+
+- **Mặc định** (`vat_rate_default`): 0 / 5 / 8 / 10 % hoặc **Chưa đặt** (xoá dòng quy tắc). Ghi qua `PUT /rules/vat_rate_default`.
+- **Theo sản phẩm** (`vat_rate`): tìm sản phẩm, bấm 0 / 5 / 8 / 10 %. Giao diện ghi thuế suất cho `item_id` **và** cho từng biến thể
+  (`item_id:variation_id`) để dòng đơn có hay không có biến thể đều đọc được; **Bỏ** xoá tất cả các dòng đó.
+- Thứ tự tra thuế suất cho một dòng đơn (`engine.py`): quy tắc của biến thể → của SKU gốc → thuế suất của cả sản phẩm (các biến thể
+  đồng ý) → `vat_rate_default`. Không có cả bốn: lợi nhuận của dòng `None` (lý do `vat_rate` thiếu), **không bao giờ tính 0 %**.
+- Hai cờ cho cả shop, `prices_include_vat` ("Giá bán đã gồm VAT") và `cost_includes_vat` ("Giá vốn đã gồm VAT"), ngầm định **chưa đặt** (người bán
+  khai trong tệp Thông số shop). Chưa đặt `prices_include_vat` thì không trừ VAT đầu ra khỏi doanh thu:
+  - `prices_include_vat = true`: `VAT đầu ra = round(buyer_paid − buyer_paid ÷ (1 + r))`, doanh thu thực = buyer_paid − VAT đầu ra.
+  - `cost_includes_vat = true`: giá vốn tính = giá vốn − `round(giá vốn − giá vốn ÷ (1 + r))` (VAT đầu vào được khấu trừ).
+  - Cờ `false` hoặc chưa đặt: không điều chỉnh.
+- Phí Shopee không điều chỉnh. Không tính thuế khấu trừ (GTGT, TNCN) — quy tắc chủ 2026-11-15.
+- Đổi thuế suất, cờ VAT, giá vốn, đóng gói, loại trừ, biểu phí, mục tiêu hay trần chi tiêu làm đổi **dấu vân tay đầu vào** của thẻ (`freshness.fingerprint`), nên thẻ liên quan thành cũ (`inputs_changed`) và job làm mới tự tính lại; muốn ngay, bấm **Tính lại thẻ cũ** (mục 8).
+
+## 5. Thẻ: hiện tại, dự kiến, thực tế
+
+### 5.1 Khối `forecast` của một thẻ (`forecast.py`, F7)
+
+Mỗi chỉ số (`profit`, `gmv`, `orders`, `aov`, `margin_pct`) có `{hien_tai, du_kien, delta, delta_pct, low, high, days}` trên **N ngày của chính thẻ**:
+
+- `hien_tai` = `result.before`: số mỗi ngày của shop (hoặc sản phẩm) trên cơ sở 30 ngày (`HISTORY_DAYS`) nhân N. Thẻ 7 ngày mang 7 ngày, không phải 30.
+- `delta` = tác động P50 của engine (cột `likely` − `before`); `du_kien = hien_tai + delta`.
+- `low` / `high` = hiện tại + tác động P10 / P90. **Chúng đi cùng dữ liệu nhưng màn hình không bao giờ hiện**: một con số, không khoảng, không chú
+  thích. (Chúng vẫn dùng để chấm nhãn kết luận ở Đo lường — mục 6.)
+- `margin_pct` = lợi nhuận ÷ doanh thu thực (%), `delta` tính bằng điểm.
+- Không ước tính được: mọi `du_kien` là `None`, kèm `reason_code` / `reason_text` ("Chưa ước tính được" khi hover "—").
+- `data_through`: ngày dữ liệu mới nhất mà con số dựa vào ("Số liệu đến dd/mm").
+
+Nhãn hiển thị: "Lợi nhuận dự kiến (N ngày)", "GMV dự kiến", "Đơn dự kiến", "AOV dự kiến"; dòng xám "hiện tại: Y đ · ±Z đ (±p %)". Lợi nhuận dự kiến < 0 hiện
+"Lỗ X đ" đỏ; chênh lệch âm không tô đỏ.
+
+### 5.2 Cách chọn Δ (`prediction.predict_lift`)
+
+Lift tương đối của chỉ số mục tiêu = prior của loại thay đổi × hệ số hiệu chỉnh × thang khoảng (coverage). Thứ tự bậc (`Lift.source`):
+
+1. `product_history`: chỉ loại thay đổi theo kích cỡ giá (`price_scaled`): phản ứng đơn của **chính sản phẩm** khi từng giảm giá (`env.response_by_item`).
+2. `shop` (loại giá): phản ứng của **các sản phẩm khác** trong shop (`env.response_shop`). Cả hai bậc này thay luôn prior + hiệu chỉnh.
+3. `shop` (hiệu chỉnh): khi shop có `n_results ≥ MIN_SHOP_RESULTS = 5` kết quả **sạch** của cùng (`change_kind`, `metric`). Hệ số
+   `1 + n/(n+K)·(ratio−1)` với `K = SHRINKAGE_K = 5`, `ratio` = tỷ lệ đo ÷ dự kiến gộp theo nghịch phương sai, kẹp `[0,25; 2,0]`; `n` đếm theo trọng số
+   (`MULTI_CARD_WEIGHT = 0,25` cho thẻ chạy chung).
+4. `pooled`: cùng cách trên, gộp từ **các shop Shopee thật** (`kind = real`; không TikTok, không mẫu / sandbox), cũng cần ≥ 5 kết quả.
+5. `prior`: mức chung của Juli, theo nhóm khoảng cách tới mức tham chiếu (`GAP_BUCKET_SCALE`), có sàn `MIN_PRIOR_LIFT` (owner 2026-11-15/16);
+   thẻ gắn `basis_weak` và hiện nhãn "chung".
+   Không có gì để dự báo → `not_estimable` (`insufficient`): Δ thay bằng chỉ chi phí và hoà vốn.
+
+Brief ban đầu ghi "≥ 3 kết quả sạch"; **code là 5** (`config.MIN_SHOP_RESULTS`; bậc `pooled` cũng đi qua `factor_from` nên cùng ngưỡng 5). Trong nhãn cơ sở của kết quả
+(`outcome.BASIS_LABELS`) bậc `pooled` hiện chung với `prior` là "ước tính chung" (`_SOURCE_BASIS` chưa có khoá `pooled`), nhưng số thì khác.
+
+**Chỉ thẻ do engine (`origin = engine`) mới làm đổi hệ số.** Thẻ **Tự tạo** (`manual`) và **Làm ngoài Juli** (`external`) được lưu quan sát nhưng
+`calibrate(…, "engine")` loại chúng; chỉ `coverage_report` riêng ("calibration_manual") đếm chúng.
+
+**Một quan sát "sạch"** (`measure.clean_reasons`, `Observation.calibrates`):
+- không `partial` (đo bị cắt); không `other_change` (thẻ khác của sản phẩm, thay đổi cả shop, combo trùng ngày: `stacked`);
+- không ngày sale hợp đồng (`contract_excluded_days`) trong khoảng trước hoặc sau;
+- mỗi khoảng trước / sau có ≥ `CLEAN_MIN_TRAFFIC_DAYS = 5` ngày có lượt xem hoặc nhấp;
+- `controlled` (có chuỗi đối chứng) và `tier` ∈ {`cao`, `trung_binh`} và số liệu tươi (`fresh`); nhóm đo chung không bao giờ sạch.
+
+### 5.3 CPA, CPA hoà vốn, ROAS Shopee (thẻ Dịch vụ hiển thị)
+
+`AdsEvaluation`: `cpa = spend ÷ orders` (đơn trực tiếp của chiến dịch, điều chỉnh theo tỷ lệ huỷ của shop; trong `ads_edit`: `direct_orders × keep`);
+`break_even_cpa` = lợi nhuận mỗi đơn **trước quảng cáo** của các sản phẩm trong chiến dịch (`profit_per_order_before_ads`);
+`profit_after_ads = orders × break_even_cpa − spend`; verdict "có lãi" khi `cpa < break_even_cpa`, ngược lại "lỗ";
+`ROAS Shopee = gmv_placed ÷ spend` (chỉ tham khảo). Tác động Δ lợi nhuận / ROI của thẻ dùng riêng phần đơn **tăng thêm** (`incremental_share`,
+cần ≥ `MIN_MEASURE_DAYS` ngày bật và tắt; không có thì thẻ chỉ có chi phí + hoà vốn). Thiếu giá vốn: CPA hoà vốn "chưa tính (thiếu giá vốn)".
+
+## 6. Đo lường
+
+### 6.1 Thực tế (`running.build_actual`, F7.5)
+
+Với một change set bắt đầu `start`, cửa sổ N ngày: `k` = số ngày từ `start` tới ngày mới nhất **có dữ liệu đơn** (`k ≤ N`, ngày thiếu không tính). Thực tế =
+tổng `k` ngày đó; **hiện tại** = `k` ngày ngay trước `start`; `delta = thực tế − hiện tại`, `delta_pct = delta ÷ |hiện tại|`. Năm chỉ số: `profit`
+(sản phẩm: lợi nhuận trước quảng cáo − `ads_spend`; shop đã mang quảng cáo), `gmv`, `orders`, `aov`, `margin_pct`. Không ước tính gì: là tổng các ngày đã lưu
+(`product_metrics_daily` / `shop_metrics_daily`). Nhãn "Đã đo k/N ngày".
+
+Khi `k ≥ N` (`final`), lợi nhuận Δ được so với **dải lợi nhuận P10–P90 lúc duyệt** (`profit_band`: dải của kết quả đã lưu trong `result_store`; nếu không có thì
+`forecast.metrics.profit` low/high trừ hiện tại; tổng các thẻ của nhóm): `Vượt khoảng` nếu Δ > P90, `Dưới khoảng` nếu Δ < P10, còn lại `Trong khoảng`.
+Đo lường dùng nhãn này khi `actual.final`; trước đó hoặc khi không đủ dữ liệu dùng verdict của `execution_state.verdict_of` (so `impact_pct` với P10–P90 lift của chỉ số
+thẻ): `Đang đo` / `Trong khoảng` / `Dưới khoảng` / `Vượt khoảng` / `chua_ket_luan` (thẻ chưa có kết luận; nhãn cũ này đã bị loại khỏi hai tài liệu, nói "chưa có kết luận" với người bán).
+
+### 6.2 Nhóm đo chung (F7.6, `group_sets`)
+
+Một thay đổi bắt đầu khi thay đổi khác của **cùng sản phẩm** (hoặc cùng cả shop) đang đo: các set vào **một nhóm**, đo từ ngày bắt đầu đầu tiên tới ngày kết thúc cuối cùng,
+liệt kê thành viên ("đo chung với …", Excel **Đo chung với**). Nhóm được suy ra từ các set (cùng phạm vi + sản phẩm, cửa sổ chồng, hoặc `cut_by_change_set`), nên
+set cũ bị cắt vẫn thành nhóm (`regroup`, không cần thao tác tay). Kết quả nhóm không sạch, không học. Thực hiện trên sản phẩm đang đo: nếu đã đo ≥ `CUT_MIN_DAYS = 3` ngày kết
+quả được giữ ("đo được N ngày"), ít hơn thì "không kết luận".
+
+### 6.3 Độ dài đo
+
+Kế hoạch: **Đo trong bao lâu** — **Tự động theo sản phẩm** (ngày khuyến nghị = ngắn nhất có MDE ≤ `MDE_MAX = 30 %`, ngày hợp lệ 7 / 14 / 28), 7 / 14 / 28 cho cả kế hoạch, hoặc **Tuỳ chọn** 3–90 ngày. Thẻ không có kế hoạch: 14 ngày
+(`QUEUE_DEFAULT_PLAN_DAYS`). Khung ngày hiện "Khó kết luận" khi lượng đơn quá ít (không có ngày nào đạt MDE).
+
+## 7. Thực hiện: điền, lưu, xác minh, hoàn tác
+
+`execution_state.derive_state` (không lưu thêm gì, suy ra từ các sự kiện và lệnh điền):
+
+| Trạng thái | Điều kiện |
+|---|---|
+| `cho_dien` — **Chờ điền** | đã duyệt, chưa có lệnh điền nào `filled` |
+| `da_dien` — **Đã điền · chờ bạn lưu** (hoặc **Đã lưu · chờ xác minh** khi đã có `executed_at` hoặc ≥ 3 bước) | Connector báo điền đủ mọi trường của lệnh (`progress.filled == total`) hoặc người bấm **Đã làm** |
+| `khop` — **Khớp Seller Centre** | sự kiện `verified`: một lần đọc sau `executed_at` thấy đúng giá trị; **đồng hồ đo bắt đầu từ lúc này** (`measure_start`) |
+| `lech` — **Lệch Seller Centre** | `mismatch`: đến hạn `VERIFY_WINDOW = 48 h` sau `executed_at`, đã đọc nhưng không khớp (giá trị đọc được cuối cùng được báo); `not_seen` ("Chưa thấy thay đổi") khi chưa có lần đọc nào |
+| `hoan_tac` — **Đã hoàn tác** | người bấm **Đã hoàn tác** (hoặc **Đã hoàn tác thủ công**) |
+
+- Tiến độ theo **lệnh điền** (một trang của thẻ), không theo trường: Connector báo trạng thái lệnh, không báo "3/4 trường". Chữ "3/4 tiêu đề đã điền" đếm lệnh theo loại (`NOUN`).
+- Connector **không bao giờ lưu hay bấm nút trên Shopee** (từ 0.3.28 điền có hướng dẫn; trước đó bấm chuột không tin cậy làm Shopee chặn ngày 19/11). Người bán xem, bấm **Lưu**, rồi **Đã làm**.
+- Thanh Connector: kết nối (`connected`), `seller_centre_open`, `last_check_at`, `reader_blocks` (một dòng mỗi trang bị chặn: "Đăng nhập lại …", "Xác nhận mật khẩu …", "Cần quyền Tài chính …", "Shopee tạm chặn — Juli dừng đến HH:mm"),
+  `upgrade_required` / `min_version` ("Cập nhật Juli Connector lên …"). **Đối chiếu ngay** = `POST …/execution/reconcile` (`connector_state.request_reconcile`: một lệnh bảo Connector đọc lại để xác minh); không mở được chặn `traffic_check` trước `until`.
+- **Hoàn tác** (`RevertBlock`): các bước ngược; **Mở và điền** xếp lệnh điền cho giá trị cũ (`revertFill`); **Đã hoàn tác** cần lệnh đã `ready`, còn
+  **Đã hoàn tác thủ công** bỏ qua. Ghi người + giờ, dừng đo của thẻ, loại khỏi những gì Juli học.
+
+## 8. Việc của Ops trên Quyết định (thanh "Việc của Ops")
+
+Chỉ nhân viên (Vận hành+), hiện ở đầu tab Đề xuất khi xem như nhân viên. Mỗi nút được ghi nhật ký (`reco_*`):
+
+| Nút | Làm gì |
+|---|---|
+| **Tạo đề xuất** | sinh thẻ từ số liệu mới nhất, lưu thành **nháp** (`topN = 10`); trả "N thẻ nháp" |
+| **Gửi tất cả nháp cho shop** | xuất bản mọi nháp (`publish`); trả "N thẻ đã gửi" |
+| **Tính lại thẻ cũ** (`rerun-stale`, `reco_rerun_stale`) | tính lại **chỉ** các thẻ đã bị đánh cờ cũ: người bán áp dụng Thông số shop (SKU / mục tiêu đổi → `mark_stale_for`), hoặc `stale_reason` = `engine_version_changed` (`ENGINE_VERSION` đổi, hiện `2026-11-20.1`), `inputs_changed` (dấu vân tay đầu vào đổi, mục 4), `never_stamped`. Nháp thì thay; thẻ đã gửi / yêu cầu sửa thì `revise` (bản cũ giữ như người bán đã thấy); thẻ **đã duyệt giữ nguyên** và vẫn gắn cờ để người xem lại. Trả đếm theo loại. Một ngày đơn mới **không** làm thẻ cũ: mỗi sáng kết quả / dự kiến của thẻ được làm mới (`data_advanced`) mà thẻ không bị đánh cũ hay gửi lại. |
+| **Đo lại** (`learning/run`, `reco_learning_run`, F8.6) | chạy **ngay** vòng học của shop (`measure.run_learning`): dựng lại các hàng cũ theo luật mới (`rebuild_outdated`), **làm mới Thực tế đang chạy** của mọi change set và nhóm (F7.5 / F7.6), đọc kết quả các thẻ và set đã xong, đọc lại quảng cáo của chiến dịch mới (`ads_readback`), rồi tính lại hiệu chỉnh theo (`change_kind`, `metric`) và độ phủ của shop, và xếp lại hàng chờ thẻ của sản phẩm. Trả "N số đo từ M thẻ" (`readings` / `cards_considered`). Dùng khi người bán hỏi vì sao Đo lường chưa cập nhật, hoặc ngay sau khi sửa dữ liệu. Ghi theo mã quan sát nên chạy lại không nhân đôi; thẻ đã bị Xoá bảng không bao giờ được học. Chỉ quan sát **sạch** mới làm đổi hệ số (mục 5.2). |
+
+Khác: `learning/backfill` (`reco_backfill`) = nạp một lần "thí nghiệm tự nhiên" từ nhật ký quảng cáo và lịch sử voucher; `sim-priors` nhập kết quả mô phỏng có kiểm tra cổng.
+
+## 9. Dữ liệu shop: "Số liệu đến" và lần nhận cuối
+
+Hai khái niệm khác nhau; người bán hay nhầm:
+
+| Hiện ở | Ý nghĩa | Nguồn |
+|---|---|---|
+| **Số liệu đến** dd/mm (mỗi khối) | **ngày mới nhất mà dữ liệu ĐANG GIỮ** của khối đó đã đủ | `data_through`: với mỗi khối lấy **ngày cũ nhất** trong các bộ số liệu của khối (`min`), không quá ngày cuối của kỳ. Bộ số liệu → ngày mới nhất có hàng: dữ liệu theo ngày → `day`; theo kỳ → `period_end`; dòng đơn → ngày đơn cuối; ảnh chụp → ngày chụp (`load_freshness`) |
+| **Cập nhật** dd/mm/yyyy hh:mm (đầu Tổng quan) | **lần nhận gần nhất**: `max(coalesce(last_captured_at, last_ingest_at))` mọi bộ số liệu của shop | `ingest_dataset_status` |
+| **Số liệu đến ngày** / **Trạng thái** ("Nhận lúc …") ở Cài đặt › Juli Connector › **Juli đã nhận gì** | `last_period_end` và `last_ingest_at` của **lần gửi cuối** của từng bộ số liệu | `ingest/status.py` (`last_*` chỉ đi tới, một lần gửi muộn của dữ liệu cũ không làm lùi) |
+
+Khối → bộ số liệu (`SECTION_DATASETS`): `kpis` ← `shop_overview` (GMV, đơn: chỉ tổng của Shopee — owner T8, đơn lẻ muộn không được làm GMV lùi ngày); `profit` ←
+`shop_overview` + `order_lines` + quảng cáo (`ads_last_day`: ngày cuối có số quảng cáo trong kỳ); `channels` ← `shop_overview` + `traffic_overview` + quảng cáo; `plan` ←
+`shop_overview` + `order_lines`; `products` ← `shop_overview` + `order_lines`. Một bộ số liệu shop chưa có hàng thì bị bỏ khỏi phép `min`; khối không có bộ nào thì "—".
+Khi ngày của Lợi nhuận / Tổng chi phí cũ hơn ngày của GMV, ô đó hiện thêm dòng "Số liệu đến" riêng.
+
+Cách đọc khi người bán nói "số cũ": (1) xem **Cập nhật** — nếu cũ, Connector không gửi (xem thanh Juli Connector ở Thực hiện và danh sách **Reader lỗi** ở Ops);
+(2) nếu **Cập nhật** mới mà **Số liệu đến** cũ, Connector có gửi nhưng bộ số liệu chậm nhất của khối đó chưa có ngày mới (`last_period_end` có thể là ngày không có hàng nào — so với "ngày mới nhất đang giữ");
+(3) bộ nào có `drift` thì tạm dừng cho tới khi Connector mới hơn gửi thành công (409 `dataset_in_drift`).
+
+## 10. Juli Connector (Ops)
+
+- **Kết nối dữ liệu** trên trang shop: **Tạo mã kết nối** (mã một lần, 10 phút, tối đa 5 mã chưa dùng → 429; 409 "Shop chưa có đồng ý xử lý dữ liệu"). Nguồn đang kết nối liệt kê "thấy lần cuối"; **Thu hồi** ngắt một nguồn.
+- **Máy cũ (N)** = token đang hoạt động mà `last_seen_at` (hoặc `last_used_at`, `created_at`) cách đây **≥ 14 ngày** (`INACTIVE_DAYS`); **Gỡ tất cả máy cũ**
+  thu hồi chúng một lượt (`revokeInactiveIngestTokens`). Token đã thu hồi không hiện. Người bán có cùng nút ở Cài đặt › Juli Connector.
+- **Reader lỗi**: mỗi trang có kết quả hôm nay khác "đã đọc / còn mới / bỏ qua" hiện nhãn ngắn: Cần đăng nhập, Cần nhập lại mật khẩu, Không có quyền, Cần xác minh, Lỗi, Quá thời gian, Chưa có mẫu, Không mở được trang, Chờ hạn mức, Đọc chưa đủ.
+- Hằng số nên nhớ (`config.ts`): hạn mức `DAILY_REQUEST_BUDGET = 800` yêu cầu / ngày GMT+7 chung cho reader, đồng bộ và nạp 30 ngày (`TODAY_REQUEST_RESERVE = 250` cho hôm nay, `BACKFILL_REQUEST_SHARE = 150`
+  khi nạp lịch sử, `FILL_REQUEST_RESERVE = 60` cho điền / đọc lại; mỗi tab mở tính `READER_PAGE_LOAD_COST = 10`); mỗi trang cách nhau 20 s + tối đa 25 s ngẫu nhiên; một trang quá 4 phút bị đóng (quảng cáo 8 phút);
+  chặn: đăng nhập / CAPTCHA / `traffic_check` (6 giờ, không gì mở sớm) / `password_recheck` (người bán nhập một lần; Connector không bao giờ gõ mật khẩu).
+- **Thứ tự đọc** (`READER_IDS`): sản phẩm → đơn → thu nhập từng đơn → voucher → quảng cáo → chi tiết chiến dịch → quảng cáo theo sản phẩm → sức khỏe tài khoản → các trang `/datacenter` (tổng shop, truy cập, hiệu quả
+  sản phẩm 30 ngày) → Tiếp thị liên kết (8 trang) → nguồn truy cập từng sản phẩm. Đơn và thu nhập chạy **trước** mọi trang `/datacenter` vì hộp thoại mật khẩu của Phân tích bán hàng chỉ chặn các trang đó. Tồn kho đọc riêng lúc 06:30 GMT+7.
+- **Đọc bù** (0.3.29, `catchup.ts`): backend nêu từng bộ số liệu theo ngày những ngày trong 30 ngày qua chưa có hàng nào được nhận (`GET /v1/connector/shopee/read-days`); Connector đọc **ngày vừa kết thúc trước**, rồi ngày thiếu **cũ nhất trước**,
+  vài ngày mỗi lượt (`CATCHUP_DAYS_PER_JOB`: traffic 5, ads 5, item_traffic 2, shop_totals 30, ads_products 10), chỉ khi hạn mức còn chỗ.
+- **Đồng bộ hôm qua** (popup) nâng chặn đăng nhập / CAPTCHA và đọc lại các trang hôm nay chưa gửi được; không nâng `traffic_check`.
+
+## 11. Nhập file và kết quả từng dòng
+
+### 11.1 "Nhập thẻ đã làm ngoài Juli" (Thực hiện)
+
+`planned_changes/external_rows.py` + `import_job.py`: trang tính **Tổng hợp đề xuất**, tìm hàng tiêu đề trong 12 hàng đầu, chỉ đọc các cột trong danh sách trắng (STT, Mã, Hạng mục, Mã SP, Phương án,
+Dữ liệu cụ thể, Ngày thực hiện, Trạng thái, Thời gian đo ngày, Chi tiết trạng thái), dừng ở hàng trống đầu tiên hoặc 500 hàng. **Bắt buộc**: Mã, Hạng mục, Mã SP, Phương án, Ngày thực hiện, Trạng thái, Thời gian đo ngày (1–365).
+Tệp không tin cậy: kiểm kích thước / zip, từ chối DTD / entity.
+
+- Hạng mục → loại thẻ: Tiêu đề sản phẩm → `title`; Ảnh bìa + Tiêu đề → `cover_image` + `title`; Ảnh bìa; Voucher → `min_spend_voucher`; Quảng cáo → `ads_roas_target`; Giá → `price`; Combo khuyến mãi → `bundle_deal`; Mua kèm deal sốc → `add_on` + `gift`;
+  Mua quà tặng kèm → `gift`; Tiếp thị liên kết → `affiliate_commission` (+ `affiliate_target_campaign` nếu kế hoạch bắt đầu bằng "Chiến dịch mục tiêu").
+- Trạng thái đọc: Đã thực hiện / Đang thử nghiệm (đã chạy, tạo thẻ đã thực hiện), Đề xuất, Đã huỷ (bỏ qua), Không rõ.
+- **Xem trước** từng dòng: `N dòng · M thẻ mới · K đã có · J bỏ qua`; mỗi dòng bỏ qua ghi **Bỏ qua: <lý do>**. Lý do (`SKIP_LABELS`): Không có gì để đo; Đã huỷ; Hạng mục chưa có loại thẻ trong Juli; Không đọc được trạng thái; Cần một mã sản phẩm;
+  Thiếu ngày thực hiện; Ngày thực hiện chưa tới; Không có tiêu đề mới (dòng 'Sau:'); Không đọc được mức voucher / ROAS mục tiêu / giá mới / bậc combo / chi phí quà / % hoa hồng; Không tìm thấy chiến dịch quảng cáo của dòng này;
+  Không xác định được phân loại; Cần sản phẩm chính và sản phẩm mua kèm; Các giá trị không hợp lệ; Mã bị trùng trong tệp; Đã nhập trước đó; Không tạo được thẻ. Dòng bỏ qua theo `EXTERNAL_IMPORT_SKIP_REFS` (NH-1, XM-1, VC-R, KOC-2) và cụm
+  mở đầu (nghiên cứu, báo cáo, trao đổi, tạo listing, bật tính năng) là ghi chú, không nhập.
+- **Kết quả sau khi Nhập** (`ImportResult`): tóm tắt "Đã nhập N thẻ · K đã có · J không nhập được" và bảng **Dòng · Mã · Loại · Kết quả** với từng thẻ: **Đã tạo**, **Đã có**, **Không nhập được: <lý do>**.
+  Chạy lại cùng tệp không tạo trùng (cùng `external_ref` + loại → "Đã có"). **Xoá bảng** rút mọi thẻ khỏi bảng Thực hiện (một bước xác nhận).
+- Thẻ nhập về có `origin = external` (Nguồn **Làm ngoài Juli**), `external_ref` giữ **Mã gốc** (cột Mã gốc trong Excel); không có kế hoạch (`plan_id` rỗng), vẫn được đo, **được tính vào mục tiêu Kế hoạch** (F8.5), và không làm đổi hệ số của engine.
+
+### 11.2 Thông số shop
+
+Bước: 1 · Mẫu và tải lên → 2 · Kiểm tra → 3 · So sánh → 4 · Áp dụng → Phiên bản → Mục tiêu. Kiểm tra liệt kê dòng bị từ chối với cột **Dòng · SKU · Cột · Giá trị · Vì sao bị từ chối · Loại**. Loại (`KIND_LABELS`): SKU lạ, Giá vốn ≥ giá, Giá vốn trống, Ngoài khoảng, Ngày sai, Trùng SKU, Giá trị sai, Tháng sai,
+Thiếu KOL, Số món sai, VAT sai, Thành phần lạ, Thành phần trùng chính nó, Số lượng sai, Trùng thành phần. Trường: Giá vốn, Đóng gói, Giảm tối đa (%), Tồn kho, Ngày nhập lại, Nhóm, Trạng thái, Số món / phân loại, VAT (%), Loại trừ,
+Lý do loại trừ, Thành phần combo, Giá bán đã gồm VAT, Giá vốn đã gồm VAT; trang Mục tiêu: GMV, Đơn, AOV, Biên mục tiêu (%), Trần chi marketing/ngày. Áp dụng bắt buộc một lý do; mỗi lần là một phiên bản theo SKU có **Khôi phục**.
+Chỉ các thẻ của sản phẩm có SKU đổi bị đánh cờ cũ (mục 8).
+
+### 11.3 Thứ tự ưu tiên nguồn (`models.ingest.SOURCE_RANK`, chủ 2026-11-18)
+
+`api 4 > extension (Connector) 3 > file 2 > vendor 1`. Trên `order_lines`, `affiliate_lines`, `order_settlements`: một lần ghi cùng hoặc cao hơn thay bằng các giá trị không rỗng (NULL không bao giờ xoá giá trị đã có); một lần ghi
+**thấp hơn** (tệp dưới Connector) **chỉ điền các cột đang NULL**, còn nguồn / bậc / phiên bản / payload của hàng vẫn thuộc nguồn cao (mỗi lần điền ghi một dòng log `ingest_gap_fill`). Đơn mà không nguồn cao hơn nào ghi thì lấy nguyên từ tệp (nạp lịch sử).
+Quy tắc cũ P90 D-5 (tệp trên Connector) đã bị thay thế.
+
+## 12. Excel (F8)
+
+`exports/tong_quan_xlsx.py`, `ke_hoach_xlsx.py`, `collect.py`. Các tỷ lệ và tổng là **công thức Excel** (`fullCalcOnLoad`, chỉ hàm Excel-2007); số liệu thiếu là ô **trống**, không 0.
+
+**Tổng quan**: trang `Tổng quan`, `Lợi nhuận`, `Theo kênh`, `Theo ngày`, `Theo sản phẩm`, `Theo SKU`. Trang `Tổng quan` có cột `Chỉ số · Kỳ này · % doanh thu · Kỳ trước · Thay đổi · Mục tiêu (Kế hoạch) · So với mục tiêu`;
+Mục tiêu chỉ có cho GMV, Lợi nhuận và biên. Trang `Theo kênh`: `Chi phí (đ)`, `ROI (lợi nhuận ÷ chi phí QC + AFF)`, `Chi phí / doanh thu`, `Lợi nhuận kênh (đ)` = GMV kênh × ((lợi nhuận + tổng chi phí) ÷ GMV) − chi phí kênh
+(dòng cộng lại bằng lợi nhuận shop); `Thay đổi` = "—" khi kỳ trước tính Quảng cáo trên cơ sở khác (`basis_differs`: overlay vs report). `Theo SKU`: `Cần nhập = bán/ngày × (7 + 14) − tồn kho`, ≥ 0 (`LEAD_DAYS` + `COVER_DAYS`);
+dòng "Chênh lệch: doanh thu dòng đơn khác Doanh số Shopee" đưa Σ doanh thu về GMV kỳ.
+
+**Kế hoạch** (khoảng Từ ngày – Đến ngày; thẻ có hoạt động trong khoảng: đề xuất, chạy hoặc đo): trang `Lịch sử thẻ`, `Mục tiêu`, một trang cho mỗi nhóm loại (`KIND_SHEETS`: Quảng cáo, Voucher, Combo - Deal Sốc, Giá - Chương trình - Flash, Phân loại, Listing, Liên kết - KOL, Thẻ khác), `KOL`.
+- Dẫn đầu: STT, Mã thẻ, Mã gốc, **Nguồn** (`SOURCE_LABELS`: engine → Juli, manual → Tự tạo, external → Làm ngoài Juli), Shop, Nền tảng, Trạng thái (Đang chạy / Trong nháp / Đang đo / Đã đo), Nhóm, Phương án, Phiên bản, Sản phẩm, Đề xuất, Bắt đầu, Kết thúc, Số ngày chạy (công thức).
+- Mỗi chỉ số Lợi nhuận, GMV, Đơn, AOV: `hiện tại · dự kiến · thực tế · chênh lệch` (F7: dự kiến lưu trong thẻ và Thực tế đang chạy, **trên các ngày đã đo**, một số, không khoảng); `chênh lệch = IF(OR(dự kiến="",thực tế=""),"",thực tế − dự kiến)`.
+  Khác màn hình Đo lường: ở đó **Δ = thực tế − hiện tại**; Excel là **thực tế − dự kiến**. Cộng thêm `Chi phí`, `Đã đo` ("k/N ngày"), `Đo chung với` (Mã gốc của thẻ kia nếu có, không thì Mã thẻ), `Kết luận` (`Đang đo` / `Trong khoảng` / `Dưới khoảng` / `Vượt khoảng`; trạng thái chưa có kết luận để trống).
+- Khi mới đo k trên N ngày (`0 < k < N`), `hiện tại` và `dự kiến` của Lợi nhuận, GMV, Đơn (`ADDITIVE`) được quy theo k ÷ N để ba số phủ cùng k ngày; AOV giữ nguyên.
+- `Mục tiêu`: mỗi shop `GMV nền / mục tiêu / thực tế / % đạt` rồi cùng bốn số cho Lợi nhuận; dòng **Tổng** chỉ khi **mọi** shop đều có mục tiêu đó (G23); bảng "Theo ngày" trải nền đều và phần tăng đúng ngày rơi vào.
+  `goal = baseline + uplift`: baseline = mức 30 ngày "hôm nay" đã đóng băng của **kế hoạch đã chạy sớm nhất** (`aggregate.today`) ÷ `HORIZON_DAYS = 30` × số ngày; uplift = tổng P50 Δ của các thẻ đang chạy, mỗi thẻ trải đều trên số ngày của chính nó và chỉ tính ngày nằm trong khoảng;
+  thẻ **ngoài kế hoạch** (Làm ngoài Juli / Tự tạo đã thực hiện, `plan_id` rỗng) tính như thẻ trong kế hoạch; nếu không có kế hoạch nào đã chạy, baseline là mức 30 ngày của shop trước thẻ sớm nhất. Không thẻ nào chạy → `goal = None` (không phải 0). `ahead` = thực tế ≥ mục tiêu chia theo tỷ lệ thời gian đã qua.
+- Trang Quảng cáo: `CPA`, `ROAS`, `CPA hoà vốn`, `ROAS hoà vốn` mỗi cái hai cột (dự kiến / thực tế); thực tế CPA = chi ÷ đơn của lần đọc lại (`ads_readback`), CPA hoà vốn và ROAS hoà vốn không có số thực tế. Trang KOL: `ROI KOL` là công thức **`Lợi nhuận ÷ Hoa hồng`** (`=H/G`: cột Lợi nhuận chia cột Hoa hồng) của dòng.
+
+## 13. Các khác biệt đã biết (nói đúng khi người bán hỏi)
+
+1. **ROI và Tổng chi phí**: màn hình tính **cả Ưu đãi**; tệp Excel Tổng quan không (mục 3.2). GLOSSARY nói Ưu đãi không là chi phí. Chưa thống nhất.
+2. **Biên lợi nhuận**: màn hình = lợi nhuận ÷ doanh thu thực (đơn có chi phí); Excel Tổng quan = lợi nhuận ÷ GMV.
+3. **ROI KOL**: registry (`roi_kol`) = `(kol_net − samples_cost) ÷ (kol_commission + samples_cost)` kèm khoảng tin cậy 90 % → ba trạng thái (`kol_status`); Excel trang KOL hiện `Lợi nhuận ÷ Hoa hồng`. Màn hình Phân tích chưa hiện ROI KOL.
+4. **Thứ tự chia kênh**: `metrics/allocation.channel_partition` (registry; "chưa nối màn hình") ưu tiên Tiếp thị liên kết rồi Quảng cáo; màn hình cấp Sản phẩm (`partition_channels`) ưu tiên **Quảng cáo** rồi Tiếp thị liên kết;
+   cấp Shop không chia mà lấy nguồn Seller Centre trực tiếp (mục 2).
+5. **Nhãn Đo lường**: hai cách chấm (mục 6.1) cùng dùng nhãn "Trong khoảng / Dưới khoảng / Vượt khoảng" nhưng so **Δ lợi nhuận** với dải lợi nhuận (khi đã đủ N ngày) hoặc **thay đổi tương đối** của chỉ số mục tiêu với P10–P90 lift (verdict trước đó).
+6. **Ngưỡng hiệu chỉnh**: 5 kết quả sạch, không phải 3 (mục 5.2).
+7. **Tên biên** trong GLOSSARY (Biên cuối ở giá hiện tại / Biên thực hiện 30 ngày) khác nhãn màn hình (Biên ở giá bán / Biên cuối).
+8. **Juli tab** (hỏi đáp số liệu) thuộc batch chưa gộp; tài liệu người bán mô tả ngắn, cần kiểm lại khi gộp.
+
+## Phụ lục: TikTok Shop
+
+Phần này giữ lại hướng dẫn chỉ số của **màn hình TikTok Shop** (Mô phỏng, Trang chủ, Phân tích TikTok, Quyết định TikTok) từ bản hướng dẫn trước, để đội ngũ vẫn tra được.
+Nó **không** áp dụng cho shop Shopee. Các mã D25–D55 là mã quyết định nội bộ cũ; nhãn trong bảng này là nhãn của màn hình TikTok, một số nhãn (Tab cửa hàng, LIVE, Lượt hiển thị/ngày, Dao động…)
+không có trên màn hình Shopee. Nội dung được chuyển nguyên văn (chỉ đánh số lại thành A1–A7) và **chưa được đối chiếu lại với code trong lần viết này**: kiểm tra với mã nguồn trước khi trích cho người bán.
+
+### A0. Bảng thuật ngữ TikTok
+
+
+| Nhãn trên màn hình | Ý nghĩa | Cách tính |
+|---|---|---|
+| **Thẻ sản phẩm** | Luồng 1: khách thấy sản phẩm dạng thẻ (tìm kiếm, gợi ý, trang For You…) | Số liệu TikTok của nguồn "product card"; TikTok tính kênh này là **phần còn lại** sau LIVE và video (mục A5.5) |
 | **Tab cửa hàng** | Luồng 2: khách vào trang cửa hàng của shop | Số liệu nguồn "shop tab"; đơn SKU ở luồng này là ước tính (CTOR × lượt nhấp) vì TikTok không trả |
 | **Video** | Luồng 3: video do chính shop đăng; tên dài "Video của người bán" chỉ hiện khi rê chuột | Số liệu nguồn "seller video" |
 | **LIVE** | Luồng 4: phiên LIVE do chính shop phát; tên dài "LIVE của người bán" chỉ hiện khi rê chuột | Số liệu nguồn "seller live" |
 | **Lượt hiển thị/ngày** | Trung bình mỗi ngày có bao nhiêu lượt khách thấy sản phẩm/nội dung | Tổng lượt hiển thị trong N ngày ÷ số ngày có dữ liệu |
 | **Lượt nhấp** | Số lần khách bấm vào sản phẩm (TikTok gọi là click) | Tổng trong khoảng |
 | **CTR** | Trong 100 lượt hiển thị, bao nhiêu lượt nhấp | Tổng lượt nhấp ÷ tổng lượt hiển thị (cộng cả khoảng rồi mới chia) |
-| **CTOR** | Trong 100 lượt nhấp, bao nhiêu thành đơn | Tổng đơn SKU ÷ tổng lượt nhấp; **không phải** "tỷ lệ chuyển đổi" của TikTok (người mua ÷ lượt xem trang, mục 5.5) |
-| **AOV** | Giá trị trung bình một đơn | Tổng GMV ÷ tổng đơn SKU; GMV của TikTok gồm cả đơn sau đó bị huỷ/hoàn (mục 5.5) |
-| **GMV/ngày** | Doanh thu trung bình mỗi ngày | Tổng GMV ÷ số ngày; = Lượt hiển thị/ngày × CTR × CTOR × AOV; GMV theo TikTok, chưa trừ đơn huỷ/hoàn (mục 5.5) |
+| **CTOR** | Trong 100 lượt nhấp, bao nhiêu thành đơn | Tổng đơn SKU ÷ tổng lượt nhấp; **không phải** "tỷ lệ chuyển đổi" của TikTok (người mua ÷ lượt xem trang, mục A5.5) |
+| **AOV** | Giá trị trung bình một đơn | Tổng GMV ÷ tổng đơn SKU; GMV của TikTok gồm cả đơn sau đó bị huỷ/hoàn (mục A5.5) |
+| **GMV/ngày** | Doanh thu trung bình mỗi ngày | Tổng GMV ÷ số ngày; = Lượt hiển thị/ngày × CTR × CTOR × AOV; GMV theo TikTok, chưa trừ đơn huỷ/hoàn (mục A5.5) |
 | **▲▼** | Hướng thay đổi so với khoảng trước đó cùng độ dài | (N ngày gần nhất − N ngày trước đó) ÷ N ngày trước đó; xám khi \|Δ\| < 0,5 %; cần 2 × N ngày lịch sử |
 | **Dao động TB N ngày** | Con số trung bình N ngày tự nó lên xuống bao nhiêu chỉ vì ngẫu nhiên | ±1,2816 × độ lệch chuẩn các ngày ÷ √(số ngày) ÷ trung bình (khoảng 80 % của trung bình) |
 | **Dao động mỗi ngày** | Một ngày bình thường lệch khỏi trung bình bao nhiêu | max(p90 − TB, TB − p10) ÷ TB, trên các giá trị từng ngày trong N ngày |
@@ -44,7 +465,7 @@ Nguồn: `fasttrack/DECISIONS.md` D25–D31; `services/ops/simulation.py`;
 | **GMV dự kiến** | GMV có thể lấy lại mỗi tháng nếu đạt mục tiêu | GMV lấy lại được/ngày × 30 (ước tính theo quy tắc), hoặc khoảng từ dự đoán hiệu quả, nhân hệ số hiệu chỉnh của shop |
 | **N thay đổi cho CTR** | Nhóm thẻ cùng sản phẩm, cùng một chỉ số mục tiêu (ví dụ "2 thay đổi cho CTR") | Một sản phẩm chỉ có một chỉ số mục tiêu tại một thời điểm (D29.4) |
 | **Duyệt** | Người bán đồng ý cho Juli thực hiện thẻ; "Duyệt N thẻ" duyệt cả nhóm | Chỉ người bán duyệt; Ops không duyệt thay |
-| **Kết quả nhóm** | Một câu trên thẻ về nhóm sản phẩm cùng chỉ số × thay đổi × kênh, khi nhóm đã đo xong ngày 14 (ví dụ "Nhóm 6 sản phẩm đổi ảnh bìa: lượt nhấp tăng khoảng 7 % so với các sản phẩm chưa đổi") | D34: trung vị thay đổi nhóm áp dụng − trung vị nhóm đối chứng (chọn ngẫu nhiên, nhận thẻ sau 14 ngày); không hiện khi "Chưa đủ cơ sở" (mục 5.2) |
+| **Kết quả nhóm** | Một câu trên thẻ về nhóm sản phẩm cùng chỉ số × thay đổi × kênh, khi nhóm đã đo xong ngày 14 (ví dụ "Nhóm 6 sản phẩm đổi ảnh bìa: lượt nhấp tăng khoảng 7 % so với các sản phẩm chưa đổi") | D34: trung vị thay đổi nhóm áp dụng − trung vị nhóm đối chứng (chọn ngẫu nhiên, nhận thẻ sau 14 ngày); không hiện khi "Chưa đủ cơ sở" (mục A5.2) |
 | **Ngày 7 · kiểm tra** | Mốc đo sơ bộ, 7 ngày sau khi áp dụng | Trung bình 7 ngày sau so với 14 ngày trước ngày áp dụng |
 | **Đang lên** | Ngày 7: chỉ số mục tiêu đã tăng rõ hơn dao động, GMV giữ được | Mục tiêu tăng > 1 × dao động VÀ GMV không giảm quá dao động của GMV |
 | **Chưa rõ** | Ngày 7: chưa thấy tăng vượt dao động | Ngược lại với "Đang lên" |
@@ -64,7 +485,8 @@ Nguồn: `fasttrack/DECISIONS.md` D25–D31; `services/ops/simulation.py`;
 | **Sự cố** | Hàng chờ thẻ tối ưu: lượt chạy mất worker (không ai xử lý) và bị dừng; không ghi gì lên TikTok | `status = failed`, `stop_reason = worker_lost` — bộ dọn (reaper, mỗi 5 phút) đóng lượt không có sự kiện quá thời hạn của playbook |
 | **Quy tắc** | Trang người bán đặt giới hạn cho Juli (Ngưỡng giữ ổn định, giá vốn, trần giảm giá, số thẻ mở…) | Đội ngũ đặt trước từ Cài đặt shop; người bán chỉnh sau |
 
-## 1. Bốn luồng và bốn chỉ số
+
+### A1. Bốn luồng và bốn chỉ số
 
 GMV của mỗi luồng được tách thành bốn thừa số:
 
@@ -79,7 +501,7 @@ GMV của mỗi luồng được tách thành bốn thừa số:
   chiến dịch, nội dung. Mô phỏng ghi "gián tiếp ⚠".
 - Ô khoá trong Mô phỏng: Video CTOR, Video AOV, LIVE AOV ("Khoá · phụ thuộc trang sản phẩm").
 
-## 2. Đọc một ô Mô phỏng
+### A2. Đọc một ô Mô phỏng
 
 Ô Mô phỏng có: giá trị, chip **▲▼**, dòng **Dao động TB N ngày: ±X %**, khi bấm/rê chuột thì thêm
 **Dao động mỗi ngày: ±Y %**, và khi bạn bấm ± thì có nhãn đánh giá mục tiêu.
@@ -87,7 +509,7 @@ GMV của mỗi luồng được tách thành bốn thừa số:
 Thanh chọn khoảng: 7 / 14 / 30 / 90 ngày (mặc định 30). Dòng chú thích:
 "Gốc: trung bình N ngày · ▲▼ so với N ngày trước đó · dao động trong N ngày".
 
-### 2.1 Ví dụ có số
+#### A2.1. Ví dụ có số
 
 Thẻ sản phẩm của shop, khoảng 30 ngày:
 
@@ -117,7 +539,7 @@ Vì sao ngưỡng là 2 lần chứ không 1: các ngày không độc lập v�
 ngày tốt/xấu liền nhau), nên dao động tính ra lạc quan hơn thực tế. Ngưỡng 2 lần bù cho điều đó.
 Một quy tắc dùng chung cho mọi phép so sánh: chip ▲▼, kết quả đo thẻ, và khi nói với người bán.
 
-### 2.2 "Không ngẫu nhiên" ≠ "do Juli"
+#### A2.2. "Không ngẫu nhiên" ≠ "do Juli"
 
 **Thay đổi rõ** chỉ nói: con số đã thật sự thay đổi. Nó KHÔNG nói vì sao. Lượt hiển thị giảm 24,6 % có
 thể do TikTok đổi thuật toán, hết chiến dịch sàn, đối thủ giảm giá, hết hàng… Một kết quả ngày 14 chỉ
@@ -127,13 +549,13 @@ thể do TikTok đổi thuật toán, hết chiến dịch sàn, đối thủ gi
 2. không có thay đổi bên ngoài chồng lên khoảng đo (nếu có → **Bị ảnh hưởng bởi thay đổi khác**),
 3. các chỉ số giữ ở trạng thái **Giữ ổn định** và GMV không giảm quá dao động của nó.
 
-### 2.3 Ô "Ít dữ liệu"
+#### A2.3. Ô "Ít dữ liệu"
 
 Dưới 30 lượt nhấp (CTR) hoặc 30 đơn (CTOR, AOV) trong khoảng: giá trị vẫn hiện nhưng màu xám, có dấu
 "*", viền đứt, chip xu hướng xám "~ 3,1 %" thay cho ▲▼, dòng "Ít dữ liệu · N đơn" (hoặc "N lượt nhấp").
 Mục tiêu đặt trên ô này đánh giá là "Ít dữ liệu". Cách xử lý: chọn khoảng dài hơn.
 
-### 2.4 Đánh giá mục tiêu trong Mô phỏng
+#### A2.4. Đánh giá mục tiêu trong Mô phỏng
 
 Mỗi lần bấm ± đổi 1 %. Nhãn dưới ô:
 
@@ -146,7 +568,7 @@ Lưu ý: Mô phỏng so mục tiêu với dao động của MỘT khoảng (dao 
 (sau D31.7) dùng dao động GỘP của hai khoảng và ngưỡng 2 lần — chặt hơn. Một mục tiêu "đo được" vừa
 đủ trong Mô phỏng có thể chỉ ra "Có thể thay đổi" khi đo thật.
 
-### 2.5 Lưu lượng ổn định và bảng "Độ dao động"
+#### A2.5. Lưu lượng ổn định và bảng "Độ dao động"
 
 - Nhãn luồng: **Lưu lượng ổn định** (CV lượt hiển thị < 15 %), **Dao động vừa** (< 30 %), **Dao động
   cao** (≥ 30 %), "Chưa đủ dữ liệu". Dưới tên luồng: "Dao động mỗi ngày (lượt hiển thị): ±X %".
@@ -156,7 +578,7 @@ Lưu ý: Mô phỏng so mục tiêu với dao động của MỘT khoảng (dao 
 - GMV cả shop sau mô phỏng = tổng GMV/ngày các luồng; "≈ X tr ₫ mỗi tháng" = chênh lệch × 30. Đây là
   phép nhân công thức, không phải dự báo của mô hình.
 
-## 3. Juli chọn sản phẩm và đặt mục tiêu thế nào (D29, D30)
+### A3. Juli chọn sản phẩm và đặt mục tiêu thế nào (D29, D30)
 
 1. **Khoảng thích ứng.** Với từng sản phẩm và từng chỉ số, Juli lấy khoảng ngắn nhất trong
    Cửa sổ chẩn đoán (mặc định 14 → 30 → 60 ngày) có ≥ Dữ liệu tối thiểu (mặc định 30 lượt nhấp / 30
@@ -184,7 +606,7 @@ Lưu ý: Mô phỏng so mục tiêu với dao động của MỘT khoảng (dao 
    Sản phẩm 70 lượt hiển thị/ngày "giảm" CTR 4 % → 3 % không còn mở thẻ; sản phẩm nhiều dữ liệu gần
    như không đổi. Chỉ ảnh hưởng việc mở thẻ: KPI, dao động, GMV mất và câu cho người bán vẫn dùng số
    thô. Chi tiết trong `diagnosis.metric_trigger.drops[].shrinkage`.
-   **Cách cũ (GMV trước, D29.2)** vẫn chọn được cho từng shop ở "Điều kiện mở thẻ" (mục 5): sản phẩm
+   **Cách cũ (GMV trước, D29.2)** vẫn chọn được cho từng shop ở "Điều kiện mở thẻ" (mục A5): sản phẩm
    chỉ thành ứng viên khi GMV/ngày giảm nhiều hơn dao động gộp của GMV, rồi chỉ số kéo xuống nhiều
    nhất là chỉ số mục tiêu, xếp hạng theo Lưu lượng ổn định trước. Sản phẩm không có chỉ số nào giảm
    chỉ có thẻ "tăng trưởng" khi mô phỏng người mua tìm được phương án thắng rõ (D38) — chưa xây trong
@@ -229,7 +651,7 @@ dịch ¼ quãng về tỷ lệ thực tế ÷ dự kiến, kẹp 0–2). Trên 
 Ảnh bìa + Tiêu đề cùng cho CTR), không bao giờ CTR và CTOR cùng lúc — để kết quả quy được về đúng
 thay đổi. Mỗi thẻ vẫn **Duyệt** riêng.
 
-## 4. Đọc một thẻ đã đo (Đo lường)
+### A4. Đọc một thẻ đã đo (Đo lường)
 
 Mốc: **Ngày 0** (ngày Juli ghi thành công, hoặc ngày khuyến mãi bắt đầu), **Ngày 7 · kiểm tra**,
 **Ngày 14 · chốt**. Khối "Mục tiêu và Ngưỡng giữ ổn định": "Trung bình mỗi ngày · so với 14 ngày trước
@@ -264,7 +686,7 @@ có mặc định, Quy tắc để trống ("—"). Người bán đặt riêng 
 (**Bạn đặt**). Juli không bao giờ tự hoàn tác; **Hoàn tác** tạo một lượt chạy mới khôi phục nội dung cũ,
 cũng qua bước xác nhận; với khuyến mãi, Hoàn tác = Juli hướng dẫn người bán tắt khuyến mãi.
 
-## 5. Cài đặt shop → "Chẩn đoán & KPI" (Admin)
+### A5. Cài đặt shop → "Chẩn đoán & KPI" (Admin)
 
 Mỗi hàng là một bản nháp, lưu qua hộp xác nhận trước → sau, ghi Nhật ký. "Về mặc định" bỏ giá trị riêng.
 
@@ -286,7 +708,7 @@ Các phần khác của Cài đặt shop: giai đoạn (Thử nghiệm · Tự v
 động bật/tắt, API khuyến mãi, model, giới hạn OpenAI riêng (mặc định $5/tháng), và Quy tắc của người bán
 (ghi "Đội ngũ Juli đặt"; người bán thấy và sửa tiếp).
 
-### 5.1 "Nhiều thẻ mỗi ô (thử nghiệm)" (Admin, D33)
+#### A5.1. "Nhiều thẻ mỗi ô (thử nghiệm)" (Admin, D33)
 
 Bật cho từng shop (mặc định Tắt; shop khác không đổi). Lưu cùng hàng tunable của "Chẩn đoán & KPI",
 qua hộp xác nhận, ghi Nhật ký.
@@ -317,7 +739,7 @@ và loại trừ quà tặng giữ nguyên; thẻ bị chặn vì ô đầy có 
 Ô có thể có thẻ với dữ liệu hiện lưu: Lượt hiển thị và CTR (Thẻ sản phẩm hoặc tất cả kênh), CTOR và
 AOV (chỉ tất cả kênh), Video, LIVE.
 
-### 5.2 "Nhóm thử nghiệm (đối chứng chậm)" (Admin, D34 / D39.3)
+#### A5.2. "Nhóm thử nghiệm (đối chứng chậm)" (Admin, D34 / D39.3)
 
 Vì sao: thẻ được chọn **vì** sản phẩm vừa giảm, nên so trước/sau đơn thuần hay "ăn may" (sản phẩm tự
 hồi lại), và thuật toán sàn, mùa vụ, đối thủ đều làm số lên xuống. Chỉ chia ngẫu nhiên mới tách được
@@ -366,7 +788,7 @@ hiệu quả thật của một loại thay đổi.
 - Chưa làm: kết quả của các shop tương tự cho shop quá nhỏ (D34.6) và bảng hiệu quả theo loại thay đổi
   thay trọng số xếp hạng (D34.7).
 
-### 5.3 Nhóm tạo trong Ops, AOV, cảnh báo CTR, sàn trôi tuần (Admin, D45, P36 — chỉ Ops)
+#### A5.3. Nhóm tạo trong Ops, AOV, cảnh báo CTR, sàn trôi tuần (Admin, D45, P36 — chỉ Ops)
 
 Mọi thứ ở mục này chỉ có trong Ops; ứng dụng người bán không đổi.
 
@@ -405,7 +827,7 @@ Mọi thứ ở mục này chỉ có trong Ops; ứng dụng người bán khôn
   sửa vào Nhật ký. Chọn thử nghiệm tự động (knowledge gradient) chưa làm: chỉ sau khi 2–3 nhóm D34 có
   kết quả.
 
-### 5.4 Lift đã co (EB) (D52, P45 — chỉ Ops)
+#### A5.4. Lift đã co (EB) (D52, P45 — chỉ Ops)
 
 Một nhóm được chú ý vì kết quả trông rất tốt thường may mắn hơn thực tế ("lời nguyền người thắng").
 Cạnh mỗi kết quả nhóm (chỉ số chính, cách tính mới, AOV, số món mỗi đơn) Ops hiện thêm một dòng:
@@ -427,7 +849,7 @@ theo các nhóm cùng loại để tránh tin nhầm kết quả may mắn".
 - **Shop nào góp, shop nào dùng (D11, D14, D17 — 2026-10-27).** Chỉ shop đã đồng ý gộp dữ liệu
   (`pooled_training`) góp kết quả nhóm vào mốc so sánh và chỉ những shop đó dùng mốc chung; shop
   chưa đồng ý không góp cũng không dùng ("chỉ dữ liệu của shop này"). Quyền này chỉ cấp cho shop của
-  chính Juli (Fujiwa, shop sandbox): điều khoản TikTok Shop (Developer ToS §2.7(g), Partner Center ToS
+  chính Juli (shop sandbox của Juli): điều khoản TikTok Shop (Developer ToS §2.7(g), Partner Center ToS
   §3.8(e)) cấm gộp dữ liệu API của người bán cho mục đích riêng của Juli; Shopee (ToS §6.2(c)) cần
   Shopee đồng ý bằng văn bản cho số liệu tổng hợp về hiệu quả người bán. Thêm một lớp bảo vệ: một ô
   gộp chỉ được dùng khi có **ít nhất 5 shop đã đồng ý** góp vào và **không shop nào chiếm quá 50 %**
@@ -436,7 +858,7 @@ theo các nhóm cùng loại để tránh tin nhầm kết quả may mắn".
   chỉ shop của Juli đồng ý, nên mọi dòng đều đang ở mức mặc định. Hệ số hiệu chỉnh cấp "fleet" của Dự
   đoán hiệu quả (D30.3) theo cùng quy tắc: ô theo đòn bẩy, rồi mọi đòn bẩy.
 
-### 5.5 GMV, "tỷ lệ chuyển đổi" và kênh Thẻ sản phẩm: định nghĩa của TikTok (D55.1, P47 — chỉ Ops)
+#### A5.5. GMV, "tỷ lệ chuyển đổi" và kênh Thẻ sản phẩm: định nghĩa của TikTok (D55.1, P47 — chỉ Ops)
 
 Ba điểm dễ nhầm khi so số của Juli với Seller Center (nguồn: TikTok Seller University, tổng hợp ở
 `~/juli-sim-pilot/research/metric_definitions.md`, 2026-10-17):
@@ -472,7 +894,7 @@ Ba điểm dễ nhầm khi so số của Juli với Seller Center (nguồn: TikT
    (tìm kiếm, gợi ý…), không phải một kênh thuần; khi LIVE hoặc video đo thiếu, phần thiếu dồn vào
    Thẻ sản phẩm. Đọc thay đổi của Thẻ sản phẩm cùng với LIVE và video.
 
-## 6. Các màn hình Ops khác
+### A6. Các màn hình Ops khác
 
 - **Tổng quan**: Đã kết nối / Đang hoạt động / Mất kết nối (Token hết hạn); từng shop: Giai đoạn, Kết
   nối, Lấy dữ liệu (lần lấy gần nhất), Thẻ mở / duyệt / từ chối, Tỷ lệ duyệt (30 ngày), OpenAI tháng này,
@@ -490,7 +912,7 @@ Ba điểm dễ nhầm khi so số của Juli với Seller Center (nguồn: TikT
 - **Xem như shop**: luôn chỉ xem ("Đang xem như {shop} · chỉ xem, không ghi được"); thấy Trang chủ,
   Phân tích, Quyết định, Quy tắc đúng như người bán. Muốn thay đổi → Cài đặt shop.
 
-## 7. Câu hỏi thường gặp
+### A7. Câu hỏi thường gặp
 
 **"Sao Phân tích báo lượt hiển thị giảm 24,6 % mà Juli không đề xuất gì?"**
 Nội bộ (D39.1): một chỉ số giảm quá dao động gộp của chính nó là đủ mở thẻ, kể cả khi GMV giữ được.
@@ -502,7 +924,7 @@ hiển thị của shop giảm thật, nhưng ở từng sản phẩm mức gi�
 Juli chưa có thay đổi phù hợp), nên Juli chưa đề xuất. Khi một sản phẩm giảm rõ, Juli sẽ đề xuất."
 
 **"Sao sản phẩm của tôi nhận thẻ muộn hơn các sản phẩm khác?"**
-Nội bộ: sản phẩm rơi vào nhóm đối chứng (D34, mục 5.2). Trả lời: "Juli thử thay đổi này trên một nhóm
+Nội bộ: sản phẩm rơi vào nhóm đối chứng (D34, mục A5.2). Trả lời: "Juli thử thay đổi này trên một nhóm
 sản phẩm trước và giữ vài sản phẩm chọn ngẫu nhiên để so sánh, nhờ đó biết thay đổi có thật sự hiệu
 quả không. Sản phẩm của bạn nhận đề xuất sau 14 ngày, kèm kết quả của nhóm."
 
