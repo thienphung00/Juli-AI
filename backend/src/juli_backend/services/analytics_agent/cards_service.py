@@ -25,6 +25,12 @@ class ServiceCardEngine:
 
         return allowed_for_metric(metric)
 
+    def needs_item(self, kind: str) -> bool:
+        """Does the kind's generator need a product? An unknown kind cannot be filled at all."""
+        from juli_backend.services.shopee_recommendations.generators import GENERATORS
+
+        return GENERATORS[kind][1] if kind in GENERATORS else True
+
     async def _env(self, as_of: date) -> tuple[Any, list[Any]]:
         if as_of in self._cache:
             return self._cache[as_of]

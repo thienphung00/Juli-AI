@@ -98,6 +98,23 @@ NO_CARD_VI = {
 }
 
 
+def card_figures(accepted: list[dict[str, Any]]) -> list[float]:
+    """Every number of an accepted card (P50s, costs): never allowed in the text."""
+    out: list[float] = []
+    for a in accepted:
+        for v in (a.get("engine_card") or {}).get("versions") or []:
+            r = v.get("result") or {}
+            d = _own(v).get("delta") or {}
+            for x in (
+                (d.get("gmv") or {}).get("p50"),
+                (d.get("profit") or {}).get("p50"),
+                r.get("cost_total"),
+            ):
+                if isinstance(x, (int, float)):
+                    out.append(float(x))
+    return out
+
+
 def coarse(kind: str) -> str:
     """The lever family of a change kind; an already-coarse proposal kind maps to itself."""
     return COARSE.get(kind, "ads" if kind.startswith("ads") else kind)
@@ -269,6 +286,78 @@ async def _version_pick(
     return best.get("label"), {**info, "fallback": "best estimable"}, u
 
 
+async def _engine_and_overlap(
+    out: CardOutcome,
+    data: DataPort,
+    engine: CardEnginePort,
+    jev: JevPort,
+    kind: str,
+    item: str | None,
+    as_of: date,
+    prior_drafts: list[dict[str, Any]] | None,
+) -> tuple[dict[str, Any], tuple[str, str | None] | None]:
+    """G3 (engine values), then G4 (exact overlap in code, then a Jev overlap Noul).
+    Returns (engine card, None) when the kind passes, else ({}, (reason_vi, existing_card_code))."""
+    eng = await engine.engine_card(kind, item, as_of)
+    out.gates["G3"] = bool(eng.get("ok"))
+    if not eng.get("ok"):
+        reason = {
+            "generator_returned_none": "Juli chưa tìm được mức phù hợp (giá sàn / dữ liệu không "
+            "cho phép).",
+            "kind_needs_a_product": "Loại thẻ này cần một sản phẩm cụ thể.",
+        }.get(eng.get("reason", ""), "Juli chưa tạo được phương án cho đòn bẩy này.")
+        return {}, (reason, None)
+    card: dict[str, Any] = eng["card"]
+    open_cards = await data.open_cards()
+    exact = [
+        c
+        for c in open_cards
+        if coarse(c["kind"]) == coarse(kind) and (c.get("item_id") or None) == (item or None)
+    ]
+    if exact:
+        out.gates["G4"] = False
+        return {}, ("Đã có thẻ đang làm việc này.", exact[0].get("code"))
+    others = [*open_cards, *(prior_drafts or [])]
+    if others:
+        nm = await data.item_names(
+            [c["item_id"] for c in others if c.get("item_id")] + ([item] if item else [])
+        )
+        ov, u2 = await jev.ask(
+            {
+                "draft": {
+                    "kind": kind,
+                    "item_name": nm.get(item or "", item),
+                    "change_after": card.get("title"),
+                },
+                "open_cards": [
+                    {
+                        "kind": c.get("kind"),
+                        "item_name": nm.get(c.get("item_id") or "", c.get("item_id")),
+                        "change_after": c.get("change_after"),
+                        "status": c.get("status"),
+                    }
+                    for c in others
+                ][:30],
+            },
+            {
+                "overlap": {
+                    "type": "noul",
+                    "instructions": "Does `draft` make the same change as one of `open_cards`, "
+                    "or change the same lever (price, voucher, stock, ads, listing...) on the "
+                    "same product?",
+                }
+            },
+        )
+        out.cost_usd += u2.cost_usd
+        n = ov["overlap"]["noul"]
+        out.routing.append({"step": "overlap", "noul": round(n, 4), "rule": f">={FITS_GO} blocked"})
+        out.gates["G4"] = n < FITS_GO
+        if n >= FITS_GO:
+            return {}, ("Đã có thẻ đang làm việc này.", None)
+    out.gates["G4"] = True
+    return card, None
+
+
 async def card_stage(
     *,
     chains: list[ChainResult],
@@ -316,15 +405,12 @@ async def card_stage(
                 "stage": (top.get("cause") or {}).get("stage"),
                 "rank": 1,
             }
+    if not names:  # D: no product available -> only kinds whose generator needs no item
+        kinds = [k for k in kinds if not engine.needs_item(k)]
     if not kinds:
         return none("Không có đòn bẩy phù hợp với nguyên nhân này.")
     state["findings"]["products"] = [{"item_id": k, "name": v[:80]} for k, v in names.items()]
     qs: dict[str, dict[str, Any]] = {
-        "actionable": {
-            "type": "noul",
-            "instructions": "Do `findings` point to a change the seller could make "
-            "(price, voucher, listing, ads, combo or affiliate) to fix the problem?",
-        },
         "kind": {
             "type": "choice",
             "instructions": "Which change fits the main driver in `findings` best?",
@@ -339,84 +425,58 @@ async def card_stage(
         }
     ans, u = await jev.ask(state, qs)
     out.cost_usd += u.cost_usd
-    act = ans["actionable"]["noul"]
     kok, kinfo = choice_ok(ans["kind"])
-    out.routing.append(
-        {"step": "card_choice", "actionable": round(act, 4), "kind": kinfo, "threshold": FITS_GO}
-    )
-    if act < FITS_GO or not kok:
-        return none("Juli không thấy đòn bẩy phù hợp với nguyên nhân này.")
-    kind = kinfo["pick"]
     item: str | None = next(iter(names)) if len(names) == 1 else None
     if "product" in ans:
         pok, pinfo = choice_ok(ans["product"])
         out.routing.append({"step": "card_product", **pinfo})
         item = pinfo["pick"] if pok else None
-    out.gates["G2"] = kind in kinds
-    if not out.gates["G2"]:
-        return none("Loại thẻ này không tác động tới chỉ số gây thay đổi.")
-    out.gates["G5"] = (item is None or item in items) and chain.metric in metrics
-    if not out.gates["G5"]:
-        return none("Sản phẩm hoặc chỉ số của thẻ không nằm trong phần giải thích.")
-    eng = await engine.engine_card(kind, item, as_of)
-    out.gates["G3"] = bool(eng.get("ok"))
-    if not eng.get("ok"):
-        reason = {
-            "generator_returned_none": "Juli chưa tìm được mức phù hợp (giá sàn / dữ liệu không "
-            "cho phép).",
-            "kind_needs_a_product": "Loại thẻ này cần một sản phẩm cụ thể.",
-        }.get(eng.get("reason", ""), "Juli chưa tạo được phương án cho đòn bẩy này.")
-        return none(reason)
-    card = eng["card"]
-    # G4: exact overlap in code (executed cards only within 28 days: the port already filters), then
-    # Jev
-    open_cards = await data.open_cards()
-    exact = [
-        c
-        for c in open_cards
-        if coarse(c["kind"]) == coarse(kind) and (c.get("item_id") or None) == (item or None)
+    # A+C+D: G1 is the only eligibility gate; a clear kind is taken, an unsure one sends the top 2
+    # (by probability) through the gates and the engine in order; the first that passes is drafted
+    ranked = [
+        k
+        for k, _ in sorted((ans["kind"].get("probabilities") or {}).items(), key=lambda kv: -kv[1])
     ]
-    if exact:
-        out.gates["G4"] = False
-        return none("Đã có thẻ đang làm việc này.", exact[0].get("code"))
-    others = [*open_cards, *(prior_drafts or [])]
-    if others:
-        nm = await data.item_names(
-            [c["item_id"] for c in others if c.get("item_id")] + ([item] if item else [])
-        )
-        ov, u2 = await jev.ask(
-            {
-                "draft": {
-                    "kind": kind,
-                    "item_name": nm.get(item or "", item),
-                    "change_after": card.get("title"),
-                },
-                "open_cards": [
-                    {
-                        "kind": c.get("kind"),
-                        "item_name": nm.get(c.get("item_id") or "", c.get("item_id")),
-                        "change_after": c.get("change_after"),
-                        "status": c.get("status"),
-                    }
-                    for c in others
-                ][:30],
-            },
-            {
-                "overlap": {
-                    "type": "noul",
-                    "instructions": "Does `draft` make the same change as one of `open_cards`, "
-                    "or change the same lever (price, voucher, stock, ads, listing...) on the "
-                    "same product?",
-                }
-            },
-        )
-        out.cost_usd += u2.cost_usd
-        n = ov["overlap"]["noul"]
-        out.routing.append({"step": "overlap", "noul": round(n, 4), "rule": f">={FITS_GO} blocked"})
-        out.gates["G4"] = n < FITS_GO
-        if n >= FITS_GO:
-            return none("Đã có thẻ đang làm việc này.")
-    out.gates["G4"] = True
+    ranked = ranked or [kinfo["pick"]]
+    if item is None:
+        ranked = [k for k in ranked if not engine.needs_item(k)]
+    candidates = [kinfo["pick"]] if kok and kinfo["pick"] in ranked else ranked[:2]
+    out.routing.append(
+        {
+            "step": "card_choice",
+            "variant": "A+C+D",
+            "kind": kinfo,
+            "mode": "choice" if kok else "top2",
+            "candidates": candidates,
+            "item": item,
+            "offered_kinds": kinds,
+        }
+    )
+    if not candidates:
+        return none("Juli không thấy đòn bẩy phù hợp với nguyên nhân này.")
+    first_failure: tuple[str, str | None] | None = None
+    card: dict[str, Any] = {}
+    kind = ""
+    fail: tuple[str, str | None] | None
+    for kind in candidates:
+        out.gates["G2"] = kind in kinds
+        if not out.gates["G2"]:
+            fail = ("Loại thẻ này không tác động tới chỉ số gây thay đổi.", None)
+        else:
+            out.gates["G5"] = (item is None or item in items) and chain.metric in metrics
+            if not out.gates["G5"]:
+                fail = ("Sản phẩm hoặc chỉ số của thẻ không nằm trong phần giải thích.", None)
+            else:
+                card, fail = await _engine_and_overlap(
+                    out, data, engine, jev, kind, item, as_of, prior_drafts
+                )
+        out.routing.append({"step": "card_try", "kind": kind, "passed": fail is None})
+        if fail is None:
+            break
+        first_failure = first_failure or fail
+    else:
+        reason, code = first_failure or ("Juli chưa tạo được phương án cho đòn bẩy này.", None)
+        return none(reason, code)
     rec, vinfo, u3 = await _version_pick(jev, card)
     out.cost_usd += u3.cost_usd
     out.routing.append({"step": "version", **vinfo})

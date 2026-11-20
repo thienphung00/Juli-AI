@@ -15,7 +15,7 @@ import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from juli_backend.services.analytics_agent import fmt
+from juli_backend.services.analytics_agent import facts, fmt
 from juli_backend.services.analytics_agent.types import LabelTable
 
 LEVER_VI: dict[str, list[str]] = {
@@ -123,7 +123,8 @@ _ENDPOINT = re.compile(
     re.I,
 )
 _EVIDENCE = re.compile(r"\b(lmdi|rate_mix|additive|evidence)[:_]\S*", re.I)
-_LONG_DECIMAL = re.compile(r"\d[\d.]*,\d{3,}|(?<![\d.])\d+\.\d{3,}(?![\d.])")
+# more than 2 decimals: "101,891404", "0.079365"; "183.755" is a Vietnamese thousands group
+_LONG_DECIMAL = re.compile(r"\d[\d.]*,\d{3,}|(?<![\d.])(?:0\.\d{3,}|\d+\.\d{4,})(?![\d.])")
 _BIG_ID = re.compile(r"\b\d{9,}\b")
 _ENGLISH_RUN = re.compile(r"\b(?:[A-Za-z]{3,}\s+){2,}[A-Za-z]{3,}\b")
 _PLACEHOLDER = re.compile(r"placeholder|lorem ipsum|^\s*Tôi hiểu\s*:", re.I | re.M)
@@ -189,49 +190,6 @@ def sanitise(
 # ------------------------------------------------------------------ prompt inputs and template
 
 
-def pretty_findings(chain_json: dict[str, Any]) -> dict[str, Any]:
-    """The writer's view of one chain: Vietnamese labels, values already formatted, no ids."""
-    metric = chain_json["metric"]
-    out_f = []
-    for f in chain_json["findings"]:
-        node_metric = metric if f["level"] == "shop" else f["node"].partition(".")[2] or f["node"]
-        m = (
-            node_metric
-            if node_metric
-            in (
-                "gmv",
-                "orders",
-                "aov",
-                "ctr",
-                "ctor",
-                "views",
-                "clicks",
-                "margin",
-                "profit",
-                "roas",
-                "ads_spend",
-            )
-            else metric
-        )
-        out_f.append(
-            {
-                "mức": f["level"],
-                "đối tượng": f["node_vi"],
-                "trước": fmt.value(m, f["before"]),
-                "sau": fmt.value(m, f["now"]),
-                "tỷ_trọng_%": None
-                if f["contribution_pct"] is None
-                else fmt.decimal(f["contribution_pct"], 0),
-            }
-        )
-    return {
-        "kỳ": chain_json["window"]["label_vi"],
-        "kết_luận": STOP_VI.get(chain_json["stop_reason"], ""),
-        "chi_tiết": out_f,
-        "sự_kiện": [e["kind"] for e in chain_json.get("events", [])],
-    }
-
-
 def template_text(first_line: str, chain_json: dict[str, Any], labels: LabelTable) -> str:
     """Code-rendered fallback: metric-formatted values, no LLM."""
     m = chain_json["metric"]
@@ -260,15 +218,18 @@ async def write_explanation(
     labels: LabelTable,
     id_names: dict[str, str],
     card_note: list[dict[str, Any]] | None = None,
+    card_figures: list[float] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Stream the writer; check alignment + sanitiser; one rewrite via text_replace; then the
     template.
     Returns (final text, {"rewrites", "template", "issues", "cost_usd"})."""
     import json
 
+    pairs = [facts.writer_input(c, labels) for c in chains_json]
+    all_facts = [f for _, f in pairs]
     payload = {
         "FIRST_LINE": first_line,
-        "FINDINGS": [pretty_findings(c) for c in chains_json],
+        "FINDINGS": [p for p, _ in pairs],
         "ACCEPTED_CARDS": [
             {"loại": c.get("kind_vi"), "sản_phẩm": c.get("item_name")} for c in accepted
         ],
@@ -282,9 +243,14 @@ async def write_explanation(
         await emit_delta(d)
     text = "".join(streamed).strip()
 
+    numbers_failed: list[str] = []
+
     def check(t: str) -> tuple[str, list[str]]:
         clean, leaks = sanitise(t, id_names, names)
         iss = alignment(clean, accepted) + [f"leak:{x}" for x in leaks]
+        bad_numbers = facts.numbers_check(clean, all_facts, card_figures=card_figures or [])
+        numbers_failed.extend(bad_numbers)
+        iss += [f"number:{x}" for x in bad_numbers]
         if not _FIRST_LINE.match(clean.splitlines()[0] if clean else ""):
             iss.append("first_line")
         return clean, iss
@@ -297,6 +263,7 @@ async def write_explanation(
         "template": False,
         "issues": list(issues),
         "cost_usd": 0.0,
+        "numbers_failed": numbers_failed,
     }
     if issues:
         meta["rewrites"] = 1

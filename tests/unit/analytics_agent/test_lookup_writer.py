@@ -144,6 +144,10 @@ def test_sanitiser_passes_clean_vietnamese_with_app_formats() -> None:
     assert writer.sanitise(txt)[1] == []
 
 
+def test_sanitiser_allows_a_thousands_group_with_one_dot() -> None:
+    assert writer.sanitise("AOV giảm từ 183.755đ xuống 150.000đ.")[1] == []
+
+
 def test_sanitiser_swaps_ids_for_product_names() -> None:
     clean, issues = writer.sanitise(
         "sản phẩm 26107129526 bán chậm", {"26107129526": "Áo A"}, ["Áo A"]
