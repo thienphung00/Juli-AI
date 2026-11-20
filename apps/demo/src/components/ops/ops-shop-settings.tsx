@@ -15,6 +15,7 @@ import { OpsShopConsent } from "./ops-contract-shop";
 import { OpsRules } from "./ops-rules";
 import { OpsExclusions } from "../exclusions/ops-exclusions";
 import { OpsPlannedChanges } from "../planned-changes/ops-planned-changes";
+import { OpsVat } from "./ops-vat";
 import { OpsStockAlert } from "../ops-stock-alert/ops-stock-alert";
 import { OpsShopInputs } from "./ops-shop-inputs";
 import { OpsShopTeam } from "./ops-shop-team";
@@ -35,7 +36,7 @@ const STAGES: [StageId, string, string][] = [
 const STREAM_LABEL: Record<string, string> = { product_card: "Thẻ SP", shop_tab: "Tab", seller_video: "Video", seller_live: "LIVE" };
 const OWN: CSSProperties = { background: "#fff7fa", borderColor: "#f8b9d3", fontWeight: 600 };
 
-type Api = Pick<OpsApi, "settings" | "putSettings" | "resetSettings" | "invite"> & Partial<Pick<OpsApi, "removeMember" | "groups" | "createGroup" | "setGroupReason" | "consent" | "enableConsent" | "createPairingCode" | "ingestTokens" | "revokeIngestToken">>;
+type Api = Pick<OpsApi, "settings" | "putSettings" | "resetSettings" | "invite"> & Partial<Pick<OpsApi, "removeMember" | "groups" | "createGroup" | "setGroupReason" | "consent" | "enableConsent" | "createPairingCode" | "ingestTokens" | "revokeIngestToken" | "revokeInactiveIngestTokens">>;
 
 function SettingRow({
   title,
@@ -483,6 +484,7 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
           <OpsCardGroups canEdit={canEdit} create={api.createGroup} load={api.groups} platform={platform} setReason={api.setGroupReason} shopId={shopId} />
           <OpsRules canEdit={canEdit} platform={platform} shopName={shopName} shopId={shopId} />
           <OpsShopInputs canEdit={canEdit} shopId={shopId} />
+          {platform === "shopee" ? <OpsVat canEdit={canEdit} shopId={shopId} /> : null}
           {platform === "shopee" ? <OpsStockAlert canEdit={canEdit} shopId={shopId} /> : null}
           {platform === "shopee" ? <OpsPlannedChanges canEdit={canEdit} shopId={shopId} /> : null}
           {platform === "shopee" ? <OpsExclusions canEdit={canEdit} shopId={shopId} /> : null}

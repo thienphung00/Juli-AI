@@ -4,6 +4,7 @@
 
 import type { MydataDataset } from "./config";
 import { itemRowsIn } from "./map";
+import { isNoCampaign } from "./promotion-map";
 import { waitBefore } from "./sync";
 
 export interface PacerDeps {
@@ -85,7 +86,7 @@ export function isDataAnswer(status: number, body: unknown): boolean {
   if (status < 200 || status >= 300 || typeof body !== "object" || body === null || Array.isArray(body)) return false;
   const b = body as { code?: unknown; error?: unknown; data?: unknown; result?: unknown };
   if (isFlatMetrics(body as Record<string, unknown>)) return true;
-  if ("code" in b) return b.code === 0;
+  if ("code" in b) return b.code === 0 || isNoCampaign(body);
   if ("error" in b) return b.error === 0 && (b.data != null || b.result != null);
   return (typeof b.data === "object" && b.data !== null) || (typeof b.result === "object" && b.result !== null);
 }

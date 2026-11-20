@@ -14,7 +14,7 @@ describe("backfill day plan", () => {
     for (const [index, plan] of plans.entries()) {
       const day = days[index]!;
       const start = gmt7DateStart(day);
-      expect(plan.map((p) => p.dataset)).toEqual(["traffic_overview", "traffic_overview", "shop_traffic", "product_overview", "promotion_daily", "promotion_daily"]);
+      expect(plan.map((p) => p.dataset)).toEqual(["traffic_overview", "traffic_overview", "shop_traffic", "product_overview", "promotion_daily", "promotion_daily", "flash_sale", "flash_sale"]);
       const [overview, placed, traffic] = plan;
       expect(placed!.params).toEqual({ ...overview!.params, order_type: "placed" });
       if (index === 0) {
@@ -58,10 +58,12 @@ describe("backfill day plan", () => {
       "product_overview",
       "promotion_daily",
       "promotion_daily",
+      "flash_sale",
+      "flash_sale",
     ]);
-    expect(backfillDatasets(false)).toEqual(["traffic_overview", "shop_traffic", "product_overview", "promotion_daily"]);
+    expect(backfillDatasets(false)).toEqual(["traffic_overview", "shop_traffic", "product_overview", "promotion_daily", "flash_sale"]);
     // 0.3.19: the item readers are on by default
-    expect(backfillDatasets()).toEqual(["traffic_overview", "item_by_source", "item_performance", "shop_traffic", "product_overview", "promotion_daily"]);
+    expect(backfillDatasets()).toEqual(["traffic_overview", "item_by_source", "item_performance", "shop_traffic", "product_overview", "promotion_daily", "flash_sale"]);
     const withItems = buildBackfillDayPlan("2026-10-01", NOW, new Set(), true);
     expect(withItems.filter((p) => p.dataset === "item_performance")).toHaveLength(5);
     expect(withItems.filter((p) => p.dataset === "item_by_source" && p.params.page_num === "1")).toHaveLength(5);

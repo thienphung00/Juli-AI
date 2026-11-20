@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 
 import { DASH, fmt } from "../../lib/shopee-analytics/format";
-import { useResource } from "../../lib/shopee-analytics/use-resource";
+import { useResource, type Resource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { FILLABLE_CHANGE_KINDS } from "../../lib/shopee-decisions/model";
-import type { ExecutionCard, ExecutionState, ReaderBlock } from "../../lib/shopee-decisions/types";
+import { newestDataThrough } from "../../lib/shopee-decisions/forecast-display";
+import { ActualLines, DataThrough, MetricLines } from "./forecast-lines";
+import type { ExecutionCard, ExecutionState, ExecutionStates, ReaderBlock } from "../../lib/shopee-decisions/types";
 import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { fillJobHref } from "../planned-changes/listing-extras";
 import { TextChip } from "../shopee-analytics/ui";
@@ -183,6 +185,8 @@ export function Row({
           {c.title}
         </NavLink>
         {name ? <span className="sd-th-row__product">{name}</span> : null}
+        {c.forecast ? <MetricLines forecast={c.forecast} testId={`sd-th-fc-${c.card_id}`} /> : null}
+        {c.measurement?.actual ? <ActualLines measurement={c.measurement} testId={`sd-th-ac-${c.card_id}`} /> : null}
       </div>
       {c.state === "hoan_tac" ? <span /> : <Steps c={c} sample={sample} />}
       <div className="sd-th-row__side">
@@ -248,6 +252,11 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
   const readOnly = !!host.readOnly;
   const [tick, setTick] = useState(0);
   const res = useResource(() => host.reco.executionStates(), `${host.shopKey}|thuc-hien|${tick}`);
+  // F6.1: a refetch (tick) must not unmount the page: the "Xoá bảng" confirm and the import panel keep
+  // their state. While the next answer is on its way the last one of this shop stays on screen.
+  const [kept, setKept] = useState<{ readonly shop: string; readonly data: ExecutionStates } | null>(null);
+  if (res.status === "ready" && kept?.data !== res.data) setKept({ shop: host.shopKey, data: res.data });
+  const shown: Resource<ExecutionStates> = res.status === "loading" && kept && kept.shop === host.shopKey ? { status: "ready", data: kept.data } : res;
   const names = useResource(async () => new Map((await (host.products?.() ?? Promise.resolve([]))).map((p) => [p.id, p.name])), `${host.shopKey}|products`);
   const [asking, setAsking] = useState(false);
   const reconcile = async () => {
@@ -272,7 +281,7 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [count]);
   return (
-    <RecoState resource={res}>
+    <RecoState resource={shown}>
       {(data) => {
         const k = data.connector;
         const blocked = readerBlockText(k.reader_blocks);
@@ -304,6 +313,7 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
             </section>
             )}
             {host.reco.board && !sample && !readOnly && !host.staff ? <BoardActions board={host.reco.board} onChanged={() => setTick((t) => t + 1)} /> : null}
+            <DataThrough iso={newestDataThrough(data.cards)} testId="sd-th-through" />
             <ul className="sd-th-list">
               {data.cards.map((c) => (
                 <Row c={c} key={c.card_id} name={(names.status === "ready" && c.product_id ? names.data.get(c.product_id) : null) ?? null} onDone={() => setTick((t) => t + 1)} readOnly={readOnly} sample={sample} />

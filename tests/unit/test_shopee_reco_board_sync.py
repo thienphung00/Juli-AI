@@ -443,6 +443,79 @@ async def test_routes_preview_commit_and_reset(session, shop):
     app.dependency_overrides.clear()
 
 
+class _Same:
+    """A session factory that hands the test's own session back (never closes it)."""
+
+    def __init__(self, session):
+        self.session = session
+
+    def __call__(self):
+        return self
+
+    async def __aenter__(self):
+        return self.session
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+async def test_commit_is_a_background_job_the_status_route_reads_back(session, shop, monkeypatch):
+    """F6.2: commit answers with a job id; status returns the per-card rows, also later."""
+    from juli_backend.database import database as db
+    from juli_backend.services.planned_changes import import_job
+
+    started: list[tuple] = []
+    monkeypatch.setattr(db, "_session_factory", _Same(session))
+    monkeypatch.setattr(import_job, "spawn", lambda *a: started.append(a))
+    app = build_app(session)
+    authenticate(app, user=shop.user, shop=shop.shop)
+    data = _xlsx()
+    body = {"file_b64": base64.b64encode(data).decode()}
+    async with client_for(app) as client:
+        assert (await client.get(f"{BOARD}/external-import/status")).json()["data"] is None
+        token = (await client.post(f"{BOARD}/external-import/preview", json=body)).json()["data"][
+            "token"
+        ]
+        r = await client.post(f"{BOARD}/external-import/commit", json={**body, "token": token})
+        assert r.status_code == 202, r.text
+        job = r.json()["data"]
+        assert job["status"] == "running" and job["job_id"] and len(started) == 1
+        # a second press while it runs returns the same job and starts nothing
+        again = await client.post(f"{BOARD}/external-import/commit", json={**body, "token": token})
+        assert again.json()["data"]["job_id"] == job["job_id"] and len(started) == 1
+        pending = (await client.get(f"{BOARD}/external-import/status")).json()["data"]
+        assert pending["status"] == "running" and pending["result"] is None
+        factory, shop_id, user_id, job_arg, raw, tok = started[0]
+        await import_job.run(factory, shop_id, user_id, job_arg, raw, tok)
+        done = (await client.get(f"{BOARD}/external-import/status")).json()["data"]
+        assert done["job_id"] == job["job_id"] and done["status"] == "done"
+        assert done["result"]["created"] >= 1
+        assert {c["action"] for c in done["result"]["cards"]} <= {"created", "exists", "refused"}
+        assert all("ref" in c and "row" in c for c in done["result"]["cards"])
+    app.dependency_overrides.clear()
+
+
+async def test_a_job_that_fails_stores_its_code_and_a_dead_running_job_reads_as_failed(
+    session, shop
+):
+    from juli_backend.services.planned_changes import import_job
+
+    shop_id, user_id = shop.shop.id, shop.user.id
+    job, started = await import_job.create(session, shop_id, user_id, file_hash="h", now=NOW)
+    assert started
+    await session.commit()
+    out = await import_job.run(_Same(session), shop_id, user_id, job, _xlsx(), "0" * 32)
+    assert out["status"] == "failed" and out["error"]["code"] == external.ERROR_TOKEN
+    stored = await import_job.latest(session, shop_id, now=NOW)
+    assert stored["status"] == "failed" and stored["error"]["code"] == external.ERROR_TOKEN
+    stale, _ = await import_job.create(session, shop_id, user_id, file_hash="h", now=NOW)
+    later = NOW.replace(year=NOW.year + 1)
+    assert (await import_job.latest(session, shop_id, now=later))["error"][
+        "code"
+    ] == "import_stalled"
+    assert stale["status"] == "running"
+
+
 # ------------------------------------------------------------- Option B: the Kế hoạch holds them
 
 

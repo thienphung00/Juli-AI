@@ -90,6 +90,9 @@ export interface CardResultBlock {
     readonly cost_total?: N;
   } | null;
   readonly option?: OptionResult | null;
+  /** F7.1 / F7.4: this version's forecast amounts and the data day they stand on. */
+  readonly forecast?: import("./forecast-display").ForecastBlock | null;
+  readonly data_through?: string | null;
 }
 
 /** `{until: "YYYY-MM-DD", change_set}` of a product whose last change is still being measured (P91 D-1 / D-7). */
@@ -200,6 +203,12 @@ export interface CardSummary {
   readonly worth_trying?: boolean;
   /** Optional read-back summary of an executed card. */
   readonly verification?: { readonly state: VerificationState } | null;
+  /** F7.8: one amount per metric (hiện tại, dự kiến, Δ) over the card's own days. The band (`low` / `high`) is never shown. */
+  readonly forecast?: import("./forecast-display").ForecastBlock | null;
+  /** F7.8: the newest data day the forecast stands on ("Số liệu đến dd/mm"). */
+  readonly data_through?: string | null;
+  /** F7.8: an executed card's running Thực tế (`actual`), label, group and "đo chung" codes. */
+  readonly measurement?: import("./forecast-display").MeasurementBlock | null;
 }
 
 export interface CardList {
@@ -753,6 +762,10 @@ export interface ExecutionCard {
   readonly captured_voucher_id?: string | null;
   /** The person confirmed the change was undone in Seller Centre (state `hoan_tac`). */
   readonly reverted?: boolean;
+  /** F7.8: the card's forecast and running Thực tế, when the API carries them. */
+  readonly forecast?: import("./forecast-display").ForecastBlock | null;
+  readonly data_through?: string | null;
+  readonly measurement?: import("./forecast-display").MeasurementBlock | null;
 }
 
 export interface ConnectorLine {
@@ -803,9 +816,14 @@ export interface MeasurementCard {
   /** A fraction (0.08 = +8 %). */
   readonly impact_pct: number | null;
   readonly lift: { readonly p10: N; readonly p50: N; readonly p90: N };
-  /** The card's Δ lợi nhuận over the period, in đồng. */
-  readonly band: { readonly p10: N; readonly p50: N; readonly p90: N };
-  readonly actual: N;
+  /** Still on the wire; never shown (one amount, no range). */
+  readonly band?: { readonly p10: N; readonly p50: N; readonly p90: N };
+  /** F7.5: the running Thực tế per metric against hiện tại (`actual.metrics`), the label "Đã đo k/N ngày" and the final verdict. */
+  readonly actual?: import("./forecast-display").ActualBlock | null;
+  readonly group?: unknown;
+  readonly clean?: boolean | null;
+  /** F7.6: the other cards this one is measured together with ("đo chung"). */
+  readonly measured_with?: readonly string[];
   readonly metrics: readonly { readonly metric: string; readonly change_pct: number }[];
   readonly partial: boolean;
   readonly label: string | null;

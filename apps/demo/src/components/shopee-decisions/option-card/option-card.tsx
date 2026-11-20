@@ -5,8 +5,10 @@ import { useState } from "react";
 import { DASH, fmt, pp, vnCount, vnd } from "../../../lib/shopee-analytics/format";
 import type { VersionDates } from "../../../lib/shopee-decisions/builder-api";
 import { roiLabel, type AdsEditFacts, type FunnelColumn, type OptionResult } from "../../../lib/shopee-decisions/option-result";
+import { forecastOfResult } from "../../../lib/shopee-decisions/forecast-display";
 import { TextChip } from "../../shopee-analytics/ui";
-import { countPct, moneyPct, perDayText, periodLabel, resultDays, signedMoney } from "./format";
+import { MetricCell, MetricLines } from "../forecast-lines";
+import { moneyPct, resultDays, signedMoney } from "./format";
 
 /**
  * P98 / ADR-122 d.5: the option card — only the lines of the decision, then a collapsed "Chi tiết".
@@ -100,22 +102,17 @@ function AdsBlock({ ads: a }: { readonly ads: AdsEditFacts }) {
 export function OptionCard({ result: r, title, testId = "option-card", dates, profitReason }: { readonly result: OptionResult; readonly title?: string; readonly testId?: string; readonly dates?: VersionDates | null; /** G5: the profit_unknown warning's text, for a blank profit. */ readonly profitReason?: string }) {
   const profit = profitText(r);
   const orders = r.delta.orders;
-  const ne = !r.estimable;
-  const gmvText = ne ? NOT_ESTIMABLE : moneyPct(r.delta.gmv.value, r.delta.gmv.pct);
-  const ordersText = ne ? NOT_ESTIMABLE : countPct(orders.value, orders.pct);
+  const forecast = forecastOfResult(r);
   const beLine = breakEvenLine(r);
   const funnel = funnelText(r);
   const margin = marginText(r);
   const roiValue = r.roi?.value;
   const roi = roiValue === null || roiValue === undefined ? null : fmt(roiValue, 1);
   const days = resultDays(r);
-  const period = periodLabel(days);
-  const profitPerDay = r.estimable ? perDayText(r.delta.profit?.value, days) : null;
-  const gmvPerDay = r.estimable ? perDayText(r.delta.gmv.value, days) : null;
   const costNotes = r.notes.filter((n) => n.includes(COST_DAYS_NOTE));
   // UI grill G5: a "—" says why on hover (the server's reason text; the code is never shown)
   const why = r.reason_text ?? undefined;
-  const profitWhy = profit.main === NOT_ESTIMABLE ? (why ?? profitReason) : undefined;
+  const profitWhy = r.estimable ? undefined : (why ?? profitReason);
   return (
     <article className="oc" data-testid={testId}>
       <header className="oc__head">
@@ -132,24 +129,10 @@ export function OptionCard({ result: r, title, testId = "option-card", dates, pr
       </p>
       <dl className="p2-kv">
         <div>
-          <dt>Δ lợi nhuận {period}</dt>
-          <dd data-testid="oc-profit">
-            <b title={profitWhy}>{profit.main}</b>
-            {profitPerDay ? <span className="sa-hint" data-testid="oc-profit-perday">{profitPerDay}</span> : null}
+          <dt>Dự kiến</dt>
+          <dd data-testid="oc-forecast">
+            <MetricLines days={days} fallbackWhy={profitWhy ?? why} forecast={forecast} testId="oc-fc" />
             {profit.buildUp ? <span className="sa-hint" data-testid="oc-buildup">{profit.buildUp}</span> : null}
-          </dd>
-        </div>
-        <div>
-          <dt>Δ GMV {period}</dt>
-          <dd data-testid="oc-gmv">
-            <b title={gmvText === NOT_ESTIMABLE ? why : undefined}>{gmvText}</b>
-            {gmvPerDay ? <span className="sa-hint" data-testid="oc-gmv-perday">{gmvPerDay}</span> : null}
-          </dd>
-        </div>
-        <div>
-          <dt>Δ Đơn</dt>
-          <dd data-testid="oc-orders">
-            <b title={ordersText === NOT_ESTIMABLE ? why : undefined}>{ordersText}</b>
             {orders.note ? <span className="sa-hint" data-testid="oc-note">{orders.note}</span> : null}
           </dd>
         </div>
@@ -301,7 +284,7 @@ export interface CompareRow {
   readonly dates?: VersionDates | null;
 }
 
-/** One row per option: Thời gian, Δ Lợi nhuận, Δ GMV, Δ Đơn (the row's own total). P100 B.6: no "Quy đổi 30 ngày" column. */
+/** One row per option: Thời gian, then Lợi nhuận / GMV / Đơn / AOV dự kiến (one amount, hiện tại and the change under it). P100 B.6: no "Quy đổi 30 ngày" column. */
 /** P99c: rows come in the server's order (`compare`); the table never re-sorts them. */
 export function CompareTable({ rows, sortBasis }: { readonly rows: readonly CompareRow[]; readonly sortBasis?: string | null }) {
   const sorted = rows;
@@ -312,27 +295,24 @@ export function CompareTable({ rows, sortBasis }: { readonly rows: readonly Comp
         <tr>
           <th>Phương án</th>
           <th>Thời gian</th>
-          <th>Δ lợi nhuận cả kỳ</th>
-          <th>Δ GMV cả kỳ</th>
-          <th>Δ Đơn</th>
+          <th>Lợi nhuận dự kiến</th>
+          <th>GMV dự kiến</th>
+          <th>Đơn dự kiến</th>
+          <th>AOV dự kiến</th>
         </tr>
       </thead>
       <tbody>
         {sorted.map(({ id, name, result: r, dates }) => {
-          const p = profitText(r);
+          const f = forecastOfResult(r);
           return (
             <tr data-testid={`oc-row-${id}`} key={id}>
               <th scope="row">{name ?? r.label}</th>
               <td>{datesText(dates, r)}</td>
-              <td>
-                {p.main}
-                {r.estimable && perDayText(r.delta.profit?.value, resultDays(r)) ? <span className="sa-hint" data-testid="oc-row-profit-perday"> {perDayText(r.delta.profit?.value, resultDays(r))}</span> : null}
-              </td>
-              <td>
-                {!r.estimable ? NOT_ESTIMABLE : moneyPct(r.delta.gmv.value, r.delta.gmv.pct)}
-                {r.estimable && perDayText(r.delta.gmv.value, resultDays(r)) ? <span className="sa-hint"> {perDayText(r.delta.gmv.value, resultDays(r))}</span> : null}
-              </td>
-              <td>{!r.estimable ? NOT_ESTIMABLE : countPct(r.delta.orders.value, r.delta.orders.pct)}</td>
+              {(["profit", "gmv", "orders", "aov"] as const).map((k) => (
+                <td key={k}>
+                  <MetricCell fallbackWhy={r.reason_text} forecast={f} metric={k} testId={`oc-row-${id}-${k}`} />
+                </td>
+              ))}
             </tr>
           );
         })}

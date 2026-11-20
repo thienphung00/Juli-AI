@@ -160,8 +160,8 @@ async def test_c3_a_planned_card_is_rebased_on_the_plans_data_day(session, shop)
     assert result_store.is_fresh(block, env, card, same_day=True)
     newer = copy.copy(env)
     newer.as_of = AS_OF + timedelta(days=1)
-    # an ordinary card stays fresh on a newer day; a planned one is not (it is recomputed)
-    assert result_store.is_fresh(block, newer, card)
+    # F7.4: a newer data day makes every open card's result stale (recomputed each morning)
+    assert not result_store.is_fresh(block, newer, card)
     assert not result_store.is_fresh(block, newer, card, same_day=True)
 
 

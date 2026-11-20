@@ -126,6 +126,7 @@ async def test_a_pairing_code_comes_after_consent_and_its_token_can_be_revoked(
         )
         await session.commit()
         listed = await client.get(f"/v1/ops/shops/{shop_id}/ingest-tokens")
+        bulk = await client.post(f"/v1/ops/shops/{shop_id}/ingest-tokens/revoke-inactive")
         revoked = await client.delete(f"/v1/ops/shops/{shop_id}/ingest-tokens/{token.token_id}")
         after = await client.get(f"/v1/ops/shops/{shop_id}/ingest-tokens")
     app.dependency_overrides.clear()
@@ -133,10 +134,13 @@ async def test_a_pairing_code_comes_after_consent_and_its_token_can_be_revoked(
     assert issued.json()["ttl_seconds"] == 600 and len(code.replace("-", "")) == 10
     assert [t["active"] for t in listed.json()["data"]] == [True]
     assert "token" not in listed.json()["data"][0]
+    assert listed.json()["data"][0]["last_seen_at"]
+    assert bulk.status_code == 200 and bulk.json() == {"revoked": 0}  # seen just now: kept
     assert revoked.status_code == 204
     assert [t["active"] for t in after.json()["data"]] == [False]
     actions = await _actions(session, uuid.UUID(shop_id))
     assert "pairing_code_create" in actions and "ingest_token_revoke" in actions
+    assert "ingest_tokens_revoke_inactive" in actions
     # The audit row never carries the code itself.
     rows = await session.execute(
         select(OpsAuditLog.after).where(OpsAuditLog.action == "pairing_code_create")
@@ -159,3 +163,42 @@ async def test_a_seller_shop_lists_connections_before_it_has_any(session, monkey
     assert code.json()["detail"]["code"] == "consent_required"
     assert tokens.status_code == 200
     assert tokens.json()["data"] == []
+
+
+async def test_vat_rates_route_lists_the_default_and_each_rate_written_through_the_rules_routes(
+    session, monkeypatch
+):
+    """F6.3: item-level + variation-level writes and the shop default come back from one read."""
+    from tests.support.api import client_for
+
+    seller = await make_user(session, email="vat@example.com")
+    shop_id = (await make_shop(session, seller, platform="shopee", tiktok_shop_id=None)).id
+    await session.commit()
+    app = await _ops_client(session, monkeypatch, "operator")
+    async with client_for(app) as client:
+        for key, scope, value in (
+            ("vat_rate_default", None, 8),
+            ("vat_rate", "111", 10),
+            ("vat_rate", "111:1", 10),
+            ("vat_rate", "111:2", 10),
+        ):
+            put = await client.put(
+                f"/v1/ops/shops/{shop_id}/rules/{key}",
+                json={"scope_ref": scope, "value": value, "set_by": "team"},
+            )
+            assert put.status_code == 200, put.text
+        bad = await client.put(
+            f"/v1/ops/shops/{shop_id}/rules/vat_rate",
+            json={"scope_ref": "9", "value": 7, "set_by": "team"},
+        )
+        assert bad.status_code == 422
+        read = await client.get(f"/v1/ops/shops/{shop_id}/vat-rates")
+    app.dependency_overrides.clear()
+    assert read.json() == {
+        "default": 8,
+        "rates": [
+            {"scope_ref": "111", "value": 10},
+            {"scope_ref": "111:1", "value": 10},
+            {"scope_ref": "111:2", "value": 10},
+        ],
+    }

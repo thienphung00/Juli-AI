@@ -10,10 +10,12 @@ prediction for it (``predicted``, copied from the plan when the set is created).
   shortest preset whose MDE is within 30 % for the product's volume (``plan.window_options``,
   frozen in the plan's aggregate). ``measure.py`` reads the card's ``window_days`` (set from the
   change set) instead of the card's own ``measurement_plan.planned_days``.
-- **Executing on a product that is still being measured** is allowed. The running set is cut that
-  day: measured for at least ``CUT_MIN_DAYS`` (3) days it keeps its result as "đo được N ngày"
-  (lower confidence, never calibrates), fewer: "không kết luận". The confirm of a plan lists the
-  products this will happen to (:func:`cut_preview`).
+- **Executing on a product that is still being measured** is allowed (F7.6). The running set is
+  no longer cut: the new set and the running one are ONE group (``running.py``), measured
+  together, members listed, never ``clean`` (no calibration). A set an older release cut
+  (``cut()``: "đo được N ngày" / "không kết luận") is re-read as a group by the daily job. The
+  confirm of a plan still lists the products this happens to (:func:`cut_preview`, rows carry
+  ``joins``).
 - **Shop-wide cards** are measured at shop level; a product set that overlaps a shop-wide set
   carries ``with_shop_wide`` ("kèm thay đổi toàn shop") and does not calibrate any kind.
 """
@@ -293,6 +295,7 @@ async def cut_preview(
                 "started_on": cs.started_at.date().isoformat(),
                 "days_measured": days,
                 "window_days": cs.window_days,
+                "joins": True,
                 **cut_outcome(days),
             }
         )
@@ -412,11 +415,8 @@ async def attach_execution(
         )
         session.add(cs)
         await session.flush()
-        for running in await sets_for(
-            session, shop_id, status=[SET_MEASURING], product_id=product, scope=scope
-        ):
-            if running.id != cs.id and running.executed_on < day:
-                await cut(session, running, at=executed_at, by=str(cs.id))
+        # F7.6: a set still measuring on this product (or the shop) is NOT cut: the new set joins
+        # it as one group (``running.regroup``, run right after and by the daily job).
         if scope == SCOPE_PRODUCT:
             cs.with_shop_wide = await _shop_wide_flag(session, shop_id, day)
         else:  # product sets started inside this shop-wide set's window now carry the flag

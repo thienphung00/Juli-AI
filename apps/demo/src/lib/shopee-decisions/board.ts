@@ -56,6 +56,16 @@ export interface ExternalCommit {
   }[];
 }
 
+/** F6.2 (E67): the commit runs as a background job; the last one of the shop can be read again. */
+export interface ImportJob {
+  readonly job_id: string;
+  readonly status: "running" | "done" | "failed";
+  readonly started_at?: string | null;
+  readonly finished_at?: string | null;
+  readonly result: ExternalCommit | null;
+  readonly error: { readonly code: string; readonly message?: string } | null;
+}
+
 export interface BoardReset {
   readonly withdrawn: number;
   readonly by_status: Readonly<Record<string, number>>;
@@ -68,16 +78,20 @@ export interface BoardReset {
 export interface BoardApi {
   reset(note?: string | null): Promise<BoardReset>;
   previewImport(fileB64: string): Promise<ExternalPreview>;
-  commitImport(fileB64: string, token: string): Promise<ExternalCommit>;
+  /** Starts the import and answers at once with the running job. */
+  commitImport(fileB64: string, token: string): Promise<ImportJob>;
+  /** The shop's last import job (`null` when it never imported). */
+  importStatus(): Promise<ImportJob | null>;
 }
 
-type Call = (method: "POST", path: string, body: unknown) => Promise<{ data: never }>;
+type Call = (method: "GET" | "POST", path: string, body?: unknown) => Promise<{ data: never }>;
 
 export function boardApi(call: Call): BoardApi {
   return {
     reset: async (note) => (await call("POST", "/reset", { confirm: true, ...(note ? { note } : {}) })).data as BoardReset,
     previewImport: async (fileB64) => (await call("POST", "/external-import/preview", { file_b64: fileB64 })).data as ExternalPreview,
-    commitImport: async (fileB64, token) => (await call("POST", "/external-import/commit", { file_b64: fileB64, token })).data as ExternalCommit,
+    commitImport: async (fileB64, token) => (await call("POST", "/external-import/commit", { file_b64: fileB64, token })).data as ImportJob,
+    importStatus: async () => (await call("GET", "/external-import/status")).data as ImportJob | null,
   };
 }
 
@@ -88,6 +102,7 @@ const ERROR_TEXT: Readonly<Record<string, string>> = {
   external_invalid_file: "File không đọc được. Chọn file .xlsx đúng mẫu.",
   external_file_changed: "File đã đổi sau khi xem trước. Chọn lại file.",
   external_nothing_to_import: "Không có thẻ mới để nhập.",
+  import_stalled: "Lần nhập bị gián đoạn. Chọn file và nhập lại.",
 };
 
 export function boardErrorText(e: unknown): string {

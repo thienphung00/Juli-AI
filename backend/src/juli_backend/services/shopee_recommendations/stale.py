@@ -253,7 +253,7 @@ async def mark_stale_by_freshness(
         .scalars()
         .all()
     )
-    checked = flagged = 0
+    checked = flagged = data_advanced = 0
     for row in rows:
         card = await store.card_payload(session, shop_id, row.id)
         if card is None:
@@ -262,13 +262,18 @@ async def mark_stale_by_freshness(
         why = freshness.card_stale_reason(card, env)
         if why is None:
             continue
+        if why == freshness.REASON_DATA:
+            # F7.4: a new data day re-forecasts the card (``result_store.refresh_shop`` rewrites its
+            # forecast and ``data_through``) without re-issuing or re-sending the card itself
+            data_advanced += 1
+            continue
         flagged += 1
         meta = json.loads(row.metadata_json or "{}")
         if not meta.get("stale"):
             meta.update({"stale": True, "stale_reason": why, "stale_at": now.isoformat()})
             row.metadata_json = json.dumps(meta)
     await session.flush()
-    return {"checked": checked, "flagged": flagged}
+    return {"checked": checked, "flagged": flagged, "data_advanced": data_advanced}
 
 
 __all__ = [

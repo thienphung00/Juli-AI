@@ -8,12 +8,15 @@ shop (shop owner or business owner) and refuse the reviewer session and the samp
   shop is withdrawn with reason ``reset`` (``{withdrawn, by_status, card_ids, codes, ...}``).
 - ``POST /v1/demo/shopee/board/external-import/preview``  ``{"file_b64"}`` -> the rows, the
   cards each becomes, the skipped rows with their reason and a ``token``; writes nothing.
-- ``POST /v1/demo/shopee/board/external-import/commit``  ``{"file_b64", "token"}`` -> creates
-  the cards not imported yet (idempotent per Mã).
+- ``POST /v1/demo/shopee/board/external-import/commit``  ``{"file_b64", "token"}`` -> 202 with a
+  job id; the import (idempotent per Mã) runs in the background (F6.2).
+- ``GET /v1/demo/shopee/board/external-import/status`` -> the shop's last import job and, when
+  done, its per-card result (``external.commit_json``).
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -28,7 +31,8 @@ from juli_backend.api.reviewer import reviewer_context
 from juli_backend.api.routes import planned_changes_common as common
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
-from juli_backend.services.planned_changes import external
+from juli_backend.database import database as db
+from juli_backend.services.planned_changes import external, import_job
 from juli_backend.services.shop_proposals import ProposalError
 from juli_backend.services.shopee_recommendations import board_reset
 
@@ -118,7 +122,7 @@ async def preview_external(
     return {"data": external.preview_json(preview)}
 
 
-@router.post("/external-import/commit")
+@router.post("/external-import/commit", status_code=status.HTTP_202_ACCEPTED)
 async def commit_external(
     body: CommitBody,
     request: Request,
@@ -126,40 +130,44 @@ async def commit_external(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop.id
+    """F6.2: answers at once with the job; the import runs in the background (poll ``/status``)."""
+    shop_id, user_id = shop.id, user.id
     data = common.decode_file(body.file_b64)
     try:
-        result = await external.commit_import(
-            session,
-            shop,
-            data,
-            token=body.token,
-            user_id=user.id,
-            reviewer=reviewer_context(request) is not None,
-            now=_now(),
+        await board_reset.require_owner(
+            session, shop, user_id, reviewer=reviewer_context(request) is not None
         )
     except ProposalError as exc:
-        await session.rollback()
         raise _refused(exc) from None
-    if result.created == 0 and result.exists == 0 and result.refused == 0:
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "external_nothing_to_import",
-                "message": "Tệp không có dòng nào để nhập",
-            },
-        )
-    await session.commit()
-    logger.info(
-        "shopee_external_import",
-        extra={
-            "shop_id": str(shop.id),
-            "user_id": str(user.id),
-            "created": result.created,
-            "exists": result.exists,
-            "refused": result.refused,
-            "file_hash": result.file_hash,
-        },
+    now = _now()
+    job, started = await import_job.create(
+        session, shop_id, user_id, file_hash=hashlib.sha256(data).hexdigest(), now=now
     )
-    return {"data": external.commit_json(result)}
+    await session.commit()
+    if started:
+        factory = db._session_factory
+        if factory is None:  # no session factory (never in the running API)
+            raise HTTPException(status_code=503, detail={"code": "import_unavailable"})
+        import_job.spawn(factory, shop_id, user_id, job, data, body.token)
+        logger.info(
+            "shopee_external_import_started",
+            extra={"shop_id": str(shop_id), "user_id": str(user_id), "job_id": job["job_id"]},
+        )
+    return {"data": job}
+
+
+@router.get("/external-import/status")
+async def external_import_status(
+    request: Request,
+    shop: Shop = Depends(_gate_w),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """The shop's last import job (running, done with the per-card result, or failed)."""
+    try:
+        await board_reset.require_owner(
+            session, shop, user.id, reviewer=reviewer_context(request) is not None
+        )
+    except ProposalError as exc:
+        raise _refused(exc) from None
+    return {"data": await import_job.latest(session, shop.id, now=_now())}
