@@ -12,6 +12,7 @@ from juli_backend.services.exports import report_calc as calc
 from juli_backend.services.exports import report_sheets as rs
 from juli_backend.services.exports import tong_quan_xlsx as tq
 from juli_backend.services.exports.collect import collect_tong_quan, partition
+from juli_backend.services.metrics.registry import METRICS
 from tests.support.shopee_reco import AS_OF, seed_reco_shop
 from tests.unit.test_p100_exports import START, _data
 from tests.unit.test_shopee_reco_plan import _USER_IDS, NOW
@@ -61,8 +62,8 @@ def test_overview_has_percent_of_revenue_margin_prior_period_and_goal():
         assert ws.cell(r, 3).value == f'=IF(ISNUMBER(B{r}),IFERROR(B{r}/B$4,"—"),"—")'
         assert ws.cell(r, 3).number_format == "0.0%"
     r = tq.OV["margin"]
-    assert ws.cell(r, 1).value == "Biên lợi nhuận (% GMV)"
-    assert ws.cell(r, 2).value == '=IF(ISNUMBER(B7),IFERROR(B7/B4,"—"),"—")'
+    assert ws.cell(r, 1).value == tq.MARGIN_LABEL
+    assert ws.cell(r, 2).value == '=IF(AND(ISNUMBER(B7),ISNUMBER(B14)),IFERROR(B7/B14,"—"),"—")'
     assert ws["D4"].value == 4_950_000 and ws["D7"].value == 810_000  # kỳ trước, as values
     assert ws["F4"].value == 6_000_000.0 and ws["F7"].value == 1_000_000.0
     assert ws["G4"].value.startswith("=IF(AND(ISNUMBER(B4),ISNUMBER(F4))")
@@ -75,9 +76,12 @@ def test_no_plan_means_the_goal_cells_are_a_dash():
     assert ws["F4"].value == DASH and ws["F7"].value == DASH and ws["F13"].value == DASH
 
 
-def test_every_roi_label_states_its_base_qc_plus_aff():
-    """Owner 2026-11-18 (replaces the earlier "never call it ROI"): the ratio is named ROI and
-    always says what it divides by, so no bare "ROI" can be read as return over all costs."""
+def test_excel_labels_come_from_the_registry():
+    """Owner 2026-11-20: the backend registry is the truth; every Excel metric that has a registry
+    entry carries its label (Chi phí marketing, ROI, Biên lợi nhuận)."""
+    assert tq.ROI_LABEL == METRICS["roi"].label_vi
+    assert tq.COST_LABEL == METRICS["cost_marketing"].label_vi
+    assert tq.MARGIN_LABEL == METRICS["margin"].label_vi
     wb = tq.build(_data())
     labels = {
         str(c.value)
@@ -86,9 +90,58 @@ def test_every_roi_label_states_its_base_qc_plus_aff():
         for c in row
         if isinstance(c.value, str)
     }
-    rois = [v for v in labels if v.strip().upper().startswith("ROI")]
-    assert rois and all(v.startswith(tq.ROI_LABEL) for v in rois)
+    assert f"{tq.ROI_LABEL} (lần)" in labels and tq.COST_LABEL + " (đ)" in labels
     assert tq.ROI_LABEL in {c.value for c in wb[tq.SHEET_CHANNEL][3]}
+    assert tq.COST_LABEL in {c.value for c in wb[tq.SHEET_DAY][3]}
+    assert not any(v.startswith("Tổng chi phí") for v in labels)
+    assert not any("QC + AFF" in v or "không tính là chi phí" in v for v in labels)
+    assert f"{METRICS['cost_marketing'].label_vi} (đ)" in rs.MONTH_HEADER
+
+
+def test_roi_and_margin_cells_reproduce_the_registry_values():
+    from decimal import Decimal as D
+
+    from juli_backend.services.metrics.compute import evaluate
+
+    comp = {
+        "net_revenue_known": D(8_000_000), "cogs": D(3_000_000), "packaging": D(200_000),
+        "fees": D(900_000), "shipping_net": D(100_000), "affiliate_commission": D(300_000),
+        "ads_spend": D(700_000), "other_marketing": D(0), "offer_promo": D(250_000),
+        "offer_voucher": D(120_000), "offer_combo": D(30_000),
+    }  # fmt: skip
+    profit = evaluate("profit", comp).value
+    roi = evaluate("roi", comp).value
+    margin = evaluate("margin", comp).value
+    fig = tq.Figures(
+        gmv=9_000_000, orders=30, profit=float(profit), ads_cost=700_000, aff_cost=300_000,
+        offer_cost=400_000, net_revenue_known=8_000_000,
+    )  # fmt: skip
+    d = _data()
+    d.now = fig
+    ws = tq.build(d)[tq.SHEET_OVERVIEW]
+    assert ws["B8"].value + ws["B9"].value + ws["B10"].value == float(
+        evaluate("cost_marketing", comp).value
+    )
+    cost = ws["B8"].value + ws["B9"].value + ws["B10"].value  # B11 = SUM(B8:B10)
+    assert ws["B12"].value == '=IFERROR(B7/B11,"—")' and ws["B11"].value == "=SUM(B8:B10)"
+    assert ws["B7"].value / cost == pytest.approx(float(roi), abs=0.05)
+    assert ws["B7"].value / ws["B14"].value * 100 == pytest.approx(float(margin), abs=0.05)
+    assert ws["B13"].value.count("B14") == 2  # the base is the known-cost net revenue, not GMV
+
+
+def test_all_shops_total_recomputes_the_ratios_from_the_summed_parts():
+    a, b = _data(), _data()
+    b.now = tq.Figures(
+        gmv=1_000_000, orders=5, profit=100_000, ads_cost=10_000, aff_cost=0, offer_cost=5_000,
+        net_revenue_known=900_000,
+    )  # fmt: skip
+    ws = tq.build_multi([a, b])[tq.SHEET_OVERVIEW]
+    r = tq.OV
+    assert ws.cell(r["cost"], 2).value == f"=SUM(B{r['ads']}:B{r['offer']})"
+    assert ws.cell(r["base"], 4).value == f"=SUM(B{r['base']}:C{r['base']})"
+    assert ws.cell(r["margin"], 4).value == f'=IFERROR(D{r["profit"]}/D{r["base"]},"")'
+    assert ws.cell(r["roi"], 4).value == f'=IFERROR(D{r["profit"]}/D{r["cost"]},"")'
+    assert not tq.summable_row("margin")
 
 
 # ------------------------------------------------------------------------------ R3 Theo tháng
@@ -139,9 +192,9 @@ def test_channel_sheet_has_cost_to_revenue_profit_and_ratio_per_channel():
     assert ws["H5"].value == '=IF(ISNUMBER(G5),IFERROR(J5/G5,"—"),"—")'
     assert ws["H4"].value == DASH  # Organic has no cost
     assert ws["J5"].value.endswith('-N(G5),"—"),"—")')
-    assert ws["J7"].value == DASH  # ưu đãi is inside the revenue: shown, never a cost again
-    assert ws["J8"].value == "=SUM(J4:J6)"  # the channels add up to the shop's profit
-    assert ws["G8"].value == "=SUM(G4:G6)"
+    assert ws["J7"].value == '=IF(ISNUMBER(G7),-G7,"—")'  # the ưu đãi row takes the offers
+    assert ws["J8"].value == "=SUM(J4:J7)"  # the rows add up to the shop's profit
+    assert ws["G8"].value == "=SUM(G4:G7)"  # chi phí marketing incl. ưu đãi
     assert "biên lợi nhuận" in ws["A10"].value
 
 
@@ -175,7 +228,8 @@ def test_product_sheet_has_share_of_shop_profit_cost_ratio_and_cost_share():
     d = _data()
     ws = tq.build(d)[tq.SHEET_PRODUCT]
     assert [c.value for c in ws[3]][9:13] == [
-        "% doanh thu shop", "% lợi nhuận shop", "Chi phí / doanh thu SP", "% tổng chi phí shop",
+        "% doanh thu shop", "% lợi nhuận shop", "Chi phí / doanh thu SP",
+        "% chi phí marketing shop",
     ]  # fmt: skip
     total = tq.P_FIRST + len(d.products)
     assert ws["J4"].value == f'=IFERROR(C4/C${total},"—")'
@@ -342,7 +396,7 @@ def test_day_sheet_never_leaves_a_channel_cell_blank_and_names_its_cost_column()
         for i in range(6)
     ]  # fmt: skip
     ws = tq.build(d)[tq.SHEET_DAY]
-    assert ws.cell(3, 7).value == "Chi phí (quảng cáo + tiếp thị liên kết)"
+    assert ws.cell(3, 7).value == tq.COST_LABEL
     for r in range(tq.DAY_FIRST, tq.DAY_FIRST + 6):
         assert [ws.cell(r, c).value for c in (2, 3, 4, 7, 8)] == [DASH] * 5
 

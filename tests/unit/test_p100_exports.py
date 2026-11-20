@@ -11,6 +11,7 @@ import pytest
 from juli_backend.services.exports import ke_hoach_xlsx as kh
 from juli_backend.services.exports import tong_quan_xlsx as tq
 from juli_backend.services.exports.collect import _residual
+from juli_backend.services.metrics.registry import METRICS
 
 START = date(2026, 10, 12)
 
@@ -24,6 +25,7 @@ def _fig(scale: float) -> tq.Figures:
     return tq.Figures(
         ch, gmv=5_500_000 * scale, orders=18 * scale, profit=900_000 * scale,
         ads_cost=400_000 * scale, aff_cost=50_000 * scale, offer_cost=30_000 * scale,
+        net_revenue_known=4_500_000 * scale,
     )  # fmt: skip
 
 
@@ -66,10 +68,14 @@ def test_overview_cells_and_formulas():
     assert ws.max_column == 7 and ws["A8"].value == "Chi phí quảng cáo (Báo cáo DVHT) (đ)"
     assert ws["B4"].value == 5_500_000
     assert ws["B6"].value == '=IFERROR(B4/B5,"—")'
-    assert ws["B11"].value == "=SUM(B8:B9)"  # QC + TTLK: ưu đãi is already out of revenue
+    assert ws["B11"].value == "=SUM(B8:B10)"  # QC + TTLK + ưu đãi (registry cost_marketing)
     assert ws["A10"].value == tq.OFFER_LABEL
     assert ws["B12"].value == '=IFERROR(B7/B11,"—")' and ws["B12"].number_format == "0.0"
-    assert ws["A12"].value == "ROI (lợi nhuận ÷ chi phí QC + AFF) (lần)"
+    assert ws["A12"].value == f"{METRICS['roi'].label_vi} (lần)"
+    assert ws["A11"].value == f"{METRICS['cost_marketing'].label_vi} (đ)"
+    assert ws["A13"].value == METRICS["margin"].label_vi
+    assert ws["B13"].value.endswith('IFERROR(B7/B14,"—"),"—")')  # profit ÷ net_revenue_known
+    assert ws["B14"].value == 4_500_000
     assert ws["D4"].value == 4_950_000 and ws["E4"].number_format == "0.0%"
     assert ws["E4"].value.startswith("=IF(AND(ISNUMBER(B4),ISNUMBER(D4)),IFERROR(B4/D4-1")
     assert ws["D3"].value == "Kỳ trước (12/09/2026–11/10/2026)"
@@ -84,13 +90,13 @@ def test_channel_sheet_rows_columns_and_totals():
         "Organic",
         "Quảng cáo (Lưu lượng / Báo cáo DVHT)",
         "Tiếp thị liên kết",
-        "Ưu đãi của shop (đã trừ trong doanh thu, không cộng vào chi phí)",
+        "Ưu đãi của shop (thuộc chi phí marketing)",
         "Tổng",
     ]
     assert ws["G7"].value == 30_000 and all(ws.cell(7, c).value in (None, "—") for c in (2, 5, 8))
     assert ws["B5"].value == 2_000_000 and ws["G5"].value == 400_000 and ws["E6"].value == 2
     assert ws["C4"].value == '=IFERROR(B4/B$8,"—")' and ws["F4"].value == '=IFERROR(B4/E4,"—")'
-    assert ws["B8"].value == "=SUM(B4:B6)" and ws["G8"].value == "=SUM(G4:G6)"  # not the ưu đãi row
+    assert ws["B8"].value == "=SUM(B4:B6)" and ws["G8"].value == "=SUM(G4:G7)"  # cost incl. ưu đãi
     assert ws["D5"].value == '=IFERROR(B5/1800000.0-1,"—")'  # the previous value is in the formula
     assert ws["D8"].value == '=IFERROR(B8/4950000.0-1,"—")'
     assert ws["H8"].value == "='Tổng quan'!B12" and ws["H4"].value == "—"
@@ -110,7 +116,7 @@ def test_day_totals_equal_the_channel_sheet():
     orders = sum(days.cell(r, 6).value for r in range(first, last + 1))
     assert orders == pytest.approx(18)
     cost = sum(days.cell(r, 7).value for r in range(first, last + 1))
-    assert cost == pytest.approx(450_000)  # quảng cáo + TTLK (ưu đãi is inside the revenue)
+    assert cost == pytest.approx(480_000)  # quảng cáo + TTLK + ưu đãi (30 x 1_000 / day)
     assert days.max_column == 8 and "mục tiêu" not in " ".join(tq.DAY_HEADER)
 
 
@@ -263,7 +269,10 @@ def test_kind_sheets_carry_their_tailored_rows_and_the_kol_sheet_one_row_per_kol
     assert "CPA hoà vốn dự kiến" in ads and "Lượt nhấp thực tế" in ads
     assert "Lượt dùng dự kiến" in [c.value for c in wb["Voucher"][3]]
     kol = wb[kh.SHEET_KOL]
-    assert kol["C4"].value == "kol_a" and kol["I4"].value == '=IFERROR(H4/G4,"")'
+    # registry roi_kol: (lợi nhuận KOL − chi phí mẫu) ÷ (hoa hồng + chi phí mẫu)
+    assert kol["C4"].value == "kol_a" and kol["I3"].value == "Chi phí mẫu"
+    assert kol["J4"].value == '=IFERROR((H4-N(I4))/(G4+N(I4)),"")'
+    assert kol["I4"].value is None and kol["K4"].value == 1
     assert kol["A5"].value is None
 
 
@@ -388,7 +397,7 @@ def test_the_profit_sheet_lists_each_cost_once_and_sums_to_the_profit():
     assert sum(values) == 200_000 and "− Chi phí marketing khác" not in rows
     offer = next(k for k in rows if k.startswith("Ưu đãi của shop"))
     # the Tổng quan sheet's ưu đãi figure, so the two sheets never show two numbers
-    assert "không tính là chi phí" in offer and ws.cell(rows[offer], 2).value == 30_000
+    assert "thuộc chi phí marketing" in offer and ws.cell(rows[offer], 2).value == 30_000
     assert ws.cell(rows["− Đóng gói"], 2).value == 0  # never "-0"
     assert ws.cell(rows["− Đóng gói"], 5).value == "Giả định — chưa nhập"
     assert ws.cell(rows["− Giá vốn (đã trừ VAT đầu vào)"], 5).value.startswith("Thật 50,0 %")
@@ -398,7 +407,7 @@ def test_the_profit_sheet_lists_each_cost_once_and_sums_to_the_profit():
     # cancelled one, and the in-transit row stays
     assert ws.cell(rows["− Đơn hoàn tiền / trả hàng"], 2).value == -40_000
     assert ws.cell(rows["− Đơn hủy"], 2).value == -60_000 and "− Đơn đang giao" in rows
-    margin = rows["Biên lợi nhuận (% doanh thu tính lợi nhuận)"]
+    margin = rows[tq.MARGIN_LABEL]
     assert ws.cell(margin, 2).value == f'=IFERROR(B{profit}/B{base},"—")'
     # the headline from the sale lines already leaves the refund orders out: no refund row
     data.bridge = replace(b, refunds_in_gmv=False)

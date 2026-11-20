@@ -17,7 +17,7 @@ describe("Tổng quan (P100 board)", () => {
     expect(screen.getByTestId("sa-through-channels")).toHaveTextContent(/^Số liệu đến 09\/11$/);
   });
 
-  it("Lợi nhuận / Tổng chi phí carry their own older day; none when it equals the GMV's", async () => {
+  it("Lợi nhuận / Chi phí marketing carry their own older day; none when it equals the GMV's", async () => {
     const split = channelSplit({ data_through: { kpis: "2026-11-14", profit: "2026-11-04", channels: "2026-11-13", plan: "2026-11-04" } });
     renderWith(<TongQuanView params={params()} />, fakeApi({ split }));
     expect(await screen.findByTestId("sa-through-kpis")).toHaveTextContent(/^Số liệu đến 14\/11$/);
@@ -78,7 +78,7 @@ describe("Tổng quan (P100 board)", () => {
     expect(screen.getByTestId("sa-channel-ads_product")).toHaveTextContent("10,03 tr đ");
   });
 
-  it("KPI tiles: GMV, Lợi nhuận, Tổng chi phí with its three lines, ROI in points; each with its change", async () => {
+  it("KPI tiles: GMV, Lợi nhuận, Chi phí marketing with its three lines, ROI in points; each with its change", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
     expect(await screen.findByTestId("sa-tile-gmv")).toHaveTextContent("12,89 tr đ");
     expect(screen.getByTestId("sa-shift-gmv")).toHaveTextContent("▲ 17 %");

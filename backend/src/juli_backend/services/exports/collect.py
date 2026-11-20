@@ -40,6 +40,7 @@ from juli_backend.services.shopee_analytics import (
     service,
 )
 from juli_backend.services.shopee_analytics.compute import PeriodView
+from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_recommendations import (
     change_sets,
@@ -159,7 +160,17 @@ def _residual(shop: tq.Figures, parts: list[tq.Figures]) -> tq.Figures:
         ads_cost=sub(shop.ads_cost, [p.ads_cost for p in parts]),
         aff_cost=sub(shop.aff_cost, [p.aff_cost for p in parts]),
         offer_cost=sub(shop.offer_cost, [p.offer_cost for p in parts]),
+        net_revenue_known=sub(shop.net_revenue_known, [p.net_revenue_known for p in parts]),
     )  # fmt: skip
+
+
+def _net_revenue_known(view: PeriodView, product_id: str | None) -> float | None:
+    """The margin base (registry ``net_revenue_known``) of the shop or of one product: the buyer
+    paid of the orders whose costs are known, the base of the screen's margin."""
+    if product_id is None:
+        return _f(shop_profit_of(view).buyer_paid)
+    product = view.profit.products.get(product_id)
+    return None if product is None else _f(product.buyer_paid_covered)
 
 
 def _gmv_of(listing: dict[str, Any], product_id: str) -> float:
@@ -300,7 +311,10 @@ async def collect_tong_quan(
         if v is None or rows_ is None:
             return tq.Figures()
         fig = _figures(await channel_split.split_figures(session, shop_id, v, w, pid))
-        return partition(replace(fig, ads_basis=_ads_basis(rows_, shop_id, pid)))
+        base = _net_revenue_known(v, pid)
+        return partition(
+            replace(fig, ads_basis=_ads_basis(rows_, shop_id, pid), net_revenue_known=base)
+        )
 
     shop_now = await figures(view, cur, None, frows)
     shop_prev = await figures(pview, prv, None, prev_rows)
@@ -748,7 +762,8 @@ async def _kols_of(
     for r in section["rows"]:
         k = by.setdefault(r["kol_key"], kh.KolRow(shop, platform, r["handle"] or r["kol_key"]))
         for attr, key in (("clicks", "clicks"), ("orders", "orders"), ("gmv", "gmv"),
-                          ("commission", "commission"), ("profit", "profit")):  # fmt: skip
+                          ("commission", "commission"), ("profit", "profit"),
+                          ("sample_cost", "sample_cost")):  # fmt: skip
             v = _f(r.get(key))
             if v is not None:
                 setattr(k, attr, (getattr(k, attr) or 0.0) + v)
