@@ -159,10 +159,14 @@ def _card(code, status, start, end, gmv, profit, **kw) -> kh.CardRow:
 def _kh_data(shops=("Shop A",)) -> kh.KeHoachData:
     cards = [
         _card("A", kh.RUNNING, date(2026, 11, 5), date(2026, 11, 18), 1_400_000.0, 140_000.0,
-              actual_profit=100_000.0, conclusion="Trong khoảng"),
+              actual_profit=100_000.0, conclusion="Trong khoảng",
+              figures={"profit": (1_000_000.0, 1_140_000.0, 1_100_000.0)},
+              days_measured=5, days_total=14, measured_with=["VC-P2", "B-7"]),
         _card("C", kh.DRAFT, date(2026, 11, 20), date(2026, 11, 24), 500_000.0, 25_000.0),
         _card("K", kh.MEASURED, date(2026, 11, 1), date(2026, 11, 7), 7.0, 7.0,
-              kind_key="ads_budget", family="ads", plan_code=None),
+              kind_key="ads_budget", family="ads", plan_code=None,
+              tailored={"CPA": (20_000.0, 18_000.0), "ROAS": (4.0, 4.5),
+                        "CPA hoà vốn": (25_000.0, None), "ROAS hoà vốn": (3.2, None)}),
     ]  # fmt: skip
     goals = [kh.GoalRow(s, "Shopee", 100.0, 120.0, 90.0, 10.0, 12.0, 9.0) for s in shops]
     return kh.KeHoachData(
@@ -182,16 +186,38 @@ def test_history_row_has_status_dates_core_rows_and_a_difference_formula():
     ws = kh.build(_kh_data())[kh.SHEET_HISTORY]
     head = [c.value for c in ws[3]]
     assert head[:7] == ["STT", "Mã thẻ", "Mã gốc", "Nguồn", "Shop", "Nền tảng", "Trạng thái"]
-    assert "Δ lợi nhuận dự kiến" in head and "Δ lợi nhuận chênh lệch" in head
-    assert head[-1] == "Kết luận" and not any("khoảng" in str(h).lower() for h in head)
+    assert head[15:19] == [
+        "Lợi nhuận hiện tại", "Lợi nhuận dự kiến", "Lợi nhuận thực tế", "Lợi nhuận chênh lệch",
+    ]  # fmt: skip
+    assert not any(str(h).startswith("Δ") for h in head)  # no Δ-only columns
+    assert head[-4:] == ["Chi phí", "Đã đo", "Đo chung với", "Kết luận"]
+    assert not any("khoảng" in str(h).lower() for h in head)
     assert [ws.cell(r, 7).value for r in (4, 5, 6)] == ["Đang chạy", "Trong nháp", "Đã đo"]
     assert ws["O4"].value == '=IF(OR(M4="",N4=""),"",N4-M4+1)' and ws["M4"].value == date(
         2026, 11, 5
     )
-    assert ws["P4"].value == 140_000 and ws["Q4"].value == 100_000  # Dự kiến, Thực tế
-    assert ws["R4"].value == '=IF(OR(P4="",Q4=""),"",Q4-P4)'
-    assert ws["Q5"].value is None  # unread real value stays empty, never 0
-    assert ws.cell(4, 28).value == "Trong khoảng"
+    assert [ws.cell(4, c).value for c in (16, 17, 18)] == [1_000_000.0, 1_140_000.0, 1_100_000.0]
+    assert ws["S4"].value == '=IF(OR(Q4="",R4=""),"",R4-Q4)'  # a formula string, recalculated
+    assert ws["R5"].value is None and ws["P5"].value is None  # unknown stays empty, never 0
+    assert ws.cell(4, 35).value == "Trong khoảng"
+
+
+def test_history_has_dao_do_and_do_chung_voi_and_empty_when_unmeasured():
+    ws = kh.build(_kh_data())[kh.SHEET_HISTORY]
+    assert (ws.cell(4, 33).value, ws.cell(4, 34).value) == ("5/14 ngày", "VC-P2, B-7")
+    assert ws.cell(5, 33).value is None and ws.cell(5, 34).value is None
+
+
+def test_ads_sheet_fills_cpa_and_roas_where_the_reading_has_them_and_never_zero():
+    ws = kh.build(_kh_data())["Quảng cáo"]
+    head = [c.value for c in ws[3]]
+    cpa, be_cpa = head.index("CPA dự kiến") + 1, head.index("CPA hoà vốn dự kiến") + 1
+    roas, be_roas = head.index("ROAS dự kiến") + 1, head.index("ROAS hoà vốn dự kiến") + 1
+    assert (ws.cell(4, cpa).value, ws.cell(4, cpa + 1).value) == (20_000.0, 18_000.0)
+    assert (ws.cell(4, roas).value, ws.cell(4, roas + 1).value) == (4.0, 4.5)
+    assert (ws.cell(4, be_cpa).value, ws.cell(4, be_cpa + 1).value) == (25_000.0, None)
+    assert (ws.cell(4, be_roas).value, ws.cell(4, be_roas + 1).value) == (3.2, None)
+    assert ws.cell(4, head.index("Lượt nhấp dự kiến") + 1).value is None
 
 
 def test_nguon_and_ma_goc_columns_on_the_history_and_kind_sheets():

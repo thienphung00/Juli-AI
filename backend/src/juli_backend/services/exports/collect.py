@@ -519,7 +519,7 @@ def _card_row(
         ),
         None,
     )  # fmt: skip
-    return kh.CardRow(
+    row = kh.CardRow(
         code=card["code"], plan_code=plan_code, status=status,
         group=GROUP_OF_FAMILY.get(card.get("family") or "", ""),
         kind=spec.label if spec else kind, version=version,
@@ -534,6 +534,76 @@ def _card_row(
         source=kh.SOURCE_LABELS.get(card.get("origin") or "engine", str(card.get("origin"))),
         external_ref=card.get("external_ref"),
     )  # fmt: skip
+    row.figures = figures_of(forecast_block(card, ev), None)
+    row.tailored = ads_tailored(card, own)
+    return row
+
+
+def forecast_block(card: Mapping[str, Any], ev: Mapping[str, Any] | None) -> Mapping[str, Any]:
+    """The card's stored F7 forecast (``forecast.forecast_of``): on the card, else on its stored
+    result. Empty when the card has none."""
+    result = (ev or {}).get("result") or {}
+    for found in (
+        card.get("forecast"), (ev or {}).get("forecast"), result.get("forecast"),
+        (card.get("evaluation") or {}).get("forecast"),
+    ):  # fmt: skip
+        if isinstance(found, Mapping):
+            return found
+    return {}
+
+
+ADDITIVE = ("profit", "gmv", "orders")
+
+
+def figures_of(
+    forecast: Mapping[str, Any], actual: Mapping[str, Any] | None
+) -> dict[str, tuple[float | None, float | None, float | None]]:
+    """(Hiện tại, Dự kiến, Thực tế) per metric over the card's measured days. Hiện tại and Dự kiến
+    are the stored forecast's (over the card's ``days``); when only ``k`` of ``N`` days are
+    measured the additive ones (Lợi nhuận, GMV, Đơn) are prorated to ``k/N`` so the three amounts
+    cover the same days. Thực tế is the running measurement's, ``None`` when not measured."""
+    fm = forecast.get("metrics") or {}
+    am = (actual or {}).get("metrics") or {}
+    k, n = (actual or {}).get("days_measured"), (actual or {}).get("days")
+    share = k / n if isinstance(k, int) and isinstance(n, int) and 0 < k < n else 1.0
+    out: dict[str, tuple[float | None, float | None, float | None]] = {}
+    for key in ("profit", "gmv", "orders", "aov"):
+        f = fm.get(key) or {}
+        mult = share if key in ADDITIVE else 1.0
+        now, exp = _f(f.get("hien_tai")), _f(f.get("du_kien"))
+        got = _f((am.get(key) or {}).get("thuc_te"))
+        out[key] = (
+            None if now is None else now * mult, None if exp is None else exp * mult, got,
+        )  # fmt: skip
+    return out
+
+
+def _ratio(v: Any) -> float | None:
+    x = _f(v)
+    return None if x is None or x <= 0 else x
+
+
+def ads_tailored(
+    card: Mapping[str, Any], own: Mapping[str, Any]
+) -> dict[str, tuple[float | None, float | None]]:
+    """The Quảng cáo sheet's CPA / ROAS / hoà vốn: (Dự kiến, Thực tế) from the card's stored ads
+    lines and its read-back. A reading the card does not have stays ``None`` ("—"), never 0."""
+    ads = (card.get("evaluation") or {}).get("option", {}).get("ads") or {}
+    ads = (own.get("option") or {}).get("ads") or ads
+    if not ads and not card.get("ads_readback"):
+        return {}
+    read = (card.get("ads_readback") or {}).get("actual") or {}
+    spend, orders = _f(read.get("spend")), _f(read.get("orders"))
+    cpa = _f(read.get("cpa"))
+    if cpa is None and spend is not None and orders:
+        cpa = spend / orders
+    be_roas = (own.get("certain") or {}).get("break_even_roas", ads.get("break_even_roas"))
+    return {
+        "CPA": (_f((ads.get("cpa") or {}).get("after")), cpa),
+        "ROAS": (_f((ads.get("roas_shopee") or {}).get("after")), _f(read.get("roas"))),
+        "CPA hoà vốn": (_f(ads.get("break_even_cpa")), None),
+        "ROAS hoà vốn": (_f(be_roas), None),
+    }
 
 
 VERDICT_TEXT = {
@@ -544,12 +614,31 @@ VERDICT_TEXT = {
 }
 
 
-def _conclusion(row: Mapping[str, Any]) -> tuple[float | None, str | None]:
-    """(Δ lợi nhuận thực tế, kết luận) of one Đo lường row (``execution_state``'s own actual and
-    verdict). TODO(F10): the Đo lường method decides both; this is today's measured value."""
+def _conclusion(row: Mapping[str, Any]) -> str | None:
+    """Kết luận of one Đo lường row: ``execution_state``'s own verdict, in words."""
     verdict_key = row.get("verdict")
-    verdict = VERDICT_TEXT.get(verdict_key) if isinstance(verdict_key, str) else None
-    return _f(row.get("actual")), verdict
+    return VERDICT_TEXT.get(verdict_key) if isinstance(verdict_key, str) else None
+
+
+def _apply_measure(
+    row: kh.CardRow, m: Mapping[str, Any] | None, ref_of: Mapping[str, str | None]
+) -> None:
+    """Layer one Đo lường row on a card row: Thực tế per metric, Đã đo, Đo chung với (the other
+    cards' mã gốc when they have one, else their code) and Kết luận."""
+    if m is None:
+        return
+    actual = m.get("actual") if isinstance(m.get("actual"), Mapping) else None
+    if actual is not None:
+        # the card's own forecast (kept unscaled on the row) re-laid over the measured days
+        forecast = {
+            "metrics": {k: {"hien_tai": v[0], "du_kien": v[1]} for k, v in row.figures.items()}
+        }
+        row.figures = figures_of(forecast, actual)
+        row.days_measured, row.days_total = actual.get("days_measured"), actual.get("days")
+        profit = (actual.get("metrics") or {}).get("profit") or {}
+        row.actual_profit = _f(profit.get("delta"))
+    row.measured_with = [ref_of.get(code) or code for code in m.get("measured_with") or []]
+    row.conclusion = _conclusion(m)
 
 
 def _day(v: Any) -> date | None:
@@ -634,11 +723,12 @@ async def _cards_of(
         row.cost = _f(c.get("cost"))
         out.append(row)
     measured = {
-        c["code"]: _conclusion(c)
+        c["code"]: c
         for c in (await execution_state.measurement_states(session, shop_id, now=now))["cards"]
     }
+    ref_of = {r.code: r.external_ref for r in out}
     for row in out:
-        row.actual_profit, row.conclusion = measured.get(row.code, (None, None))
+        _apply_measure(row, measured.get(row.code), ref_of)
     return out
 
 
