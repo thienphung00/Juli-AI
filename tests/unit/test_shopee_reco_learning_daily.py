@@ -12,6 +12,7 @@ import pytest
 
 from juli_backend.models.ops import OpsShopSettings
 from juli_backend.services import shopee_reco_learning_daily as daily
+from tests.unit.test_shop_inputs import _proposal
 from tests.unit.test_shopee_file_datasets import _shop
 
 SHOPS = [uuid.UUID(int=i) for i in (1, 2, 3)]
@@ -95,6 +96,20 @@ async def test_only_pilot_stage_shops_and_listed_ids_are_chosen(session, monkeyp
     assert await daily.pilot_shop_ids(session) == [pilot.id]
     monkeypatch.setenv(daily.ENV_SHOP_IDS, f"{listed.id}, not-a-uuid, ")
     assert await daily.pilot_shop_ids(session) == sorted([pilot.id, listed.id], key=str)
+
+
+async def test_a_real_shop_with_an_executed_card_is_chosen_without_a_pilot_stage(
+    session, monkeypatch
+):
+    # F7: ORY had no Ops stage row, so its executed cards were never measured
+    real, idle, sample = await _shop(session), await _shop(session), await _shop(session)
+    sample.kind = "sample"
+    await _proposal(session, real, item_id="1", status="executed")
+    await _proposal(session, idle, item_id="1", status="draft")
+    await _proposal(session, sample, item_id="1", status="executed")
+    await session.flush()
+    monkeypatch.delenv(daily.ENV_SHOP_IDS, raising=False)
+    assert await daily.pilot_shop_ids(session) == [real.id]
 
 
 def test_the_kpi_beat_task_runs_the_learning_step_last(monkeypatch):

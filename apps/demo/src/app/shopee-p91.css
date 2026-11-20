@@ -1263,3 +1263,10 @@ button.sv-head:disabled {
 .dx-table__small { font-size: 13px; color: var(--sa-muted, #6b6b74); }
 .dx-table__act { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
 @media (max-width: 720px) { .dx-table__row { grid-template-columns: 1fr; } .dx-bar { grid-template-columns: 1fr; } }
+
+/* F7.8: forecast / Thực tế lines */
+.fc { display: grid; gap: 4px; }
+.fc__row--main .fc__value { font-size: 20px; }
+.fc__label, .fc__sub, .fc__through { font-size: 13px; color: var(--sa-muted, #6b6b74); }
+.fc__value { font-weight: 700; }
+.fc__row--main .fc__label { color: inherit; }

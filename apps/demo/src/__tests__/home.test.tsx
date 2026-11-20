@@ -119,7 +119,7 @@ describe("HomeOverview view", () => {
   it("renders the eyebrow, a conclusion h1, the three cards and the matrix", () => {
     render(<HomeOverview envelope={SAMPLE} sample />);
 
-    expect(screen.getByText(/^Trang chủ · Thứ/)).toHaveClass("eyebrow");
+    expect(screen.getByText(/^Tổng quan · Thứ/)).toHaveClass("eyebrow");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       /^GMV 30 ngày (tăng|giảm) .* so với kỳ trước$/,
     );

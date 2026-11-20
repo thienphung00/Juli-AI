@@ -295,6 +295,9 @@ def _head(p: Any, card: Mapping[str, Any]) -> dict[str, Any]:
         "change_kind": card["change_kind"],
         "product_id": p.item_id,
         "status": p.status,
+        # F7.8: the Thực hiện row shows the same "dự kiến · hiện tại" amounts as Đề xuất
+        "forecast": card.get("forecast"),
+        "data_through": card.get("data_through"),
     }
 
 
@@ -462,6 +465,11 @@ async def measurement_states(
                     final=bool(final),
                 ),
                 "label": m.get("label"),
+                # F7.5 / F7.6: the running Thực tế per metric, the group it is measured in
+                "actual": m.get("actual"),
+                "group": m.get("group"),
+                "measured_with": m.get("measured_with") or [],
+                "clean": m.get("clean"),
             }
         )
     return {"platform": "shopee", "cards": cards}

@@ -54,7 +54,7 @@ describe("F4.4 item_by_source covers every product (paged per L1 source)", () =>
       "psd_label_product_card:2",
       "psd_label_product_card:3",
     ]);
-    expect(results).toHaveLength(3 + 4 + 2);
+    expect(results).toHaveLength(3 + 4 + 2 + 2); // + the two flash sale day calls
   });
 
   it("an exactly full last page asks for one more, then stops on the empty page", async () => {

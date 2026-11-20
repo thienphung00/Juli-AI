@@ -127,7 +127,7 @@ describe("S2-D4 · the sample shop has no Juli Connector", () => {
 
 describe("board sync (owner 2026-11-16) is not offered on the sample shop", () => {
   it("Thực hiện shows no Nhập thẻ / Xoá bảng there; a seller host shows both", async () => {
-    const board = { reset: vi.fn(), previewImport: vi.fn(), commitImport: vi.fn() };
+    const board = { reset: vi.fn(), previewImport: vi.fn(), commitImport: vi.fn(), importStatus: vi.fn().mockResolvedValue(null) };
     const reco = { ...fakeReco({ execution: states([exec({ card_id: "a" })]) }), board };
     asSample(<ThucHienView />, reco);
     await screen.findByTestId("sd-th-a");

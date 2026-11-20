@@ -1,14 +1,14 @@
 import { ACTIONS_DESTINATION_LABEL } from "./destination-copy";
 
 /**
- * The app's four destinations (ADR-109 decision 7): Trang chủ / Quyết định /
- * Phân tích / Juli, in that order, as a left rail on desktop and a bottom bar
- * under 768px. Cài đặt is NOT a destination any more — it lives in the
- * shop-avatar menu in the header.
+ * One rail for TikTok Shop and Shopee (owner, 2026-11-19): Tổng quan / Phân tích / Quyết định /
+ * Dữ liệu shop, in that order, as a left rail on desktop and a bottom bar under 768px. Cài đặt is
+ * not a destination — it lives in the shop-avatar menu in the header.
  *
- * Juli (the 24-hour activity log and the daily loop) is shown but LOCKED in
- * this phase: it has no route, renders as a non-link with `aria-disabled`,
- * and carries `JULI_LOCKED_HINT` as its tooltip.
+ * Labels and order are shared; only the routes differ by platform. Shopee keeps its routes (the
+ * Connector's "Mở Juli" links and the stock-alert email point at them). A TikTok shop's Tổng quan
+ * is today's overview at `/`, and its Dữ liệu shop entry stays out until TikTok has those pages
+ * (P101). Juli joins as the fourth entry on both platforms with its /juli page.
  */
 
 export type AppDestinationIcon = "home" | "decisions" | "analytics" | "juli" | "overview" | "products" | "keywords" | "ads" | "orders" | "flows" | "data";
@@ -24,52 +24,56 @@ export interface AppDestination {
   readonly alsoActive?: readonly string[];
 }
 
+/** Tooltip of a locked entry; no entry is locked on either platform today. */
 export const JULI_LOCKED_HINT = "Sắp có: nhật ký 24 giờ";
 
-export const APP_DESTINATIONS: readonly AppDestination[] = [
-  { key: "home", label: "Trang chủ", icon: "home", href: "/", locked: false },
-  {
-    key: "decisions",
-    label: ACTIONS_DESTINATION_LABEL,
-    icon: "decisions",
-    href: "/decisions",
-    locked: false,
-  },
-  { key: "analytics", label: "Phân tích", icon: "analytics", href: "/analytics", locked: false },
-  { key: "juli", label: "Juli", icon: "juli", href: null, locked: true },
-];
+export type NavPlatform = "tiktok" | "shopee";
 
 /** The other four Dữ liệu shop sub-tabs (Sản phẩm is the entry's own href). */
 const DATA_SHOP_SUB_HREFS: readonly string[] = ["/tu-khoa", "/quang-cao", "/don-hang", "/luong-san-pham"];
 
-/**
- * Shopee shops (ADR-120 decision 2): Tổng quan / Phân tích / Quyết định / Dữ liệu shop (P100 redesign; its
- * sub-tabs Sản phẩm · Từ khóa · Dịch vụ hiển thị · Đơn hàng · Luồng keep their routes); Cài đặt stays in the avatar menu. Tổng quan replaces Trang chủ, and there is no locked
- * Juli entry. Isolated here so TikTok shops keep `APP_DESTINATIONS` untouched; the P81 app-shell
- * rework may fold the two lists into one.
- */
-export const SHOPEE_DESTINATIONS: readonly AppDestination[] = [
-  {
-    key: "overview",
-    label: "Tổng quan",
-    icon: "overview",
-    href: "/tong-quan",
-    locked: false,
-  },
+interface RailEntry {
+  readonly key: AppDestinationIcon;
+  readonly label: string;
+  /** The entry's route per platform; `null` leaves the entry off that platform's rail. */
+  readonly href: Readonly<Record<NavPlatform, string | null>>;
+  readonly alsoActive?: Partial<Readonly<Record<NavPlatform, readonly string[]>>>;
+}
+
+/** The single rail, in order. */
+const RAIL: readonly RailEntry[] = [
+  { key: "overview", label: "Tổng quan", href: { tiktok: "/", shopee: "/tong-quan" } },
   // P96b: /xep-hang redirects to /phan-tich (its product table); the entry stays lit for an old link.
-  { key: "analytics", label: "Phân tích", icon: "analytics", href: "/phan-tich", locked: false, alsoActive: ["/xep-hang"] },
   {
-    key: "decisions",
-    label: ACTIONS_DESTINATION_LABEL,
-    icon: "decisions",
-    href: "/decisions",
-    locked: false,
+    key: "analytics",
+    label: "Phân tích",
+    href: { tiktok: "/analytics", shopee: "/phan-tich" },
+    alsoActive: { shopee: ["/xep-hang"] },
   },
+  { key: "decisions", label: ACTIONS_DESTINATION_LABEL, href: { tiktok: "/decisions", shopee: "/decisions" } },
   // P100 redesign: Sản phẩm / Từ khóa / Dịch vụ hiển thị / Đơn hàng / Luồng are sub-tabs of one entry.
-  { key: "data", label: "Dữ liệu shop", icon: "data", href: "/san-pham", locked: false, alsoActive: DATA_SHOP_SUB_HREFS },
+  {
+    key: "data",
+    label: "Dữ liệu shop",
+    href: { tiktok: null, shopee: "/san-pham" },
+    alsoActive: { shopee: DATA_SHOP_SUB_HREFS },
+  },
 ];
 
-export type NavPlatform = "tiktok" | "shopee";
+function railFor(platform: NavPlatform): readonly AppDestination[] {
+  return RAIL.flatMap((entry) => {
+    const href = entry.href[platform];
+    if (href === null) return [];
+    const alsoActive = entry.alsoActive?.[platform];
+    return [{ key: entry.key, label: entry.label, icon: entry.key, href, locked: false, ...(alsoActive ? { alsoActive } : {}) }];
+  });
+}
+
+/** A TikTok shop's rail. */
+export const APP_DESTINATIONS: readonly AppDestination[] = railFor("tiktok");
+
+/** A Shopee shop's rail (ADR-120 decision 2; its routes are unchanged). */
+export const SHOPEE_DESTINATIONS: readonly AppDestination[] = railFor("shopee");
 
 /**
  * P100 S2-C (owner, 2026-11-11): on the reviewer's sample shop ("Dữ liệu mẫu") the rail shows only

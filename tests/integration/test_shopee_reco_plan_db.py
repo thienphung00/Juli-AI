@@ -24,7 +24,6 @@ from juli_backend.services.shopee_recommendations import (
     change_sets,
     plan_codes,
     plans,
-    product_queue,
     store,
 )
 from tests.integration.test_ingest_two_tenant import juli_app_session
@@ -207,7 +206,7 @@ async def test_plan_lifecycle_to_executed_and_a_cut_measurement_under_rls(shopee
                     session.add(_draft(sid))
                     await session.flush()
             await session.rollback()
-        # executing again on the product 4 days later cuts the running set: kept, 4 days
+        # executing again on the product 4 days later joins the running set (one group)
         async with with_shop_scope(session, sid):
             c3 = await _approved(session, a, "8801", 0.7)
             later = NOW + timedelta(days=4, hours=1)
@@ -217,10 +216,11 @@ async def test_plan_lifecycle_to_executed_and_a_cut_measurement_under_rls(shopee
             await session.commit()
         async with with_shop_scope(session, sid):
             first, second = [s for s in await change_sets.sets_for(session, sid) if s.product_id]
-            assert first.status == "cut" and first.result["label"] == "Đo được 4 ngày"
+            # F7.6: not cut -- the running set and the new one are one group
+            assert first.status == "measuring" and first.cut_days is None
             assert second.status == "measuring" and second.executed_on == later.date()
-            m = await product_queue.measuring(session, sid, later + timedelta(days=1))
-            assert m["8801"]["change_set"] == str(second.id)
+            assert first.result["group"]["change_sets"] == [str(first.id), str(second.id)]
+            assert first.result["clean"] is False
         # tenant privacy: the other shop sees none of it
         async with with_shop_scope(session, b.shop_id):
             assert (await session.scalars(select(ShopRecoPlan))).all() == []

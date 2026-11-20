@@ -229,6 +229,25 @@ async def list_ingest_tokens(
     }
 
 
+@router.post("/tokens/revoke-inactive")
+async def revoke_inactive_ingest_tokens(
+    user: User = Depends(get_current_user),
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """F6.5 "Gỡ tất cả máy cũ": revoke this shop's tokens not seen for 14 days (no other shop's)."""
+    shop_id, user_id = shop.id, user.id
+    count = await ingest_service.revoke_inactive(
+        session, shop_id=shop_id, reason="seller_inactive", now=utc_now_naive()
+    )
+    await session.commit()
+    logger.info(
+        "ingest_inactive_tokens_revoked_by_seller",
+        extra={"shop_id": str(shop_id), "user_id": str(user_id), "count": count},
+    )
+    return {"revoked": count}
+
+
 @router.delete("/tokens/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_ingest_token(
     token_id: uuid.UUID,

@@ -650,7 +650,7 @@ function ConfirmDialog({ dialog, plan, busy, sheet, onBack, onGo }: { readonly d
         ) : null}
         {cutsHere.length > 0 ? (
           <div className="sd-measuring" data-testid="kh-cuts">
-            <b>{sheet ? "Phép đo đang chạy sẽ bị cắt hôm nay" : "Phép đo đang chạy của các sản phẩm này sẽ bị cắt hôm nay"}</b>
+            <b>{sheet ? "Phép đo đang chạy sẽ được đo chung" : "Phép đo đang chạy của các sản phẩm này sẽ được đo chung với thay đổi mới"}</b>
             {cutsHere.map((c) => (
               <span key={c.change_set}>{cutText(c)}</span>
             ))}

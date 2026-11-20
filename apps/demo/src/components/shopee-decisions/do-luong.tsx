@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { DASH, fmt, sv } from "../../lib/shopee-analytics/format";
+import { DASH, fmt } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { METRIC_NAME, type MetricKey } from "../../lib/metrics";
 import { useReco } from "../../lib/shopee-decisions/context";
@@ -10,11 +10,13 @@ import type { MeasureVerdict, MeasurementCard } from "../../lib/shopee-decisions
 import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { MetricChip, Shift } from "../metrics/metric-chip";
 import { TextChip } from "../shopee-analytics/ui";
+import { finalVerdict } from "../../lib/shopee-decisions/forecast-display";
+import { ActualLines } from "./forecast-lines";
 import { NavLink, RecoState } from "./ui";
 
 /**
- * Quyết định › Đo lường: per measuring / finished card the days measured, Δ lợi nhuận over the whole
- * period against the card's range, the metric change and the verdict; a finished card also gets the
+ * Quyết định › Đo lường: per measuring / finished card the days measured, Thực tế against hiện tại per
+ * metric (one amount, no range), the metric change and the final verdict, "đo chung với …" for a group; a finished card also gets the
  * Tối ưu row. Data comes through the host's RecoApi (seller, Ops, reviewer sample shop read-only).
  */
 
@@ -27,17 +29,6 @@ function dm(iso: string | null): string {
   return m ? `${m[3]}/${m[2]}` : DASH;
 }
 
-/** Positions (0..100) of the band and the dot on one shared scale that always includes 0. */
-export function scaleOf(c: Pick<MeasurementCard, "band" | "actual">): { readonly from: number; readonly to: number; readonly dot: number | null } | null {
-  const { p10, p90 } = c.band;
-  if (p10 === null || p90 === null) return null;
-  const lo = Math.min(0, p10, p90, c.actual ?? 0);
-  const hi = Math.max(0, p10, p90, c.actual ?? 0);
-  const span = hi - lo || 1;
-  const at = (v: number) => ((v - lo) / span) * 100;
-  return { from: at(Math.min(p10, p90)), to: at(Math.max(p10, p90)), dot: c.actual === null ? null : at(c.actual) };
-}
-
 function withQuery(href: string, extra: Record<string, string>): string {
   const [path, qs = ""] = href.split("?");
   const p = new URLSearchParams(qs);
@@ -47,7 +38,7 @@ function withQuery(href: string, extra: Record<string, string>): string {
 
 function Row({ c, name, readOnly }: { readonly c: MeasurementCard; readonly name: string | null; readonly readOnly: boolean }) {
   const host = useReco();
-  const sc = scaleOf(c);
+  const final = finalVerdict(c.actual);
   const pct = c.days ? Math.min(100, Math.round((c.days_measured / c.days) * 100)) : 0;
   const builder = host.href({ builder: true, productId: c.product_id });
   return (
@@ -64,7 +55,7 @@ function Row({ c, name, readOnly }: { readonly c: MeasurementCard; readonly name
           </span>
         </div>
         <span data-testid={`sd-dl-verdict-${c.card_id}`}>
-          <TextChip tone={VERDICT_TONE[c.verdict]}>{VERDICT_LABEL[c.verdict]}</TextChip>
+          <TextChip tone={VERDICT_TONE[c.verdict]}>{final ?? VERDICT_LABEL[c.verdict]}</TextChip>
         </span>
       </div>
       <div className="sd-dl-row__grid">
@@ -75,18 +66,8 @@ function Row({ c, name, readOnly }: { readonly c: MeasurementCard; readonly name
             <div className="sd-dl-bar__fill" style={{ width: `${pct}%` }} />
           </div>
         </div>
-        <div className="sd-dl-range">
-          <span>Δ lợi nhuận cả kỳ</span>
-          <div className="sd-dl-track" data-testid={`sd-dl-track-${c.card_id}`}>
-            {sc ? <div className="sd-dl-band" style={{ left: `${sc.from}%`, width: `${sc.to - sc.from}%` }} /> : null}
-            {sc && sc.dot !== null ? <div className={`sd-dl-dot sd-dl-dot--${c.verdict}`} style={{ left: `calc(${sc.dot}% - 8px)` }} /> : null}
-          </div>
-          <div className="sd-dl-range__foot">
-            <span>
-              Khoảng {sv(c.band.p10)} – {sv(c.band.p90)}
-            </span>
-            <b>Thực tế {sv(c.actual)}</b>
-          </div>
+        <div className="sd-dl-range" data-testid={`sd-dl-actual-${c.card_id}`}>
+          <ActualLines actual={c.actual} showVerdict={false} measurement={{ label: c.label, measured_with: c.measured_with }} testId={`sd-dl-ac-${c.card_id}`} />
         </div>
         <div className="sd-dl-metrics">
           {c.metrics

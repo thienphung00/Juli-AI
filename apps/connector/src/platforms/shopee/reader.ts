@@ -32,6 +32,7 @@ import {
 } from "./config";
 import { isDatacenterPath, isMydataPath } from "./config";
 import { isReadOnlyOrderDetailPath, isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, type ReaderEndpoint } from "./endpoints";
+import { isNoCampaign } from "./promotion-map";
 import { trimOrderCards, trimOrderDetail, trimOrderIndex } from "./orders-map";
 import type { Pacer } from "./runner";
 import { buildBackfillDayPlan } from "./sync";
@@ -285,6 +286,7 @@ export function classify(status: number, body: unknown): Verdict {
   if (!isRecord(body)) return "login"; // a login page instead of JSON
   const code = body.code ?? body.error;
   if (code === undefined || code === 0 || code === "0" || code === null) return "ok";
+  if (isNoCampaign(body)) return "ok"; // F6.4: a day with no flash sale is an empty day
   // 0.3.29: code 10000 ("permission denied" / "not login") is mydata's answer to a call from outside /datacenter/
   if (Number(code) === 10000) return "error";
   const text = `${String(body.msg ?? "")} ${String(body.message ?? "")} ${typeof code === "string" ? code : ""}`;
@@ -737,7 +739,7 @@ async function readTraffic(env: ReaderEnv, days: string[], collected: ReaderResp
   const template: Template = { query: {}, headers: env.mydataHeaders?.() };
   for (const day of days) {
     for (const planned of buildBackfillDayPlan(day, env.now(), new Set(), false)) {
-      if (planned.dataset !== "traffic_overview" && planned.dataset !== "shop_traffic" && planned.dataset !== "product_overview" && planned.dataset !== "promotion_daily") continue;
+      if (planned.dataset !== "traffic_overview" && planned.dataset !== "shop_traffic" && planned.dataset !== "product_overview" && planned.dataset !== "promotion_daily" && planned.dataset !== "flash_sale") continue;
       const request = buildReaderRequest(env.origin, planned.dataset, template, { query: planned.params }, env.session());
       await send(env, request, collected, { day }, true);
     }
