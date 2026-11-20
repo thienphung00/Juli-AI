@@ -53,5 +53,15 @@ Every term here was misread by an agent at least once and then corrected by the 
 | **Re-read (`reread`)** | the Connector reading again, the same day, the pages a block stopped, right after the block clears. |
 | **Real client shop** | production data. Read-only for agents, and never written without the owner. |
 
+## Juli tab (analytics agent, batch-1120)
+| Term | Means |
+|---|---|
+| **Juli tab** | `/juli`, 4th on the rail on both platforms: the seller asks about the shop's numbers (or taps one of 5 templates) and gets a data answer, an explanation, or a draft card. Shown only when `JULI_AGENT_ENABLED` allows the shop. |
+| **Chain** | a fixed metric-decomposition drill run by code (orders, CTR, CTOR, GMV, profit + margin, ads, cost_change): formula → scope (source, product) → time (start day), with a bottom-up fallback. The LLM never chooses steps or numbers. |
+| **Stop reason** | why a chain ended: explained, within_noise, unexplained, data_stale, data_missing, unsupported, needs_choice, data_answer. It decides whether a card may be drafted. |
+| **within_noise** | decided at the bottom of the chain: the explained share is under 70 % and the change sits inside the shop's usual range (or the headline change is under 3 %, the only early stop). Shown as "Không phát hiện gì bất thường". |
+| **Draft card** | a card the agent proposes with values from the recommendation engine; it becomes a real card only when the seller taps "Gửi vào Đề xuất" (Tự tạo path, origin `agent`). |
+| **Jev** | TypeSafe System One: picks routes, products and cards from option lists the backend builds; reads English JSON only. |
+
 ## Who changed the data?
 Before saying "Juli changed X", check the actor or source field of the row (Connector, file import, Seller Centre, the owner). Don't assume.

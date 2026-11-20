@@ -24,9 +24,6 @@ export interface AppDestination {
   readonly alsoActive?: readonly string[];
 }
 
-/** Tooltip of a locked entry; no entry is locked on either platform today. */
-export const JULI_LOCKED_HINT = "Sắp có: nhật ký 24 giờ";
-
 export type NavPlatform = "tiktok" | "shopee";
 
 /** The other four Dữ liệu shop sub-tabs (Sản phẩm is the entry's own href). */
@@ -51,6 +48,8 @@ const RAIL: readonly RailEntry[] = [
     alsoActive: { shopee: ["/xep-hang"] },
   },
   { key: "decisions", label: ACTIONS_DESTINATION_LABEL, href: { tiktok: "/decisions", shopee: "/decisions" } },
+  // Fourth on both platforms; shown only where `GET /v1/demo/juli/enabled` says so (see `destinationsFor`).
+  { key: "juli", label: "Juli", href: { tiktok: "/juli", shopee: "/juli" } },
   // P100 redesign: Sản phẩm / Từ khóa / Dịch vụ hiển thị / Đơn hàng / Luồng are sub-tabs of one entry.
   {
     key: "data",
@@ -60,20 +59,24 @@ const RAIL: readonly RailEntry[] = [
   },
 ];
 
-function railFor(platform: NavPlatform): readonly AppDestination[] {
+function railFor(platform: NavPlatform, withJuli: boolean): readonly AppDestination[] {
   return RAIL.flatMap((entry) => {
     const href = entry.href[platform];
-    if (href === null) return [];
+    if (href === null || (entry.key === "juli" && !withJuli)) return [];
     const alsoActive = entry.alsoActive?.[platform];
     return [{ key: entry.key, label: entry.label, icon: entry.key, href, locked: false, ...(alsoActive ? { alsoActive } : {}) }];
   });
 }
 
-/** A TikTok shop's rail. */
-export const APP_DESTINATIONS: readonly AppDestination[] = railFor("tiktok");
+/** A TikTok shop's rail (Juli not on). */
+export const APP_DESTINATIONS: readonly AppDestination[] = railFor("tiktok", false);
 
-/** A Shopee shop's rail (ADR-120 decision 2; its routes are unchanged). */
-export const SHOPEE_DESTINATIONS: readonly AppDestination[] = railFor("shopee");
+/** A Shopee shop's rail (ADR-120 decision 2; its routes are unchanged; Juli not on). */
+export const SHOPEE_DESTINATIONS: readonly AppDestination[] = railFor("shopee", false);
+
+/** The same rails with the Juli entry, for a shop where the Juli tab is enabled. */
+export const APP_DESTINATIONS_WITH_JULI: readonly AppDestination[] = railFor("tiktok", true);
+export const SHOPEE_DESTINATIONS_WITH_JULI: readonly AppDestination[] = railFor("shopee", true);
 
 /**
  * P100 S2-C (owner, 2026-11-11): on the reviewer's sample shop ("Dữ liệu mẫu") the rail shows only
@@ -81,17 +84,26 @@ export const SHOPEE_DESTINATIONS: readonly AppDestination[] = railFor("shopee");
  * direct link to one goes to Tổng quan (`sampleShopRedirect`). The API refuses their routes on its
  * own (S2-F allowlist) — this list is presentation only.
  */
-export const SAMPLE_SHOP_DESTINATION_KEYS: readonly AppDestinationIcon[] = ["overview", "analytics", "decisions", "data"];
+export const SAMPLE_SHOP_DESTINATION_KEYS: readonly AppDestinationIcon[] = ["overview", "analytics", "decisions", "juli", "data"];
 
 export const SAMPLE_SHOP_HOME_HREF = "/tong-quan";
 
 export const SAMPLE_SHOP_DESTINATIONS: readonly AppDestination[] = SHOPEE_DESTINATIONS.filter((d) =>
   SAMPLE_SHOP_DESTINATION_KEYS.includes(d.key),
 );
+const SAMPLE_SHOP_DESTINATIONS_WITH_JULI: readonly AppDestination[] = SHOPEE_DESTINATIONS_WITH_JULI.filter((d) =>
+  SAMPLE_SHOP_DESTINATION_KEYS.includes(d.key),
+);
 
-export function destinationsFor(platform: NavPlatform, options: { readonly sampleShop?: boolean } = {}): readonly AppDestination[] {
-  if (platform !== "shopee") return APP_DESTINATIONS;
-  return options.sampleShop ? SAMPLE_SHOP_DESTINATIONS : SHOPEE_DESTINATIONS;
+/** `juliEnabled`: the shop's `/v1/demo/juli/enabled` answer; the Juli entry is shown only when true. */
+export function destinationsFor(
+  platform: NavPlatform,
+  options: { readonly sampleShop?: boolean; readonly juliEnabled?: boolean } = {},
+): readonly AppDestination[] {
+  const juli = options.juliEnabled === true;
+  if (platform !== "shopee") return juli ? APP_DESTINATIONS_WITH_JULI : APP_DESTINATIONS;
+  if (options.sampleShop) return juli ? SAMPLE_SHOP_DESTINATIONS_WITH_JULI : SAMPLE_SHOP_DESTINATIONS;
+  return juli ? SHOPEE_DESTINATIONS_WITH_JULI : SHOPEE_DESTINATIONS;
 }
 
 /**

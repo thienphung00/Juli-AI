@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models."""
 
+from juli_backend.models import agent_chat as agent_chat  # Juli tab tables (migration 137)
 from juli_backend.models.businesses import Business, BusinessInvite, BusinessMember
 from juli_backend.models.card_content_specs import CardContentSpec
 from juli_backend.models.card_events import CardEvent

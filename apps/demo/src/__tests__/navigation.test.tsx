@@ -38,12 +38,22 @@ describe("app navigation — a TikTok shop", () => {
     expect(within(nav).getByRole("link", { name: "Tổng quan" })).not.toHaveAttribute("aria-current");
   });
 
-  it("has no locked entry and no Juli entry until the Juli page ships", () => {
+  it("has no locked entry, and no Juli entry unless the shop has the tab enabled", () => {
     render(<AppNavigation activePath="/" />);
     const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
     expect(screen.queryByTestId("nav-locked-juli")).toBeNull();
     expect(within(nav).queryByRole("link", { name: "Juli" })).toBeNull();
     expect(APP_DESTINATIONS.some((d) => d.locked)).toBe(false);
+  });
+
+  it("shows Juli 4th (href /juli) when enabled: Tổng quan / Phân tích / Quyết định / Juli", () => {
+    render(<AppNavigation activePath="/juli" juliEnabled />);
+    const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
+    expect(within(nav).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Tổng quan", "Phân tích", "Quyết định", "Juli"]);
+    const juli = within(nav).getByRole("link", { name: "Juli" });
+    expect(juli).toHaveAttribute("href", "/juli");
+    expect(juli).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("list")).not.toHaveClass("app-nav__list--many");
   });
 
   it("renders an SVG icon for every destination, never an icon key as text (#1903)", () => {

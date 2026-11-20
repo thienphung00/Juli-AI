@@ -117,6 +117,8 @@ REVIEWER_TABLES = frozenset(
             "production_write_authorizations", "production_write_shops", "ingest_pairing_codes",
             "ingest_tokens", "ingest_dedup_epochs", "tiktok_credentials", "tiktok_sync_state",
             "ops_sim_scenarios", "processed_events", "graph_edges",
+            # Juli tab (batch-1120): a reviewer's chat history and draft cards; kept (U8).
+            "agent_conversations", "agent_messages", "agent_routing_decisions", "agent_card_drafts",
         )
     }
 )  # fmt: skip

@@ -5,7 +5,8 @@ ONE number for the whole system, on top of each shop's own cap (D25.8,
 
 - **Cap**: ``ops_system_settings['openai_system_cap_usd']`` (Admin-editable in
   Juli Ops, audited), else ``OPENAI_SYSTEM_CAP_USD_DEFAULT`` (env, $50).
-- **Spend**: every shop's ``workflow_runs.cost_usd`` + ``content_analyses.cost_usd``
+- **Spend**: every shop's ``workflow_runs.cost_usd`` + ``content_analyses.cost_usd`` +
+  ``agent_messages.cost_usd`` (the Juli tab, migration 138)
   since the first instant of the same UTC+7 month as the per-shop cap
   (``openai_cap.month_start_utc``). On Postgres it is read through the SECURITY
   DEFINER ``openai_spend_since(timestamp)`` (migration 086) -- a tenant-scoped
@@ -40,6 +41,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.agent_chat import AgentMessage
 from juli_backend.models.content_analysis import ContentAnalysis
 from juli_backend.models.models import WorkflowRun
 from juli_backend.models.ops import ROLE_ADMIN, OpsStaff, OpsSystemSetting
@@ -175,7 +177,7 @@ async def system_cap(session: AsyncSession) -> SystemCap:
 
 
 async def system_spend_since(session: AsyncSession, since: datetime) -> Decimal:
-    """Every shop's OpenAI spend since ``since`` (naive UTC)."""
+    """Every shop's LLM spend since ``since`` (naive UTC): runs, analyses and the Juli tab."""
     if is_sqlite(session):
         runs = (
             await session.execute(
@@ -191,7 +193,15 @@ async def system_spend_since(session: AsyncSession, since: datetime) -> Decimal:
                 )
             )
         ).scalar_one()
-        return Decimal(str(runs or 0)) + Decimal(str(analyses or 0))
+        agent = (
+            await session.execute(
+                select(func.coalesce(func.sum(AgentMessage.cost_usd), 0)).where(
+                    AgentMessage.created_at >= since
+                )
+            )
+        ).scalar_one()
+        return Decimal(str(runs or 0)) + Decimal(str(analyses or 0)) + Decimal(str(agent or 0))
+    # Postgres: the SECURITY DEFINER sum (086; 138 adds ``agent_messages``, the Juli tab).
     value = (
         await session.execute(text("SELECT public.openai_spend_since(:since)"), {"since": since})
     ).scalar_one()

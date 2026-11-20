@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import {
-  JULI_LOCKED_HINT,
   destinationsFor,
   isDestinationOn,
   type AppDestinationIcon,
@@ -14,9 +13,8 @@ import {
  * switch is CSS only (`.app-nav` in globals.css), so desktop and mobile can
  * never carry different items.
  *
- * Juli is locked: a non-link `<span role="link" aria-disabled="true">` with a
- * lock mark and a tooltip (`title` + a visually hidden description), so it
- * is seen and announced but cannot be followed.
+ * Juli is the fourth entry, shown only for a shop where `/v1/demo/juli/enabled`
+ * says so (`juliEnabled`); nothing is locked or greyed out.
  */
 
 const ICON_PATHS: Record<AppDestinationIcon, string> = {
@@ -70,14 +68,17 @@ export function AppNavigation({
   activePath,
   platform = "tiktok",
   sampleShop = false,
+  juliEnabled = false,
 }: {
   readonly activePath: string;
   /** Which platform's routes the shared rail uses. */
   readonly platform?: NavPlatform;
   /** P100 S2-C: the reviewer's sample shop — only the four screens that work there. */
   readonly sampleShop?: boolean;
+  /** `GET /v1/demo/juli/enabled` for the acting shop: the Juli entry shows only when true. */
+  readonly juliEnabled?: boolean;
 }) {
-  const destinations = destinationsFor(platform, { sampleShop });
+  const destinations = destinationsFor(platform, { sampleShop, juliEnabled });
   return (
     <div className="app-rail">
       <Link aria-label="Juli: Trang chủ" className="app-rail__wordmark" href="/">
@@ -86,31 +87,7 @@ export function AppNavigation({
       <nav aria-label="Điều hướng chính" className="app-nav">
       <ul className={`app-nav__list${destinations.length > 4 ? " app-nav__list--many" : ""}`}>
         {destinations.map((destination) => {
-          if (destination.locked || !destination.href) {
-            return (
-              <li key={destination.key}>
-                <span
-                  aria-describedby={`app-nav-locked-${destination.key}`}
-                  aria-disabled="true"
-                  aria-label={destination.label}
-                  className="app-nav__item app-nav__item--locked"
-                  data-testid={`nav-locked-${destination.key}`}
-                  role="link"
-                  tabIndex={0}
-                  title={JULI_LOCKED_HINT}
-                >
-                  <span className="app-nav__glyph">
-                    <NavIcon name={destination.icon} />
-                    <LockIcon />
-                  </span>
-                  <span className="app-nav__label">{destination.label}</span>
-                  <span className="juli-sr-only" id={`app-nav-locked-${destination.key}`}>
-                    {JULI_LOCKED_HINT}
-                  </span>
-                </span>
-              </li>
-            );
-          }
+          if (!destination.href) return null;
           const active = isDestinationOn(activePath, destination);
           return (
             <li key={destination.key}>
