@@ -487,6 +487,7 @@ def assemble_kol(
                 "gmv": num(r.gmv),
                 "commission": num(r.commission),
                 "profit": num(r.net_profit),
+                "sample_cost": None if r.sample_cost is None else num(r.sample_cost),
                 "prev_gmv": None if p is None else num(p.gmv),
                 "prev_profit": None if p is None else num(p.net_profit),
                 "change": change_of(r.gmv, None if p is None else p.gmv),

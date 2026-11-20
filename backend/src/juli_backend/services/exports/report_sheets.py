@@ -25,13 +25,15 @@ from juli_backend.services.exports._style import (
     widths,
 )
 from juli_backend.services.exports.report_calc import DASH
+from juli_backend.services.metrics.registry import METRICS
 
 SHEET_MONTH = "Theo tháng"
 SHEET_KOC = "KOC"
 SHEET_ANALYSIS = "Phân tích & đề xuất"
 
 MONTH_HEADER = [
-    "Tháng", "GMV (đ)", "Đơn", "AOV (đ)", "Lợi nhuận (đ)", "Tổng chi phí (đ)",
+    "Tháng", "GMV (đ)", "Đơn", "AOV (đ)", "Lợi nhuận (đ)",
+    f"{METRICS['cost_marketing'].label_vi} (đ)",
     "Thay đổi GMV", "Thay đổi đơn", "Thay đổi AOV", "Thay đổi lợi nhuận", "Thay đổi chi phí",
 ]  # fmt: skip
 MONTH_FIRST = 4

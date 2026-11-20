@@ -18,7 +18,7 @@ import { DataThrough, Ini, ResourceState, initialsOf } from "./ui";
 /**
  * Tổng quan (canvas board TongQuanPct): the shop in one screen. Header finding, Shop | Sản phẩm,
  * the Kế hoạch switch, the period picker with Tổng | Trung bình / ngày, the Kế hoạch card of the
- * period, KPI tiles (GMV · Lợi nhuận · Tổng chi phí · ROI), the GMV composition (Organic / Quảng
+ * period, KPI tiles (GMV · Lợi nhuận · Chi phí marketing · ROI), the GMV composition (Organic / Quảng
  * cáo / Tiếp thị liên kết) and the channel table. Every figure carries its change against the
  * previous period of the same length and opens Phân tích pre-filtered (`metric`, `channel`,
  * `product`, period). Host-driven: the same screen runs for the seller, Ops and the sample shop.
@@ -265,7 +265,7 @@ function Tiles({ data, mode, product, state }: { readonly data: ChannelSplit; re
   const p = data.kpis_prev ?? null;
   const money = (v: number | null | undefined) => mil(inMode(v, days, mode));
   const href = (metric: MetricKey) => analysisHref(links, { metric, product, mode }, state);
-  // Lợi nhuận / Tổng chi phí stand on the order lines and the ads: their own day when it is older
+  // Lợi nhuận / Chi phí marketing stand on the order lines and the ads: their own day when it is older
   // than the GMV's (the shop totals')
   const throughProfit = data.data_through?.profit ?? null;
   const lateThrough = (key: string): ReactNode =>
@@ -299,7 +299,7 @@ function Tiles({ data, mode, product, state }: { readonly data: ChannelSplit; re
         {tile("profit", `Lợi nhuận${suffix(mode)}`, money(k.profit), change(k.profit, p?.profit), "margin", 1)}
         {tile(
           "cost",
-          `Tổng chi phí${suffix(mode)}`,
+          `Chi phí marketing${suffix(mode)}`,
           money(k.cost_total),
           change(k.cost_total, p?.cost_total),
           "margin",
