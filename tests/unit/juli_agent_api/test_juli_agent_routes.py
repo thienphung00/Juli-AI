@@ -626,3 +626,20 @@ async def test_the_system_cap_refuses_every_shops_ask(app_for, world, monkeypatc
         r = await _ask(c, text="GMV?")
     assert r.status_code == 429 and r.json()["detail"]["scope"] == "system"
     assert r.json()["detail"]["message"] == "Juli đã dùng hết hạn mức tháng này"
+
+
+# -- GET /enabled: the rail hides the tab without error noise ----------------------------------
+
+
+async def test_enabled_answers_200_whether_the_flag_is_on_or_off(app_for, world, monkeypatch):
+    async with _client(app_for(world["owner"], world["shop"], FakeEngine())) as c:
+        on = await c.get("/v1/demo/juli/enabled")
+        monkeypatch.delenv("JULI_AGENT_ENABLED")
+        off = await c.get("/v1/demo/juli/enabled")
+        templates_off = await c.get("/v1/demo/juli/templates")
+        monkeypatch.setenv("JULI_AGENT_ENABLED", str(uuid.uuid4()))  # another shop only
+        other_only = await c.get("/v1/demo/juli/enabled")
+    assert (on.status_code, on.json()) == (200, {"enabled": True})
+    assert (off.status_code, off.json()) == (200, {"enabled": False})
+    assert templates_off.status_code == 404  # the tab's own routes stay 404 when off
+    assert other_only.json() == {"enabled": False}

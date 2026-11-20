@@ -217,8 +217,9 @@ def test_the_juli_routes_are_allowlisted_and_named_apart():
     assert reviewer_gate.JULI_PIN_ENDPOINTS <= reviewer_gate.ALLOWED_ENDPOINTS
     assert {e.rsplit(":", 1)[1] for _, e in reviewer_gate.JULI_PIN_ENDPOINTS} == {
         "list_templates", "ask", "stream_message_events", "cancel_message",
-        "list_conversations", "get_conversation", "send_card", "dismiss_card",
+        "list_conversations", "get_conversation", "send_card", "dismiss_card", "juli_enabled",
     }  # fmt: skip
+    assert reviewer_gate.JULI_STATUS_ENDPOINT in reviewer_gate.JULI_PIN_ENDPOINTS
     assert reviewer_gate.JULI_PIN_WRITE_ENDPOINTS == {
         k for k in reviewer_gate.JULI_PIN_ENDPOINTS if k[0] == "POST"
     }
@@ -456,3 +457,23 @@ async def test_the_system_cap_stops_a_reviewers_ask(session, engine, world, monk
             f"{J}/ask", json={"template": "improve_gmv"}, headers=_headers(reviewer_id, sid)
         )
     assert r.status_code == 429 and r.json()["detail"]["scope"] == "system"
+
+
+@pytest.mark.parametrize(
+    ("which", "enabled"), [("sample", True), ("sandbox", True), ("masked", False)]
+)
+async def test_enabled_tells_a_reviewer_whether_the_pin_has_the_tab(
+    session, engine, world, which, enabled
+):
+    shop = {
+        "sample": world["sample"].shop_id,
+        "sandbox": world["sandbox"].shop_id,
+        "masked": shop_alias_id(world["seller"].shop.id),
+    }[which]
+    before = await _snapshot(session, reviewer_id=world["reviewer_id"])
+    async with client_for(_app(session, engine)) as client:
+        r = await client.get(f"{J}/enabled", headers=_headers(world["reviewer_id"], shop))
+    assert (r.status_code, r.json()) == (200, {"enabled": enabled})
+    after = await _snapshot(session, reviewer_id=world["reviewer_id"])
+    assert [n for n in before if before[n] != after[n]] == []
+    assert await _audits(session, "reviewer_read_refused") == []  # a status read, not refused

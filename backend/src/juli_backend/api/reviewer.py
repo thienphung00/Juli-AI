@@ -255,8 +255,12 @@ JULI_PIN_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
         (_GET, _R + "juli_agent:get_conversation"),  # …/conversations/{id}
         ("POST", _R + "juli_agent:send_card"),  # …/cards/{draft_ref}/send
         ("POST", _R + "juli_agent:dismiss_card"),  # …/cards/{draft_ref}/dismiss
+        (_GET, _R + "juli_agent:juli_enabled"),  # /v1/demo/juli/enabled
     }
 )
+#: The rail's status read: answers ``{enabled}`` on EVERY pin (false off the Juli pins), never
+#: refused or audited -- it reads no shop data.
+JULI_STATUS_ENDPOINT: tuple[str, str] = (_GET, _R + "juli_agent:juli_enabled")
 #: The Juli writes (each sample-pin one audited ``reviewer_sample_write``: route + shop only).
 JULI_PIN_WRITE_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
     key for key in JULI_PIN_ENDPOINTS if key[0] != _GET
@@ -866,6 +870,11 @@ async def require_sandbox_pin(
     return shop
 
 
+def juli_pin_admitted(context: ReviewerContext) -> bool:
+    """The pin has the Juli tab: the sample shop or Juli's writable sandbox."""
+    return (context.pin is not None and context.pin.sample) or _sandbox_writable(context)
+
+
 async def admit_juli_pin(session: AsyncSession, context: ReviewerContext) -> None:
     """batch-1120: a reviewer on a Juli tab route, once its shop is entered (else 403).
 
@@ -879,7 +888,7 @@ async def admit_juli_pin(session: AsyncSession, context: ReviewerContext) -> Non
     sample = pin is not None and pin.sample
     if (
         key not in JULI_PIN_ENDPOINTS
-        or not (sample or _sandbox_writable(context))
+        or not juli_pin_admitted(context)
         or (sample and key in JULI_SAMPLE_REFUSED)
     ):
         logger.warning("reviewer_juli_route_refused", extra={"platform": context.platform})
@@ -1083,6 +1092,7 @@ __all__ = [
     "JULI_PIN_ENDPOINTS",
     "JULI_PIN_WRITE_ENDPOINTS",
     "JULI_SAMPLE_REFUSED",
+    "JULI_STATUS_ENDPOINT",
     "SAMPLE_SHOP_ENDPOINTS",
     "SAMPLE_SHOP_LLM_ENDPOINTS",
     "SAMPLE_SHOP_REFUSED",
@@ -1105,6 +1115,7 @@ __all__ = [
     "enter_reviewer_shop",
     "install",
     "is_allowed",
+    "juli_pin_admitted",
     "refuse_sample_llm_quota",
     "reviewer_context",
     "reviewer_gate",
