@@ -41,6 +41,7 @@ from juli_backend.models.models import (
 )
 from juli_backend.repositories import ShopIngestionStateRepo, TikTokCredentialRepo
 from juli_backend.services.etl.consumer import EtlConsumer
+from juli_backend.services.ingest.tiktok_canonical import backfill_create_time_from
 from juli_backend.services.ingestion import make_etl_handoff
 from juli_backend.workers.services.polling import FujiwaPollConfig
 from juli_backend.workers.services.polling import ingestion as ingestion_module
@@ -479,12 +480,13 @@ class TestFastPhase:
             now=NOW,
             score_fn=_count_score,
         )
-        for search in (
-            resources.orders.search_all,
-            resources.products.search_all,
-            resources.returns.search_returns_all,
-        ):
+        for search in (resources.products.search_all, resources.returns.search_returns_all):
             assert search.call_args_list == [call(update_time_from=None)], "cold start"
+        # P101 W2 (B-1): the orders cold start reads the 90-day connect window by create_time
+        (order_call,) = resources.orders.search_all.call_args_list
+        assert order_call == call(
+            update_time_from=None, create_time_from=backfill_create_time_from()
+        ), "cold start, bounded to the connect window"
 
     @pytest.mark.asyncio
     async def test_emits_a_structured_event_at_each_transition(self, session, caplog):
