@@ -31,38 +31,56 @@ describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
     expect(screen.getByTestId("sd-h1")).not.toHaveTextContent("0 thẻ");
   });
 
-  it("one card, one number: the range and the P50 per day come from the stored result; not estimable says so with Chi phí", async () => {
+  it("one card, one amount: dự kiến with hiện tại and the change; never a range; not estimable says so with Chi phí", async () => {
     const ok = summaryOf(voucherCard(), {
       cost: 63000,
+      data_through: "2026-11-18",
+      forecast: {
+        data_through: "2026-11-18",
+        metrics: {
+          profit: { hien_tai: 162572, du_kien: 153500, delta: -9072, delta_pct: -5.6, low: 100000, high: 200000, days: 30 },
+          gmv: { hien_tai: 1000000, du_kien: 1100000, delta: 100000, delta_pct: 10, days: 30 },
+          orders: { hien_tai: 10, du_kien: 12, delta: 2, delta_pct: 20, days: 30 },
+          aov: { hien_tai: 100000, du_kien: 91667, delta: -8333, delta_pct: -8.3, days: 30 },
+        },
+      },
       predicted_summary: { dgmv: { p10: 100000, p50: 600000, p90: 900000 }, dprofit: { p10: -42000, p50: 60000, p90: 240000 }, dgmv_month: { p10: 100000, p50: 600000, p90: 900000 }, dprofit_month: { p10: -42000, p50: 60000, p90: 240000 }, label: "Dự kiến", effect_days: 30, not_estimable: false },
     });
     const none = summaryOf({ ...promotionCard(), id: "card-none", scope: { level: "item", product_ids: ["X-9"], sku_ids: [], campaign_key: null } }, {
       id: "card-none",
       cost: 50000,
+      forecast: { reason_text: "Chưa có đủ dữ liệu", metrics: { profit: { hien_tai: null, du_kien: null, delta: null, delta_pct: null }, gmv: { hien_tai: null, du_kien: null, delta: null, delta_pct: null } } },
       predicted_summary: { dgmv: { p10: null, p50: null, p90: null }, dprofit: { p10: null, p50: null, p90: null }, dgmv_month: { p10: null, p50: null, p90: null }, dprofit_month: { p10: null, p50: null, p90: null }, label: "Dự kiến", effect_days: null, not_estimable: true, reason: "no_spec", message: "Chưa ước tính được" },
     });
     renderReco(<DecisionsView params={params()} />, fakeReco({ list: list([ok, none]) }));
     const top = await screen.findByTestId("sq-card-card-voucher");
     // forecast grill F4: the likely value (P50) only, no range
-    expect(within(top).getByTestId("dx-dprofit")).toHaveTextContent(/^\+60\.000đ$/);
-    expect(within(top).getByTestId("dx-perday")).toHaveTextContent("≈ +2.000đ/ngày");
+    expect(within(top).getByTestId("dx-fc-profit")).toHaveTextContent("Lợi nhuận dự kiến (30 ngày): 153.500 đ");
+    expect(within(top).getByTestId("dx-fc-profit-sub")).toHaveTextContent("hiện tại: 162.572 đ · −9.072 đ (−5,6 %)");
+    // a negative Δ on a positive profit is not a loss: neutral colour, no "Lỗ"
+    expect(within(top).getByTestId("dx-fc-profit-value")).not.toHaveClass("sa-tone--down");
+    expect(within(top).getByTestId("dx-fc-profit")).not.toHaveTextContent("Lỗ");
+    expect(within(top).getByTestId("dx-fc-gmv")).toHaveTextContent("GMV dự kiến: 1.100.000 đ");
+    expect(within(top).getByTestId("dx-fc-orders-sub")).toHaveTextContent("hiện tại: 10 đơn · +2 (+20,0 %)");
+    expect(within(top).getByTestId("dx-fc-aov")).toHaveTextContent("AOV dự kiến: 91.667 đ");
+    expect(top).not.toHaveTextContent("200.000");
+    expect(screen.getByTestId("dx-through")).toHaveTextContent("Số liệu đến 18/11");
     const bad = screen.getByTestId("sq-card-card-none");
     // UI grill G11: no estimate -> the metric the card moves, in the number's place
-    expect(within(bad).getByTestId("dx-dprofit")).toHaveTextContent(/^Tăng /);
-    expect(within(bad).queryByTestId("dx-perday")).toBeNull();
+    expect(within(bad).getByTestId("dx-fc-profit-value")).toHaveTextContent("—");
+    expect(within(bad).getByTestId("dx-target")).toHaveTextContent(/^Tăng /);
+    expect(within(bad).queryByTestId("dx-fc-gmv")).toBeNull();
     expect(within(bad).getByTestId("dx-cost")).toHaveTextContent("50.000đ");
   });
 
-  it("one row per product's top card: group · kind, title, product, metric chips, Δ range and ≈ per day, buttons", async () => {
+  it("one row per product's top card: group · kind, title, product, metric chips, forecast lines, buttons", async () => {
     renderReco(<DecisionsView params={params()} />, fakeReco({ list: list(queueCards()) }));
     const top = await screen.findByTestId("sq-card-card-voucher");
     expect(screen.queryByTestId("sq-card-card-ads")).toBeNull();
     expect(screen.queryByTestId("sq-card-card-promo")).toBeNull();
     expect(screen.getByTestId("sq-card-card-other")).toBeInTheDocument();
-    expect(within(top).getByText(/^Δ lợi nhuận cả 30 ngày$/)).toBeInTheDocument();
-    expect(within(top).getByTestId("dx-dprofit")).toHaveTextContent(/^[+−][\d.]+đ$/);
-    expect(within(top).getByTestId("dx-perday")).toHaveTextContent(/^≈ .*\/ngày$/);
-    expect(within(top).getByTestId("dx-dgmv")).toHaveTextContent(/^Δ GMV /);
+    expect(within(top).getByTestId("dx-fc-profit")).toHaveTextContent(/^Lợi nhuận dự kiến/);
+    expect(within(top).queryByText(/Δ lợi nhuận/)).toBeNull();
     expect(top.querySelectorAll(".jm-chip").length).toBeGreaterThan(0);
     expect(within(top).getByRole("link", { name: "Xem & sửa" })).toHaveAttribute("href", "/decisions?the=card-voucher&from=quyet-dinh");
     expect(within(top).getByRole("link", { name: "So sánh" })).toBeInTheDocument();
@@ -70,7 +88,7 @@ describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
     const tabs = screen.getByTestId("sd-tabs");
     expect(within(tabs).getByRole("link", { name: "Đề xuất · 2" })).toBeInTheDocument();
     expect(within(tabs).getByRole("link", { name: /^Thực hiện · / })).toBeInTheDocument();
-    expect(screen.getByTestId("sd-h1")).toHaveTextContent(/^2 thẻ · /);
+    expect(screen.getByTestId("sd-h1")).toHaveTextContent(/^2 thẻ$/);
     expect(screen.getByTestId("sq-builder-link")).toHaveAttribute("href", "/decisions?from=quyet-dinh&tu-tao=1");
     expect(document.body.textContent).not.toMatch(/Tiếp theo cho sản phẩm này|ước tính|Dự kiến/);
   });
@@ -112,7 +130,7 @@ describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
     renderReco(<DecisionsView params={params("metric=ctr")} />, fakeReco({ list: list(cards) }));
     await screen.findByTestId("sq-card-card-other");
     expect(screen.queryByTestId("sq-card-card-voucher")).toBeNull();
-    expect(screen.getByTestId("sd-h1")).toHaveTextContent(/^1 thẻ cho CTR · /);
+    expect(screen.getByTestId("sd-h1")).toHaveTextContent(/^1 thẻ cho CTR$/);
     expect(screen.getByTestId("dx-f-all")).toHaveAttribute("href", "/decisions");
     expect(screen.getByTestId("dx-f-ctr").querySelector(".jm-chip--on")).not.toBeNull();
   });
@@ -226,11 +244,10 @@ describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
 });
 
 describe("Đề xuất heading", () => {
-  it("drops the profit part, never a dash, when the total is unknown", () => {
+  it("names the count and the metric only; the amounts live on the cards", () => {
     const [top] = queueCards();
-    const unknown = { ...top!, predicted_summary: { ...top!.predicted_summary, dprofit_month: { ...top!.predicted_summary.dprofit_month, p50: null } } } as CardSummary;
-    expect(findingOf([unknown], null)).toBe("1 thẻ");
-    expect(findingOf([top!], null)).toMatch(/^1 thẻ · .+ lợi nhuận cả \d+ ngày$/);
-    expect(findingOf([unknown], null)).not.toMatch(/—/);
+    expect(findingOf([top!], null)).toBe("1 thẻ");
+    expect(findingOf([top!], "ctr")).toBe("1 thẻ cho CTR");
+    expect(findingOf([], null)).toBe("Chưa có thẻ nào");
   });
 });

@@ -68,14 +68,14 @@ def _post(shop_id, dataset, start, end, source="extension"):
     )
 
 
-def _metric(shop_id, day, segment):
+def _metric(shop_id, day, segment, dataset="traffic_overview", stream="product_card"):
     return PlatformDailyMetric(
         id=uuid.uuid4(),
         shop_id=shop_id,
         platform="shopee",
-        dataset="traffic_overview",
+        dataset=dataset,
         day=day,
-        stream="product_card",
+        stream=stream,
         segment=segment,
         order_type="confirmed",
         clicks=Decimal(1),
@@ -121,3 +121,33 @@ async def test_the_route_lists_days_with_no_extension_post_and_traffic_without_s
     assert len(sets["order_lines"]["missing"]) == 30  # a file import is not a Connector read
     assert "2026-11-18" in sets["traffic_overview"]["missing"]  # totals only
     assert "2026-11-17" not in sets["traffic_overview"]["missing"]
+
+
+async def test_flash_sale_days_are_judged_by_their_own_stored_row_not_by_other_promotion_posts(
+    session, monkeypatch
+):
+    """F6.4: promotion_daily posts of other types do not cover a flash sale day; a stored
+    Flash Sale row (an empty day is a zero row) does."""
+    monkeypatch.setattr(read_days, "vietnam_today", lambda now=None: TODAY)
+    user, shop = await _shopee_tenant(session)
+    app, code = await _paired_client(session, shop, user)
+    d = date
+    session.add_all(
+        [
+            _post(shop.id, "promotion_daily", d(2026, 10, 20), d(2026, 11, 18)),
+            _metric(shop.id, d(2026, 11, 17), "flash_sale", "promotion_daily", "promo"),
+            _metric(shop.id, d(2026, 11, 16), "discount", "promotion_daily", "promo"),
+        ]
+    )
+    await session.commit()
+    async with client_for(app) as ext:
+        paired = await ext.post("/v1/ingest/pair", json={"code": code, "platform": "shopee"})
+        auth = {"Authorization": f"Bearer {paired.json()['token']}"}
+        res = await ext.get("/v1/connector/shopee/read-days", headers=auth)
+    sets = res.json()["datasets"]
+    assert "promotion_daily" not in sets  # every day has a promotion post
+    assert "2026-11-17" not in sets["flash_sale"]["missing"]
+    assert (
+        "2026-11-16" in sets["flash_sale"]["missing"]
+    )  # another promotion type is not a flash read
+    assert len(sets["flash_sale"]["missing"]) == 29

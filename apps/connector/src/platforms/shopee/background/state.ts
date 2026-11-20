@@ -2,7 +2,7 @@
 // Juli password or session), per-dataset stops after drift, the last sync, and a
 // small retry queue of posts that failed on the network.
 
-import { BACKFILL_REQUEST_SHARE, type Dataset, type ReaderId } from "../config";
+import { BACKFILL_REQUEST_SHARE, FILL_REQUEST_RESERVE, type Dataset, type ReaderId } from "../config";
 import { requestsLeft, saveState as saveCoreState, type FillJobsState, type RequestBudget, type Storage } from "../../../core/state";
 
 // The platform-free half (storage, the shared daily request budget, fill-job bookkeeping) is core's.
@@ -279,7 +279,7 @@ export interface State {
 /** What today's readers may still spend: while a backfill runs, its share is left alone. */
 export function readerRequestsLeft(state: Pick<State, "budget" | "backfill">, day: string): number {
   const share = state.backfill?.status === "running" ? BACKFILL_REQUEST_SHARE : 0;
-  return Math.max(0, requestsLeft(state, day) - share);
+  return Math.max(0, requestsLeft(state, day) - share - FILL_REQUEST_RESERVE);
 }
 
 export const MAX_QUEUE = 20;

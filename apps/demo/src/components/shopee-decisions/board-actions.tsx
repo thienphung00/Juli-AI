@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { DASH, fmt } from "../../lib/shopee-analytics/format";
-import { boardErrorText, fileToB64, type BoardApi, type ExternalPreview, type ExternalRow } from "../../lib/shopee-decisions/board";
+import { boardErrorText, fileToB64, type BoardApi, type ExternalCommit, type ExternalPreview, type ExternalRow, type ImportJob } from "../../lib/shopee-decisions/board";
 import { kindLabel } from "../../lib/shopee-decisions/model";
 
 /**
@@ -21,13 +21,17 @@ const kinds = (r: ExternalRow): string => r.cards.map((c) => kindLabel({ change_
 
 type Pane = "none" | "import" | "reset";
 
-export function BoardActions({ board, onChanged }: { readonly board: BoardApi; readonly onChanged: () => void }) {
+const ACTION_LABEL: Record<string, string> = { created: "Đã tạo", exists: "Đã có", refused: "Không nhập được" };
+
+export function BoardActions({ board, onChanged, pollMs = 2000 }: { readonly board: BoardApi; readonly onChanged: () => void; readonly pollMs?: number }) {
   const [pane, setPane] = useState<Pane>("none");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [preview, setPreview] = useState<ExternalPreview | null>(null);
+  const [job, setJob] = useState<ImportJob | null>(null);
   const file = useRef<string | null>(null);
+  const announced = useRef<string | null>(null);
   const input = useRef<HTMLInputElement | null>(null);
 
   const run = async (fn: () => Promise<void>) => {
@@ -56,14 +60,55 @@ export function BoardActions({ board, onChanged }: { readonly board: BoardApi; r
       file.current = b64;
       setPreview(await board.previewImport(b64));
     });
+  // F6.2: the last import of the shop (also after a reload); a running one is polled until it ends.
+  const settle = (j: ImportJob, fromLoad: boolean) => {
+    setJob(j);
+    if (j.status === "running" || announced.current === j.job_id) return;
+    if (fromLoad && j.status === "done") {
+      announced.current = j.job_id; // an old result is read, not announced again
+      return;
+    }
+    announced.current = j.job_id;
+    if (j.status === "done" && j.result) setDone(importSummary(j.result));
+    else if (j.status === "failed") setError(boardErrorText(j.error));
+    onChanged();
+  };
+  const settleRef = useRef(settle);
+  useEffect(() => {
+    settleRef.current = settle;
+  });
+  useEffect(() => {
+    let live = true;
+    board
+      .importStatus()
+      .then((j) => live && j && settleRef.current(j, true))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [board]);
+  const running = job?.status === "running";
+  useEffect(() => {
+    if (!running) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      board
+        .importStatus()
+        .then((j) => live && j && settleRef.current(j, false))
+        .catch(() => undefined);
+    }, pollMs);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [board, running, job, pollMs]);
   const commit = () =>
     void run(async () => {
       if (!file.current || !preview) return;
-      const out = await board.commitImport(file.current, preview.token);
-      setPane("none");
+      const started = await board.commitImport(file.current, preview.token);
       setPreview(null);
-      setDone(`Đã nhập ${fmt(out.created, 0)} thẻ${out.exists ? ` · ${fmt(out.exists, 0)} đã có` : ""}${out.refused ? ` · ${fmt(out.refused, 0)} không nhập được` : ""}`);
-      onChanged();
+      setDone(null);
+      settle(started, false);
     });
   const reset = () =>
     void run(async () => {
@@ -83,6 +128,11 @@ export function BoardActions({ board, onChanged }: { readonly board: BoardApi; r
         <button aria-expanded={pane === "reset"} className="sa-btn" onClick={() => open("reset")} type="button">
           Xoá bảng
         </button>
+        {running ? (
+          <span className="sa-hint" data-testid="sd-board-running" role="status">
+            Đang nhập…
+          </span>
+        ) : null}
         {done ? (
           <span className="sa-hint" data-testid="sd-board-done" role="status">
             {done}
@@ -122,6 +172,7 @@ export function BoardActions({ board, onChanged }: { readonly board: BoardApi; r
               Đang đọc…
             </span>
           ) : null}
+          {job?.status === "done" && job.result ? <ImportResult result={job.result} /> : null}
           {preview ? <PreviewTable preview={preview} /> : null}
           {preview ? (
             <button className="sa-btn sa-btn--primary" data-testid="sd-board-commit" disabled={busy || !canImport} onClick={commit} type="button">
@@ -137,6 +188,43 @@ export function BoardActions({ board, onChanged }: { readonly board: BoardApi; r
         </p>
       ) : null}
     </section>
+  );
+}
+
+const importSummary = (out: ExternalCommit): string =>
+  `Đã nhập ${fmt(out.created, 0)} thẻ${out.exists ? ` · ${fmt(out.exists, 0)} đã có` : ""}${out.refused ? ` · ${fmt(out.refused, 0)} không nhập được` : ""}`;
+
+/** The per-card result of the last import: created, already there, or refused with its reason. */
+function ImportResult({ result }: { readonly result: ExternalCommit }) {
+  return (
+    <>
+      <p className="sa-hint" data-testid="sd-board-result-counts">
+        {importSummary(result)}
+      </p>
+      <table className="sd-board__table" data-testid="sd-board-result">
+        <thead>
+          <tr>
+            <th>Dòng</th>
+            <th>Mã</th>
+            <th>Loại</th>
+            <th>Kết quả</th>
+          </tr>
+        </thead>
+        <tbody>
+          {result.cards.map((c) => (
+            <tr data-testid={`sd-board-result-${c.ref}-${c.change_kind}`} key={`${c.ref}-${c.change_kind}-${c.row}`}>
+              <td>{c.row}</td>
+              <td>{c.ref}</td>
+              <td>{kindLabel({ change_kind: c.change_kind }) || c.change_kind}</td>
+              <td>
+                {ACTION_LABEL[c.action] ?? c.action}
+                {c.action === "refused" && (c.message || c.reason) ? `: ${c.message ?? c.reason}` : ""}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }
 

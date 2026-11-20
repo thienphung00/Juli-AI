@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { splitMachines } from "../../lib/connector-pairing";
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { fmtWhen } from "../../lib/ops/format";
 import type { ConnectorProblem, IngestTokenRow, PairingCode } from "../../lib/ops/types";
@@ -28,7 +29,7 @@ const BUTTON = {
 
 const SECONDARY = { ...BUTTON, color: C.ink, background: "#ffffff", border: `1px solid ${C.line}` } as const;
 
-type ConsentApi = Partial<Pick<OpsApi, "createPairingCode" | "ingestTokens" | "revokeIngestToken" | "connectorProblems">>;
+type ConsentApi = Partial<Pick<OpsApi, "createPairingCode" | "ingestTokens" | "revokeIngestToken" | "revokeInactiveIngestTokens" | "connectorProblems">>;
 
 /** F4.13: a reader outcome other than done / fresh / skipped, in a few words. */
 export function problemLabel(outcome: string): string {
@@ -70,6 +71,7 @@ function OpsShopConnector({ shopId, canEdit, api }: { readonly shopId: string; r
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [epoch, setEpoch] = useState(0);
+  const [showOld, setShowOld] = useState(false);
   const [problems, setProblems] = useState<readonly ConnectorProblem[]>([]);
 
   useEffect(() => {
@@ -127,7 +129,30 @@ function OpsShopConnector({ shopId, canEdit, api }: { readonly shopId: string; r
     }
   };
 
-  const active = tokens.filter((t) => t.active);
+  const revokeOld = async () => {
+    if (!api.revokeInactiveIngestTokens) return;
+    setError(null);
+    try {
+      await api.revokeInactiveIngestTokens(shopId);
+      setShowOld(false);
+      setEpoch((n) => n + 1);
+    } catch {
+      setError("Không gỡ được máy cũ. Thử lại sau.");
+    }
+  };
+
+  const { recent: active, old } = splitMachines(tokens);
+  const row = (t: IngestTokenRow) => (
+    <li key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+      <span>{t.client_label ?? "Nguồn không tên"}</span>
+      <span style={{ color: C.muted2 }}>thấy lần cuối: {t.last_seen_at ?? t.last_used_at ? fmtWhen((t.last_seen_at ?? t.last_used_at) as string) : "chưa"}</span>
+      {canEdit ? (
+        <button onClick={() => void revoke(t.id)} style={{ ...SECONDARY, minHeight: 32, fontSize: 13, marginLeft: "auto" }} type="button">
+          Thu hồi
+        </button>
+      ) : null}
+    </li>
+  );
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, borderTop: `1px solid ${C.line}`, paddingTop: 10 }}>
       <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Kết nối dữ liệu</h3>
@@ -148,18 +173,25 @@ function OpsShopConnector({ shopId, canEdit, api }: { readonly shopId: string; r
       <p style={{ margin: 0, fontSize: 13 }}>{active.length ? `${active.length} nguồn đang kết nối` : "Chưa có nguồn nào kết nối."}</p>
       {active.length ? (
         <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
-          {active.map((t) => (
-            <li key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-              <span>{t.client_label ?? "Nguồn không tên"}</span>
-              <span style={{ color: C.muted2 }}>dùng lần cuối: {t.last_used_at ? fmtWhen(t.last_used_at) : "chưa"}</span>
+          {active.map(row)}
+        </ul>
+      ) : null}
+      {old.length ? (
+        <div data-testid="ops-old-machines">
+          <button aria-expanded={showOld} onClick={() => setShowOld(!showOld)} style={{ ...SECONDARY, minHeight: 32, fontSize: 13 }} type="button">
+            Máy cũ ({old.length})
+          </button>
+          {showOld ? (
+            <>
+              <ul style={{ margin: "8px 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>{old.map(row)}</ul>
               {canEdit ? (
-                <button onClick={() => void revoke(t.id)} style={{ ...SECONDARY, minHeight: 32, fontSize: 13, marginLeft: "auto" }} type="button">
-                  Thu hồi
+                <button onClick={() => void revokeOld()} style={{ ...SECONDARY, minHeight: 32, fontSize: 13 }} type="button">
+                  Gỡ tất cả máy cũ
                 </button>
               ) : null}
-            </li>
-          ))}
-        </ul>
+            </>
+          ) : null}
+        </div>
       ) : null}
       {problems.length ? (
         <ul aria-label="Reader lỗi" style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>

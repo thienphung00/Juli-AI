@@ -13,6 +13,8 @@ import { ackText, breachWarnLines } from "../../../lib/shopee-decisions/versions
 import { TextChip } from "../../shopee-analytics/ui";
 import { NavLink, errorText } from "../ui";
 import { BreachDialog } from "../versions";
+import { forecastOfResult } from "../../../lib/shopee-decisions/forecast-display";
+import { MetricCell } from "../forecast-lines";
 import { CompareTable, OptionCard } from "../option-card";
 import { BasisChip, chuaTinh, costText } from "./results";
 
@@ -70,6 +72,8 @@ interface RowDef {
 }
 
 const money = (o: BuilderOutcome, pick: "gmv" | "orders" | "profit"): ReactNode => {
+  // F7.8: one dự kiến amount with hiện tại and the change under it, whenever the version carries its engine result
+  if (o.result) return <MetricCell fallbackWhy={o.result.reason_text} forecast={forecastOfResult(o.result)} metric={pick} />;
   if (pick === "profit" && chuaTinh(o)) return <b>chưa tính</b>;
   const b = bandText(o.delta?.[pick], pick === "orders" ? "orders" : "vnd");
   return (
@@ -130,9 +134,10 @@ function rowsFor(names: VersionNames): RowDef[] {
         </ul>
       ),
     },
-    { key: "dgmv", label: "Δ GMV", sub: "trong số ngày của thay đổi", cell: (o) => money(o, "gmv") },
-    { key: "dorders", label: "Δ đơn", sub: "trong số ngày của thay đổi", cell: (o) => money(o, "orders") },
-    { key: "dprofit", label: "Δ lợi nhuận", sub: "trong số ngày của thay đổi", cell: (o) => money(o, "profit") },
+    { key: "dgmv", label: "GMV dự kiến", cell: (o) => money(o, "gmv") },
+    { key: "dorders", label: "Đơn dự kiến", cell: (o) => money(o, "orders") },
+    { key: "dprofit", label: "Lợi nhuận dự kiến", cell: (o) => money(o, "profit") },
+    { key: "daov", label: "AOV dự kiến", cell: (o) => (o.result ? <MetricCell fallbackWhy={o.result.reason_text} forecast={forecastOfResult(o.result)} metric="aov" /> : <span className="sd-muted">{DASH}</span>) },
     {
       key: "units",
       label: "Theo ngày · theo đơn",

@@ -175,7 +175,7 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     await waitFor(() => expect(api.calls.at(-1)).toMatchObject({ name: "setWindow", args: [null, "GT-A"] }));
   });
 
-  it("confirm: the dialog says which running measurements are cut; confirming issues the plan code", async () => {
+  it("confirm: the dialog says which running measurements are measured together; confirming issues the plan code", async () => {
     const done = confirmedPlan();
     const draft = plan();
     // the server's refetch after the confirm returns the confirmed plan (D85.4 drops the
@@ -192,9 +192,10 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("heading")).toHaveTextContent("Duyệt kế hoạch 3 thẻ?");
     const cuts = within(dialog).getByTestId("kh-cuts");
-    expect(cuts).toHaveTextContent("Phép đo đang chạy của các sản phẩm này sẽ bị cắt hôm nay");
-    expect(cuts).toHaveTextContent("Găng tay cao su A: đang đo, mới 8/14 ngày. Cắt hôm nay → “đo được 8 ngày” (độ tin cậy thấp hơn).");
-    expect(cuts).toHaveTextContent("Túi rác sinh học B: đang đo, mới 2/7 ngày. Cắt hôm nay → “không kết luận” (dưới 3 ngày).");
+    expect(cuts).toHaveTextContent("Phép đo đang chạy của các sản phẩm này sẽ được đo chung với thay đổi mới");
+    expect(cuts).toHaveTextContent("Găng tay cao su A: đang đo, mới 8/14 ngày. Thay đổi mới được đo chung với phép đo này.");
+    expect(cuts).toHaveTextContent("Túi rác sinh học B: đang đo, mới 2/7 ngày. Thay đổi mới được đo chung với phép đo này.");
+    expect(cuts).not.toHaveTextContent(/cắt/i);
     fireEvent.click(within(dialog).getByRole("button", { name: "Quay lại" }));
     expect(api.calls.some((c) => c.name === "confirm")).toBe(false);
     fireEvent.click(screen.getByTestId("kh-confirm"));

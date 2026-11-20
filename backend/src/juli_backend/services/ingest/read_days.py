@@ -4,9 +4,10 @@
 (yesterday first, then oldest first). A day counts as read when an accepted extension post
 (``ingest_raw_payloads``, source ``extension``) covers it, an empty page included. File imports
 do not count: the Connector is asked for the days it has not read itself.
-``traffic_overview`` is the one dataset checked against the stored rows: it counts only when
+``traffic_overview`` is checked against the stored rows: it counts only when
 the day has level-2 source rows (Trang shop, Tìm kiếm ...),
-so days stored before F4.1 with totals only show as missing.
+so days stored before F4.1 with totals only show as missing. ``flash_sale`` (F6.4) is judged by
+its stored ``promotion_daily`` row of segment ``flash_sale``.
 """
 
 from __future__ import annotations
@@ -45,11 +46,16 @@ DAILY_DATASETS: tuple[str, ...] = (
     "affiliate_product_period",
     "affiliate_content_period",
     "promotion_daily",
+    "flash_sale",
     "order_lines",
     "order_income",
 )
 #: Datasets judged by their stored rows instead of by the posts.
-_BY_ROWS = frozenset({"traffic_overview"})
+_BY_ROWS = frozenset({"traffic_overview", "flash_sale"})
+#: F6.4 (Connector 0.3.30): ``flash_sale`` is the Connector's name for the Flash Sale day read; it
+#: posts as ``promotion_daily`` (segment ``flash_sale``), so a day counts as read by that stored row
+#: (an empty day is a zero row), not by the promotion posts, which Shopee's other types also make.
+_FLASH_SEGMENT = "flash_sale"
 
 
 def vietnam_today(now: datetime | None = None) -> date:
@@ -117,6 +123,20 @@ async def covered_days(
         .distinct()
     )
     covered["traffic_overview"] = {d for (d,) in rows}
+    flash = await session.execute(
+        select(PlatformDailyMetric.day)
+        .where(
+            PlatformDailyMetric.shop_id == shop_id,
+            PlatformDailyMetric.platform == platform,
+            PlatformDailyMetric.dataset == "promotion_daily",
+            PlatformDailyMetric.source == SOURCE_EXTENSION,
+            PlatformDailyMetric.segment == _FLASH_SEGMENT,
+            PlatformDailyMetric.day >= first,
+            PlatformDailyMetric.day <= last,
+        )
+        .distinct()
+    )
+    covered["flash_sale"] = {d for (d,) in flash}
     return covered
 
 

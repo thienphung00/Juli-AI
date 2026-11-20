@@ -82,6 +82,9 @@ async def run(
                 # S2-D2 keywords (one per product; existing ones kept) and the S2-D content
                 # (both a no-op once seeded).
                 report.skipped = True
+                # a reload dropped the window-dated item snapshots: the seed's two come back
+                # (idempotent; the same rows a fresh load writes at this window)
+                await write_title_snapshots(session, shop_id, plan)
                 await seed_keywords(session, shop_id, plan, now)
                 await seed_content(session, shop_id, now=now, report=report)
                 await session.commit()

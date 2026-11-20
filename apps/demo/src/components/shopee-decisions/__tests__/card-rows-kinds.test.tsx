@@ -38,10 +38,10 @@ describe("kind -> rows (U1)", () => {
   });
 
   it("an offer without a cost has no Chi phí / hoà vốn column; with a cost it has both and the return", () => {
-    expect(metricsFor([result("min_spend_voucher")])).toEqual(["gmv", "profit", "orders", "margin"]);
+    expect(metricsFor([result("min_spend_voucher")])).toEqual(["gmv", "profit", "orders", "aov", "margin"]);
     const costly = result("min_spend_voucher", { cost: { total: 50000, break_even_orders: 3, break_even_aov: null, text: "" }, roi: { value: 1.6, text: null } });
     expect(hasCost(costly)).toBe(true);
-    expect(metricsFor([costly])).toEqual(["gmv", "profit", "cost", "orders", "margin", "breakeven", "roi"]);
+    expect(metricsFor([costly])).toEqual(["gmv", "profit", "cost", "orders", "aov", "margin", "breakeven", "roi"]);
   });
 
   it("a listing change has no money column at all; its estimate gives views / CTR only", () => {
@@ -69,10 +69,12 @@ describe("F5 (b): a within-noise amount keeps its P50 and the tag, never '—'",
     expect(deltaOf(noisy, "profit")).toEqual({ value: 12000, noise: true });
   });
 
-  it("the result card shows the amount followed by the tag", () => {
+  it("the result card shows the dự kiến amount with hiện tại, never '—' and no tag", () => {
     render(<ResultCard name="P1" result={noisy} />);
-    expect(screen.getByTestId("p3-dgmv")).toHaveTextContent("+80.000đ · trong dao động");
-    expect(screen.getByTestId("p3-dprofit")).toHaveTextContent("+12.000đ · trong dao động");
-    expect(screen.getByTestId("p3-dgmv")).not.toHaveTextContent("—");
+    expect(screen.getByTestId("p3-fc-gmv-value")).toHaveTextContent("1.080.000 đ");
+    expect(screen.getByTestId("p3-fc-gmv-sub")).toHaveTextContent("hiện tại: 1.000.000 đ · +80.000 đ (+8,0 %)");
+    expect(screen.getByTestId("p3-fc-profit-value")).toHaveTextContent("112.000 đ");
+    expect(screen.getByTestId("p3-fc-gmv")).not.toHaveTextContent("—");
+    expect(screen.getByTestId("p3-fc-gmv")).not.toHaveTextContent("trong dao động");
   });
 });

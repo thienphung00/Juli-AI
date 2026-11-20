@@ -83,6 +83,7 @@ const BODIES = {
   item_performance: performance,
   product_overview: { uv: { value: 10, ratio: 0 }, pv: { value: 12, ratio: 0 } },
   promotion_daily: { code: 0, result: null },
+  flash_sale: { code: 40001, msg: "err:no campaign, detail:no campaign" },
 } as Record<string, unknown>;
 
 /** What the page hook would answer for a backfill message, with data for every call. */
@@ -135,7 +136,7 @@ describe("30-day backfill", () => {
     expect(t.sent[5]!.plan[2]!.params).toEqual({ period: "day", dt: days[5]!.replaceAll("-", "") });
     // 13 requests (confirmed + placed overview, shop traffic, and since 0.3.19 5 item-performance
     // pages + 5 item-by-source pages) × 30 days, each post for its own day.
-    expect(t.client.posts).toHaveLength(510);
+    expect(t.client.posts).toHaveLength(570);
     expect(t.client.posts.filter((p) => p.dataset === "shop_traffic").map((p) => p.body.period.start)).toEqual(days);
     expect(backfillOf(t.storage).status).toBe("done");
     expect(await t.connector.backfillStep()).toBe("done");
@@ -165,7 +166,7 @@ describe("30-day backfill", () => {
     const all = [...first.sent.slice(0, 10), ...second.sent].map((m) => m.day);
     expect(new Set(all).size).toBe(30);
     expect(all).toHaveLength(30);
-    expect(first.client.posts.length + second.client.posts.length).toBe(510);
+    expect(first.client.posts.length + second.client.posts.length).toBe(570);
   });
 
   it("does not send a second day while one is in flight; re-sends after the timeout", async () => {

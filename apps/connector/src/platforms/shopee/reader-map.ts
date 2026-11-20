@@ -940,7 +940,7 @@ export function mapReaderJob(job: ReaderJob, responses: ReaderResponse[], captur
 export function mapTrafficJob(responses: ReaderResponse[]): Mapped[] {
   const out: Mapped[] = [];
   for (const response of responses) {
-    if (response.endpoint !== "traffic_overview" && response.endpoint !== "shop_traffic" && response.endpoint !== "product_overview" && response.endpoint !== "promotion_daily") continue;
+    if (response.endpoint !== "traffic_overview" && response.endpoint !== "shop_traffic" && response.endpoint !== "product_overview" && response.endpoint !== "promotion_daily" && response.endpoint !== "flash_sale") continue;
     if (classify(response.status, response.body) !== "ok") continue;
     out.push(...mapCapturedAll({ url: response.url, body: response.body, capturedAt: response.capturedAt }));
   }

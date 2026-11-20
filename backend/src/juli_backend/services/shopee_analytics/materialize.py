@@ -62,6 +62,7 @@ from juli_backend.services.shopee_analytics.metrics import (
     shop_metrics,
 )
 from juli_backend.services.shopee_analytics.period_spread import ShopDay, SpreadDay
+from juli_backend.services.shopee_analytics.shared import order_data_days, shop_profit_of
 from juli_backend.services.shopee_analytics.stored import ORDER_TYPE
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_profit.flows import FLOW_ORDER, RESIDUAL_KEY, FlowTable
@@ -69,6 +70,12 @@ from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 
 logger = logging.getLogger(__name__)
+
+#: version of the rule the stored rows are built with (``shop row detail.rows_v``). 2 (F7.10): the
+#: stored profit is the unscaled known-cost profit (P100 B.5). Bump it to rebuild every shop's
+#: stored days automatically (:func:`rebuild_outdated`).
+ROWS_VERSION = 2
+ROWS_VERSION_KEY = "rows_v"
 
 #: ingest datasets that cannot change a day's shop or product numbers
 IGNORED_DATASETS = frozenset({"market_search", "shop_health", "ads_change_log", "item_snapshot"})
@@ -251,6 +258,20 @@ def _ads_gmv(view: PeriodView) -> Decimal:
     return view.data.ads_daily.gmv
 
 
+def _no_order_day_profit(view: PeriodView, day: date) -> Decimal | None:
+    """R11 for one stored day: a day Shopee's order data speaks for with spend and NO counted
+    order line is charged whole to the shop profit (the window headline subtracts it), so the day
+    stores ``-spend`` and the days sum to the headline. A day whose orders all lack costs stays
+    None (missing is not zero)."""
+    if any(pb.excluded_reason is None for _, pb in view.pairs):
+        return None
+    spent = view.data.ads_daily.spend_by_day.get(day, ZERO)
+    days = order_data_days(view)
+    if spent > 0 and (days is None or day in days):
+        return -spent.quantize(Decimal(1))
+    return None
+
+
 def day_rows(
     view: PeriodView,
     shop_id: uuid.UUID,
@@ -289,6 +310,11 @@ def day_rows(
             c = [t.clicks for t in traffic_spread.values() if t.clicks is not None]
             shop_views, shop_clicks = (sum(v) if v else None), (sum(c) if c else None)
     covered = p.buyer_paid_covered
+    # P100 B.5 / F7.10: the stored profit is the known-cost figure of the day, never scaled to
+    # the shop totals: the one ``shop_profit_of`` the dashboard headline shows
+    day_profit = shop_profit_of(view).profit
+    if day_profit is None:
+        day_profit = _no_order_day_profit(view, day)
     net_gmv = sum(
         (ln.order_value - ln.shop_voucher_share for ln, _ in view.pairs if counts_in_sales(ln)),
         ZERO,
@@ -306,7 +332,7 @@ def day_rows(
         "product_clicks": shop_clicks,
         "ads_spend": _money(m.ad_spend) if ad_source else None,
         "ads_gmv": _money(_ads_gmv(view)) if ad_source else None,
-        "profit": _money(m.profit),
+        "profit": _money(day_profit),
         "margin_profit": _money(p.covered_margin_profit),
         "buyer_paid_known": _money(covered),
         "cogs_coverage": None
@@ -318,11 +344,12 @@ def day_rows(
         "detail": {
             "aov_sc_net_gmv": None if not m.line_orders else str(net_gmv),
             "profit_partial": bool(m.profit_is_partial),
+            ROWS_VERSION_KEY: ROWS_VERSION,
         },
         "complete": complete,
     }
     products: list[dict[str, Any]] = []
-    shop_profit = None if m.profit_is_partial else m.profit
+    shop_profit = None if m.profit_is_partial else day_profit
     funnel = source_rows(
         split_sources(_shop_table(view), m.orders, m.gmv, shop_profit),
         shop_id=shop_id,
@@ -341,8 +368,6 @@ def day_rows(
         # P100-A (A.2): a product with an order whose cost is unknown has no day profit (NULL,
         # out of the funnel's profit coverage), never the known part or 0
         profit = pp.profit if pp is not None and not (pp.buyer_paid > 0 and pp.is_partial) else None
-        if profit is not None and m.gmv_scale is not None and view.line_gmv > 0:
-            profit = profit * m.gmv_scale
         product_profit[item_id] = profit
         spent += s.gmv
         products.append(
@@ -614,6 +639,38 @@ async def _upsert_sources(
     await _upsert(
         session, t, items, ("shop_id", "day", "item_id", "source"), t.item_id.is_not(None)
     )
+
+
+async def outdated_days(session: AsyncSession, shop_id: uuid.UUID) -> list[date]:
+    """The stored days built by an older rule (``detail.rows_v`` below :data:`ROWS_VERSION`)."""
+    rows = await session.execute(
+        select(ShopeeShopMetricsDaily.day, ShopeeShopMetricsDaily.detail).where(
+            ShopeeShopMetricsDaily.shop_id == shop_id,
+            ShopeeShopMetricsDaily.order_type == ORDER_TYPE,
+        )
+    )
+    return sorted(
+        d for d, detail in rows.all() if (detail or {}).get(ROWS_VERSION_KEY) != ROWS_VERSION
+    )
+
+
+async def rebuild_outdated(session: AsyncSession, shop_id: uuid.UUID, *, limit: int = 400) -> int:
+    """F7.10: rebuild the stored days an older rule built (automatic, no manual step; the daily
+    learning / measurement job calls it first). Never raises: a failed rebuild is logged and
+    retried next day. Returns the days rebuilt."""
+    days = (await outdated_days(session, shop_id))[-limit:]
+    if not days:
+        return 0
+    try:
+        async with session.begin_nested():
+            return await rebuild_days(session, shop_id, days)
+    except (SQLAlchemyError, RuntimeError, ArithmeticError, LookupError, TypeError, ValueError):
+        logger.warning(
+            "shopee_metrics_outdated_rebuild_failed",
+            extra={"shop_id": str(shop_id), "days": len(days)},
+            exc_info=True,
+        )
+        return 0
 
 
 def days_between(start: date, end: date) -> list[date]:

@@ -6,16 +6,18 @@ import { ShopeeApiError } from "../../../lib/shopee-analytics/client";
 import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderApi, BuilderEvaluation, BuilderOutcome, ChooseResult, GroupResult } from "../../../lib/shopee-decisions/builder-api";
 import { breachesOfOutcome, refusalText } from "../../../lib/shopee-decisions/builder-p92";
-import { NOISE_TAG, deltaOf, hasCost, metricsFor, strategyOfResult, reasonLine, type Metric } from "../../../lib/shopee-decisions/card-rows";
+import { deltaOf, hasCost, metricsFor, strategyOfResult, reasonLine, type Metric } from "../../../lib/shopee-decisions/card-rows";
 import { roiLabel, type OptionResult } from "../../../lib/shopee-decisions/option-result";
 import type { Breach } from "../../../lib/shopee-decisions/types";
 import { ackText, breachWarnLines } from "../../../lib/shopee-decisions/versions";
+import { amountText, forecastOfResult, type ForecastBlock } from "../../../lib/shopee-decisions/forecast-display";
+import { MetricCell } from "../forecast-lines";
 import { DateField } from "../../date-field";
 import { NavLink, errorText } from "../ui";
 import { BreachDialog } from "../versions";
-import { perDayText, periodLabel, resultDays, signedCount, signedMoney } from "../option-card/format";
+import { periodLabel, resultDays, signedCount } from "../option-card/format";
 import { GROUP_MIN_DAYS, TogetherResult, type Entry } from "./compare";
-import { verdictOf } from "./results";
+import { lossChip } from "./results";
 
 /**
  * Step ④ So sánh & lưu (artboard Flow4): Δ lợi nhuận bars for the whole period (zero line in the middle, a gain
@@ -48,10 +50,13 @@ interface Row {
   readonly outcome: BuilderOutcome | undefined;
   readonly r: OptionResult | null;
   readonly profit: number | null;
+  /** F7.8: the forecast amounts (hiện tại, dự kiến) the bars and cells show. */
+  readonly f: ForecastBlock | null;
+  /** Lợi nhuận dự kiến (the bar). */
+  readonly du: number | null;
 }
 
 const profitOf = (r: OptionResult | null): number | null => (r && r.estimable ? deltaOf(r, "profit").value : null);
-const tagged = (text: string, noise: boolean): string => (noise ? `${text} ${NOISE_TAG}` : text);
 
 /** Bar geometry: the zero line is at 50 %, the longest bar reaches an edge. */
 export function barWidth(value: number, max: number): number {
@@ -81,10 +86,11 @@ function costText(r: OptionResult | null): string {
 const HEAD: Readonly<Record<Metric, string>> = {
   views: "Δ lượt xem",
   ctr: "Δ CTR",
-  gmv: "Δ GMV",
-  profit: "Δ lợi nhuận",
+  gmv: "GMV dự kiến",
+  profit: "Lợi nhuận dự kiến",
   cost: "Chi phí",
-  orders: "Δ đơn",
+  orders: "Đơn dự kiến",
+  aov: "AOV dự kiến",
   margin: "Biên lợi nhuận",
   breakeven: "Hoà vốn",
   ads_orders: "Đơn QC",
@@ -105,13 +111,12 @@ function cellText(m: Metric, r: OptionResult): string {
     case "ctr":
       return pctText(r, m);
     case "gmv":
-      return tagged(signedMoney(deltaOf(r, "gmv").value), deltaOf(r, "gmv").noise);
     case "profit":
-      return tagged(signedMoney(deltaOf(r, "profit").value), deltaOf(r, "profit").noise);
+    case "orders":
+    case "aov":
+      return DASH; // drawn by `MetricCell` (dự kiến + hiện tại)
     case "cost":
       return costText(r);
-    case "orders":
-      return tagged(signedCount(deltaOf(r, "orders").value), deltaOf(r, "orders").noise);
     case "margin":
       return r.margin && r.margin.before_pct !== null && r.margin.after_pct !== null ? `${pp(r.margin.before_pct, 1)} → ${pp(r.margin.after_pct, 1)}` : DASH;
     case "breakeven":
@@ -164,19 +169,21 @@ export function StepSoSanh(p: StepSoSanhProps) {
   const rows: Row[] = entries.map((_, i) => {
     const o = outcomes[i];
     const r = o?.ok && o.result ? o.result : null;
-    return { i, name: `P${i + 1}`, outcome: o, r, profit: profitOf(r) };
+    const f = forecastOfResult(r);
+    const du = f?.metrics?.profit?.du_kien ?? null;
+    return { i, name: `P${i + 1}`, outcome: o, r, profit: profitOf(r), f, du };
   });
   const metrics = metricsFor(rows.map((x) => x.r));
   const allListing = rows.length > 0 && rows.every((x) => x.r !== null && strategyOfResult(x.r) === "listing");
   const days = rows.find((x) => x.r)?.r ? resultDays(rows.find((x) => x.r)!.r!) : null;
-  const best = rows.reduce<Row | null>((b, x) => (x.profit !== null && (b === null || x.profit > (b.profit ?? -Infinity)) ? x : b), null);
+  const best = rows.reduce<Row | null>((b, x) => (x.du !== null && (b === null || x.du > (b.du ?? -Infinity)) ? x : b), null);
   const mainIndex = main !== null && main < entries.length ? main : (best?.i ?? 0);
-  const max = Math.max(0, ...rows.map((x) => Math.abs(x.profit ?? 0)));
+  const max = Math.max(0, ...rows.map((x) => Math.abs(x.du ?? 0)));
   const finding = !best
     ? null
-    : (best.profit ?? 0) > 0
-      ? `${best.name} lãi thêm nhiều nhất: ${signedMoney(best.profit)} trong ${days ?? "?"} ngày`
-      : "Không phương án nào lãi thêm";
+    : (best.du ?? 0) > 0
+      ? `${best.name} có lợi nhuận dự kiến cao nhất: ${amountText("profit", best.du)}`
+      : "Không phương án nào có lãi";
 
   const save = async (ack: boolean, breaches: readonly Breach[]) => {
     setBusy(true);
@@ -242,10 +249,9 @@ export function StepSoSanh(p: StepSoSanhProps) {
         <>
           {!allListing ? (
           <div className="sa-card p4-bars" data-testid="p4-bars">
-            <div className="p4-bars__title">Δ lợi nhuận {days ? periodLabel(days) : "cả kỳ"}</div>
+            <div className="p4-bars__title">Lợi nhuận dự kiến {days ? `(${fmt(days, 0)} ngày)` : ""}</div>
             {rows.map((x) => {
-              const per = perDayText(x.profit, x.r ? resultDays(x.r) : null);
-              const loss = (x.profit ?? 0) < 0;
+              const loss = (x.du ?? 0) < 0;
               return (
                 <div className="p4-bar" data-testid={`p4-bar-${x.i + 1}`} key={x.i}>
                   <div className="p4-bar__name" title={`${x.name} · ${String(entries[x.i]?.version.label ?? "")}`}>
@@ -253,20 +259,17 @@ export function StepSoSanh(p: StepSoSanhProps) {
                   </div>
                   <div className="p4-bar__track">
                     <div className="p4-bar__zero" />
-                    {x.profit !== null ? (
+                    {x.du !== null ? (
                       <div
                         className={`p4-bar__fill ${loss ? "p4-bar__fill--loss" : "p4-bar__fill--gain"}`}
                         data-sign={loss ? "loss" : "gain"}
                         data-testid={`p4-bar-fill-${x.i + 1}`}
-                        style={loss ? { right: "50%", width: `${barWidth(x.profit, max)}%` } : { left: "50%", width: `${barWidth(x.profit, max)}%` }}
+                        style={loss ? { right: "50%", width: `${barWidth(x.du ?? 0, max)}%` } : { left: "50%", width: `${barWidth(x.du ?? 0, max)}%` }}
                       />
                     ) : null}
                   </div>
                   <div className="p4-bar__value">
-                    <b className={loss ? "sa-tone--down" : "sa-tone--up"} data-testid={`p4-profit-${x.i + 1}`}>
-                      {x.profit === null ? DASH : signedMoney(x.profit)}
-                    </b>
-                    {per ? <span className="sa-hint" data-testid={`p4-profit-perday-${x.i + 1}`}>{per}</span> : null}
+                    <MetricCell forecast={x.f} metric="profit" testId={`p4-profit-${x.i + 1}`} />
                   </div>
                 </div>
               );
@@ -288,8 +291,7 @@ export function StepSoSanh(p: StepSoSanhProps) {
               </thead>
               <tbody>
                 {rows.map((x) => {
-                  const v = x.r ? verdictOf(x.r) : null;
-                  const gmvPer = x.r && x.r.estimable ? perDayText(deltaOf(x.r, "gmv").value, resultDays(x.r)) : null;
+                  const v = x.r ? lossChip(x.f, x.r) : null;
                   return (
                     <tr data-testid={`p4-row-${x.i + 1}`} key={x.i}>
                       <th scope="row">{x.name}</th>
@@ -300,8 +302,7 @@ export function StepSoSanh(p: StepSoSanhProps) {
                       ) : (
                         metrics.map((m) => (
                           <td className="p4-num" data-testid={m === "gmv" ? `p4-gmv-${x.i + 1}` : undefined} key={m}>
-                            {cellText(m, x.r!)}
-                            {m === "gmv" && gmvPer ? <span className="sa-hint"> {gmvPer}</span> : null}
+                            {m === "gmv" || m === "profit" || m === "orders" || m === "aov" ? <MetricCell forecast={x.f} metric={m} testId={`p4-${m}-v-${x.i + 1}`} /> : cellText(m, x.r!)}
                           </td>
                         ))
                       )}

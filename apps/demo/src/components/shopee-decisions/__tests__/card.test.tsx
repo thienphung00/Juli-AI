@@ -9,24 +9,53 @@ import { renderReco } from "./harness";
 const slider = (name: string) => screen.getByRole("slider", { name }) as HTMLInputElement;
 
 describe("thẻ voucher · phép thử 'nếu đổi'", () => {
-  it("Kết quả shows the stored result as Tự tạo does: Δ lợi nhuận cả N ngày ≈/ngày, Δ GMV, Δ đơn, Chi phí, ROI, biên, hoà vốn", async () => {
+  it("Kết quả shows the stored result as Tự tạo does: Lợi nhuận / GMV / đơn / AOV dự kiến với hiện tại, Chi phí, ROI, biên, hoà vốn", async () => {
     renderReco(<CardPage from={null} id="card-voucher" />, fakeReco());
     const block = await screen.findByTestId("sd-result-card");
     expect(screen.queryByTestId("sd-numbers")).toBeNull();
     expect(block).not.toHaveTextContent("chắc chắn");
     expect(block).not.toHaveTextContent("5 con số chính");
-    expect(within(block).getByTestId("p3-dprofit")).toHaveTextContent("+57.000đ");
-    expect(within(block).getByTestId("p3-dprofit")).toHaveTextContent("cả 30 ngày");
-    expect(within(block).getByTestId("p3-dprofit-perday")).toHaveTextContent("/ngày");
-    expect(within(block).getByTestId("p3-dgmv")).toHaveTextContent("+600.000đ");
-    expect(within(block).getByTestId("p3-row-orders")).toHaveTextContent("+2");
+    expect(within(block).getByTestId("p3-fc-profit")).toHaveTextContent("Lợi nhuận dự kiến (30 ngày): 1.402.000 đ");
+    expect(within(block).getByTestId("p3-fc-profit-sub")).toHaveTextContent("hiện tại: 1.345.000 đ · +57.000 đ (+4,2 %)");
+    expect(within(block).getByTestId("p3-fc-gmv")).toHaveTextContent("GMV dự kiến: 7.830.000 đ");
+    expect(within(block).getByTestId("p3-fc-orders")).toHaveTextContent("Đơn dự kiến: 32 đơn");
+    expect(within(block).getByTestId("p3-fc-orders-sub")).toHaveTextContent("hiện tại: 30 đơn · +2 (+6,7 %)");
+    expect(within(block).getByTestId("p3-fc-aov")).toHaveTextContent("AOV dự kiến:");
+    expect(block).not.toHaveTextContent("Δ lợi nhuận");
     expect(within(block).getByTestId("p3-row-cost")).toHaveTextContent("63.000đ");
     expect(within(block).getByTestId("p3-row-roi")).toHaveTextContent("9,5");
     expect(within(block).getByTestId("p3-row-margin")).toHaveTextContent("26,9% → 25,6%");
     expect(within(block).getByTestId("p3-row-breakeven")).toHaveTextContent(/Hoà vốn\s*cần ≥ 3 đơn/);
-    expect(within(block).getByTestId("p3-verdict")).toHaveTextContent("Có lãi");
+    expect(within(block).queryByTestId("p3-verdict")).toBeNull();
     expect(screen.getByTestId("sd-floor")).toHaveTextContent("Trên giá sàn");
     expect(screen.getByTestId("sd-spend")).toHaveTextContent("trong trần 1.200.000đ/ngày");
+  });
+
+  it("the detail carries the server forecast, one Số liệu đến dd/mm and the running Thực tế with đo chung", async () => {
+    const forecast = {
+      data_through: "2026-11-18",
+      metrics: {
+        profit: { hien_tai: 162572, du_kien: -2000, delta: -164572, delta_pct: -101.2, low: -90000, high: 50000, days: 14 },
+        gmv: { hien_tai: 2000000, du_kien: 1900000, delta: -100000, delta_pct: -5, days: 14 },
+      },
+    };
+    const measurement = {
+      label: "Đã đo 5/14 ngày",
+      measured_with: ["GIA-1"],
+      actual: { days_measured: 5, days: 14, label: "Đã đo 5/14 ngày", final: false, metrics: { profit: { thuc_te: 40000, hien_tai: 58000, delta: -18000, delta_pct: -31, days_measured: 5, days: 14 } } },
+    };
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: detailOf(voucherCard(), { forecast, data_through: "2026-11-18", measurement }) }));
+    const block = await screen.findByTestId("sd-result-card");
+    expect(within(block).getByTestId("sd-through")).toHaveTextContent("Số liệu đến 18/11");
+    expect(screen.getAllByText(/Số liệu đến/)).toHaveLength(1);
+    // the server's forecast wins; a profit below 0 is the only red / Lỗ
+    expect(within(block).getByTestId("p3-fc-profit-value")).toHaveTextContent("Lỗ 2.000 đ");
+    expect(within(block).getByTestId("p3-fc-profit-value")).toHaveClass("sa-tone--down");
+    expect(within(block).getByTestId("p3-fc-profit-sub")).toHaveTextContent("hiện tại: 162.572 đ · −164.572 đ (−101,2 %)");
+    expect(block.textContent).not.toContain("90.000");
+    expect(within(block).getByTestId("ac-profit")).toHaveTextContent("Thực tế: 40.000 đ · hiện tại: 58.000 đ · −18.000 đ (−31,0 %)");
+    expect(within(block).getByTestId("ac-label")).toHaveTextContent("Đã đo 5/14 ngày");
+    expect(within(block).getByTestId("ac-with")).toHaveTextContent("đo chung với GIA-1");
   });
 
   it("a card without an estimable result says Chưa ước tính được and keeps its Chi phí", async () => {

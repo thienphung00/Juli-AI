@@ -18,7 +18,9 @@ import type { KolCandidate } from "./kol-builder";
 import { OpsRecoList } from "./ops-list";
 import { PlanView } from "./plan";
 import { ThucHienView } from "./thuc-hien";
-import { FlashNotice, NO_FLASH, TopCards, cardDays, p50Text, topEntries, type Flash } from "./top-cards";
+import { newestDataThrough } from "../../lib/shopee-decisions/forecast-display";
+import { DataThrough } from "./forecast-lines";
+import { FlashNotice, NO_FLASH, TopCards, topEntries, type Flash } from "./top-cards";
 import { NavLink, RecoState } from "./ui";
 
 /**
@@ -117,25 +119,16 @@ function CardsView({ cards, names, inPlan, metric, product, flash, setFlash, onC
         </label>
       </div>
       <FlashNotice flash={flash} />
+      <DataThrough iso={newestDataThrough(shown)} testId="dx-through" />
       {shown.length === 0 ? <Empty testId="sd-empty">{EMPTY_DE_XUAT}</Empty> : <TopCards cards={shown} flash={flash} inPlan={inPlan} names={names} onChanged={onChanged} onFlash={setFlash} />}
     </>
   );
 }
 
-/** The finding of the header: "4 thẻ cho CTR · +a – b đ lợi nhuận cả 30 ngày". */
+/** The finding of the header: "4 thẻ cho CTR". The amounts live on each card (one dự kiến amount per metric). */
 export function findingOf(shown: readonly CardSummary[], metric: MetricKey | null): string {
   if (shown.length === 0) return "Chưa có thẻ nào";
-  // Forecast grill F4: the cards' likely values (P50) added up; one card without a value -> no total
-  let sum = 0;
-  let ok = true;
-  for (const c of shown) {
-    const p50 = c.predicted_summary.dprofit_month.p50;
-    if (p50 === null) ok = false;
-    else sum += p50;
-  }
-  const days = cardDays(shown[0]!);
-  const head = `${fmt(shown.length, 0)} thẻ${metric ? ` cho ${METRIC_NAME[metric]}` : ""}`;
-  return ok ? `${head} · ${p50Text({ p50: sum })} lợi nhuận cả ${fmt(days, 0)} ngày` : head;
+  return `${fmt(shown.length, 0)} thẻ${metric ? ` cho ${METRIC_NAME[metric]}` : ""}`;
 }
 
 function ShopShell({ params }: { readonly params: URLSearchParams }) {

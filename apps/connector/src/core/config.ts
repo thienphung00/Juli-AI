@@ -20,6 +20,8 @@ export const DAILY_REQUEST_BUDGET = 800;
  */
 export const TODAY_REQUEST_RESERVE = 250;
 export const BACKFILL_REQUEST_SHARE = 150;
+/** 0.3.30: requests readers (incl. catch-up) never touch, so a fill or a read-back always has room for its page loads. */
+export const FILL_REQUEST_RESERVE = 60;
 /** A report page makes a handful of calls of its own when it loads: each opened tab is counted as this many. */
 export const READER_PAGE_LOAD_COST = 10;
 
