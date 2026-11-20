@@ -5,6 +5,13 @@ import { useState } from "react";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { errorText } from "./ui";
 
+const count = (v: unknown): number => (typeof v === "number" ? v : 0);
+
+/** "Đo lại": the learning run's report as counts (`readings` taken from `cards_considered` cards). */
+function countOf(report: Readonly<Record<string, unknown>>): string {
+  return `${count(report.readings)} số đo từ ${count(report.cards_considered)} thẻ`;
+}
+
 /** Juli Ops: generate cards from the latest numbers (drafts), send the drafts to the shop, re-run stale cards. */
 export function StaffBar({ onChanged }: { readonly onChanged: () => void }) {
   const host = useReco();
@@ -37,6 +44,9 @@ export function StaffBar({ onChanged }: { readonly onChanged: () => void }) {
         </button>
         <button className="sa-btn" disabled={busy} onClick={() => void act("Tính lại thẻ cũ", async () => JSON.stringify(await host.reco.rerunStale()))} type="button">
           Tính lại thẻ cũ
+        </button>
+        <button className="sa-btn" data-testid="sd-staff-remeasure" disabled={busy} onClick={() => void act("Đo lại", async () => countOf(await host.reco.learningRun()))} type="button">
+          Đo lại
         </button>
       </div>
       {msg ? (
