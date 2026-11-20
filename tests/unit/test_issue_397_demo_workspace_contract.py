@@ -149,15 +149,17 @@ def test_one_rail_and_a_safe_home_overview() -> None:
     """One rail for TikTok Shop and Shopee (owner, 2026-11-19): Tổng quan / Phân tích /
     Quyết định / Dữ liệu shop, with Cài đặt in the shop-avatar menu (ADR-109 decision 7);
     decision 3 replaced the two Home launchers with the report overview (GMV / Đơn / AOV +
-    the 5-stream matrix). What stays contractual: the TikTok routes, Juli has no route until
-    its page ships, and Home offers no approve/reject or settings control."""
+    the 5-stream matrix). What stays contractual: the TikTok routes, Juli is the fourth rail entry
+    (`/juli`, shown only where the shop has the tab enabled), and Home offers no
+    approve/reject or settings control."""
     demo_root = ROOT / "apps" / "demo" / "src"
     nav = (demo_root / "lib/app-navigation.ts").read_text(encoding="utf-8")
     home = _home_surface()
 
     for route in ('"/"', '"/decisions"', '"/analytics"', '"/settings"'):
         assert route in nav
-    assert '"/juli"' not in nav
+    assert 'key: "juli", label: "Juli", href: { tiktok: "/juli", shopee: "/juli" }' in nav
+    assert nav.index('key: "juli"') > nav.index('key: "decisions"')
     order = [nav.index(f'label: "{label}"') for label in ("Tổng quan", "Phân tích")]
     assert order == sorted(order) and "ACTIONS_DESTINATION_LABEL, href" in nav
     assert "StreamMatrix" in home and "buildHomeOverview" in home
