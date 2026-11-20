@@ -154,4 +154,13 @@ describe("Ops · Danh sách đề xuất", () => {
     open();
     expect(await screen.findByTestId("sd-staffbar")).toBeInTheDocument();
   });
+
+  it("Đo lại runs the learning job and shows the result count", async () => {
+    const base = fakeReco({ list });
+    const reco = { ...base, learningRun: async () => { base.calls.push({ name: "learningRun", args: [] }); return { readings: 4, cards_considered: 7 }; } };
+    renderReco(<DecisionsView params={params()} />, reco, { staff: true, products, href: () => "/ops/shops/s1/shopee/de-xuat" });
+    fireEvent.click(await screen.findByTestId("sd-staff-remeasure"));
+    expect(await screen.findByTestId("sd-staff-msg")).toHaveTextContent("Đo lại: 4 số đo từ 7 thẻ");
+    expect(base.calls.filter((c) => c.name === "learningRun")).toHaveLength(1);
+  });
 });
