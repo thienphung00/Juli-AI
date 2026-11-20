@@ -136,7 +136,14 @@ async def test_a_successful_fetch_still_advances_the_cursor():
 
     class _WorkingOrders:
         def search_all(
-            self, *, status=None, update_time_from=None, update_time_to=None, page_size=50
+            self,
+            *,
+            status=None,
+            update_time_from=None,
+            update_time_to=None,
+            create_time_from=None,
+            create_time_to=None,
+            page_size=50,
         ):
             return [{"order_id": "577", "update_time": 1786000000}]
 

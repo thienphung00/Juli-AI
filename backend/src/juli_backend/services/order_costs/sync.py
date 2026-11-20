@@ -62,6 +62,7 @@ from juli_backend.integrations.tiktok import (
     RateLimitError,
     TikTokAPIError,
 )
+from juli_backend.services.ingest.tiktok_canonical_throttle import noted_call
 from juli_backend.services.order_costs import parse as order_costs_parse
 from juli_backend.services.order_costs import store as order_costs_store
 
@@ -244,7 +245,12 @@ class _Pass:
                 self.result.rate_limited = True
             return None, None
         try:
-            return await asyncio.to_thread(fetch), None
+            # P101 W2 (B-3b): a 429 starts the shop's backoff in the limiter (and still ends the
+            # pass below); a call that returned resets it.
+            response = await asyncio.to_thread(
+                noted_call, self._limiter, self._app_id, self._shop_key, fetch
+            )
+            return response, None
         except RateLimitError:
             self.result.rate_limited = True
             logger.info("order_costs_vendor_rate_limited", extra={"read": self._label})

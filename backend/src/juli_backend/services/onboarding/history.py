@@ -8,10 +8,10 @@
   last 180 days"), and the hourly shop read keeps 30 days. The walk targets 180
   and stops earlier at TikTok's real limit when TikTok refuses a window
   (``28001022``, halved down to the exact day) or returns two empty chunks.
-- ``SHOP_HISTORY_CONNECT_DAYS`` (60): the history chain right after connect
+- ``SHOP_HISTORY_CONNECT_DAYS`` (90, P101 W2; was 60): the history chain right after connect
   stops once this many days exist; the rest is the nightly extension.
 - ``SHOP_HISTORY_NIGHTLY_CHUNKS`` (2) × ``SHOP_HISTORY_NIGHTLY_CHUNK_DAYS`` (15):
-  what one nightly run reads (60 -> 180 days in 4 nights).
+  what one nightly run reads (90 -> 180 days in 3 nights).
 """
 
 from __future__ import annotations
@@ -26,7 +26,8 @@ NIGHTLY_CHUNK_DAYS_ENV = "SHOP_HISTORY_NIGHTLY_CHUNK_DAYS"
 DEFAULT_MAX_LOOKBACK_DAYS = 180
 #: D25.12's target: 180 days, i.e. two 90-day halves.
 HISTORY_TARGET_DAYS = 180
-DEFAULT_CONNECT_DAYS = 60
+#: P101 W2 (owner Q1, 2026-11-19): 90 days on connect (was 60, D25.12).
+DEFAULT_CONNECT_DAYS = 90
 DEFAULT_NIGHTLY_CHUNKS = 2
 DEFAULT_NIGHTLY_CHUNK_DAYS = 15
 

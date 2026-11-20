@@ -65,6 +65,8 @@ from juli_backend.integrations.tiktok import (
     promotion_activity_path,
 )
 from juli_backend.models.models import TikTokCredential
+from juli_backend.services.ingest import TikTokCanonicalSync, order_search_kwargs
+from juli_backend.services.ingest import noted_call as _noted
 from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)
@@ -601,7 +603,16 @@ class _InventoryFetcher:
         """One vendor call. ``None`` means 12019008; anything else unexpected raises."""
         step = self._step
         try:
-            response = step.fetch(partial(self._resource.search, product_ids=product_ids))
+            response = step.fetch(
+                partial(
+                    _noted,
+                    self._rate_limiter,
+                    self._app_id,
+                    self._shop_id,
+                    self._resource.search,
+                    product_ids=product_ids,
+                )
+            )
         except TikTokPaginationError as exc:
             step.report(error=exc)
             raise
@@ -718,8 +729,11 @@ async def sync_orders(
     app_id: str,
     shop_id: str,
     sync_state: dict[str, Any],
+    canonical: TikTokCanonicalSync | None = None,
+    now: datetime | None = None,
 ) -> SyncOutcome:
-    """Fetch orders since last sync, hand off to ETL, and report the triple."""
+    """Fetch orders since last sync, hand off to ETL, map them to the canonical tables in the
+    same job (``canonical``, P101 W2), and report the triple."""
     if not rate_limiter.acquire(
         app_id, shop_id, ORDER_SEARCH_PATH, max_requests=10, window_seconds=60
     ):
@@ -727,6 +741,7 @@ async def sync_orders(
         return _skipped("orders", shop_id)
 
     update_from = sync_state.get("orders_last_update_time")
+    search_kwargs = order_search_kwargs(update_from, now=now)
     with _StepRun(
         "orders",
         shop_id,
@@ -735,7 +750,9 @@ async def sync_orders(
         update_time_from=update_from,
     ) as step:
         try:
-            orders = step.fetch(lambda: resource.search_all(update_time_from=update_from))
+            orders = step.fetch(
+                lambda: _noted(rate_limiter, app_id, shop_id, resource.search_all, **search_kwargs)
+            )
         except TikTokPaginationError as exc:
             # A truncated or timed-out backfill is a failed read, not a partial one.
             # The exception must reach `report` too, or the step logs `ok=True` on
@@ -763,6 +780,10 @@ async def sync_orders(
                     json.dumps(line_item).encode(),
                 )
             max_update_time = max(max_update_time, order.get("update_time", 0))
+        if canonical is not None and orders:
+            # P101 W2 (S-1): raw -> canonical in the same job. Never fails the step: a
+            # failed canonical write is logged and the nightly reconcile repairs it.
+            await canonical.on_orders(orders)
 
         outcome = step.report()
         # The watermark follows the rows, never the fetch (#1950): advancing it over
@@ -798,7 +819,11 @@ async def sync_products(
         update_time_from=update_from,
     ) as step:
         try:
-            products = step.fetch(lambda: resource.search_all(update_time_from=update_from))
+            products = step.fetch(
+                lambda: _noted(
+                    rate_limiter, app_id, shop_id, resource.search_all, update_time_from=update_from
+                )
+            )
         except TikTokPaginationError as exc:
             step.report(error=exc)
             raise
@@ -857,7 +882,9 @@ async def sync_products_with_local_upsert(
     update_from = sync_state.get("products_last_update_time")
 
     try:
-        products = resource.search_all(update_time_from=update_from)
+        products = _noted(
+            rate_limiter, app_id, shop_id, resource.search_all, update_time_from=update_from
+        )
     except TikTokAPIError:
         logger.warning(
             "sync_products_with_upsert_failed",
@@ -940,8 +967,10 @@ async def sync_returns(
     app_id: str,
     shop_id: str,
     sync_state: dict[str, Any],
+    canonical: TikTokCanonicalSync | None = None,
 ) -> SyncOutcome:
-    """Fetch returns since last sync, hand off to ETL, and report the triple."""
+    """Fetch returns since last sync, hand off to ETL, re-map the returned lines' orders to the
+    canonical tables (``canonical``, P101 W2), and report the triple."""
     if not rate_limiter.acquire(
         app_id, shop_id, RETURN_SEARCH_PATH, max_requests=10, window_seconds=60
     ):
@@ -957,7 +986,15 @@ async def sync_returns(
         update_time_from=update_from,
     ) as step:
         try:
-            returns = step.fetch(lambda: resource.search_returns_all(update_time_from=update_from))
+            returns = step.fetch(
+                lambda: _noted(
+                    rate_limiter,
+                    app_id,
+                    shop_id,
+                    resource.search_returns_all,
+                    update_time_from=update_from,
+                )
+            )
         except TikTokPaginationError as exc:
             step.report(error=exc)
             raise
@@ -977,6 +1014,8 @@ async def sync_returns(
                 max_update_time,
                 ret.get("update_time") or ret.get("create_time") or 0,
             )
+        if canonical is not None and returns:
+            await canonical.on_returns(returns)
 
         outcome = step.report()
         if returns and outcome.persisted:
@@ -1140,7 +1179,7 @@ async def sync_creators(
         return
 
     try:
-        creators = resource.list_all()
+        creators = _noted(rate_limiter, app_id, shop_id, resource.list_all)
     except PermissionDeniedError:
         raise
     except TikTokAPIError:
@@ -1252,7 +1291,11 @@ async def sync_analytics(
             endpoint=ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
         ):
             try:
-                skus = resource.list_sku_performance_all(
+                skus = _noted(
+                    rate_limiter,
+                    app_id,
+                    shop_id,
+                    resource.list_sku_performance_all,
                     start_date_ge=start_date_ge,
                     end_date_lt=end_date_lt,
                 )
@@ -1285,7 +1328,11 @@ async def sync_analytics(
                             await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
                         break
                     try:
-                        detail = resource.get_sku_performance(
+                        detail = _noted(
+                            rate_limiter,
+                            app_id,
+                            shop_id,
+                            resource.get_sku_performance,
                             sku_id=str(sku_id),
                             start_date_ge=start_date_ge,
                             end_date_lt=end_date_lt,
@@ -1327,7 +1374,11 @@ async def sync_analytics(
             endpoint=ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
         ):
             try:
-                products = resource.list_product_performance_all(
+                products = _noted(
+                    rate_limiter,
+                    app_id,
+                    shop_id,
+                    resource.list_product_performance_all,
                     start_date_ge=start_date_ge,
                     end_date_lt=end_date_lt,
                 )
@@ -1360,7 +1411,11 @@ async def sync_analytics(
                             await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
                         break
                     try:
-                        detail = resource.get_product_performance(
+                        detail = _noted(
+                            rate_limiter,
+                            app_id,
+                            shop_id,
+                            resource.get_product_performance,
                             product_id=str(product_id),
                             start_date_ge=start_date_ge,
                             end_date_lt=end_date_lt,
@@ -1406,7 +1461,11 @@ async def sync_analytics(
             endpoint=ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
         ):
             try:
-                live_sessions = resource.list_live_performance_all(
+                live_sessions = _noted(
+                    rate_limiter,
+                    app_id,
+                    shop_id,
+                    resource.list_live_performance_all,
                     start_date_ge=start_date_ge,
                     end_date_lt=end_date_lt,
                 )
@@ -1449,7 +1508,11 @@ async def sync_analytics(
             endpoint=ANALYTICS_SHOP_PERFORMANCE_PATH,
         ):
             try:
-                shop_performance = resource.get_shop_performance(
+                shop_performance = _noted(
+                    rate_limiter,
+                    app_id,
+                    shop_id,
+                    resource.get_shop_performance,
                     start_date_ge=start_date_ge,
                     end_date_lt=end_date_lt,
                 )
@@ -1470,7 +1533,9 @@ async def sync_analytics(
         per_hour_path = analytics_shop_performance_per_hour_path(day)
         if _acquire(rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=per_hour_path):
             try:
-                per_hour = resource.get_shop_performance_per_hour(date=day)
+                per_hour = _noted(
+                    rate_limiter, app_id, shop_id, resource.get_shop_performance_per_hour, date=day
+                )
                 step.stage_watermark(
                     sync_state, "shop_performance_per_hour_last_sync_at", synced_at
                 )
@@ -1496,7 +1561,14 @@ async def sync_analytics(
             endpoint=ANALYTICS_BESTSELLING_PRODUCTS_PATH,
         ):
             try:
-                resource.get_bestselling_products(date=day, time_slot="1D")
+                _noted(
+                    rate_limiter,
+                    app_id,
+                    shop_id,
+                    resource.get_bestselling_products,
+                    date=day,
+                    time_slot="1D",
+                )
                 step.stage_watermark(sync_state, "bestselling_products_last_sync_at", synced_at)
             except TikTokAPIError:
                 logger.warning(
@@ -1512,7 +1584,14 @@ async def sync_analytics(
             endpoint=ANALYTICS_BESTSELLING_VIDEOS_PATH,
         ):
             try:
-                resource.get_bestselling_videos(date=day, time_slot="1D")
+                _noted(
+                    rate_limiter,
+                    app_id,
+                    shop_id,
+                    resource.get_bestselling_videos,
+                    date=day,
+                    time_slot="1D",
+                )
                 step.stage_watermark(sync_state, "bestselling_videos_last_sync_at", synced_at)
             except TikTokAPIError:
                 logger.warning(
@@ -1529,7 +1608,13 @@ async def sync_analytics(
                 if not _acquire(rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=path):
                     break
                 try:
-                    promotion_resource.get_activity(str(activity_id))
+                    _noted(
+                        rate_limiter,
+                        app_id,
+                        shop_id,
+                        promotion_resource.get_activity,
+                        str(activity_id),
+                    )
                     fetched_any = True
                 except TikTokAPIError:
                     logger.warning(
