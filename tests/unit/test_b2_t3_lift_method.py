@@ -264,3 +264,56 @@ def test_if_no_estimate_has_no_type():
 def test_if_the_stored_lift_carries_the_type():
     assert _lift(_env()).json()["prediction_type"] == "ước tính"
     assert set(learning.JULI_ORIGINS) == {"engine", "agent"}
+
+
+# -- L-5 for past promotions (natural backfill) -------------------------------------------
+
+T0 = date(2026, 9, 15)
+
+
+def _natural(ref="voucher:1", t=T0, post=14, traffic_before=14, traffic_after=14):
+    present = frozenset(
+        [date.fromordinal(t.toordinal() - i) for i in range(1, traffic_before + 1)]
+        + [date.fromordinal(t.toordinal() + i) for i in range(1, traffic_after + 1)]
+    )
+    obs = Observation("min_spend_voucher", "aov", 0.01, 0.03, 0.02, source="natural", ref=ref)
+    return measure.NaturalReading(obs, t, post, present)
+
+
+def _kept(reading, *, sale=(), changes=None):
+    report = measure.BackfillReport()
+    report.bump(report.usable, "min_spend_voucher")
+    report.bump(report.in_range, "min_spend_voucher")
+    kept = measure.keep_clean_natural(
+        [reading], sale=set(sale), changes=changes or {reading.obs.ref: reading.t}, report=report
+    )
+    return kept, report
+
+
+def test_l5_a_clean_past_promotion_is_kept():
+    kept, report = _kept(_natural())
+    assert len(kept) == 1 and report.skipped == {}
+
+
+def test_l5_a_past_promotion_overlapping_a_mega_sale_day_is_excluded():
+    kept, report = _kept(_natural(), sale=[date(2026, 9, 20)])
+    assert kept == []
+    assert report.skipped["min_spend_voucher"] == {"not_clean_sale_day": 1}
+    assert report.usable["min_spend_voucher"] == 0  # no longer counted as a usable reading
+
+
+def test_l5_another_change_on_the_same_days_excludes_a_past_promotion():
+    r = _natural()
+    other = {r.obs.ref: T0, "budget:9:x": date(2026, 9, 18)}
+    kept, report = _kept(r, changes=other)
+    assert kept == [] and report.skipped["min_spend_voucher"] == {"not_clean_other_change": 1}
+
+
+def test_l5_a_past_promotion_needs_five_traffic_days_each_side():
+    kept, report = _kept(_natural(traffic_after=4))
+    assert kept == [] and report.skipped["min_spend_voucher"] == {"not_clean_traffic_days_after": 1}
+
+
+def test_l5_the_calibration_never_sees_an_excluded_past_promotion():
+    kept, _ = _kept(_natural(), sale=[date(2026, 9, 20)])
+    assert calibrate_all(kept) == {}

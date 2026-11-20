@@ -373,8 +373,16 @@ def _ad_row(sid, seg, day, *, target, gmv, cost, budget=50_000):
     )
 
 
-async def test_the_backfill_scores_roas_target_and_budget_changes_and_vouchers_once(session):
+async def test_the_backfill_scores_roas_target_and_budget_changes_and_vouchers_once(
+    session, monkeypatch
+):
     from juli_backend.services.ingest.mapping import campaign_segment
+
+    # the scoring math is under test; the shop's three changes sit within 14 days of each other, so
+    # the L-5 clean gate (tests/unit/test_b2_t3_lift_method.py) would drop them
+    monkeypatch.setattr(
+        measure, "keep_clean_natural", lambda readings, **_kw: [r.obs for r in readings]
+    )
 
     user, shop, sid = await _shop_with_items(session, items=("1001",))
     rng = random.Random(9)

@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 import uuid
 from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -318,6 +318,37 @@ class CardReading:
 CLEAN_MIN_TRAFFIC_DAYS = 5
 
 
+def clean_why(
+    present: Collection[date],
+    *,
+    t: date,
+    days: int,
+    pre: int,
+    sale: Collection[date],
+    stacked: bool,
+    partial: bool = False,
+) -> list[str]:
+    """Why a single result is NOT clean (empty = clean, may calibrate) -- L-5, one rule for a card's
+    result and a past promotion: another card / promotion on the same days (``stacked``), a
+    mega-sale day (``sale``: the shop's contract sale days) in either window, fewer than
+    ``CLEAN_MIN_TRAFFIC_DAYS`` ``present`` (traffic) days in the before or the after window, or a
+    cut measurement (``partial``)."""
+    why: list[str] = []
+    if partial:
+        why.append("partial")
+    if stacked:
+        why.append("other_change")
+    before = [t - timedelta(days=i) for i in range(pre, 0, -1)]
+    after = [t + timedelta(days=i) for i in range(1, days + 1)]
+    if set(sale) & {*before, *after}:
+        why.append("sale_day")
+    have = set(present)
+    for name, window in (("before", before), ("after", after)):
+        if sum(1 for d in window if d in have) < CLEAN_MIN_TRAFFIC_DAYS:
+            why.append(f"traffic_days_{name}")
+    return why
+
+
 async def clean_reasons(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -329,30 +360,13 @@ async def clean_reasons(
     stacked: bool,
     partial: bool = False,
 ) -> list[str]:
-    """Why a single result is NOT clean (empty = clean, may calibrate): another card / promotion
-    on the same days (``stacked``: a card of the product, a shop-wide change, a bundle), a
-    mega-sale day in either window (the shop's contract sale days), fewer than
-    ``CLEAN_MIN_TRAFFIC_DAYS`` days with traffic in the before or the after window, or a cut
-    measurement."""
-    why: list[str] = []
-    if partial:
-        why.append("partial")
-    if stacked:
-        why.append("other_change")
-    before = [t - timedelta(days=i) for i in range(pre, 0, -1)]
-    after = [t + timedelta(days=i) for i in range(1, days + 1)]
-    sale = await contract_excluded_days(session, shop_id, before[0], after[-1])
-    if sale & {*before, *after}:
-        why.append("sale_day")
-    for name, window in (("before", before), ("after", after)):
-        n = sum(
-            1
-            for d in window
-            if d in treated_days and (treated_days[d].views or treated_days[d].clicks)
-        )
-        if n < CLEAN_MIN_TRAFFIC_DAYS:
-            why.append(f"traffic_days_{name}")
-    return why
+    """:func:`clean_why` for a card's result: the sale days are the shop's contract days and a day
+    has traffic when the treated series has views or clicks on it."""
+    sale = await contract_excluded_days(
+        session, shop_id, t - timedelta(days=pre), t + timedelta(days=days)
+    )
+    present = [d for d, agg in treated_days.items() if agg.views or agg.clicks]
+    return clean_why(present, t=t, days=days, pre=pre, sale=sale, stacked=stacked, partial=partial)
 
 
 async def _read_card(
@@ -1160,6 +1174,7 @@ def score_natural(
     post_days: int = 14,
     excluded: frozenset[date] = frozenset(),
     floor: float = 0.0,
+    ledger: list[NaturalReading] | None = None,
 ) -> Observation | None:
     report.bump(report.candidates, kind)
     reading = impact.read_effect(
@@ -1191,7 +1206,58 @@ def score_natural(
             report.bump(report.in_range, kind)
     else:
         report.bump(report.uncontrolled, kind)
+    if ledger is not None:
+        count = metric in ("views", "orders", "ads_gmv", "gmv")
+        present = frozenset(d for d, v in series.items() if v is not None and (v != 0 or not count))
+        ledger.append(NaturalReading(obs, t, post_days, present))
     return obs
+
+
+@dataclass(frozen=True)
+class NaturalReading:
+    """A scored past promotion waiting for its L-5 clean check (:func:`keep_clean_natural`)."""
+
+    obs: Observation
+    t: date
+    post_days: int
+    present: frozenset[date]  # days of the scored series with traffic
+
+
+def keep_clean_natural(
+    readings: Sequence[NaturalReading],
+    *,
+    sale: Collection[date],
+    changes: Mapping[str, date],
+    report: BackfillReport,
+) -> list[Observation]:
+    """L-5 for past promotions: the same :func:`clean_why` a card's result passes. ``changes`` =
+    ref -> day of every change of the shop (the promotions themselves and the executed Juli
+    cards); another change within the before / after window makes a result not clean. A result
+    that is not clean is dropped from the calibration and counted under ``not_clean_<why>``."""
+    kept: list[Observation] = []
+    for nr in readings:
+        o = nr.obs
+        lo, hi = nr.t - timedelta(days=impact.PRE_DAYS), nr.t + timedelta(days=nr.post_days)
+        stacked = any(ref != o.ref and lo <= day <= hi for ref, day in changes.items())
+        why = clean_why(
+            nr.present,
+            t=nr.t,
+            days=nr.post_days,
+            pre=impact.PRE_DAYS,
+            sale=sale,
+            stacked=stacked,
+        )
+        if not why:
+            kept.append(o)
+            continue
+        report.skip(o.change_kind, f"not_clean_{why[0]}")
+        if o.controlled:
+            report.usable[o.change_kind] -= 1
+            if o.in_range:
+                report.in_range[o.change_kind] -= 1
+        else:
+            report.uncontrolled[o.change_kind] -= 1
+    return kept
 
 
 async def backfill_natural(
@@ -1201,6 +1267,7 @@ async def backfill_natural(
     natural experiments, to seed its calibration. Reports counts and coverage only."""
     report = BackfillReport()
     obs: list[Observation] = []
+    ledger: list[NaturalReading] = []
     today = now.date()
     first_all = today - timedelta(days=400)
     camp = await load_campaign_days(session, shop_id, first_all, today)
@@ -1232,6 +1299,7 @@ async def backfill_natural(
                     mag,
                     f"roas:{seg}:{r.day}",
                     report,
+                    ledger=ledger,
                 )
                 if o:
                     obs.append(o)
@@ -1266,7 +1334,15 @@ async def backfill_natural(
         series = series_of(camp[seg], "ads_gmv", first, last)
         ctrl = {k: series_of(v, "ads_gmv", first, last) for k, v in camp.items() if k != seg}
         o = score_natural(
-            "ads_budget", "ads_gmv", series, ctrl, d, mag, f"budget:{lg.campaign_id}:{d}", report
+            "ads_budget",
+            "ads_gmv",
+            series,
+            ctrl,
+            d,
+            mag,
+            f"budget:{lg.campaign_id}:{d}",
+            report,
+            ledger=ledger,
         )
         report.candidates["ads_budget"] -= 1  # score_natural counted it again
         if o:
@@ -1322,10 +1398,19 @@ async def backfill_natural(
             report,
             post_days=post,
             floor=1.0,
+            ledger=ledger,
         )
         if o:
             obs.append(o)
-    return report, obs
+    # L-5: a past promotion counts toward any rung only when it is clean, like a card's result
+    changes = {nr.obs.ref: nr.t for nr in ledger}
+    for p, _card in await store.list_cards(session, shop_id, statuses=[STATUS_EXECUTED]):
+        t_at, _how = await verified_time(session, shop_id, p.id)
+        if t_at is not None:
+            changes[f"card:{p.id}"] = t_at.date()
+    sale = await contract_excluded_days(session, shop_id, first_all, today)
+    clean = {o.ref for o in keep_clean_natural(ledger, sale=sale, changes=changes, report=report)}
+    return report, [o for o in obs if o.ref in clean]
 
 
 async def apply_backfill(
