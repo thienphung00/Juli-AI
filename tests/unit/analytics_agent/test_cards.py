@@ -182,7 +182,7 @@ async def test_g5_only_products_in_the_findings_are_offered_and_targeted() -> No
     out = await cards.card_stage(
         chains=[c2], data=d2, engine=eng2, jev=jev_ok(), labels=L, as_of=AS_OF
     )
-    assert eng2.calls == [("product_discount", None)] and out.events[0]["type"] == "no_card"
+    assert eng2.calls == [] and out.events[0]["type"] == "no_card"  # D: nothing fillable
 
 
 async def test_g3_engine_refusal_gives_a_reason_not_a_card() -> None:
@@ -233,13 +233,117 @@ async def test_g4_exact_overlap_links_the_existing_card_then_jev_overlap() -> No
     assert any(r["step"] == "overlap" for r in flagged.routing)
 
 
-async def test_jev_not_actionable_means_no_card() -> None:
+async def test_no_actionable_question_is_asked_and_g1_is_the_only_eligibility_gate() -> None:
     d, c = await explained_chain()
-    jev = FakeJev(lambda s, q: {"actionable": nl(0.4), "kind": ch("price"), "product": ch("p1")})
+    jev = FakeJev(
+        lambda s, q: {"kind": ch("product_discount"), "overlap": nl(0.1), "version": ch("Vừa")}
+    )
     out = await cards.card_stage(
         chains=[c], data=d, engine=FakeCardEngine(), jev=jev, labels=L, as_of=AS_OF
     )
-    assert out.events[0]["type"] == "no_card"
+    assert out.events[0]["type"] == "card"
+    assert all("actionable" not in q for _, q in jev.calls)
+
+
+def jev_kind(kind_answer: dict[str, Any]) -> FakeJev:
+    return FakeJev(
+        lambda s, q: {
+            "kind": kind_answer,
+            "product": ch("p1"),
+            "overlap": nl(0.1),
+            "version": ch("Vừa"),
+        }
+    )
+
+
+async def test_unsure_kind_tries_the_top_two_in_order_and_drafts_the_first_that_passes() -> None:
+    d, c = await explained_chain()
+    unsure = {
+        "type": "choice",
+        "choice": "title",
+        "probabilities": {"title": 0.5, "product_discount": 0.4, "price": 0.1},
+    }
+    eng = FakeCardEngine(per_kind={"title": {"ok": False, "reason": "generator_returned_none"}})
+    out = await cards.card_stage(
+        chains=[c], data=d, engine=eng, jev=jev_kind(unsure), labels=L, as_of=AS_OF
+    )
+    assert eng.calls == [("title", "p1"), ("product_discount", "p1")]
+    assert [e["type"] for e in out.events] == ["card"] and out.events[0][
+        "kind"
+    ] == "product_discount"
+    assert len(out.accepted) == 1
+    variant = next(r for r in out.routing if r["step"] == "card_choice")
+    assert (
+        variant["variant"] == "A+C+D"
+        and variant["mode"] == "top2"
+        and variant["candidates"] == ["title", "product_discount"]
+    )
+    assert [r["passed"] for r in out.routing if r["step"] == "card_try"] == [False, True]
+
+
+async def test_unsure_kind_never_drafts_more_than_one_card() -> None:
+    d, c = await explained_chain()
+    unsure = {
+        "type": "choice",
+        "choice": "title",
+        "probabilities": {"title": 0.5, "product_discount": 0.5},
+    }
+    eng = FakeCardEngine()
+    out = await cards.card_stage(
+        chains=[c], data=d, engine=eng, jev=jev_kind(unsure), labels=L, as_of=AS_OF
+    )
+    assert eng.calls == [("title", "p1")] and len(out.accepted) == 1 and len(out.events) == 1
+
+
+async def test_unsure_kind_both_refused_gives_one_no_card() -> None:
+    d, c = await explained_chain()
+    unsure = {
+        "type": "choice",
+        "choice": "title",
+        "probabilities": {"title": 0.5, "product_discount": 0.5},
+    }
+    eng = FakeCardEngine({"ok": False, "reason": "generator_returned_none"})
+    out = await cards.card_stage(
+        chains=[c], data=d, engine=eng, jev=jev_kind(unsure), labels=L, as_of=AS_OF
+    )
+    assert len(eng.calls) == 2 and [e["type"] for e in out.events] == ["no_card"]
+    assert "giá sàn" in out.events[0]["reason_vi"]
+
+
+async def test_clear_kind_is_taken_without_trying_a_second() -> None:
+    d, c = await explained_chain()
+    eng = FakeCardEngine({"ok": False, "reason": "generator_returned_none"})
+    out = await cards.card_stage(
+        chains=[c], data=d, engine=eng, jev=jev_ok(), labels=L, as_of=AS_OF
+    )
+    assert eng.calls == [("product_discount", "p1")] and out.events[0]["type"] == "no_card"
+
+
+async def test_no_product_offers_only_kinds_whose_generator_needs_no_item() -> None:
+    from tests.unit.analytics_agent.test_chains import _ov
+
+    shop = shop_rows(AS_OF - timedelta(days=40), AS_OF, orders=5.0)
+    d = FakeData(shop, overview=_ov(60.0, 100.0, 1000.0, 1000.0))
+    c = await run_chain(d, "profit_change", "profit", PRESET, AS_OF)
+    assert c.stop_reason == "explained" and not cards.evidence(c)[0]  # no product in the findings
+    jev = FakeJev(
+        lambda s, q: {"kind": ch("voucher_cap"), "overlap": nl(0.1), "version": ch("Vừa")}
+    )
+    eng = FakeCardEngine()
+    out = await cards.card_stage(chains=[c], data=d, engine=eng, jev=jev, labels=L, as_of=AS_OF)
+    assert set(jev.calls[0][1]["kind"]["criteria"]) == {
+        "voucher_cap"
+    }  # price / ads kinds need an item
+    assert eng.calls == [("voucher_cap", None)] and out.events[0]["type"] == "card"
+
+
+async def test_no_product_and_no_item_free_kind_means_no_card_without_asking_jev() -> None:
+    d, c = await explained_chain(with_product=False)  # orders: every kind needs an item
+    jev = jev_ok()
+    out = await cards.card_stage(
+        chains=[c], data=d, engine=FakeCardEngine(), jev=jev, labels=L, as_of=AS_OF
+    )
+    assert out.events[0]["type"] == "no_card" and not jev.calls
 
 
 async def test_template_allows_card_at_any_stop_targeting_the_biggest_critical_gap() -> None:
@@ -283,7 +387,10 @@ async def test_cost_change_cards_only_for_ads_offers_affiliate() -> None:
     from tests.unit.analytics_agent.test_chains import _costs  # same synthetic cost fixture
 
     shop = shop_rows(AS_OF - timedelta(days=40), AS_OF, orders=5.0)
-    d = FakeData(shop, costs=_costs(900.0, 300.0))
+    prods = [
+        {"day": r["day"], "item_id": "p1", "gmv": 1000.0, "orders": 2.0, "units": 2.0} for r in shop
+    ]
+    d = FakeData(shop, products=prods, names={"p1": "Sản phẩm A"}, costs=_costs(900.0, 300.0))
     c = await run_chain(d, "cost_change", None, PRESET, AS_OF)
     jev = jev_ok(kind="ads_budget", product=None)
     out = await cards.card_stage(

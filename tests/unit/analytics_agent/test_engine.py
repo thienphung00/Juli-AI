@@ -297,3 +297,18 @@ async def test_placeholder_restatement_is_replaced_by_the_sellers_words() -> Non
             data=data_orders(),
         )
         assert sink.of("restated")[0]["text_vi"] == "Đang tìm hiểu: Vì sao đơn giảm", bad
+
+
+async def test_untraced_numbers_are_recorded_in_done_routing_and_card_figures_blocked() -> None:
+    bad = (
+        "Đang tìm hiểu: vì sao đơn hàng giảm.\n"
+        "Đơn tăng +194%; Sản phẩm A giảm giá, ΔGMV P50 2.000.000đ."
+    )
+    llm = FakeLLM(
+        {"restated_vi": "Vì sao đơn hàng giảm", "intents": [intent()]}, text=bad, rewrite=TEXT
+    )
+    sink, _ = await go(req(text="q"), llm=llm, jev=FakeJev(lambda s, q: full()), data=data_orders())
+    step = next(r for r in sink.of("done")[0]["routing"] if r.get("step") == "writer")
+    assert step["rewrites"] == 1 and not step["template"]
+    assert any("194" in n for n in step["numbers_failed"])
+    assert any(n.startswith("card") for n in step["numbers_failed"])

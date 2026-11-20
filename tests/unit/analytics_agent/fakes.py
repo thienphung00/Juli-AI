@@ -212,9 +212,19 @@ def noisy_orders(levels_last_two: tuple[float, float], seed: int = 3) -> list[di
 class FakeCardEngine:
     """CardEnginePort over recorded engine results."""
 
-    def __init__(self, result: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        result: dict[str, Any] | None = None,
+        per_kind: dict[str, dict[str, Any]] | None = None,
+    ) -> None:
         self.result = result if result is not None else {"ok": True, "card": engine_card()}
+        self.per_kind = per_kind or {}
         self.calls: list[tuple[str, str | None]] = []
+
+    def needs_item(self, kind: str) -> bool:
+        from juli_backend.services.shopee_recommendations.generators import GENERATORS
+
+        return GENERATORS[kind][1] if kind in GENERATORS else True
 
     def allowed_kinds(self, metric: str) -> tuple[str, ...]:
         from juli_backend.services.shopee_recommendations.kinds import allowed_for_metric
@@ -223,7 +233,7 @@ class FakeCardEngine:
 
     async def engine_card(self, kind: str, item: str | None, as_of: date) -> dict[str, Any]:
         self.calls.append((kind, item))
-        return self.result
+        return self.per_kind.get(kind, self.result)
 
 
 def version(

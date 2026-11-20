@@ -389,6 +389,7 @@ async def _answer(
         labels,
         id_names,
         note,
+        cardstage.card_figures(outcome.accepted),
     )
     result.cost_usd += meta["cost_usd"]
     result.routing.append(
@@ -397,6 +398,7 @@ async def _answer(
             "rewrites": meta["rewrites"],
             "template": meta["template"],
             "issues": meta["issues"],
+            "numbers_failed": meta["numbers_failed"],
         }
     )
     if (
