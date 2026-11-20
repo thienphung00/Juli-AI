@@ -45,6 +45,7 @@ from juli_backend.services.shopee_builder.engine_families.facts import (
     SimpleFacts,
     VoucherFacts,
 )
+from juli_backend.services.shopee_recommendations import config as reco_config
 
 ZERO = Decimal(0)
 ONE = Decimal(1)
@@ -424,7 +425,12 @@ def simple_option(spec: sp.VersionSpec, facts: SimpleFacts) -> OptionInput:
         raise FamilyRefused("kind_not_supported") from None
     drivers: list[DriverEffect] = []
     lead_metric = lead[0]
-    if spec.kind == "listing_hide":
+    if spec.kind == "listing_hide" and (
+        facts.traffic_days is not None and facts.traffic_days < reco_config.CLEAN_MIN_TRAFFIC_DAYS
+    ):
+        # L-2: too little traffic for the product's own history to stand in: the kind's P50 prior
+        drivers.append(DriverEffect("views", lead[1], facts.lead.basis, lift=facts.lead.band))
+    elif spec.kind == "listing_hide":
         # hiding a listing takes away all of its views: the loss is its own last 30 days
         drivers.append(DriverEffect("views", lead[1], "product_history", lift=point(-ONE)))
     elif lead_metric == "aov" and facts.aov is not None:

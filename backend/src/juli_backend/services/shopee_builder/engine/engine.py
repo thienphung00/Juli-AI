@@ -435,7 +435,8 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
             estimable = False
             carriers.append([])
             continue
-        if d.metric in base.low_data:  # F2: no window has enough events: "ít dữ liệu"
+        # F2: no window has enough events: "ít dữ liệu" (a prior needs none: L-2 keeps its P50)
+        if d.metric in base.low_data and d.basis != "prior":
             estimable = False
             carriers.append([])
             notes.append(f"Ít dữ liệu để ước tính {DRIVER_LABELS[d.metric]}.")

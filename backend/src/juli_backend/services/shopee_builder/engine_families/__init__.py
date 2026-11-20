@@ -243,7 +243,8 @@ def option_for(
             q = adapters.qualifying_share(env, Decimal(spec.trigger.amount or 0))
             lead = replace(lead, band=scaled(lead.band, q))
         offers = _offer_costs(spec, ctx, lead.band)
-        option = simple_option(spec, SimpleFacts(lead, offers=offers or ()))
+        days = adapters.traffic_days(env, spec.item_id) if isinstance(spec, sp.HideSpec) else None
+        option = simple_option(spec, SimpleFacts(lead, offers=offers or (), traffic_days=days))
         if offers is None:
             return replace(option, note=OFFER_COST_UNKNOWN)
         return option if keyword_note is None else replace(option, note=keyword_note)

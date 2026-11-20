@@ -28,6 +28,9 @@ HISTORY_DAYS = 30
 MIN_SHOP_RESULTS = 3
 #: ... and this many of them from Juli cards for the type to read "Juli" (L-4).
 JULI_MIN_RESULTS = 3
+#: L-5 / L-2: traffic-present days a window needs for a result to be clean, and for a product's own
+#: history to stand in for the kind's prior.
+CLEAN_MIN_TRAFFIC_DAYS = 5
 #: The three prediction types (L-1 / L-2 / L-4), exactly as the Excel column prints them.
 TYPE_SHOP = "dữ liệu shop"
 TYPE_ESTIMATE = "ước tính"

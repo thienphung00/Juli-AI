@@ -317,3 +317,38 @@ def test_l5_a_past_promotion_needs_five_traffic_days_each_side():
 def test_l5_the_calibration_never_sees_an_excluded_past_promotion():
     kept, _ = _kept(_natural(), sale=[date(2026, 9, 20)])
     assert calibrate_all(kept) == {}
+
+
+# -- L-2: a hide on a low-traffic product -----------------------------------------------
+
+
+def _hide(traffic_days):
+    spec = sp.HideSpec(kind="listing_hide", item_id="i")
+    lead = adapters.lift_evidence("listing_hide", ["i"], _env())
+    return simple_option(spec, SimpleFacts(lead, traffic_days=traffic_days))
+
+
+def test_l2_hide_with_enough_traffic_days_is_the_products_own_history():
+    option = _hide(config.CLEAN_MIN_TRAFFIC_DAYS)
+    assert option.drivers[0].basis == "product_history"
+    assert option.drivers[0].lift is not None and option.drivers[0].lift.p50 == D(-1)
+
+
+def test_l2_hide_with_little_traffic_falls_back_to_the_kinds_prior():
+    option = _hide(config.CLEAN_MIN_TRAFFIC_DAYS - 1)
+    assert option.drivers[0].basis == "prior"
+    assert option.drivers[0].lift is not None and option.drivers[0].lift.p50 != D(-1)
+    assert _hide(None).drivers[0].basis == "product_history"  # unknown traffic: no gate
+
+
+def test_l2_a_low_data_base_still_gives_a_prior_estimate_never_chua_uoc_tinh_duoc():
+    import dataclasses
+
+    thin = dataclasses.replace(base(), low_data=("views",))
+    prior = run(thin, _hide(2), n=200)
+    assert prior.estimable and prior.basis == "prior"
+    assert forecast.forecast_of(prior, reason=None, data_through=None)["prediction_type"] == (
+        "ước tính"
+    )
+    own = run(thin, _hide(30), n=200)  # the product's own history needs the data it lacks
+    assert not own.estimable

@@ -145,6 +145,9 @@ class SimpleFacts:
     profit_per_order_after: Decimal | None = None
     #: P100-C (A.9): the option's own per-use costs (Mua kèm discount, Quà tặng giá vốn)
     offers: tuple[OfferCost, ...] = ()
+    #: L-2: days of the base window the product had traffic (None = unknown, no gate); below
+    #: ``config.CLEAN_MIN_TRAFFIC_DAYS`` a hide falls back to the kind's P50 prior
+    traffic_days: int | None = None
 
 
 @dataclass(frozen=True)

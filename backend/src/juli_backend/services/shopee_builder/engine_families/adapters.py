@@ -10,6 +10,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
+from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.engine.contract import Band, Basis, OfferCost
 from juli_backend.services.shopee_builder.engine_families import common
@@ -63,6 +64,17 @@ def lift_evidence(
 
 
 # -- order statistics ---------------------------------------------------------------------------
+
+
+def traffic_days(env: RecoEnv, item_id: str) -> int | None:
+    """Days of the base window the product had traffic (views), from the stored product day rows
+    (``env.funnel_history`` when loaded). ``None`` = the rows are not loaded: no gate (L-2)."""
+    rows = env.funnel_history
+    if not isinstance(rows, funnel.FunnelRows):
+        rows = env.view.data.funnel
+    if not isinstance(rows, funnel.FunnelRows):
+        return None
+    return len({r.day for r in rows.product_days if r.item_id == item_id and r.views})
 
 
 def sales_lines(env: RecoEnv, items: Sequence[str] | None) -> list[OrderLine]:

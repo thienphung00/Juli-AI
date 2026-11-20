@@ -315,7 +315,7 @@ class CardReading:
 
 
 #: L-5: traffic-present days a window needs on each side for a result to be clean
-CLEAN_MIN_TRAFFIC_DAYS = 5
+CLEAN_MIN_TRAFFIC_DAYS = config.CLEAN_MIN_TRAFFIC_DAYS
 
 
 def clean_why(
@@ -1404,10 +1404,10 @@ async def backfill_natural(
             obs.append(o)
     # L-5: a past promotion counts toward any rung only when it is clean, like a card's result
     changes = {nr.obs.ref: nr.t for nr in ledger}
-    for p, _card in await store.list_cards(session, shop_id, statuses=[STATUS_EXECUTED]):
-        t_at, _how = await verified_time(session, shop_id, p.id)
+    for ep, _card in await store.list_cards(session, shop_id, statuses=[STATUS_EXECUTED]):
+        t_at, _how = await verified_time(session, shop_id, ep.id)
         if t_at is not None:
-            changes[f"card:{p.id}"] = t_at.date()
+            changes[f"card:{ep.id}"] = t_at.date()
     sale = await contract_excluded_days(session, shop_id, first_all, today)
     clean = {o.ref for o in keep_clean_natural(ledger, sale=sale, changes=changes, report=report)}
     return report, [o for o in obs if o.ref in clean]
