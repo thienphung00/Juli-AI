@@ -315,3 +315,66 @@ async def test_ke_hoach_month_follows_the_running_cards_when_the_data_month_has_
     run = screen["month"]["running"]
     assert run["month"] == "2026-11" and run["cards"] == 1
     assert screen["month"]["with_draft"]["goal_gmv"] == run["goal_gmv"]
+
+
+# ---- F8.5: executed cards outside any plan count in the running goal ---------------------------
+
+
+def _set(card_ids, start, window_days, product_id=None):
+    from datetime import datetime
+
+    from juli_backend.models.shopee_plans import ShopRecoChangeSet
+
+    return ShopRecoChangeSet(
+        card_ids=card_ids,
+        started_at=datetime.combine(start, datetime.min.time()),
+        window_days=window_days,
+        product_id=product_id,
+    )
+
+
+def _forecast(dgmv, dprofit, days):
+    return {
+        "metrics": {
+            "gmv": {"delta": dgmv, "days": days},
+            "profit": {"delta": dprofit, "days": days},
+        }
+    }
+
+
+def test_unplanned_cards_become_blocks_from_their_stored_forecast_delta():
+    sets = [_set(["a"], date(2026, 10, 28), 10), _set(["b"], date(2026, 10, 1), 7)]
+    cards = {
+        "a": {"forecast": _forecast(1000.0, 100.0, 10)},
+        "b": {"forecast": _forecast(None, None, 7)},
+    }
+    blocks = month_plan.unplanned_blocks(sets, cards)
+    assert [b["card_id"] for b in blocks] == ["a"]  # no stored Δ: left out, never 0
+    gmv, profit, n = month_plan.uplift_in_month(blocks, date(2026, 10, 1), date(2026, 10, 31))
+    assert (gmv, profit, n) == (400.0, 40.0, 1)  # 4 of its 10 days are in October
+
+
+async def test_a_shop_with_only_unplanned_executed_cards_gets_a_goal(session, shop, monkeypatch):
+    seeded, _ = shop
+    blocks = month_plan.unplanned_blocks(
+        [_set(["x"], date(2026, 10, 3), 5)], {"x": {"forecast": _forecast(500.0, 50.0, 5)}}
+    )
+
+    async def fake(_session, _shop_id):
+        return blocks
+
+    run = await month_plan.month_plan(
+        session, seeded.shop_id, scope="running", now=NOW, anchor=AS_OF
+    )
+    assert run["cards"] == 0 and run["goal_gmv"] is None  # before: an empty bar
+    monkeypatch.setattr(month_plan, "_unplanned_blocks", fake)
+    run = await month_plan.month_plan(
+        session, seeded.shop_id, scope="running", now=NOW, anchor=AS_OF
+    )
+    assert run["cards"] == 1
+    assert run["uplift_gmv"] == pytest.approx(500.0)
+    assert run["baseline_gmv"] is not None
+    assert run["goal_gmv"] == pytest.approx(run["baseline_gmv"] + 500.0)
+    assert run["goal_profit"] is None or run["goal_profit"] == pytest.approx(
+        run["baseline_profit"] + 50.0
+    )
