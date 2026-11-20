@@ -390,3 +390,18 @@ def test_ratio_metrics_are_the_metric_registrys_not_a_second_formula() -> None:
     assert chains.metric_value(nulls, "ctr", a, b) is None  # NULL is not 0
     zero = shop_rows(AS_OF - timedelta(days=9), AS_OF, orders=0.0, gmv=0.0)
     assert chains.metric_value(zero, "aov", a, b) is None  # zero denominator: no value
+
+
+async def test_cost_change_reads_each_scope_once_as_a_window_pair() -> None:
+    """The N+1: the shop and each of the top products used to be read once per window."""
+    first = AS_OF - timedelta(days=40)
+    shop = shop_rows(first, AS_OF, orders=5.0, ads_spend=100.0)
+    prods = [
+        {"day": r["day"], "item_id": f"p{i}", "gmv": 1000.0 * (i + 1), "orders": 1.0, "units": 1.0}
+        for r in shop
+        for i in range(7)
+    ]
+    d = FakeData(shop, products=prods, costs=_costs(900.0, 300.0))
+    await chains.run_chain(d, "cost_change", None, PRESET, AS_OF)
+    pairs = [c for c in d.calls if c.startswith("cost_pair:")]
+    assert pairs[0] == "cost_pair:None" and len(pairs) == 1 + 5  # the shop + the top 5 products

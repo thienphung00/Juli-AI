@@ -89,11 +89,35 @@ def max_concurrent_runs() -> int:
     return _positive_int(MAX_RUNS_ENV, DEFAULT_MAX_CONCURRENT_RUNS)
 
 
+#: USD per million tokens (input, output). Haiku 5.5 and Sonnet 5.5 are the prototype's prices
+#: (p1/agent2.py MODELS); an unknown model is priced like Haiku, never free.
+LLM_USD_PER_MTOK: dict[str, tuple[float, float]] = {
+    "claude-haiku-5-5": (0.10, 0.50),
+    "claude-sonnet-5-5": (2.00, 10.00),
+}
+DEFAULT_LLM_USD_PER_MTOK = LLM_USD_PER_MTOK["claude-haiku-5-5"]
+#: Jev (TypeSafe System One): USD per million input tokens, output is free
+JEV_INPUT_USD_PER_MTOK = 0.042
+
+
+def llm_cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
+    price_in, price_out = LLM_USD_PER_MTOK.get(model, DEFAULT_LLM_USD_PER_MTOK)
+    return (input_tokens * price_in + output_tokens * price_out) / 1_000_000
+
+
+def jev_cost_usd(input_tokens: int) -> float:
+    return input_tokens * JEV_INPUT_USD_PER_MTOK / 1_000_000
+
+
 __all__ = [
     "DEFAULT_PER_DAY",
     "DEFAULT_PER_HOUR",
     "ENABLED_ENV",
+    "JEV_INPUT_USD_PER_MTOK",
+    "LLM_USD_PER_MTOK",
     "FlagState",
+    "jev_cost_usd",
+    "llm_cost_usd",
     "flag_state",
     "limit_per_day",
     "limit_per_hour",

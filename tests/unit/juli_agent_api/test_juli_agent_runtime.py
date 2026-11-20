@@ -241,7 +241,7 @@ async def test_parse_forces_the_tool_and_returns_its_input():
 
     v, _ = _vendors(messages=messages)
     out, usage = await GateLLM(object(), v).parse("sys", {"name": "intent"}, "GMV?")
-    assert out == {"metric": "gmv"} and usage == "usage"
+    assert out == {"metric": "gmv"} and usage.cost_usd == 0.0  # the gate's token-only usage, priced
     assert seen[0]["tool_choice"] == {"type": "tool", "name": "intent"}
     assert seen[0]["purpose"] == "agent_chat_parse" and "temperature" not in seen[0]
 

@@ -237,6 +237,13 @@ async def write_explanation(
     }
     user = json.dumps(payload, ensure_ascii=False)
     names = [c["item_name"] for c in accepted if c.get("item_name")] + list(id_names.values())
+    # product names of the findings come from our own catalogue: protected like the card's
+    names += [
+        f["node_vi"]
+        for c in chains_json
+        for f in c["findings"]
+        if f["level"] in ("product", "endpoint.product")
+    ]
     streamed: list[str] = []
     async for d in llm.stream_text(WRITER_SYSTEM, user):
         streamed.append(d)
@@ -248,7 +255,10 @@ async def write_explanation(
     def check(t: str) -> tuple[str, list[str]]:
         clean, leaks = sanitise(t, id_names, names)
         iss = alignment(clean, accepted) + [f"leak:{x}" for x in leaks]
-        bad_numbers = facts.numbers_check(clean, all_facts, card_figures=card_figures or [])
+        masked = clean
+        for n in names:  # numbers inside a product name ("500ml", "Combo 1000") are not claims
+            masked = masked.replace(n, " ")
+        bad_numbers = facts.numbers_check(masked, all_facts, card_figures=card_figures or [])
         numbers_failed.extend(bad_numbers)
         iss += [f"number:{x}" for x in bad_numbers]
         if not _FIRST_LINE.match(clean.splitlines()[0] if clean else ""):

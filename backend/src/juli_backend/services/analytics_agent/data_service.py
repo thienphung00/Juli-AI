@@ -13,7 +13,7 @@ import unicodedata
 import uuid
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy import text
@@ -222,18 +222,39 @@ class ServiceData:
     async def critical(self, a: date, b: date) -> dict[str, Any]:
         return dict(await self._svc("critical", period="custom", start=a, end=b))
 
-    async def cost_lines(self, a: date, b: date, item: str | None = None) -> dict[str, Any]:
-        """Ads / affiliate / offers from the channel split's KPIs; net revenue from overview
-        shop_profit.
-        No new formula: every figure is the analytics service's own."""
-        cs = await self._svc("channel_split", period="custom", start=a, end=b, product_id=item)
-        k = cs.get("kpis") or {}
-        nr = None
-        if item is None:
-            nr = ((await self.overview(a, b)).get("shop_profit") or {}).get("net_revenue")
+    @staticmethod
+    def _lines(kpis: dict[str, Any] | None, net_revenue: Any) -> dict[str, Any]:
+        k = kpis or {}
         return {
-            "net_revenue": nr,
+            "net_revenue": net_revenue,
             "cost_ads": k.get("cost_ads"),
             "cost_affiliate": k.get("cost_affiliate"),
             "cost_offers": k.get("cost_offers"),
         }
+
+    async def _net_revenue(self, a: date, b: date, item: str | None) -> Any:
+        if item is not None:
+            return None
+        return ((await self.overview(a, b)).get("shop_profit") or {}).get("net_revenue")
+
+    async def cost_lines(self, a: date, b: date, item: str | None = None) -> dict[str, Any]:
+        """Ads / affiliate / offers from the channel split's KPIs; net revenue from overview
+        shop_profit. No new formula: every figure is the analytics service's own."""
+        cs = await self._svc("channel_split", period="custom", start=a, end=b, product_id=item)
+        return self._lines(cs.get("kpis"), await self._net_revenue(a, b, item))
+
+    async def cost_lines_pair(
+        self, a1: date, b1: date, a0: date, b0: date, item: str | None = None
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Two windows of one scope in one read. The channel split also answers the window before
+        it (`kpis_prev`, same length, the days before), so adjacent equal windows need ONE call
+        instead of two (the cost chain read every top product twice)."""
+        n = (b1 - a1).days + 1
+        adjacent = b0 == a1 - timedelta(days=1) and (b0 - a0).days + 1 == n
+        cs = await self._svc("channel_split", period="custom", start=a1, end=b1, product_id=item)
+        now = self._lines(cs.get("kpis"), await self._net_revenue(a1, b1, item))
+        if adjacent and cs.get("kpis_prev") is not None:
+            before = self._lines(cs.get("kpis_prev"), await self._net_revenue(a0, b0, item))
+        else:
+            before = await self.cost_lines(a0, b0, item)
+        return now, before

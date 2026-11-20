@@ -40,18 +40,35 @@ def value(metric: str, v: float | None) -> str:
     return integer(v)
 
 
+POINT_METRICS = {"ctr", "ctor", "margin", "cost_ratio"}
+
+
 def delta(metric: str, now: float | None, before: float | None) -> dict[str, str]:
-    """`{dir, text_vi}`; dir flat when the comparison is impossible or the change is nil."""
-    if now is None or before is None or before == 0:
+    """`{dir, text_vi}`. A ratio in % (margin, CTR, CTOR, cost / revenue) changes in percentage
+    points; an amount or count in % only when the base is positive, else as the amount itself
+    (a % of a negative base reads as nonsense). dir is flat when nothing can be said or changed."""
+    if now is None or before is None:
         return {"dir": "flat", "text_vi": "–"}
-    rel = (now - before) / abs(before)
-    if abs(rel) < 0.0005:
+    diff = now - before
+    if metric in POINT_METRICS:
+        places = 2 if metric in RATE2 else 1
+        if abs(100 * diff) < 0.5 * 10**-places:
+            return {"dir": "flat", "text_vi": "–"}
+        arrow = "▲ " if diff > 0 else "▼ "
+        return {
+            "dir": "up" if diff > 0 else "down",
+            "text_vi": arrow + decimal(100 * abs(diff), places) + " điểm %",
+        }
+    if before == 0 or diff == 0:
         return {"dir": "flat", "text_vi": "–"}
-    up = rel > 0
-    return {
-        "dir": "up" if up else "down",
-        "text_vi": ("▲ " if up else "▼ ") + decimal(100 * abs(rel), 1) + "%",
-    }
+    up = diff > 0
+    arrow = "▲ " if up else "▼ "
+    if before < 0:
+        return {"dir": "up" if up else "down", "text_vi": arrow + value(metric, abs(diff))}
+    rel = abs(diff) / before
+    if rel < 0.0005:
+        return {"dir": "flat", "text_vi": "–"}
+    return {"dir": "up" if up else "down", "text_vi": arrow + decimal(100 * rel, 1) + "%"}
 
 
 def day(d: Any) -> str:

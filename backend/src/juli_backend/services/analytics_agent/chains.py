@@ -53,6 +53,19 @@ MV_CHANNEL_SOURCE = {
 COUNTS = ("gmv", "orders", "units", "views", "clicks")
 
 
+def split_node(node: str, labels: LabelTable) -> tuple[str, str]:
+    """`source.metric` -> (source, metric). A product name is never split: "[Deal 15.11] Combo"
+    has a dot too, so only a known source or metric before it and a known metric after count."""
+    base, _, sub = node.partition(".")
+    if (
+        sub
+        and sub in labels.metrics
+        and (base in labels.sources or base in labels.metrics or base == OTHER)
+    ):
+        return base, sub
+    return node, ""
+
+
 def bucket(src: str) -> str:
     return src if src in KNOWN_SOURCES else OTHER
 
@@ -85,7 +98,7 @@ class ChainResult:
     )
 
     def node_vi(self, node: str, labels: LabelTable) -> str:
-        base, _, sub = node.partition(".")
+        base, sub = split_node(node, labels)
         if base in labels.sources or base == OTHER:
             label = labels.source(base)
         else:
@@ -956,7 +969,7 @@ async def _cost_chain(
     costs)."""
     a1, b1 = w.cur
     a0, b0 = _drill_base(w)
-    l1, l0 = await data.cost_lines(a1, b1, item_id), await data.cost_lines(a0, b0, item_id)
+    l1, l0 = await data.cost_lines_pair(a1, b1, a0, b0, item_id)
     c1, c0 = _cost(l1), _cost(l0)
     nr1, nr0 = l1.get("net_revenue"), l0.get("net_revenue")
     findings: list[Finding] = []
@@ -1051,10 +1064,8 @@ async def _cost_chain(
         top = [k for k, _ in sorted(gmv.items(), key=lambda kv: -kv[1])[:5]]
         pd: dict[str, tuple[float, float]] = {}
         for k in top:
-            q1, q0 = (
-                _cost(await data.cost_lines(a1, b1, k)),
-                _cost(await data.cost_lines(a0, b0, k)),
-            )
+            p1, p0 = await data.cost_lines_pair(a1, b1, a0, b0, k)
+            q1, q0 = _cost(p1), _cost(p0)
             if q1 is not None and q0 is not None:
                 pd[k] = (q1, q0)
         pn = await data.item_names(list(pd))

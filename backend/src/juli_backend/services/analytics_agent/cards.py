@@ -197,7 +197,13 @@ def _compact(chain: ChainResult) -> dict[str, Any]:
         "metric": chain.metric,
         "stop_reason": chain.stop_reason,
         "drivers": [
-            {"level": f.level, "node": f.node.partition(".")[0], "share_pct": f.contribution_pct}
+            {
+                "level": f.level,
+                "node": f.node.partition(".")[0]
+                if f.level in ("source", "formula")
+                else f.node[:80],
+                "share_pct": f.contribution_pct,
+            }
             for f in chain.findings
             if f.contribution_pct is not None
         ][:8],

@@ -142,6 +142,12 @@ class FakeData:
     async def cost_lines(self, a: date, b: date, item: str | None = None) -> dict[str, Any]:
         return self._costs(a, b, item) if self._costs else {}
 
+    async def cost_lines_pair(
+        self, a1: date, b1: date, a0: date, b0: date, item: str | None = None
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        self.calls.append(f"cost_pair:{item}")
+        return await self.cost_lines(a1, b1, item), await self.cost_lines(a0, b0, item)
+
     async def critical(self, a: date, b: date) -> dict[str, Any]:
         return self._critical
 
