@@ -74,7 +74,8 @@ async def world():
     seed = new_session()
     seeded = await seed_shopee_shop(seed)
     sid = seeded.shop_id
-    now = datetime.now(UTC)
+    # shop_proposals timestamps are `timestamp without time zone` (naive UTC, like the models)
+    now = datetime.now(UTC).replace(tzinfo=None)
     seed.add_all(
         [
             # stock: item 1001 sold out on 5/10, item 1002 unlisted on 6/10
@@ -82,7 +83,7 @@ async def world():
                 shop_id=sid,
                 item_id="1001",
                 variation_id="",
-                read_at=datetime(2026, 10, 5, 10, tzinfo=UTC),
+                read_at=datetime(2026, 10, 5, 10),
                 available=0,
                 sellable=0,
                 listing_status="normal",
@@ -91,7 +92,7 @@ async def world():
                 shop_id=sid,
                 item_id="1002",
                 variation_id="",
-                read_at=datetime(2026, 10, 6, 10, tzinfo=UTC),
+                read_at=datetime(2026, 10, 6, 10),
                 available=5,
                 sellable=5,
                 listing_status="unlisted",
