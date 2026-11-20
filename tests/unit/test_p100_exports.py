@@ -231,13 +231,29 @@ def test_nguon_and_ma_goc_columns_on_the_history_and_kind_sheets():
     data.cards[0].source, data.cards[0].external_ref = "Làm ngoài Juli", "VC-P1"
     data.cards[1].source = kh.SOURCE_LABELS["engine"]
     wb = kh.build(data)
-    assert kh.SOURCE_LABELS == {"engine": "Juli", "manual": "Tự tạo", "external": "Làm ngoài Juli"}
+    assert kh.SOURCE_LABELS == {
+        "engine": "Juli",
+        "manual": "Tự tạo",
+        "agent": "Từ tab Juli",
+        "external": "Làm ngoài Juli",
+    }
     for ws in (wb[kh.SHEET_HISTORY], wb["Voucher"]):
         head = [c.value for c in ws[3]]
         assert head[1:4] == ["Mã thẻ", "Mã gốc", "Nguồn"]
     ws = wb[kh.SHEET_HISTORY]
     assert (ws["C4"].value, ws["D4"].value) == ("VC-P1", "Làm ngoài Juli")
     assert ws["D5"].value == "Juli" and ws["C5"].value is None
+
+
+def test_nguon_labels_a_juli_tab_card_and_never_prints_a_raw_origin():
+    assert kh.source_label("agent") == "Từ tab Juli"
+    assert kh.source_label(None) == "Juli"
+    assert kh.source_label("manual") == "Tự tạo"
+    assert kh.source_label("something_new") == "Khác"
+    data = _kh_data()
+    data.cards[0].source = kh.source_label("agent")
+    ws = kh.build(data)[kh.SHEET_HISTORY]
+    assert ws["D4"].value == "Từ tab Juli"
 
 
 def test_goal_sheet_gives_a_business_total_only_when_every_shop_has_a_target():
