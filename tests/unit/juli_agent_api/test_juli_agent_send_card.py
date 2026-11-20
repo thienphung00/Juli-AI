@@ -102,3 +102,63 @@ async def test_send_saves_an_agent_card_with_a_jc_code_in_de_xuat(session):
     assert card["versions"][0]["chosen"] and card["versions"][0]["inputs"]["discount_pct"] == 5
     draft = (await session.scalars(select(AgentCardDraft))).one()
     assert (draft.status, draft.card_code) == ("sent", out["card_code"])
+
+
+async def test_the_seller_edits_an_agent_card_in_de_xuat_and_approves_their_own_value(session):
+    """Owner question 2026-11-20: the agent drafts a discount; the seller finds it too low, sets
+    another value in Đề xuất and approves it. An agent card is an ordinary Đề xuất card: the
+    what-if recompute and the approve-with-inputs path take the seller's value."""
+    from juli_backend.services import shopee_recommendations as reco
+
+    seeded = await seed_reco_shop(session)
+    await session.commit()
+    shop_id, user_id = seeded.shop_id, seeded.user.id
+    ref = await _seed_draft(session, shop_id, user_id)
+    out = await send_card(
+        session,
+        shop_id=shop_id,
+        user_id=user_id,
+        draft_ref=ref,
+        version_label="Giảm 5%",
+        now=NOW,
+        acknowledge_breaches=True,
+    )
+    await session.commit()
+    card_id = uuid.UUID(out["card_id"])
+
+    # the seller changes the agent's 5 % to 12 % (what-if recomputes the whole card)
+    adjusted = await reco.recompute(session, shop_id, card_id, {"discount_pct": 12}, now=NOW)
+    await session.commit()
+    assert adjusted["origin"] == "agent"
+    chosen = (
+        next(v for v in adjusted["versions"] if v.get("chosen"))
+        if any(v.get("chosen") for v in adjusted["versions"])
+        else adjusted["versions"][0]
+    )
+    assert chosen["inputs"]["discount_pct"] == 12
+
+    # and approves it with that value
+    decided = await reco.decide(
+        session,
+        shop_id,
+        card_id,
+        decision="approve",
+        user_id=user_id,
+        now=NOW,
+        inputs={"discount_pct": 12},
+        acknowledge_breaches=True,
+    )
+    await session.commit()
+    card = await store.card_payload(session, shop_id, card_id)
+    assert card["origin"] == "agent"
+    assert decided is not None
+    # the approval snapshot is what Thực hiện executes: it carries the seller's 12 %
+    from juli_backend.models.shop_proposals import ShopProposalApproval
+
+    approval = await session.get(ShopProposalApproval, uuid.UUID(decided["approval_id"]))
+    snap = approval.proposal_snapshot
+    snap_text = str(snap)
+    assert decided["status"] == "approved"
+    assert "'discount_pct': 12" in snap_text, snap_text[:600]
+    proposal = await session.get(ShopProposal, card_id)
+    assert proposal.status != "drafted"
