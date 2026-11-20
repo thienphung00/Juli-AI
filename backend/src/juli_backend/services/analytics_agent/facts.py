@@ -64,8 +64,8 @@ def _change(
     if now is None or before is None:
         return None
     out: dict[str, str] = {}
-    if before:
-        rel = 100 * (now - before) / abs(before)
+    if metric not in RATES and before > 0:  # a % only on a positive base; a rate changes in points
+        rel = 100 * (now - before) / before
         facts.add_pct(rel)
         out["thay_đổi"] = ("tăng " if rel > 0 else "giảm ") + fmt.decimal(abs(rel), 1) + "%"
     diff = now - before

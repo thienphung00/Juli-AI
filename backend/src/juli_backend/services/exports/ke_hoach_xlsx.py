@@ -272,7 +272,19 @@ HISTORY_LEAD = [
 LEAD_WIDTHS = [6, 14, 14, 14, 22, 10, 12, 10, 28, 12, 34, 12, 12, 12, 9]
 #: Nguồn of a card by its origin: the engine's ("Juli"), the seller's own ("Tự tạo") and one
 #: imported from work done outside Juli ("Làm ngoài Juli")
-SOURCE_LABELS = {"engine": "Juli", "manual": "Tự tạo", "external": "Làm ngoài Juli"}
+SOURCE_LABELS = {
+    "engine": "Juli",
+    "manual": "Tự tạo",
+    "agent": "Từ tab Juli",
+    "external": "Làm ngoài Juli",
+}
+#: An origin with no label never reaches the sheet as a raw key.
+SOURCE_UNKNOWN = "Khác"
+
+
+def source_label(origin: str | None) -> str:
+    """Nguồn for a card's origin (none = the engine's); an unknown origin reads "Khác"."""
+    return SOURCE_LABELS.get(origin or "engine", SOURCE_UNKNOWN)
 
 
 def _lead(ws, r: int, i: int, c: CardRow) -> None:

@@ -545,7 +545,7 @@ def _card_row(
         proposed=proposed,
         cost=_f(own.get("cost_total")),
         gmv_mid=q("p50", "dgmv"), profit_mid=q("p50", "dprofit"), orders_mid=q("p50", "dorders"),
-        source=kh.SOURCE_LABELS.get(card.get("origin") or "engine", str(card.get("origin"))),
+        source=kh.source_label(card.get("origin")),
         external_ref=card.get("external_ref"),
     )  # fmt: skip
     row.figures = figures_of(forecast_block(card, ev), None)

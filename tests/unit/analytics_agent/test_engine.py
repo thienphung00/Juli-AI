@@ -371,3 +371,78 @@ async def test_item_reads_copy_orm_fields_before_the_rollback_expires_them(
     }
     assert [c["item_id"] for c in await d.catalog_search("gang tay")] == ["1001"]
     assert [c["item_id"] for c in await d.catalog_search("G1")] == ["1001"]
+
+
+class _CountingData:
+    """ServiceData with its analytics-service reads replaced by a counter."""
+
+    @staticmethod
+    def make(calls: list[str], monkeypatch: Any) -> Any:
+        from contextlib import asynccontextmanager
+
+        from juli_backend.services.analytics_agent.data_service import ServiceData
+
+        @asynccontextmanager
+        async def factory() -> Any:
+            yield None
+
+        sd = ServiceData(factory, SHOP)
+
+        async def fake_svc(name: str, **kw: Any) -> dict[str, Any]:
+            calls.append(f"{name}:{kw.get('product_id')}:{kw.get('start')}")
+            if name == "channel_split":
+                return {
+                    "kpis": {"cost_ads": 30.0, "cost_affiliate": 20.0, "cost_offers": 5.0},
+                    "kpis_prev": {"cost_ads": 10.0, "cost_affiliate": 20.0, "cost_offers": 4.0},
+                }
+            return {"shop_profit": {"net_revenue": 1000.0 if kw["start"] == AS_OF else 900.0}}
+
+        monkeypatch.setattr(sd, "_svc", fake_svc)
+        return sd
+
+
+async def test_cost_lines_pair_uses_one_channel_split_for_adjacent_windows(
+    monkeypatch: Any,
+) -> None:
+    calls: list[str] = []
+    sd = _CountingData.make(calls, monkeypatch)
+    now, before = await sd.cost_lines_pair(
+        AS_OF, AS_OF, AS_OF - timedelta(days=1), AS_OF - timedelta(days=1), "p1"
+    )
+    assert [c.split(":")[0] for c in calls] == ["channel_split"]  # kpis + kpis_prev
+    assert now["cost_ads"] == 30.0 and before["cost_ads"] == 10.0 and now["net_revenue"] is None
+
+
+async def test_cost_lines_pair_shop_reads_net_revenue_for_both_windows(monkeypatch: Any) -> None:
+    calls: list[str] = []
+    sd = _CountingData.make(calls, monkeypatch)
+    now, before = await sd.cost_lines_pair(
+        AS_OF, AS_OF, AS_OF - timedelta(days=1), AS_OF - timedelta(days=1)
+    )
+    assert sorted(c.split(":")[0] for c in calls) == ["channel_split", "overview", "overview"]
+    assert now["net_revenue"] == 1000.0 and before["net_revenue"] == 900.0
+
+
+async def test_cost_lines_pair_non_adjacent_windows_read_each_window(monkeypatch: Any) -> None:
+    calls: list[str] = []
+    sd = _CountingData.make(calls, monkeypatch)
+    await sd.cost_lines_pair(
+        AS_OF, AS_OF, AS_OF - timedelta(days=7), AS_OF - timedelta(days=7), "p1"
+    )
+    assert [c.split(":")[0] for c in calls] == ["channel_split", "channel_split"]
+
+
+def test_chain_timeout_is_configurable_default_90_and_stays_under_the_run_timeout(
+    monkeypatch: Any,
+) -> None:
+    from juli_backend.services.analytics_agent import engine
+
+    monkeypatch.delenv("JULI_AGENT_CHAIN_TIMEOUT_S", raising=False)
+    assert engine.chain_timeout_s() == 90.0
+    monkeypatch.setenv("JULI_AGENT_CHAIN_TIMEOUT_S", "45")
+    assert engine.chain_timeout_s() == 45.0
+    monkeypatch.setenv("JULI_AGENT_CHAIN_TIMEOUT_S", "600")
+    assert engine.chain_timeout_s() < 120.0  # below the run timeout
+    for bad in ("", "abc", "-5", "0"):
+        monkeypatch.setenv("JULI_AGENT_CHAIN_TIMEOUT_S", bad)
+        assert engine.chain_timeout_s() == 90.0

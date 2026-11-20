@@ -160,3 +160,106 @@ async def test_card_figure_in_the_writers_text_is_blocked() -> None:
         card_figures=[27_827.0],
     )
     assert text == good and any("card" in n for n in meta["numbers_failed"])
+
+
+# ---- A3: product names are shown verbatim -------------------------------------------------
+
+NAME = "[Deal 15.11] Combo Gia Dụng An Toàn (3 hộp)"
+
+
+def _name_chain() -> dict[str, Any]:
+    c = chain()
+    c["findings"].append(
+        {
+            "level": "product",
+            "node": NAME,
+            "node_vi": NAME,
+            "now": 100_000.0,
+            "before": 400_000.0,
+            "contribution_pct": 70.0,
+            "flags": [],
+            "evidence_ref": "product:777",
+        }
+    )
+    return c
+
+
+def test_a_product_name_with_a_dot_and_brackets_is_not_split_into_source_and_metric() -> None:
+    from datetime import date
+
+    from juli_backend.services.analytics_agent.chains import ChainResult, Finding
+    from juli_backend.services.analytics_agent.windows import build_windows
+
+    r = ChainResult(
+        "gmv_change",
+        "gmv",
+        build_windows("last_7d_vs_prev_7d", date(2026, 10, 25)),
+        "explained",
+        [Finding("product", NAME, 1.0, 2.0, 70.0)],
+        [],
+    )
+    assert r.node_vi(NAME, L) == NAME
+    assert r.json(L)["findings"][0]["node_vi"] == NAME
+    assert r.node_vi("video.orders", L) == "Video (Đơn hàng)"  # real source.metric still splits
+    assert r.node_vi("trang_shop", L) == "Trang shop"
+
+
+def test_path_labels_and_the_writer_text_keep_the_name_while_leaks_stay_blocked() -> None:
+    from datetime import date
+
+    from juli_backend.services.analytics_agent import present
+    from juli_backend.services.analytics_agent.chains import ChainResult, Finding
+    from juli_backend.services.analytics_agent.windows import build_windows
+
+    r = ChainResult(
+        "gmv_change",
+        "gmv",
+        build_windows("last_7d_vs_prev_7d", date(2026, 10, 25)),
+        "explained",
+        [
+            Finding("shop", "gmv", 1.0, 2.0),
+            Finding("product", NAME, 1.0, 2.0, 70.0, evidence_ref="product:777"),
+        ],
+        [],
+    )
+    labels_in_path = [s["label_vi"] for s in present.path_steps(r, L)]
+    assert NAME in labels_in_path
+    clean, issues = writer.sanitise(f"Đang tìm hiểu: x\n{NAME} bán chậm.", {"777": NAME}, [NAME])
+    assert NAME in clean and issues == []
+    assert writer.sanitise(f"Đang tìm hiểu: x\n{NAME} và the_san_pham_khac", {}, [NAME])[1] == [
+        "snake_case"
+    ]
+    assert "banned" not in str(writer.sanitise(f"{NAME}", {}, [NAME])[1])
+
+
+async def test_a_findings_product_name_with_brackets_survives_the_writer_without_a_rewrite() -> (
+    None
+):
+    from tests.unit.analytics_agent.fakes import FakeLLM
+
+    text = f"{FIRST}.\nSản phẩm {NAME} giảm mạnh."
+
+    async def noop(t: str) -> None:
+        return None
+
+    out, meta = await writer.write_explanation(
+        FakeLLM(text=text), noop, noop, FIRST, [_name_chain()], [], L, {}, card_figures=[]
+    )
+    assert out == text and meta["rewrites"] == 0 and meta["issues"] == []
+
+
+async def test_numbers_inside_a_product_name_are_not_claims() -> None:
+    from tests.unit.analytics_agent.fakes import FakeLLM
+
+    c = _name_chain()
+    c["findings"][-1]["node_vi"] = "Combo 1000 miếng 25.000 đ"
+    c["findings"][-1]["node"] = "Combo 1000 miếng 25.000 đ"
+    text = f"{FIRST}.\nSản phẩm Combo 1000 miếng 25.000 đ giảm mạnh."
+
+    async def noop(t: str) -> None:
+        return None
+
+    out, meta = await writer.write_explanation(
+        FakeLLM(text=text), noop, noop, FIRST, [c], [], L, {}, card_figures=[]
+    )
+    assert out == text and meta["numbers_failed"] == []

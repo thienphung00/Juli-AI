@@ -7,7 +7,7 @@ import re
 from typing import Any
 
 from juli_backend.services.analytics_agent import fmt
-from juli_backend.services.analytics_agent.chains import ChainResult
+from juli_backend.services.analytics_agent.chains import ChainResult, split_node
 from juli_backend.services.analytics_agent.types import LabelTable
 
 STATUS = {
@@ -56,7 +56,7 @@ def path_steps(chain: ChainResult, labels: LabelTable, limit: int = 4) -> list[d
     for f in chain.findings[1:]:
         if f.contribution_pct is None or len(steps) >= limit + 1:
             continue
-        base, _, sub = f.node.partition(".")
+        base, sub = split_node(f.node, labels)
         m = sub or (base if base in labels.metrics else metric)
         label = chain.node_vi(f.node, labels)
         if f.level in ("source", "endpoint.channel"):

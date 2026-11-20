@@ -75,3 +75,21 @@ def test_robust_z_and_poisson() -> None:
     assert z is not None and z >= 3
     assert mathx.poisson_significant(now=50, expected=100) is True
     assert mathx.poisson_significant(now=98, expected=100) is False
+
+
+def test_ratio_metrics_change_in_percentage_points_never_percent() -> None:
+    d = fmt.delta("margin", -0.458, 0.218)  # sign change: 21,8 % -> -45,8 %
+    assert d == {"dir": "down", "text_vi": "▼ 67,6 điểm %"}
+    assert fmt.delta("margin", 0.30, 0.20) == {"dir": "up", "text_vi": "▲ 10,0 điểm %"}
+    assert fmt.delta("ctr", 0.0307, 0.0507)["text_vi"] == "▼ 2,00 điểm %"
+    assert fmt.delta("ctor", 0.05, 0.05)["dir"] == "flat"
+    assert "%" not in fmt.delta("cost_ratio", 0.2, 0.1)["text_vi"].replace("điểm %", "")
+
+
+def test_amounts_and_counts_keep_percent_but_never_on_a_base_at_or_below_zero() -> None:
+    assert fmt.delta("gmv", 150, 100)["text_vi"] == "▲ 50,0%"
+    neg = fmt.delta("profit", 30_000, -45_800)  # base < 0: the amount, not a %
+    assert neg == {"dir": "up", "text_vi": "▲ 75.800đ"}
+    assert fmt.delta("profit", -50_000, -20_000) == {"dir": "down", "text_vi": "▼ 30.000đ"}
+    assert fmt.delta("orders", 3, 0) == {"dir": "flat", "text_vi": "–"}  # base 0: no change shown
+    assert fmt.delta("orders", 5, -2)["text_vi"] == "▲ 7"

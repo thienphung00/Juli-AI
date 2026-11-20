@@ -9,6 +9,7 @@ recommendation engine. Nothing is written, nothing persisted.
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
@@ -35,7 +36,21 @@ from juli_backend.services.analytics_agent.types import (
 )
 
 VN = ZoneInfo("Asia/Ho_Chi_Minh")
-CHAIN_TIMEOUT_S = 30
+CHAIN_TIMEOUT_ENV = "JULI_AGENT_CHAIN_TIMEOUT_S"
+DEFAULT_CHAIN_TIMEOUT_S = 90.0
+#: a chain must end before the run's own 120 s limit, so the answer is `busy`, not a cut-off stream
+MAX_CHAIN_TIMEOUT_S = 110.0
+
+
+def chain_timeout_s() -> float:
+    """The chain's time limit: env, default 90 s, capped under the run limit; bad -> default."""
+    try:
+        value = float(os.environ.get(CHAIN_TIMEOUT_ENV, "").strip())
+    except ValueError:
+        return DEFAULT_CHAIN_TIMEOUT_S
+    return min(value, MAX_CHAIN_TIMEOUT_S) if value > 0 else DEFAULT_CHAIN_TIMEOUT_S
+
+
 UNSUPPORTED_VI = "Juli chưa hỗ trợ câu hỏi này"
 NO_TIKTOK_CARD_VI = "Chưa có đề xuất cho TikTok"
 ANALYTICS_PLATFORMS = ("shopee",)  # TikTok joins when P101 W3 opens its analytics routes (U12)
@@ -342,7 +357,7 @@ async def _answer(
     ):
         metric = CHAIN_METRIC[chain_name]
     chain = await asyncio.wait_for(
-        run_chain(data, chain_name, metric, preset, as_of, item_id=item_id, **kw), CHAIN_TIMEOUT_S
+        run_chain(data, chain_name, metric, preset, as_of, item_id=item_id, **kw), chain_timeout_s()
     )
     await out.emit(present.comparing(chain))
     await out.emit(present.status("finding_cause"))

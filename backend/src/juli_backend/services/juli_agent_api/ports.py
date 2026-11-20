@@ -30,6 +30,8 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.database.tenant_context import with_shop_scope
+from juli_backend.services.analytics_agent.types import Usage
+from juli_backend.services.juli_agent_api import config
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,22 @@ class JevUnavailable(RuntimeError):
 
 def _model(env: str, default: str) -> str:
     return os.environ.get(env, "").strip() or default
+
+
+def _tokens(raw: Any) -> tuple[int, int]:
+    """(input, output) tokens of the gate's `Usage` (tokens only, no cost); 0 when it is missing."""
+    return int(getattr(raw, "input_tokens", 0) or 0), int(getattr(raw, "output_tokens", 0) or 0)
+
+
+def llm_usage(model: str, raw: Any) -> Usage:
+    """The engine's `Usage` (with `cost_usd`) from the gate's token counts and the price table."""
+    i, o = _tokens(raw)
+    return Usage(input_tokens=i, output_tokens=o, cost_usd=config.llm_cost_usd(model, i, o))
+
+
+def jev_usage(raw: Any) -> Usage:
+    i, o = _tokens(raw)
+    return Usage(input_tokens=i, output_tokens=o, cost_usd=config.jev_cost_usd(i))
 
 
 @dataclass
@@ -163,21 +181,21 @@ class GateLLM:
                 await self._v.sleep(_backoff(exc, attempt))
         raise AssertionError("unreachable")  # pragma: no cover
 
-    async def parse(self, system: str, tool: dict[str, Any], user: str) -> tuple[dict | None, Any]:
-        body = self._body(
-            _model(PARSE_MODEL_ENV, DEFAULT_PARSE_MODEL), system, user, PARSE_MAX_TOKENS
-        )
+    async def parse(
+        self, system: str, tool: dict[str, Any], user: str
+    ) -> tuple[dict[str, Any] | None, Usage]:
+        model = _model(PARSE_MODEL_ENV, DEFAULT_PARSE_MODEL)
+        body = self._body(model, system, user, PARSE_MAX_TOKENS)
         body["tools"] = [tool]
         body["tool_choice"] = {"type": "tool", "name": tool["name"]}
         response, usage = await self._call(self._v.purpose_parse, body)
-        return _tool_input(response, str(tool["name"])), usage
+        return _tool_input(response, str(tool["name"])), llm_usage(model, usage)
 
-    async def text(self, system: str, user: str) -> tuple[str, Any]:
-        body = self._body(
-            _model(WRITE_MODEL_ENV, DEFAULT_WRITE_MODEL), system, user, WRITE_MAX_TOKENS
-        )
+    async def text(self, system: str, user: str) -> tuple[str, Usage]:
+        model = _model(WRITE_MODEL_ENV, DEFAULT_WRITE_MODEL)
+        body = self._body(model, system, user, WRITE_MAX_TOKENS)
         response, usage = await self._call(self._v.purpose_write, body)
-        return _texts(response), usage
+        return _texts(response), llm_usage(model, usage)
 
     async def stream_text(self, system: str, user: str) -> AsyncIterator[str]:
         body = self._body(
@@ -210,10 +228,10 @@ class GateJev:
 
     async def ask(
         self, state: dict[str, Any], questions: dict[str, dict[str, Any]]
-    ) -> tuple[dict[str, dict[str, Any]], Any]:
+    ) -> tuple[dict[str, dict[str, Any]], Usage]:
         for attempt in range(RETRIES + 1):
             try:
-                return await self._v.system_one(
+                answers, usage = await self._v.system_one(
                     self._gate,
                     purpose=self._v.purpose_route,
                     model=_model(JEV_MODEL_ENV, DEFAULT_JEV_MODEL),
@@ -221,6 +239,7 @@ class GateJev:
                     questions=questions,
                     timeout=TIMEOUT_S,
                 )
+                return answers, jev_usage(usage)
             except self._v.refused as exc:
                 raise JevUnavailable(f"gate refused: {exc}") from exc
             except self._v.call_failed as exc:
