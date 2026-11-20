@@ -312,3 +312,62 @@ async def test_untraced_numbers_are_recorded_in_done_routing_and_card_figures_bl
     assert step["rewrites"] == 1 and not step["template"]
     assert any("194" in n for n in step["numbers_failed"])
     assert any(n.startswith("card") for n in step["numbers_failed"])
+
+
+class _ExpiringSession:
+    """A session double: after rollback() every ORM object it handed out is expired."""
+
+    def __init__(self) -> None:
+        self.expired = False
+
+    async def rollback(self) -> None:
+        self.expired = True
+
+
+class _Row:
+    """Reads like an ORM row that raises once its session has rolled back."""
+
+    def __init__(self, session: _ExpiringSession, **values: Any) -> None:
+        self._s, self._v = session, values
+
+    def __getattr__(self, name: str) -> Any:
+        from sqlalchemy.orm.exc import DetachedInstanceError
+
+        if name.startswith("_"):
+            raise AttributeError(name)
+        if self._s.expired:
+            raise DetachedInstanceError(f"{name}: instance is not bound to a Session")
+        return self._v[name]
+
+
+async def test_item_reads_copy_orm_fields_before_the_rollback_expires_them(
+    monkeypatch: Any,
+) -> None:
+    from contextlib import asynccontextmanager
+
+    from juli_backend.repositories import shopee_analytics as repo
+    from juli_backend.services.analytics_agent.data_service import ServiceData
+
+    @asynccontextmanager
+    async def factory() -> Any:
+        yield _ExpiringSession()
+
+    async def all_items(self: Any, shop_id: Any) -> list[_Row]:
+        s = self._session
+        return [
+            _Row(s, item_id="1001", variation_id="", name="Găng tay A", seller_sku="G1"),
+            _Row(
+                s, item_id="1001", variation_id="v1", name="Găng tay A - size M", seller_sku="G1-M"
+            ),
+            _Row(s, item_id="1002", variation_id="", name=None, seller_sku=None),
+        ]
+
+    monkeypatch.setattr(repo.PlatformItemsRepo, "all_items", all_items)
+    d = ServiceData(factory, SHOP)
+    assert await d.item_names(["1001", "1002", "9"]) == {
+        "1001": "Găng tay A",
+        "1002": "1002",
+        "9": "9",
+    }
+    assert [c["item_id"] for c in await d.catalog_search("gang tay")] == ["1001"]
+    assert [c["item_id"] for c in await d.catalog_search("G1")] == ["1001"]
