@@ -12,13 +12,11 @@ Sheets (UI grill G20 / G22 / G23):
 - "KOL": one row per KOL.
 
 There is no "Kế hoạch nháp" sheet: a draft card is a row of "Lịch sử thẻ" with status "Trong nháp".
-Dự kiến / Thực tế / Chênh lệch are cell values and one formula (Chênh lệch = Thực tế - Dự kiến);
-``fullCalcOnLoad`` is set. Only Excel-2007 functions.
-
-TODO(F10, forecast grill): Thực tế and Kết luận depend on the Đo lường method, which F10 still has
-to decide. Until then Thực tế Δ lợi nhuận and Kết luận are today's measured values
-(``execution_state`` actual and verdict) and every other Thực tế cell is left empty ("—", never 0).
-The builder of that column is :func:`actual_cells`; F10 / G18 replace it, nothing else changes.
+Per metric (Lợi nhuận, GMV, Đơn, AOV) the columns are Hiện tại · Dự kiến · Thực tế · Chênh lệch
+(F7 data: the card's stored forecast and its running measurement, all over the measured days, one
+amount, no range); Chênh lệch is the one formula (Thực tế - Dự kiến, empty when either is empty).
+Then Chi phí, Đã đo ("k/N ngày"), Đo chung với (the card's change group) and Kết luận. An unknown
+value is an empty cell, never 0. ``fullCalcOnLoad`` is set. Only Excel-2007 functions.
 """
 
 from __future__ import annotations
@@ -68,9 +66,11 @@ KIND_SHEETS: dict[str, tuple[str, tuple[str, ...]]] = {
 }
 OTHER_SHEET = "Thẻ khác"
 
-#: the core rows of every card (G19): label, key
-CORE = (("Δ lợi nhuận", "profit"), ("Δ GMV", "gmv"), ("Δ đơn", "orders"), ("Chi phí", "cost"))
-CORE_FORMAT = {"profit": MONEY, "gmv": MONEY, "orders": INT, "cost": MONEY}
+#: the metrics of every card (F7): label, key. Each has Hiện tại · Dự kiến · Thực tế · Chênh lệch.
+CORE = (("Lợi nhuận", "profit"), ("GMV", "gmv"), ("Đơn", "orders"), ("AOV", "aov"))
+CORE_FORMAT = {"profit": MONEY, "gmv": MONEY, "orders": INT, "aov": MONEY}
+PHASES = ("hiện tại", "dự kiến", "thực tế", "chênh lệch")
+TAIL = ("Chi phí", "Đã đo", "Đo chung với", "Kết luận")
 
 
 @dataclass
@@ -106,6 +106,15 @@ class CardRow:
     #: Thực tế Δ lợi nhuận of the stored measurement (``None`` = not measured) and Kết luận
     actual_profit: float | None = None
     conclusion: str | None = None
+    #: F7 figures per metric key: (hiện tại, dự kiến, thực tế) over the measured days; ``None`` =
+    #: unknown. A key missing = all three unknown.
+    figures: dict[str, tuple[float | None, float | None, float | None]] = field(
+        default_factory=dict
+    )
+    #: Đã đo: days measured / days of the window; Đo chung với: the other codes of the change group
+    days_measured: int | None = None
+    days_total: int | None = None
+    measured_with: list[str] = field(default_factory=list)
     #: tailored rows of the kind sheet: label -> (Dự kiến, Thực tế); absent / ``None`` = "—"
     tailored: dict[str, tuple[float | None, float | None]] = field(default_factory=dict)
 
@@ -212,17 +221,45 @@ def sheet_of(c: CardRow) -> tuple[str, tuple[str, ...]]:
     return KIND_SHEETS.get(c.kind_key) or KIND_SHEETS.get(c.family) or (OTHER_SHEET, ())
 
 
-def actual_cells(c: CardRow) -> dict[str, float | None]:
-    """The Thực tế core values of one card.
-
-    TODO(F10): the Đo lường method (forecast grill F10) decides how Thực tế and Kết luận are
-    measured. Today only the stored measurement's Δ lợi nhuận exists; Δ GMV, Δ đơn and Chi phí
-    stay ``None`` (an unread real value is "—", never 0) until F10 / G18 land."""
-    return {"profit": c.actual_profit, "gmv": None, "orders": None, "cost": None}
+def figures_of(c: CardRow, key: str) -> tuple[float | None, float | None, float | None]:
+    """(Hiện tại, Dự kiến, Thực tế) of one metric of one card; unknown = ``None``, never 0."""
+    return c.figures.get(key, (None, None, None))
 
 
-def expected_cells(c: CardRow) -> dict[str, float | None]:
-    return {"profit": c.profit_mid, "gmv": c.gmv_mid, "orders": c.orders_mid, "cost": c.cost}
+def measured_text(c: CardRow) -> str | None:
+    if c.days_measured is None or c.days_total is None:
+        return None
+    return f"{c.days_measured}/{c.days_total} ngày"
+
+
+def measured_with_text(c: CardRow) -> str | None:
+    return ", ".join(c.measured_with) if c.measured_with else None
+
+
+def _metric_cells(ws, r: int, c0: int, c: CardRow, key: str, *, with_gap: bool) -> int:
+    """Hiện tại · Dự kiến · Thực tế (and the Chênh lệch formula) of one metric from ``c0``;
+    returns the next free column."""
+    now, exp, act = figures_of(c, key)
+    fmt = CORE_FORMAT[key]
+    put(ws, r, c0, now, fmt)
+    put(ws, r, c0 + 1, exp, fmt)
+    put(ws, r, c0 + 2, act, fmt)
+    if not with_gap:
+        return c0 + 3
+    e, a = col(c0 + 1), col(c0 + 2)
+    put(ws, r, c0 + 3, f'=IF(OR({e}{r}="",{a}{r}=""),"",{a}{r}-{e}{r})', fmt)
+    return c0 + 4
+
+
+def _tail(ws, r: int, c0: int, c: CardRow) -> None:
+    put(ws, r, c0, c.cost, MONEY)
+    put(ws, r, c0 + 1, measured_text(c))
+    put(ws, r, c0 + 2, measured_with_text(c))
+    put(ws, r, c0 + 3, c.conclusion)
+
+
+def _core_head() -> list[str]:
+    return [f"{label} {phase}" for label, _ in CORE for phase in PHASES]
 
 
 # ----------------------------------------------------------------------------- Lịch sử thẻ
@@ -252,25 +289,18 @@ def _lead(ws, r: int, i: int, c: CardRow) -> None:
 def _history(wb: Workbook, data: KeHoachData) -> None:
     ws = wb.create_sheet(SHEET_HISTORY)
     put(ws, 1, 1, title_of(data, "LỊCH SỬ THẺ")).font = TITLE
-    core_head = [
-        f"{label} {kind}" for label, _ in CORE for kind in ("dự kiến", "thực tế", "chênh lệch")
-    ]
-    header(ws, 3, [*HISTORY_LEAD, *core_head, "Kết luận"])
+    header(ws, 3, [*HISTORY_LEAD, *_core_head(), *TAIL])
     first = 4
     for i, c in enumerate(data.cards, start=1):
         r = first + i - 1
         _lead(ws, r, i, c)
-        exp, act = expected_cells(c), actual_cells(c)
-        for k, (_, key) in enumerate(CORE):
-            c0 = len(HISTORY_LEAD) + 1 + 3 * k
-            fmt = CORE_FORMAT[key]
-            put(ws, r, c0, exp[key], fmt)
-            put(ws, r, c0 + 1, act[key], fmt)
-            e, a = col(c0), col(c0 + 1)
-            put(ws, r, c0 + 2, f'=IF(OR({e}{r}="",{a}{r}=""),"",{a}{r}-{e}{r})', fmt)
-        put(ws, r, len(HISTORY_LEAD) + 1 + 3 * len(CORE), c.conclusion)
+        c0 = len(HISTORY_LEAD) + 1
+        for _, key in CORE:
+            c0 = _metric_cells(ws, r, c0, c, key, with_gap=True)
+        _tail(ws, r, c0, c)
     widths(ws, LEAD_WIDTHS, 14)
-    ws.column_dimensions[col(len(HISTORY_LEAD) + 1 + 3 * len(CORE))].width = 22
+    ws.column_dimensions[col(len(HISTORY_LEAD) + 1 + 4 * len(CORE) + 3)].width = 22
+    ws.column_dimensions[col(len(HISTORY_LEAD) + 1 + 4 * len(CORE) + 2)].width = 22
     finish(ws, "C4")
 
 
@@ -281,23 +311,21 @@ def _kind_sheet(wb: Workbook, data: KeHoachData, name: str, tailored: tuple[str,
                 cards: list[CardRow]) -> None:  # fmt: skip
     ws = wb.create_sheet(name)
     put(ws, 1, 1, title_of(data, name.upper())).font = TITLE
-    head = [*HISTORY_LEAD]
-    for label, _ in CORE:
-        head += [f"{label} dự kiến", f"{label} thực tế"]
+    head = [*HISTORY_LEAD, *_core_head(), "Chi phí", "Đã đo", "Đo chung với"]
     for label in tailored:
         head += [f"{label} dự kiến", f"{label} thực tế"]
     header(ws, 3, [*head, "Kết luận"])
-    base = len(HISTORY_LEAD) + 1
     for i, c in enumerate(cards, start=1):
         r = 3 + i
         _lead(ws, r, i, c)
-        exp, act = expected_cells(c), actual_cells(c)
-        for k, (_, key) in enumerate(CORE):
-            put(ws, r, base + 2 * k, exp[key], CORE_FORMAT[key])
-            put(ws, r, base + 2 * k + 1, act[key], CORE_FORMAT[key])
-        t0 = base + 2 * len(CORE)
+        c0 = len(HISTORY_LEAD) + 1
+        for _, key in CORE:
+            c0 = _metric_cells(ws, r, c0, c, key, with_gap=True)
+        put(ws, r, c0, c.cost, MONEY)
+        put(ws, r, c0 + 1, measured_text(c))
+        put(ws, r, c0 + 2, measured_with_text(c))
+        t0 = c0 + 3
         for k, label in enumerate(tailored):
-            # TODO(F10 / G18): the tailored read-back (CPA, ROAS, lượt dùng, ...) is not read yet
             want, got = c.tailored.get(label, (None, None))
             put(ws, r, t0 + 2 * k, want, POINTS)
             put(ws, r, t0 + 2 * k + 1, got, POINTS)
