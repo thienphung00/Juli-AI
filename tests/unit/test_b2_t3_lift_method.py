@@ -112,6 +112,7 @@ def test_l4_two_juli_results_read_shop_three_read_juli():
     [
         ("engine", "card", True),
         ("manual", "card", False),  # Tự tạo is manual, not Juli (owner 2026-11-20)
+        ("agent", "card", True),  # Juli chat
         ("import", "card", False),  # planned outside Juli ("Làm ngoài Juli")
         ("engine", "natural", False),  # backfill_natural: a past promotion
     ],
@@ -262,4 +263,4 @@ def test_if_no_estimate_has_no_type():
 
 def test_if_the_stored_lift_carries_the_type():
     assert _lift(_env()).json()["prediction_type"] == "ước tính"
-    assert learning.JULI_ORIGINS == {"engine"}
+    assert set(learning.JULI_ORIGINS) == {"engine", "agent"}
