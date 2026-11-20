@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 from juli_backend.services.shopee_builder.engine.wire import _margin_pct
 from juli_backend.services.shopee_builder.reasons import code_for_note, text_for
+from juli_backend.services.shopee_recommendations.prediction import prediction_type_of
 
 if TYPE_CHECKING:
     from juli_backend.services.shopee_builder.engine.contract import OptionResult, Scenario
@@ -128,11 +129,18 @@ def empty_metrics(days: int | None = None) -> dict[str, dict[str, Any]]:
 
 
 def forecast_of(
-    result: OptionResult | None, *, reason: str | None, data_through: date | None
+    result: OptionResult | None,
+    *,
+    reason: str | None,
+    data_through: date | None,
+    juli_results: int = 0,
 ) -> dict[str, Any]:
     """The card's ``forecast`` block: ``metrics`` + ``estimable`` / ``basis`` / ``reason_code`` /
-    ``reason_text`` + ``data_through`` (ISO day). ``reason`` is the stored block's reason (used
-    when there is no result at all)."""
+    ``reason_text`` + ``data_through`` (ISO day) + ``prediction_type`` ("dữ liệu shop" /
+    "ước tính" / "Juli", None without an estimate; one key beside ``metrics``, never inside a
+    metric block). ``reason`` is the stored block's reason (used when there is no result at all);
+    ``juli_results`` = the clean results of the card's kind from Juli cards
+    (``prediction.juli_results``)."""
     estimable = result is not None and result.estimable and result.likely is not None
     code: str | None = None
     if not estimable:
@@ -145,6 +153,9 @@ def forecast_of(
         "days": None if result is None else result.days,
         "estimable": estimable,
         "basis": None if result is None else result.basis,
+        "prediction_type": (
+            prediction_type_of(result.basis, juli_results) if estimable and result else None
+        ),
         "reason_code": code,
         "reason_text": text_for(code),
         "within_noise": [] if result is None else list(result.within_noise),

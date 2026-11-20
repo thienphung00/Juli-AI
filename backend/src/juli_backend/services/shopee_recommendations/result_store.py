@@ -54,7 +54,13 @@ from juli_backend.models.shop_proposals import (
     STATUS_SENT,
     ShopProposal,
 )
-from juli_backend.services.shopee_recommendations import config, forecast, freshness, versions
+from juli_backend.services.shopee_recommendations import (
+    config,
+    forecast,
+    freshness,
+    prediction,
+    versions,
+)
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 
 if TYPE_CHECKING:
@@ -239,8 +245,10 @@ def block_of(
     as_of: date,
     now: datetime,
     hash_: str,
+    juli_results: int = 0,
 ) -> dict[str, Any]:
-    """The stored ``result`` of one version (see the module docstring)."""
+    """The stored ``result`` of one version (see the module docstring). ``juli_results`` = the
+    clean results of its kind from Juli cards (names the ``prediction_type``, row IF)."""
     estimable = result is not None and result.estimable and result.likely is not None
     if result is not None and not estimable and reason is None:
         reason = "not_estimable"
@@ -252,8 +260,10 @@ def block_of(
     cost = None if result is None else float(result.cost_total)
     wire = None if result is None else result.json()
     be = None if result is None else result.break_even_orders
+    fc = forecast.forecast_of(result, reason=reason, data_through=as_of, juli_results=juli_results)
     return {
         "estimable": estimable,
+        "prediction_type": fc["prediction_type"],
         "not_estimable": not estimable,
         "basis": None if result is None else result.basis,
         "reason": None if estimable else (reason or "not_estimable"),
@@ -277,7 +287,7 @@ def block_of(
         "start": None if start is None else start.isoformat(),
         "as_of": as_of.isoformat(),
         # F7.1 / F7.4: the card's forecast.metrics over its own days and the data day it is on
-        "forecast": forecast.forecast_of(result, reason=reason, data_through=as_of),
+        "forecast": fc,
         "data_through": as_of.isoformat(),
         "computed_at": now.isoformat(),
         "engine_version": engine_version(),
@@ -293,6 +303,7 @@ def missing_block() -> dict[str, Any]:
         "basis": None,
         "reason": NOT_COMPUTED,
         "message": NOT_ESTIMABLE_TEXT,
+        "prediction_type": None,
         "own": {"dates": None, "dated": False, "days": None, "delta": None, "cost_total": None},
         "cost_total": None,
         "roi": None,
@@ -661,6 +672,7 @@ def evaluate_spec(
             as_of=src.as_of,
             now=now,
             hash_=h,
+            juli_results=prediction.juli_results(src, str(getattr(spec, "kind", ""))),
         )
     out["_spec"] = spec_json
     return out

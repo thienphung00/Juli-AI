@@ -1,13 +1,14 @@
 """The predicted range ("dự kiến"): ``optimize_product/prediction.py`` ported to Shopee kinds.
 
-relative lift on the kind's target metric = preset prior x calibration factor (shop evidence
-shrunk toward the prior: ``MIN_SHOP_RESULTS`` = 5, ``K`` = 5; then the same evidence pooled
-across the real Shopee shops as a third rung, F6; never across platforms)
-x coverage range scale; the simulation prior enters weighted by its per-change_kind gate
-(ADR-121 d.4) -- weight 0 leaves the no-simulation path byte-identical. The lift is then
-turned into dGMV / dprofit per month (P10 ... P90) by the GMV identity
-(GMV = views x CTR x CTOR x AOV is linear in each factor) and the scenario's own per-order
-profit from ``services/shopee_profit``.
+relative lift on the kind's target metric = preset prior x calibration factor (the shop's own
+clean results shrunk toward the prior: ``MIN_SHOP_RESULTS`` = 3, ``K`` = 5; per shop, never pooled
+across shops, L-3) x coverage range scale. The one ladder (owner 2026-11-19, L-1 / L-2 / L-4)
+names the lift's type: "ước tính" (the kind's P50 prior), "dữ liệu shop" (>= 3 clean results of
+the kind in this shop) or "Juli" (>= 3 of them from Juli cards): :func:`prediction_type_of`.
+The simulation prior enters weighted by its per-change_kind gate (ADR-121 d.4) -- weight 0 leaves
+the no-simulation path byte-identical. The lift is then turned into dGMV / dprofit per month
+(P10 ... P90) by the GMV identity (GMV = views x CTR x CTOR x AOV is linear in each factor) and
+the scenario's own per-order profit from ``services/shopee_profit``.
 
 Acceptance statistics never reach this module (they move slider defaults and the ranking
 tie-break only).
@@ -23,7 +24,7 @@ from typing import TYPE_CHECKING, Any
 from juli_backend.services.forecast.noise import within_noise
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_recommendations import config
-from juli_backend.services.shopee_recommendations.kinds import KindSpec, floor_prior_band
+from juli_backend.services.shopee_recommendations.kinds import KINDS, KindSpec, floor_prior_band
 from juli_backend.services.shopee_recommendations.model import Candidate, ProfitModel
 
 if TYPE_CHECKING:
@@ -47,17 +48,46 @@ def gap_bucket(gap_pct: float | None) -> str:
     return "small"
 
 
-def factor_from(
-    pooled_ratio: float | None, results: int, source: str = "shop"
-) -> tuple[float, str]:
+def factor_from(pooled_ratio: float | None, results: int) -> tuple[float, str]:
     """Shop factor shrunk to the prior (1.0): ``n / (n + K)`` of the evidence is trusted, and
     only once there are ``MIN_SHOP_RESULTS`` results. Ratio clamped to the factor limits.
-    ``source`` names the rung the evidence is from ("shop", or "pooled" for F6)."""
+    Returns the factor and the rung it is from ("shop" | "prior")."""
     if pooled_ratio is None or results < config.MIN_SHOP_RESULTS:
         return 1.0, "prior"
     clamped = min(max(pooled_ratio, config.FACTOR_MIN), config.FACTOR_MAX)
     weight = results / (results + config.SHRINKAGE_K)
-    return 1.0 + weight * (clamped - 1.0), source
+    return 1.0 + weight * (clamped - 1.0), "shop"
+
+
+#: Lift source / builder basis -> the prediction type the Excel column prints. ``not_estimable``
+#: has none: no figure is shown.
+_TYPE_OF: dict[str, str] = {
+    "prior": config.TYPE_ESTIMATE,
+    "shop": config.TYPE_SHOP,
+    "shop_products": config.TYPE_SHOP,
+    "product_history": config.TYPE_SHOP,
+    "measured": config.TYPE_SHOP,
+}
+
+
+def prediction_type_of(source: str | None, juli_results: int = 0) -> str | None:
+    """The one place a prediction's type is named (row IF): "dữ liệu shop" / "ước tính" / "Juli".
+
+    ``source`` is a :class:`Lift` source or a builder basis. A result drawn from the shop's own
+    data reads "Juli" once ``juli_results`` (clean results of the kind from Juli cards, see
+    ``learning.is_juli_card``) reaches ``config.JULI_MIN_RESULTS``. ``None`` for no estimate."""
+    kind = _TYPE_OF.get(source or "")
+    if kind == config.TYPE_SHOP and juli_results >= config.JULI_MIN_RESULTS:
+        return config.TYPE_JULI
+    return kind
+
+
+def juli_results(env: RecoEnv | None, kind: str) -> int:
+    """Clean results of ``kind`` from Juli cards in this shop (0 when none / no env)."""
+    if env is None or kind not in KINDS:
+        return 0
+    state = env.calibration.get((kind, KINDS[kind].target_metric))
+    return 0 if state is None else state.n_juli
 
 
 @dataclass(frozen=True)
@@ -68,11 +98,15 @@ class Lift:
     low: float  # P10
     high: float  # P90
     factor: float
-    source: str  # F6 ladder: "product_history" (own) | "shop" | "pooled" | "prior"
+    source: str  # the ladder: "product_history" (own) | "shop" | "prior" (never "juli": see below)
     range_scale: float = 1.0
     gap_bucket: str = "unknown"
     sim: dict[str, Any] = field(default_factory=dict)
     floored: bool = False  # the generic prior was raised to ``MIN_PRIOR_LIFT``
+    #: clean results of the kind from Juli cards behind a "shop" lift; the type reads "Juli" at
+    #: ``config.JULI_MIN_RESULTS``. Kept apart from ``source`` so readers of ``source`` ("shop")
+    #: are unchanged.
+    juli_results: int = 0
 
     @property
     def mid(self) -> float:
@@ -96,12 +130,17 @@ class Lift:
             return self.high
         return self.mid + z * self.sigma
 
+    @property
+    def prediction_type(self) -> str | None:
+        return prediction_type_of(self.source, self.juli_results)
+
     def json(self) -> dict[str, Any]:
         return {
             "metric": self.metric,
             "lift": {q: round(self.at(q), 5) for q in QUANTILES},
             "factor": round(self.factor, 4),
             "source": self.source,
+            "prediction_type": self.prediction_type,
             "range_scale": round(self.range_scale, 4),
             "gap_bucket": self.gap_bucket,
             "sim": self.sim,
@@ -174,6 +213,7 @@ def predict_lift(
     lo, hi = prior_range(spec, magnitude, bucket)
     factor, source = 1.0, "prior"
     scale = 1.0
+    juli = 0
     own = None
     if env is not None and spec.price_scaled and magnitude is not None:
         # P92 B-3: this product's own past response to a price cut first, then the shop's other
@@ -188,13 +228,8 @@ def predict_lift(
         if state is not None:
             factor, source = factor_from(state.pooled_ratio, state.n_results)
             scale = state.range_scale
-        if source == "prior":
-            # F6 rung 3: the same evidence pooled across the real Shopee shops (>= 5 results),
-            # only when the shop's own calibration is not enough
-            pooled = getattr(env, "pooled_calibration", {}).get((spec.key, spec.target_metric))
-            if pooled is not None:
-                factor, source = factor_from(pooled.pooled_ratio, pooled.n_results, "pooled")
-                scale = pooled.range_scale if source == "pooled" else 1.0
+            if source == "shop":
+                juli = state.n_juli  # L-4
     lo, hi = lo * factor, hi * factor
     sim_info: dict[str, Any] = {"applied": False}
     if env is not None and env.sim is not None and spec.sim_kind and cand.item:
@@ -228,7 +263,7 @@ def predict_lift(
     floored = False
     if source == "prior" and not sim_info["applied"]:
         lo, hi, floored = _floor_generic(spec.key, lo, hi, magnitude)
-    return Lift(spec.target_metric, lo, hi, factor, source, scale, bucket, sim_info, floored)
+    return Lift(spec.target_metric, lo, hi, factor, source, scale, bucket, sim_info, floored, juli)
 
 
 def _floor_generic(

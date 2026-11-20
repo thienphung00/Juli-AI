@@ -11,9 +11,7 @@ from juli_backend.services.shopee_builder import multi, translate
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext
 from juli_backend.services.shopee_builder.engine.contract import (
-    ALL_SOURCES,
     Band,
-    DriverEffect,
     OfferCost,
     OptionInput,
 )
@@ -35,12 +33,10 @@ from juli_backend.services.shopee_builder.engine_families.families import (
     affiliate_option,
     affiliate_rate_option,
     combo_option,
-    keyword_not_estimable_option,
     listing_combo_option,
     new_listing_option,
     price_option,
     simple_option,
-    unmeasured_listing_option,
     voucher_option,
 )
 from juli_backend.services.shopee_recommendations.model import Candidate
@@ -229,20 +225,19 @@ def option_for(
     if spec.kind in _SIMPLE_KINDS:
         lead = adapters.lift_evidence(spec.kind, items, env)
         keyword_note: str | None = None
-        if isinstance(spec, sp.CoverSpec | sp.PriceDisplaySpec):
-            return unmeasured_listing_option(spec)  # no banner checks yet: measured after the run
         if isinstance(spec, sp.TitleSpec | sp.DescriptionSpec):
+            # L-7 / L-8: a product with no keyword data keeps the kind's P50 prior (the 5 % lift
+            # on views / CTOR); with keyword data the lift follows the share of keyword gain
             weights = ctx.keyword_weights.get(spec.item_id)
-            if not weights:
-                return keyword_not_estimable_option(spec)
-            li = env.listings.get(spec.item_id)
-            current = (li.title if li and li.title else None) or env.name(spec.item_id)
-            if isinstance(spec, sp.TitleSpec):
-                share = kwc.gain_share(current, spec.title, weights)
-            else:
-                share = kwc.gain_share(None, spec.first_line, weights)
-            lead = replace(lead, band=scaled(lead.band, share))
-            keyword_note = common.NOTE_NO_GAIN if share == 0 else None
+            if weights:
+                li = env.listings.get(spec.item_id)
+                current = (li.title if li and li.title else None) or env.name(spec.item_id)
+                if isinstance(spec, sp.TitleSpec):
+                    share = kwc.gain_share(current, spec.title, weights)
+                else:
+                    share = kwc.gain_share(None, spec.first_line, weights)
+                lead = replace(lead, band=scaled(lead.band, share))
+                keyword_note = common.NOTE_NO_GAIN if share == 0 else None
         if isinstance(spec, sp.GiftSpec) and spec.trigger.type == "min_spend":
             # a gift on a minimum spend converts only the buyers whose basket qualifies
             q = adapters.qualifying_share(env, Decimal(spec.trigger.amount or 0))
@@ -265,8 +260,9 @@ def _variation_set(spec: sp.VariationSetSpec, ctx: BuilderContext) -> OptionInpu
     from juli_backend.services.shopee_recommendations.prediction import size_scale
 
     est = translate.to_variant(spec, ctx).estimate
-    if est is None:
-        return _not_estimable_set(spec)
+    if est is None:  # L-7: no cheaper set to scale by -> the kind's P50 prior, unscaled
+        lead = adapters.lift_evidence(spec.kind, [spec.item_id], ctx.env)
+        return simple_option(spec, SimpleFacts(lead))
     size = int(est["inputs"]["set_size"])
     pct = Decimal(str(est["inputs"]["set_discount_pct"]))
     lead = adapters.lift_evidence(spec.kind, [spec.item_id], ctx.env)
@@ -279,17 +275,6 @@ def _variation_set(spec: sp.VariationSetSpec, ctx: BuilderContext) -> OptionInpu
                 packs[str(key)] = int(r.get("pack_count") or 1)
     offer = adapters.variation_set_offer(ctx.env, spec.item_id, size, pct, packs)
     return simple_option(spec, SimpleFacts(lead, offers=() if offer is None else (offer,)))
-
-
-def _not_estimable_set(spec: sp.VariationSetSpec) -> OptionInput:
-    return OptionInput(
-        kind="variation_set",
-        label=spec.label or "Bộ / quy cách nhiều món",
-        drivers=(
-            DriverEffect("aov", ALL_SOURCES, "not_estimable", note=common.NOTE_SET_NOT_CHEAPER),
-        ),
-        duration_days=None,
-    )
 
 
 __all__ = [

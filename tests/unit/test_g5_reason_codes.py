@@ -9,15 +9,12 @@ from juli_backend.services.shopee_builder.engine_families import common
 
 NOTES = {
     common.NOTE_ADS_NOT_ESTIMABLE: "needs_trial_run",
-    common.NOTE_NO_KEYWORD_DATA: "no_keyword_data",
     common.NOTE_NO_GAIN: "no_keyword_gain",
-    common.NOTE_MEASURE_AFTER: "measure_after_run",
     common.NOTE_KOL_NOT_ESTIMABLE: "kol_first_sample",
     common.NOTE_NO_PACK_EVIDENCE: "no_pack_evidence",
     common.NOTE_FOLLOWER: "followers_unknown",
     common.NOTE_COMBO_REACH: "combo_few_orders",
     common.NOTE_COMBO_NO_HISTORY: "combo_no_history",
-    common.NOTE_SET_NOT_CHEAPER: "set_not_cheaper",
     common.NOTE_PACK_SOLD: "pack_already_sold",
 }
 

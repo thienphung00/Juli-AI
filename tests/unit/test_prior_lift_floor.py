@@ -52,7 +52,7 @@ def test_a_prior_kind_under_five_percent_is_floored_on_the_card():
 
 
 def test_a_calibrated_lift_is_not_floored():
-    state = SimpleNamespace(pooled_ratio=0.5, n_results=20, range_scale=1.0)
+    state = SimpleNamespace(pooled_ratio=0.5, n_results=20, range_scale=1.0, n_juli=0)
     env = _env({("price_display", "ctr"): state})
     lift = predict_lift(KINDS["price_display"], _cand("price_display"), env, None)
     assert lift.source == "shop" and not lift.floored
@@ -119,7 +119,7 @@ def test_the_ads_budget_floor_scales_with_the_step():
 
 
 def test_exempt_kinds_are_never_floored():
-    for kind in ("description_first_line", "review_voucher", "voucher_cap", "ads_pause"):
+    for kind in ("review_voucher", "voucher_cap", "ads_pause"):
         assert kind in FLOOR_EXEMPT
         lift = predict_lift(KINDS[kind], _cand(kind), _env(), None)
         assert not lift.floored

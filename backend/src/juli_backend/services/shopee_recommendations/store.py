@@ -29,7 +29,7 @@ from juli_backend.models.card_events import (
     EVENT_WHATIF_ADJUSTED,
     CardEvent,
 )
-from juli_backend.models.models import ActionCard, Shop
+from juli_backend.models.models import ActionCard
 from juli_backend.models.shop_proposals import (
     STATUS_APPROVED,
     STATUS_CHANGES_REQUESTED,
@@ -56,7 +56,6 @@ from juli_backend.services.shopee_recommendations.learning import (
     CalibrationState,
     Observation,
     acceptance_from_events,
-    calibrate,
 )
 from juli_backend.services.shopee_recommendations.sim_priors import SimPriors
 
@@ -527,25 +526,6 @@ async def load_calibrations(
         )
         for r in rows
     }
-
-
-async def load_pooled_calibrations(
-    session: AsyncSession,
-) -> dict[tuple[str, str], CalibrationState]:
-    """F6: the calibration pooled across every real Shopee shop, per (change_kind, metric).
-
-    Computed on read from the per-shop rows' stored observations with the same statistics as a
-    shop's own state (``learning.calibrate``): nothing new is stored, so deleting a shop's rows
-    removes its share. Only ``platform = 'shopee'`` and ``kind = 'real'`` shops feed it (never
-    TikTok; never the sample/reviewer or a sandbox shop)."""
-    rows = (
-        await session.scalars(
-            select(ShopeeRecoCalibration)
-            .join(Shop, Shop.id == ShopeeRecoCalibration.shop_id)
-            .where(Shop.platform == "shopee", Shop.kind == "real")
-        )
-    ).all()
-    return calibrate([Observation.from_json(o) for r in rows for o in (r.observations or [])])
 
 
 async def load_observations(session: AsyncSession, shop_id: uuid.UUID) -> list[Observation]:

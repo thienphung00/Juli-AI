@@ -439,7 +439,7 @@ def test_a_reading_without_controls_is_kept_but_moves_neither_the_factor_nor_the
     ]
     st = learning.calibrate(obs)[("min_spend_voucher", "aov")]
     assert (st.n_results, st.coverage_n, st.pooled_ratio) == (1, 1, pytest.approx(1.0))
-    assert st.sources == {"card": 1, "uncontrolled": 2}
+    assert st.sources == {"card": 1, "juli": 1, "uncontrolled": 2}
     only = learning.calibrate([_obs(measured=0.9, controlled=False)])[("min_spend_voucher", "aov")]
     assert only.n_results == 0 and only.pooled_ratio is None and only.range_scale == 1.0
 

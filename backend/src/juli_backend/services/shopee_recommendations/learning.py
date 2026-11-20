@@ -2,8 +2,10 @@
 
 - **Calibration** per (change_kind, metric): each observation is measured / predicted-mid with
   the variance of the measurement; inverse-variance pooled within the shop; the factor the
-  prediction uses is shrunk to the prior (``prediction.factor_from``: ``MIN_SHOP_RESULTS`` = 5,
-  ``K`` = 5). ORY learns from ORY only -- there is no pooled state.
+  prediction uses is shrunk to the prior (``prediction.factor_from``: ``MIN_SHOP_RESULTS`` = 3,
+  ``K`` = 5). Per shop, never pooled across shops (ADR-121 d.6): there is no pooled state.
+- **Juli results** (:func:`is_juli_card`): the clean results that came from Juli cards; at
+  ``config.JULI_MIN_RESULTS`` of them the prediction type reads "Juli", otherwise "dữ liệu shop".
 - **Coverage**: the share of results inside the predicted P10-P90; below 70 % the range widens,
   above 95 % it narrows (``range_scale``).
 - **Bundles**: stacked / mega_sale changes are measured as one bundle and excluded from the
@@ -116,6 +118,22 @@ class Observation:
         )
 
 
+#: Observation origins that are Juli's own cards ("engine" = a generated card, "manual" = built in
+#: Tự tạo and run through Juli).
+JULI_ORIGINS = frozenset({"engine", "manual"})
+
+
+def is_juli_card(o: Observation) -> bool:
+    """Does the result count toward the "Juli" prediction type (L-4)?
+
+    Coordinator default, 2026-11-20 (owner to confirm): a Juli card is an observation with
+    ``source == "card"`` and ``origin`` "engine" or "manual" -- a manual card is built in Juli's
+    builder and executed through Juli. ``origin == "import"`` (changes planned outside Juli, "Làm
+    ngoài Juli") and ``source == "natural"`` (``backfill_natural``: past promotions) do NOT count;
+    they still count toward "dữ liệu shop" when clean. This is the one place the rule lives."""
+    return o.source == "card" and o.origin in JULI_ORIGINS
+
+
 @dataclass(frozen=True)
 class CalibrationState:
     change_kind: str
@@ -131,6 +149,11 @@ class CalibrationState:
     @property
     def coverage(self) -> float | None:
         return None if self.coverage_n == 0 else self.coverage_hits / self.coverage_n
+
+    @property
+    def n_juli(self) -> int:
+        """Clean results from Juli cards (``sources["juli"]``, see :func:`is_juli_card`)."""
+        return int(self.sources.get("juli", 0))
 
 
 def pool_ratios(pairs: Iterable[tuple[float, float]]) -> float | None:
@@ -171,6 +194,9 @@ def calibrate(
         usable = [o for o in obs if not o.bundle and o.controlled and o.calibrates]
         pairs = [rv for o in usable if (rv := o.ratio_and_variance()) is not None]
         hits = sum(1 for o in usable if o.in_range)
+        juli = int(
+            sum(o.weight for o in usable if is_juli_card(o) and o.ratio_and_variance() is not None)
+        )
         out[key] = CalibrationState(
             change_kind=key[0],
             metric=key[1],
@@ -182,6 +208,7 @@ def calibrate(
             n_bundle_excluded=sum(1 for o in obs if o.bundle),
             sources={
                 **Counter(o.source for o in usable),
+                **({"juli": juli} if juli else {}),
                 **(
                     {"uncontrolled": n}
                     if (n := sum(1 for o in obs if not o.bundle and not o.controlled))
@@ -202,13 +229,10 @@ def calibrate(
 
 
 def calibrate_all(observations: Sequence[Observation]) -> dict[tuple[str, str], CalibrationState]:
-    """The shop's stored calibration: the engine's states, plus an empty state for a
-    (change_kind, metric) only manual cards have observations for (so their observations are
-    kept; they never move the engine's factor)."""
-    states = calibrate(observations, "engine")
-    for key in calibrate(observations, None):
-        states.setdefault(key, CalibrationState(key[0], key[1]))
-    return states
+    """The shop's stored calibration: one state per (change_kind, metric) over every clean result
+    of the shop, whatever its origin or source (an imported change and a past promotion count
+    toward "dữ liệu shop"; ``sources["juli"]`` counts the Juli cards among them)."""
+    return calibrate(observations, None)
 
 
 def coverage_report(states: Mapping[tuple[str, str], CalibrationState]) -> list[dict[str, Any]]:

@@ -501,7 +501,8 @@ KINDS: dict[str, KindSpec] = {
         "none",
         _EDIT,
         verify_kind="listing_status",
-        prior=(0, 0),
+        # L-8: a relist has no formula; its views rise by the generic 5 % (``MIN_PRIOR_LIFT``)
+        prior=(0.0, 0.10),
     ),
     # ---- mega sale (composite)
     "mega_sale": KindSpec(
@@ -608,9 +609,7 @@ FLOOR_EXEMPT: dict[str, str] = {
     "ads_new_campaign": "no preset prior: extra orders are measured on / off days only",
     "voucher_cap": "limit action: the designed effect is zero or negative",
     "review_voucher": "designed effect is small (a thank-you voucher, no minimum spend)",
-    "description_first_line": "designed effect is small (text-only edit, prior 0-4 %)",
     "listing_hide": "removal action: hiding takes the listing's views away",
-    "listing_relist": "no preset prior: measured after the relist",
     "variation_restructure": "no preset prior: the effect is a re-arrangement",
     "listing_combo": "the effect is computed from the combo price, not a generic prior",
     "affiliate_sample": "no preset prior: measured after the first send",
