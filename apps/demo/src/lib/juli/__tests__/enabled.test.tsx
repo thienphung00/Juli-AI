@@ -46,6 +46,23 @@ describe("useJuliEnabled", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it("unmount aborts the request and an aborted answer is neither cached nor applied", async () => {
+    let seenSignal: AbortSignal | undefined;
+    const fetchImpl = vi.fn(async (_u: RequestInfo | URL, init?: RequestInit) => {
+      seenSignal = init?.signal ?? undefined;
+      await new Promise((r) => setTimeout(r, 20));
+      if (init?.signal?.aborted) throw new DOMException("aborted", "AbortError");
+      return new Response(JSON.stringify({ enabled: true }));
+    }) as unknown as typeof fetch;
+    const { unmount } = renderHook(() => useJuliEnabled(ready("s9"), fetchImpl));
+    unmount();
+    expect(seenSignal?.aborted).toBe(true);
+    await new Promise((r) => setTimeout(r, 40));
+    const again = vi.fn(async () => new Response(JSON.stringify({ enabled: true }))) as unknown as typeof fetch;
+    expect(await fetchJuliEnabled("tok", "s9", again)).toBe(true); // not poisoned by the aborted call
+    expect(again).toHaveBeenCalledTimes(1);
+  });
+
   it("no shop -> false without a request", () => {
     const fetchImpl = respond(200, { enabled: true });
     const { result } = renderHook(() => useJuliEnabled({ status: "anonymous", envelope: null } as ShopReportState, fetchImpl));
