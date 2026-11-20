@@ -332,7 +332,7 @@ export const ERROR_FAILED: readonly JuliAgentEvent[] = [
 export const ERROR_BUSY: readonly JuliAgentEvent[] = [e("error", { code: "busy" })];
 
 /** Board 10: TikTok before W3. */
-export const TIKTOK_MISSING: readonly JuliAgentEvent[] = [
+export const PLATFORM_DATA_MISSING: readonly JuliAgentEvent[] = [
   e("restated", { text_vi: "Đang tìm hiểu: vì sao GMV 7 ngày qua thay đổi so với 7 ngày trước và nên làm gì?" }),
   e("label", { stop_reason: "data_missing", text_vi: "Thiếu dữ liệu" }),
   e("data_answer", {

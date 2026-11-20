@@ -261,7 +261,7 @@ describe("board 9 history answer (U8c)", () => {
 
 describe("board 10 TikTok before W3 (U12)", () => {
   it("Thiếu dữ liệu + report line + no TikTok card", () => {
-    pair(F.TIKTOK_MISSING, {}, actions({ platform: "tiktok" }));
+    pair(F.PLATFORM_DATA_MISSING, {}, actions({ platform: "tiktok" }));
     expect(screen.getByText("Thiếu dữ liệu")).toBeInTheDocument();
     expect(screen.getByText(/Báo cáo ngày 18\/11/)).toBeInTheDocument();
     expect(screen.getByText("Chưa có đề xuất cho TikTok")).toBeInTheDocument();

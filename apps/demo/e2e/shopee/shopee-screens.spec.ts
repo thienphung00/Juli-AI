@@ -12,7 +12,7 @@ import { critical, matrix, overview, product, ranking } from "../../src/lib/shop
 
 const SHOP = { id: "shop-shopee-e2e", name: "Shop gia dụng" };
 
-async function stubSeller(page: Page, opts: { shopee: boolean }) {
+async function stubSeller(page: Page, opts: { shopee: boolean; juli?: boolean }) {
   const seen: string[] = [];
   await page.addInitScript((shop) => {
     window.sessionStorage.setItem("juli_demo_auth_session", JSON.stringify({ accessToken: "e2e-token", tokenType: "bearer" }));
@@ -23,6 +23,7 @@ async function stubSeller(page: Page, opts: { shopee: boolean }) {
     const path = new URL(req.url()).pathname;
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     seen.push(`${req.method()} ${path}`);
+    if (path === "/v1/demo/juli/enabled") return json({ enabled: opts.juli === true });
     if (path.startsWith("/v1/demo/shopee/")) {
       if (!opts.shopee) return json({ detail: { code: "not_a_shopee_shop", message: "x" } }, 409);
       if (path.endsWith("/overview")) return json(overview());
@@ -102,11 +103,18 @@ test.describe("seller: Shopee shop", () => {
     await expect(page).toHaveURL(/\/decisions\?the=c_bep_voucher&from=tong-quan$/);
   });
 
-  test("a TikTok shop gets the same rail: Tổng quan / Phân tích / Quyết định", async ({ page }) => {
+  test("a TikTok shop gets the same rail: Tổng quan / Phân tích / Quyết định, and Juli 4th when enabled", async ({ page }) => {
     await stubSeller(page, { shopee: false });
     await page.goto("/decisions");
     const nav = page.getByRole("navigation", { name: "Điều hướng chính" });
     await expect(nav.getByRole("link")).toHaveText([/^Tổng quan/, /^Phân tích/, /^Quyết định/]);
+  });
+
+  test("Juli is the 4th entry when the shop has the tab enabled", async ({ page }) => {
+    await stubSeller(page, { shopee: false, juli: true });
+    await page.goto("/decisions");
+    const nav = page.getByRole("navigation", { name: "Điều hướng chính" });
+    await expect(nav.getByRole("link")).toHaveText([/^Tổng quan/, /^Phân tích/, /^Quyết định/, /^Juli/]);
   });
 
   test("no request is anything but a GET to the Shopee read API", async ({ page }) => {
