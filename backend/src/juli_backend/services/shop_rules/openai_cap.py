@@ -12,8 +12,9 @@ it through :func:`openai_monthly_cap_usd`, under the shop's own scope.
 
 The spend the cap is checked against is ONE figure too
 (:func:`openai_spend_this_month`): the shop's ``workflow_runs.cost_usd`` (content
-drafting, agent runs) plus ``content_analyses.cost_usd`` (P15), from the first
-instant of the shop's month (Asia/Ho_Chi_Minh, UTC+7).
+drafting, agent runs) plus ``content_analyses.cost_usd`` (P15) plus the Juli tab's
+``agent_messages.cost_usd`` (batch-1120), from the first instant of the shop's month
+(Asia/Ho_Chi_Minh, UTC+7).
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.agent_chat import AgentMessage
 from juli_backend.models.content_analysis import ContentAnalysis
 from juli_backend.models.models import WorkflowRun
 from juli_backend.models.run_changes import ShopRule
@@ -155,11 +157,11 @@ def month_start_utc(now: datetime | None = None) -> datetime:
 async def openai_spend_this_month(
     session: AsyncSession, shop_id: uuid.UUID, *, now: datetime | None = None
 ) -> Decimal:
-    """The shop's OpenAI spend this month: workflow runs + content analyses.
+    """The shop's LLM spend this month: workflow runs + content analyses + the Juli tab.
 
-    Both sums in one statement (P22): each round trip is ~220 ms in production,
+    The three sums in one statement (P22): each round trip is ~220 ms in production,
     and this runs on every content draft / agent run gate and every overview
-    refresh.
+    refresh. batch-1120: the Juli tab's answers (``agent_messages.cost_usd``) count too.
     """
     since = month_start_utc(now)
     runs_sum = (
@@ -172,8 +174,18 @@ async def openai_spend_this_month(
         .where(ContentAnalysis.shop_id == shop_id, ContentAnalysis.created_at >= since)
         .scalar_subquery()
     )
-    runs, analyses = (await session.execute(select(runs_sum, analyses_sum))).one()
-    return Decimal(str(runs or 0)) + Decimal(str(analyses or 0))
+    agent_sum = _agent_sum(shop_id, since)
+    runs, analyses, agent = (await session.execute(select(runs_sum, analyses_sum, agent_sum))).one()
+    return Decimal(str(runs or 0)) + Decimal(str(analyses or 0)) + Decimal(str(agent or 0))
+
+
+def _agent_sum(shop_id: uuid.UUID, since: datetime) -> Any:
+    """batch-1120: the Juli tab's LLM cost of the shop since ``since`` (a scalar subquery)."""
+    return (
+        select(func.coalesce(func.sum(AgentMessage.cost_usd), 0))
+        .where(AgentMessage.shop_id == shop_id, AgentMessage.created_at >= since)
+        .scalar_subquery()
+    )
 
 
 async def openai_spend_and_cap(
@@ -191,7 +203,7 @@ async def openai_spend_and_cap(
         ShopRule.rule_key == OPENAI_MONTHLY_CAP_USD,
         ShopRule.scope_ref == "",
     )
-    runs, analyses, present, value, set_at = (
+    runs, analyses, agent, present, value, set_at = (
         await session.execute(
             select(
                 select(func.coalesce(func.sum(WorkflowRun.cost_usd), 0))
@@ -200,11 +212,12 @@ async def openai_spend_and_cap(
                 select(func.coalesce(func.sum(ContentAnalysis.cost_usd), 0))
                 .where(ContentAnalysis.shop_id == shop_id, ContentAnalysis.created_at >= since)
                 .scalar_subquery(),
+                _agent_sum(shop_id, since),
                 select(func.count()).select_from(ShopRule).where(*rule).scalar_subquery(),
                 select(ShopRule.value).where(*rule).scalar_subquery(),
                 select(ShopRule.set_at).where(*rule).scalar_subquery(),
             )
         )
     ).one()
-    spent = Decimal(str(runs or 0)) + Decimal(str(analyses or 0))
+    spent = Decimal(str(runs or 0)) + Decimal(str(analyses or 0)) + Decimal(str(agent or 0))
     return spent, cap_from_value(value, set_at, present=bool(present))

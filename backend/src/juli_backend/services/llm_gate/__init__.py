@@ -1,5 +1,7 @@
-"""The one OpenAI gate: consent per input, payload allowlist, ZDR flags, ``llm_call_log``
-(ADR-116 §5, D76). See ``MODULE.md`` and :mod:`.gate`."""
+"""The one gate for LLM calls carrying shop data -- OpenAI, plus Anthropic Messages and
+TypeSafe System One for the analytics agent: consent per input, payload allowlist, ZDR
+flags, ``llm_call_log`` (ADR-116 §5, D76, J10). See ``MODULE.md``, :mod:`.gate` and
+:mod:`.vendors`."""
 
 from __future__ import annotations
 
@@ -38,9 +40,43 @@ from juli_backend.services.llm_gate.payload import (
     TRANSCRIPTIONS_ENDPOINT,
     is_forbidden_key,
 )
+from juli_backend.services.llm_gate.vendors import (
+    ANTHROPIC_MESSAGES_ENDPOINT,
+    PROJECT_ANTHROPIC,
+    PROJECT_TYPESAFE,
+    PURPOSE_AGENT_CHAT_PARSE,
+    PURPOSE_AGENT_CHAT_ROUTE,
+    PURPOSE_AGENT_CHAT_WRITE,
+    REASON_UNCONFIGURED,
+    TYPESAFE_SYSTEM_ONE_ENDPOINT,
+    VENDOR_ENDPOINTS,
+    VENDOR_PURPOSES,
+    AnthropicStream,
+    GateCallFailed,
+    Usage,
+    anthropic_messages,
+    anthropic_stream,
+    typesafe_system_one,
+)
 
 __all__ = [
     "ALLOWED_ENDPOINTS",
+    "ANTHROPIC_MESSAGES_ENDPOINT",
+    "PROJECT_ANTHROPIC",
+    "PROJECT_TYPESAFE",
+    "PURPOSE_AGENT_CHAT_PARSE",
+    "PURPOSE_AGENT_CHAT_ROUTE",
+    "PURPOSE_AGENT_CHAT_WRITE",
+    "REASON_UNCONFIGURED",
+    "TYPESAFE_SYSTEM_ONE_ENDPOINT",
+    "VENDOR_ENDPOINTS",
+    "VENDOR_PURPOSES",
+    "AnthropicStream",
+    "GateCallFailed",
+    "Usage",
+    "anthropic_messages",
+    "anthropic_stream",
+    "typesafe_system_one",
     "DEFAULT_PROJECT",
     "IMAGE_REMOVED",
     "LLM_IMAGES",
