@@ -51,6 +51,8 @@ from juli_backend.services.shopee_builder.engine.vn import (
 
 Z90 = 1.2815515655446004  # standard normal quantile at 0.90 (config.Z_P90)
 DEFAULT_DAYS = 30
+#: Kinds whose prior-basis driver is estimated even when the base has too little data (L-2).
+PRIOR_ON_LOW_DATA = ("listing_hide",)
 _BASIS_ORDER: tuple[Basis, ...] = (
     "measured",
     "product_history",
@@ -435,8 +437,11 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
             estimable = False
             carriers.append([])
             continue
-        # F2: no window has enough events: "ít dữ liệu" (a prior needs none: L-2 keeps its P50)
-        if d.metric in base.low_data and d.basis != "prior":
+        # F2: no window has enough events: "ít dữ liệu". L-2: a hide on a low-traffic product keeps
+        # the kind's P50 prior, which needs none of that data
+        if d.metric in base.low_data and not (
+            d.basis == "prior" and option.kind in PRIOR_ON_LOW_DATA
+        ):
             estimable = False
             carriers.append([])
             notes.append(f"Ít dữ liệu để ước tính {DRIVER_LABELS[d.metric]}.")
