@@ -179,7 +179,7 @@ class FakeLLM:
         self.parse_calls += 1
         return self.intent, Usage(cost_usd=0.0005)
 
-    async def stream_text(self, system: str, user: str) -> AsyncIterator[str]:  # type: ignore[override]
+    async def stream_text(self, system: str, user: str) -> AsyncIterator[str]:
         self.stream_calls.append(user)
         for d in self.deltas or [self._text]:
             yield d

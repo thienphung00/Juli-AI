@@ -535,7 +535,7 @@ async def _count_chain(
                             "source",
                             f"{k}.{key}",
                             s1.get(k, (None,))[0],
-                            s0.get(k, (None,))[0],  # type: ignore[arg-type]
+                            s0.get(k, (None,))[0],
                             100 * d / tot,
                             evidence_ref=f"additive:{key}",
                         )
@@ -866,10 +866,11 @@ async def _money_chain(
         if same:
             explained.append(max(same, key=abs) / delta)
     elif metric == "margin":
-        pr = (p0.get("profit"), p1.get("profit"))
-        nr = (p0.get("net_revenue"), p1.get("net_revenue"))
-        if all(x and x > 0 for x in pr + nr):
-            lp, ln_ = math.log(pr[1] / pr[0]), -math.log(nr[1] / nr[0])  # type: ignore[operator]
+        pr0, pr1 = p0.get("profit"), p1.get("profit")
+        nr0, nr1 = p0.get("net_revenue"), p1.get("net_revenue")
+        pr, nr = (pr0, pr1), (nr0, nr1)
+        if pr0 and pr1 and nr0 and nr1 and min(pr0, pr1, nr0, nr1) > 0:
+            lp, ln_ = math.log(pr1 / pr0), -math.log(nr1 / nr0)
             tot = lp + ln_
             if tot:
                 findings.append(
@@ -894,10 +895,11 @@ async def _money_chain(
                 )
         await _endpoint_scope(data, "margin", w, findings, steps, explained, [], item_id)
     else:
-        g = (_sum(rows, "ads_gmv", a0, b0), _sum(rows, "ads_gmv", a1, b1))
-        sp = (_sum(rows, "ads_spend", a0, b0), _sum(rows, "ads_spend", a1, b1))
-        if metric == "roas" and all(x and x > 0 for x in g + sp):
-            lg, ls = math.log(g[1] / g[0]), -math.log(sp[1] / sp[0])  # type: ignore[operator]
+        g0, g1 = _sum(rows, "ads_gmv", a0, b0), _sum(rows, "ads_gmv", a1, b1)
+        sp0, sp1 = _sum(rows, "ads_spend", a0, b0), _sum(rows, "ads_spend", a1, b1)
+        g, sp = (g0, g1), (sp0, sp1)
+        if metric == "roas" and g0 and g1 and sp0 and sp1 and min(g0, g1, sp0, sp1) > 0:
+            lg, ls = math.log(g1 / g0), -math.log(sp1 / sp0)
             tot = lg + ls
             if tot:
                 findings.append(
