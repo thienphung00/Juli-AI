@@ -56,7 +56,9 @@ async def _flag_on() -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
 
 
-router = APIRouter(prefix="/demo/juli", tags=["juli-agent"], dependencies=[Depends(_flag_on)])
+#: The flag is checked first by each tab route's shop dependency (404 before anything else);
+#: ``GET /enabled`` alone answers whatever the flag says, so the rail can hide the tab quietly.
+router = APIRouter(prefix="/demo/juli", tags=["juli-agent"])
 
 
 async def _admit(request: Request, session: AsyncSession, shop: Shop) -> Shop:
@@ -73,6 +75,7 @@ async def _admit(request: Request, session: AsyncSession, shop: Shop) -> Shop:
 
 async def juli_shop(
     request: Request,
+    _flag: None = Depends(_flag_on),
     shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> Shop:
@@ -81,6 +84,7 @@ async def juli_shop(
 
 async def juli_writable_shop(
     request: Request,
+    _flag: None = Depends(_flag_on),
     shop: Shop = Depends(require_writable_shop),
     session: AsyncSession = Depends(get_session),
 ) -> Shop:
@@ -190,6 +194,21 @@ class TemplatesOut(BaseModel):
 # -- routes ------------------------------------------------------------------------------------
 
 
+class EnabledOut(BaseModel):
+    enabled: bool
+
+
+@router.get("/enabled", response_model=EnabledOut)
+async def juli_enabled(request: Request, shop: Shop = Depends(get_active_shop)) -> EnabledOut:
+    """Whether this shop has the Juli tab: 200 whether the flag is on or off (auth + shop only;
+    reads nothing else). A reviewer: also whether the pin has the tab (no refusal, no audit)."""
+    enabled = juli_agent_api.config.flag_state().allows(shop.id)
+    context = reviewer_gate.reviewer_context(request)
+    if context is not None:
+        enabled = enabled and reviewer_gate.juli_pin_admitted(context)
+    return EnabledOut(enabled=enabled)
+
+
 @router.get("/templates", response_model=TemplatesOut)
 async def list_templates(
     shop: Shop = Depends(juli_shop),
@@ -212,6 +231,7 @@ async def list_templates(
 @router.post("/ask", status_code=status.HTTP_202_ACCEPTED, response_model=AskOut)
 async def ask(
     body: AskBody,
+    request: Request,
     shop: Shop = Depends(juli_writable_shop),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -239,6 +259,7 @@ async def ask(
             choice=body.choice.model_dump() if body.choice is not None else None,
             templates=templates,
             now=_now(),
+            reviewer=reviewer_gate.reviewer_context(request) is not None,
         )
         switch_platforms = await juli_agent_api.other_platforms(session, shop, user.id)
         await session.commit()

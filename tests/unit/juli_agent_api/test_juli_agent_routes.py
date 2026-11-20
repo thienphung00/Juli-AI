@@ -584,3 +584,62 @@ async def test_past_the_process_cap_an_ask_is_429_busy_system(app_for, world, mo
         await _wait_runs()
     assert first.status_code == 202
     assert second.status_code == 429 and second.json()["detail"]["code"] == "juli_busy_system"
+
+
+# -- the LLM cost guard, for every shop ---------------------------------------------------------
+
+
+async def test_a_shop_past_its_monthly_cap_is_refused(app_for, world, session, monkeypatch):
+    from decimal import Decimal
+
+    from juli_backend.services.shop_rules.openai_cap import default_cap_usd
+
+    shop_id, now = world["shop"].id, _now()
+    conv = AgentConversation(
+        id=uuid.uuid4(), shop_id=shop_id, platform="shopee", title="t", created_at=now,
+        updated_at=now,
+    )  # fmt: skip
+    session.add(conv)
+    session.add(
+        AgentMessage(
+            id=uuid.uuid4(), shop_id=shop_id, conversation_id=conv.id, role="assistant",
+            events=[], status="done", cost_usd=default_cap_usd() + Decimal("0.01"),
+            created_at=now - timedelta(hours=2), updated_at=now,
+        )
+    )  # fmt: skip
+    await session.commit()
+    fake = FakeEngine()
+    async with _client(app_for(world["owner"], world["shop"], fake)) as c:
+        r = await _ask(c, text="GMV?")
+    detail = r.json()["detail"]
+    assert r.status_code == 429 and detail["code"] == "juli_cost_cap" and detail["scope"] == "shop"
+    assert detail["message"] == "Juli đã dùng hết hạn mức tháng này"
+    assert fake.requests == []
+
+
+async def test_the_system_cap_refuses_every_shops_ask(app_for, world, monkeypatch):
+    async def reached(session, *, now=None):
+        return True
+
+    monkeypatch.setattr("juli_backend.services.ops.system_cap.system_cap_reached", reached)
+    async with _client(app_for(world["owner"], world["shop"], FakeEngine())) as c:
+        r = await _ask(c, text="GMV?")
+    assert r.status_code == 429 and r.json()["detail"]["scope"] == "system"
+    assert r.json()["detail"]["message"] == "Juli đã dùng hết hạn mức tháng này"
+
+
+# -- GET /enabled: the rail hides the tab without error noise ----------------------------------
+
+
+async def test_enabled_answers_200_whether_the_flag_is_on_or_off(app_for, world, monkeypatch):
+    async with _client(app_for(world["owner"], world["shop"], FakeEngine())) as c:
+        on = await c.get("/v1/demo/juli/enabled")
+        monkeypatch.delenv("JULI_AGENT_ENABLED")
+        off = await c.get("/v1/demo/juli/enabled")
+        templates_off = await c.get("/v1/demo/juli/templates")
+        monkeypatch.setenv("JULI_AGENT_ENABLED", str(uuid.uuid4()))  # another shop only
+        other_only = await c.get("/v1/demo/juli/enabled")
+    assert (on.status_code, on.json()) == (200, {"enabled": True})
+    assert (off.status_code, off.json()) == (200, {"enabled": False})
+    assert templates_off.status_code == 404  # the tab's own routes stay 404 when off
+    assert other_only.json() == {"enabled": False}

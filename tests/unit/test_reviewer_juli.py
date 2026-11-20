@@ -37,6 +37,7 @@ from juli_backend.services.shopee_recommendations import manual
 from tests.support import reviewer as rv
 from tests.support.api import build_app, client_for
 from tests.support.builders import utc_now_naive
+from tests.support.fakes import FakeAsyncRedis
 from tests.support.shopee_reco import seed_reco_shop
 from tests.unit.juli_agent_api.fakes import FakeEngine, draft_card, fake_ports
 from tests.unit.test_reviewer_no_write import Tripwire, _snapshot
@@ -63,6 +64,39 @@ def reviewer_env(monkeypatch):
     yield
     rv.reset_caches()
     reviewer_sandbox.forget_sync_slots()
+
+
+class CountingRedis(FakeAsyncRedis):
+    """The repo's ``FakeAsyncRedis`` plus the fixed-window verbs (INCR / EXPIRE / TTL)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.ttls: dict[str, int] = {}
+        self.incr_raises: Exception | None = None
+
+    async def incr(self, key: str) -> int:
+        if self.incr_raises is not None:
+            raise self.incr_raises
+        value = int(self.store.get(key, "0")) + 1
+        self.store[key] = str(value)
+        return value
+
+    async def expire(self, key: str, seconds: int) -> bool:
+        self.ttls[key] = seconds
+        return True
+
+    async def ttl(self, key: str) -> int:
+        return self.ttls.get(key, -1)
+
+
+@pytest.fixture(autouse=True)
+def reviewer_redis():
+    from juli_backend.services.juli_agent_api import reviewer_limits
+
+    fake = CountingRedis()
+    reviewer_limits.set_client(fake)
+    yield fake
+    reviewer_limits.set_client(None)
 
 
 @pytest.fixture
@@ -183,8 +217,9 @@ def test_the_juli_routes_are_allowlisted_and_named_apart():
     assert reviewer_gate.JULI_PIN_ENDPOINTS <= reviewer_gate.ALLOWED_ENDPOINTS
     assert {e.rsplit(":", 1)[1] for _, e in reviewer_gate.JULI_PIN_ENDPOINTS} == {
         "list_templates", "ask", "stream_message_events", "cancel_message",
-        "list_conversations", "get_conversation", "send_card", "dismiss_card",
+        "list_conversations", "get_conversation", "send_card", "dismiss_card", "juli_enabled",
     }  # fmt: skip
+    assert reviewer_gate.JULI_STATUS_ENDPOINT in reviewer_gate.JULI_PIN_ENDPOINTS
     assert reviewer_gate.JULI_PIN_WRITE_ENDPOINTS == {
         k for k in reviewer_gate.JULI_PIN_ENDPOINTS if k[0] == "POST"
     }
@@ -313,3 +348,132 @@ async def test_a_masked_pin_refuses_every_juli_route_and_writes_nothing(
     assert runner._TASKS == {}
     assert len(await _audits(session, "reviewer_write_refused")) == 4
     assert not tripwire.hits
+
+
+# -- a reviewer's limits and the LLM cost guard (held for the owner's OK) ----------------------
+
+
+async def _answer(session, shop_id, *, user_id, cost=None) -> None:
+    now = utc_now_naive()
+    conv = AgentConversation(
+        id=uuid.uuid4(), shop_id=shop_id, platform="shopee", title="t", created_at=now,
+        updated_at=now,
+    )  # fmt: skip
+    session.add(conv)
+    await session.flush()
+    session.add(
+        AgentMessage(
+            id=uuid.uuid4(), shop_id=shop_id, conversation_id=conv.id, role="assistant",
+            events=[], status="done", created_by_user_id=user_id, cost_usd=cost,
+            created_at=now, updated_at=now,
+        )
+    )  # fmt: skip
+    await session.commit()
+
+
+async def test_a_reviewers_limit_is_its_own_not_the_shops(session, engine, world, monkeypatch):
+    monkeypatch.setenv("JULI_AGENT_LIMIT_PER_HOUR", "1")
+    sid, reviewer_id = world["sample"].shop_id, world["reviewer_id"]
+    await _answer(session, sid, user_id=world["sample"].user.id)  # another user's ask this hour
+    h = _headers(reviewer_id, sid)
+    async with client_for(_app(session, engine)) as client:
+        first = await client.post(f"{J}/ask", json={"template": "improve_gmv"}, headers=h)
+        await _wait_runs()
+        second = await client.post(f"{J}/ask", json={"template": "improve_gmv"}, headers=h)
+    assert first.status_code == 202, first.text
+    assert second.status_code == 429 and second.json()["detail"]["code"] == "juli_limited"
+
+
+async def test_a_reviewers_limit_counts_across_pins(
+    session, engine, world, monkeypatch, reviewer_redis
+):
+    monkeypatch.setenv("JULI_AGENT_LIMIT_PER_HOUR", "1")
+    reviewer_id = world["reviewer_id"]
+    async with client_for(_app(session, engine)) as client:
+        on_sample = await client.post(
+            f"{J}/ask",
+            json={"template": "improve_gmv"},
+            headers=_headers(reviewer_id, world["sample"].shop_id),
+        )
+        await _wait_runs()
+        on_sandbox = await client.post(
+            f"{J}/ask",
+            json={"template": "improve_gmv"},
+            headers=_headers(reviewer_id, world["sandbox"].shop_id),
+        )
+    assert on_sample.status_code == 202, on_sample.text
+    assert on_sandbox.status_code == 429 and on_sandbox.json()["detail"]["code"] == "juli_limited"
+    assert f"juli:agent:reviewer:{reviewer_id}:hour" in reviewer_redis.store
+    assert reviewer_redis.ttls[f"juli:agent:reviewer:{reviewer_id}:day"] == 86_400
+
+
+@pytest.mark.parametrize("outage", ["no_redis", "redis_error"])
+async def test_a_reviewers_ask_fails_closed_without_redis(
+    session, engine, world, monkeypatch, reviewer_redis, outage
+):
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    from juli_backend.services.juli_agent_api import reviewer_limits
+
+    if outage == "no_redis":
+        reviewer_limits.set_client(None)
+        monkeypatch.delenv("REDIS_URL", raising=False)
+    else:
+        reviewer_redis.incr_raises = RedisConnectionError("down")
+    sid, reviewer_id = world["sample"].shop_id, world["reviewer_id"]
+    async with client_for(_app(session, engine)) as client:
+        r = await client.post(
+            f"{J}/ask", json={"template": "improve_gmv"}, headers=_headers(reviewer_id, sid)
+        )
+    assert r.status_code == 429 and r.json()["detail"]["code"] == "juli_limited"
+    assert runner._TASKS == {}
+
+
+async def test_the_cost_guard_counts_the_juli_tabs_own_spend(session, engine, world):
+    from decimal import Decimal
+
+    sid, reviewer_id = world["sample"].shop_id, world["reviewer_id"]
+    from juli_backend.services.shop_rules.openai_cap import default_cap_usd
+
+    over = default_cap_usd() + Decimal("1")  # the configured cap, not a hard-coded $5
+    await _answer(session, sid, user_id=world["sample"].user.id, cost=over)
+    async with client_for(_app(session, engine)) as client:
+        r = await client.post(
+            f"{J}/ask", json={"template": "improve_gmv"}, headers=_headers(reviewer_id, sid)
+        )
+    assert r.status_code == 429
+    assert r.json()["detail"]["code"] == "juli_cost_cap" and r.json()["detail"]["scope"] == "shop"
+    assert runner._TASKS == {}
+
+
+async def test_the_system_cap_stops_a_reviewers_ask(session, engine, world, monkeypatch):
+    async def reached(session, *, now=None):
+        return True
+
+    monkeypatch.setattr("juli_backend.services.ops.system_cap.system_cap_reached", reached)
+    sid, reviewer_id = world["sample"].shop_id, world["reviewer_id"]
+    async with client_for(_app(session, engine)) as client:
+        r = await client.post(
+            f"{J}/ask", json={"template": "improve_gmv"}, headers=_headers(reviewer_id, sid)
+        )
+    assert r.status_code == 429 and r.json()["detail"]["scope"] == "system"
+
+
+@pytest.mark.parametrize(
+    ("which", "enabled"), [("sample", True), ("sandbox", True), ("masked", False)]
+)
+async def test_enabled_tells_a_reviewer_whether_the_pin_has_the_tab(
+    session, engine, world, which, enabled
+):
+    shop = {
+        "sample": world["sample"].shop_id,
+        "sandbox": world["sandbox"].shop_id,
+        "masked": shop_alias_id(world["seller"].shop.id),
+    }[which]
+    before = await _snapshot(session, reviewer_id=world["reviewer_id"])
+    async with client_for(_app(session, engine)) as client:
+        r = await client.get(f"{J}/enabled", headers=_headers(world["reviewer_id"], shop))
+    assert (r.status_code, r.json()) == (200, {"enabled": enabled})
+    after = await _snapshot(session, reviewer_id=world["reviewer_id"])
+    assert [n for n in before if before[n] != after[n]] == []
+    assert await _audits(session, "reviewer_read_refused") == []  # a status read, not refused

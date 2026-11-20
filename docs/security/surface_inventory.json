@@ -241,6 +241,14 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/juli/enabled",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/juli/messages/{message_id}/cancel",
       "methods": [
         "POST"

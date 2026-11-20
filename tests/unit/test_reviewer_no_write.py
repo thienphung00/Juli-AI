@@ -113,6 +113,7 @@ EXPECTED_TEMPLATES: dict[tuple[str, str], str] = {
     ("GET", "/v1/demo/juli/conversations/{conversation_id}"): "juli_agent:get_conversation",
     ("POST", "/v1/demo/juli/cards/{draft_ref}/send"): "juli_agent:send_card",
     ("POST", "/v1/demo/juli/cards/{draft_ref}/dismiss"): "juli_agent:dismiss_card",
+    ("GET", "/v1/demo/juli/enabled"): "juli_agent:juli_enabled",
 }
 #: The live sandbox routes: on a non-sandbox pin (this module's world) each must refuse.
 SANDBOX_ROUTES = {
@@ -400,6 +401,14 @@ async def test_every_route_as_reviewer_writes_nothing(
                         # not the sample pin nor the writable sandbox (or no pin) -> refused,
                         # nothing changed, no LLM port opened (the tripwire).
                         juli_driven.add((method, endpoint))
+                        if (method, endpoint) == reviewer_gate.JULI_STATUS_ENDPOINT and pinned:
+                            # the rail's status read: 200 {enabled: false} off the Juli pins
+                            if response.status_code != 200 or response.json() != {"enabled": False}:
+                                problems.append(
+                                    f"{method} {route.path}: {response.status_code} "
+                                    f"{response.text} (want 200 enabled false)"
+                                )
+                            continue
                         denied = response.headers.get("x-juli-reviewer-denied")
                         if response.status_code != 403 or (pinned and denied != "read_only"):
                             problems.append(
