@@ -39,6 +39,8 @@ CHAIN_TIMEOUT_S = 30
 UNSUPPORTED_VI = "Juli chưa hỗ trợ câu hỏi này"
 NO_TIKTOK_CARD_VI = "Chưa có đề xuất cho TikTok"
 ANALYTICS_PLATFORMS = ("shopee",)  # TikTok joins when P101 W3 opens its analytics routes (U12)
+#: Platforms whose recommendation engine can fill a draft card (Shopee only for now).
+CARD_PLATFORMS = ("shopee",)
 
 
 class _Out:
@@ -354,7 +356,7 @@ async def _answer(
         await out.emit(lab)
     # card stage: chain -> card decision -> answer
     outcome = cardstage.CardOutcome()
-    if req.platform == "shopee" and engine is not None:
+    if req.platform in CARD_PLATFORMS and engine is not None:
         await out.emit(present.status("preparing_card"))
         outcome = await cardstage.card_stage(
             chains=[chain],
