@@ -34,7 +34,7 @@ Có câu hỏi, bạn cứ nhắn đội ngũ Juli ({Kênh liên hệ}) hoặc e
 | **Lượt nhấp** | Số lần khách bấm vào sản phẩm. |
 | **CTR** | Trong 100 lượt xem có bao nhiêu lượt nhấp. |
 | **CTOR** | Trong 100 lượt nhấp có bao nhiêu thành đơn. |
-| **Lợi nhuận** | Tiền còn lại sau giá vốn, phí sàn, đóng gói, vận chuyển, quảng cáo, tiếp thị liên kết (ưu đãi đã trừ trong doanh thu), theo thiết lập VAT của shop. |
+| **Lợi nhuận** | Tiền còn lại sau giá vốn, phí sàn, đóng gói, vận chuyển, quảng cáo, tiếp thị liên kết, theo thiết lập VAT của shop. |
 | **Tổng chi phí** | Quảng cáo + Tiếp thị liên kết + Ưu đãi của kỳ. |
 | **Ưu đãi** | Khuyến mãi, voucher của shop và combo đã áp dụng cho đơn; đã được trừ sẵn vào số tiền khách trả. |
 | **ROI** | Lợi nhuận chia cho Tổng chi phí; một số lần, không phải phần trăm. |
@@ -302,8 +302,8 @@ Từng khoản trừ:
 - **Đóng gói**: số bạn nhập; chưa nhập thì tính 0 và Juli ghi chú "chưa nhập chi phí đóng gói".
 - **Quảng cáo**: chi phí quảng cáo của mọi ngày trong kỳ, kể cả ngày không có đơn.
 - **Tiếp thị liên kết**: hoa hồng cho KOL.
-- **Ưu đãi** (khuyến mãi, voucher của shop, combo): đã được trừ sẵn vào số tiền khách trả, nên không bị trừ thêm lần nữa
-  khi tính lợi nhuận.
+- **Ưu đãi** (khuyến mãi, voucher của shop, combo): đã được trừ sẵn vào số tiền khách trả (doanh thu thực), nên lợi nhuận không
+  trừ thêm lần nữa; ưu đãi vẫn là một phần của **Tổng chi phí** và của ROI.
 - **Thuế VAT**: theo thiết lập của shop. Nếu giá bán đã gồm VAT (thiết lập "Giá bán đã gồm VAT") thì
   Doanh thu thực = tiền khách trả ÷ (1 + thuế suất), thuế suất là 0 %, 5 %, 8 % hoặc 10 %. Thuế suất đặt theo từng sản phẩm, hoặc một mức mặc định cho cả shop; đội ngũ Juli đặt cùng bạn.
   Sản phẩm chưa có thuế suất riêng thì dùng mức mặc định của shop; chưa có cả hai thì lợi nhuận của dòng đó chưa tính được, Juli không
@@ -334,8 +334,8 @@ trong ngày đó.
 
 ROI là số lần, không phải phần trăm. Không có chi phí (hoặc chưa biết) thì ROI hiện "—".
 
-Lưu ý khi so sánh với tệp Excel: ở tệp Excel Tổng quan, **Tổng chi phí** chỉ gồm quảng cáo và tiếp thị liên kết
-("ROI (lợi nhuận ÷ chi phí QC + AFF)"), còn **Ưu đãi** ghi riêng vì đã nằm trong doanh thu. Vì vậy ROI trong Excel có thể khác ROI trên màn hình.
+Tệp Excel Tổng quan tính giống màn hình: dòng chi phí (nhãn "Chi phí marketing") cộng Quảng cáo + Tiếp thị liên kết + Ưu đãi,
+và **ROI** = Lợi nhuận ÷ khoản đó.
 
 ### 6.4 Hai mức biên lợi nhuận
 
@@ -345,7 +345,7 @@ Lưu ý khi so sánh với tệp Excel: ở tệp Excel Tổng quan, **Tổng ch
 | **Biên ở giá bán** | (giá bán sau VAT − phí sàn − giá vốn − đóng gói) ÷ giá bán sau VAT, cho **một đơn vị** ở giá bán hiện tại | Chắc chắn: chỉ cần giá bán và giá vốn |
 | **Biên cuối** | **Biên ở giá bán** − phần tiền khách trả đã đi vào voucher của shop, hoa hồng tiếp thị liên kết và quảng cáo (đo 30 ngày gần nhất) | Sát thực tế hơn; ghi "theo tỉ lệ của sản phẩm" khi phân loại chưa đủ đơn |
 
-Trong tệp Excel Tổng quan, "Biên lợi nhuận (% GMV)" chia Lợi nhuận cho **GMV**, nên thường thấp hơn **Biên lợi nhuận** trên màn hình.
+Tệp Excel Tổng quan dùng cùng công thức: **Biên lợi nhuận** = Lợi nhuận ÷ Doanh thu thực của các đơn đã có giá vốn (dòng "Doanh thu thực của đơn đủ chi phí" ngay dưới).
 
 Ví dụ: Biên ở giá bán 34,0 %; 30 ngày qua voucher chiếm 2,0 %, hoa hồng 1,5 %, quảng cáo 4,5 % số tiền khách trả → Biên cuối
 = 34,0 − 2,0 − 1,5 − 4,5 = 26,0 %. Chưa có giá vốn thì cả hai biên ghi "chưa tính".
@@ -507,8 +507,8 @@ Nút **Tải Excel** tải kỳ và cấp xem (Shop hoặc một sản phẩm) b
 |---|---|
 | **Tổng quan** | Chỉ số, Kỳ này, % doanh thu, Kỳ trước, Thay đổi, Mục tiêu (Kế hoạch), So với mục tiêu |
 | **Lợi nhuận** | Doanh thu, rồi từng khoản trừ trên một dòng (phí Shopee, giá vốn đã trừ VAT đầu vào, đóng gói, hoa hồng, vận chuyển, quảng cáo, chi phí khác) đến lợi nhuận và biên; mỗi dòng ghi số liệu "Thật" hay "Giả định" |
-| **Theo kênh** | Organic, Quảng cáo, Tiếp thị liên kết: GMV, % GMV, Thay đổi, Đơn, AOV, Chi phí, ROI, Chi phí / doanh thu, Lợi nhuận kênh |
-| **Theo ngày** | Từng ngày: GMV theo ba kênh, Đơn, chi phí, lợi nhuận |
+| **Theo kênh** | Organic, Quảng cáo, Tiếp thị liên kết và Ưu đãi: GMV, % GMV, Thay đổi, Đơn, AOV, Chi phí, ROI, Chi phí / doanh thu, Lợi nhuận kênh |
+| **Theo ngày** | Từng ngày: GMV theo ba kênh, Đơn, Chi phí marketing, lợi nhuận |
 | **Theo sản phẩm** | Từng sản phẩm: GMV, Thay đổi, Lợi nhuận, % GMV từng kênh, ROI, tỷ trọng so với shop |
 | **Theo SKU** | Số lượng bán, doanh thu, lợi nhuận, biên, tồn kho, hệ số combo, bán mỗi ngày, còn bao nhiêu ngày, cần nhập |
 
