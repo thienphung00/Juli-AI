@@ -37,6 +37,7 @@ from juli_backend.services.shopee_recommendations import manual
 from tests.support import reviewer as rv
 from tests.support.api import build_app, client_for
 from tests.support.builders import utc_now_naive
+from tests.support.fakes import FakeAsyncRedis
 from tests.support.shopee_reco import seed_reco_shop
 from tests.unit.juli_agent_api.fakes import FakeEngine, draft_card, fake_ports
 from tests.unit.test_reviewer_no_write import Tripwire, _snapshot
@@ -63,6 +64,39 @@ def reviewer_env(monkeypatch):
     yield
     rv.reset_caches()
     reviewer_sandbox.forget_sync_slots()
+
+
+class CountingRedis(FakeAsyncRedis):
+    """The repo's ``FakeAsyncRedis`` plus the fixed-window verbs (INCR / EXPIRE / TTL)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.ttls: dict[str, int] = {}
+        self.incr_raises: Exception | None = None
+
+    async def incr(self, key: str) -> int:
+        if self.incr_raises is not None:
+            raise self.incr_raises
+        value = int(self.store.get(key, "0")) + 1
+        self.store[key] = str(value)
+        return value
+
+    async def expire(self, key: str, seconds: int) -> bool:
+        self.ttls[key] = seconds
+        return True
+
+    async def ttl(self, key: str) -> int:
+        return self.ttls.get(key, -1)
+
+
+@pytest.fixture(autouse=True)
+def reviewer_redis():
+    from juli_backend.services.juli_agent_api import reviewer_limits
+
+    fake = CountingRedis()
+    reviewer_limits.set_client(fake)
+    yield fake
+    reviewer_limits.set_client(None)
 
 
 @pytest.fixture
@@ -347,6 +381,51 @@ async def test_a_reviewers_limit_is_its_own_not_the_shops(session, engine, world
         second = await client.post(f"{J}/ask", json={"template": "improve_gmv"}, headers=h)
     assert first.status_code == 202, first.text
     assert second.status_code == 429 and second.json()["detail"]["code"] == "juli_limited"
+
+
+async def test_a_reviewers_limit_counts_across_pins(
+    session, engine, world, monkeypatch, reviewer_redis
+):
+    monkeypatch.setenv("JULI_AGENT_LIMIT_PER_HOUR", "1")
+    reviewer_id = world["reviewer_id"]
+    async with client_for(_app(session, engine)) as client:
+        on_sample = await client.post(
+            f"{J}/ask",
+            json={"template": "improve_gmv"},
+            headers=_headers(reviewer_id, world["sample"].shop_id),
+        )
+        await _wait_runs()
+        on_sandbox = await client.post(
+            f"{J}/ask",
+            json={"template": "improve_gmv"},
+            headers=_headers(reviewer_id, world["sandbox"].shop_id),
+        )
+    assert on_sample.status_code == 202, on_sample.text
+    assert on_sandbox.status_code == 429 and on_sandbox.json()["detail"]["code"] == "juli_limited"
+    assert f"juli:agent:reviewer:{reviewer_id}:hour" in reviewer_redis.store
+    assert reviewer_redis.ttls[f"juli:agent:reviewer:{reviewer_id}:day"] == 86_400
+
+
+@pytest.mark.parametrize("outage", ["no_redis", "redis_error"])
+async def test_a_reviewers_ask_fails_closed_without_redis(
+    session, engine, world, monkeypatch, reviewer_redis, outage
+):
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    from juli_backend.services.juli_agent_api import reviewer_limits
+
+    if outage == "no_redis":
+        reviewer_limits.set_client(None)
+        monkeypatch.delenv("REDIS_URL", raising=False)
+    else:
+        reviewer_redis.incr_raises = RedisConnectionError("down")
+    sid, reviewer_id = world["sample"].shop_id, world["reviewer_id"]
+    async with client_for(_app(session, engine)) as client:
+        r = await client.post(
+            f"{J}/ask", json={"template": "improve_gmv"}, headers=_headers(reviewer_id, sid)
+        )
+    assert r.status_code == 429 and r.json()["detail"]["code"] == "juli_limited"
+    assert runner._TASKS == {}
 
 
 async def test_the_cost_guard_counts_the_juli_tabs_own_spend(session, engine, world):
