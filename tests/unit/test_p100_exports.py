@@ -269,7 +269,10 @@ def test_kind_sheets_carry_their_tailored_rows_and_the_kol_sheet_one_row_per_kol
     assert "CPA hoà vốn dự kiến" in ads and "Lượt nhấp thực tế" in ads
     assert "Lượt dùng dự kiến" in [c.value for c in wb["Voucher"][3]]
     kol = wb[kh.SHEET_KOL]
-    assert kol["C4"].value == "kol_a" and kol["I4"].value == '=IFERROR(H4/G4,"")'
+    # registry roi_kol: (lợi nhuận KOL − chi phí mẫu) ÷ (hoa hồng + chi phí mẫu)
+    assert kol["C4"].value == "kol_a" and kol["I3"].value == "Chi phí mẫu"
+    assert kol["J4"].value == '=IFERROR((H4-N(I4))/(G4+N(I4)),"")'
+    assert kol["I4"].value is None and kol["K4"].value == 1
     assert kol["A5"].value is None
 
 

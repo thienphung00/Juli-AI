@@ -43,9 +43,9 @@ Nguồn đã đối chiếu khi viết (cập nhật 2026-11-20): `services/metr
 | **CTR** | Trong 100 lượt xem có bao nhiêu lượt nhấp. | `clicks ÷ views` (cộng cả kỳ rồi chia). Dòng DVHT: trên những ngày có đủ cả hai số. |
 | **CTOR** | Trong 100 lượt nhấp có bao nhiêu thành đơn. | `orders ÷ clicks`. Dòng DVHT: đơn đã đặt ÷ clicks. |
 | **Lợi nhuận** | Tiền còn lại sau giá vốn, phí sàn, đóng gói, vận chuyển, quảng cáo, tiếp thị liên kết, theo thiết lập VAT của shop. | `known_cost_profit`: Σ (doanh thu thực − giá vốn − đóng gói − phí sàn − vận chuyển − hoa hồng AFF) trên đơn có chi phí − quảng cáo tính vào − chi phí marketing khác; mục 3.1. |
-| **Tổng chi phí** | Quảng cáo + Tiếp thị liên kết + Ưu đãi của kỳ. | `kpis_of`: `cost_ads + cost_affiliate + cost_offers`; `None` nếu không khoản nào biết. (Excel Tổng quan cộng cùng ba khoản, nhãn "Chi phí marketing": mục 3.2.) |
+| **Chi phí marketing** | Quảng cáo + Tiếp thị liên kết + Ưu đãi của kỳ. | `kpis_of`: `cost_ads + cost_affiliate + cost_offers`; `None` nếu không khoản nào biết. (Excel Tổng quan cộng cùng ba khoản, nhãn "Chi phí marketing": mục 3.2.) |
 | **Ưu đãi** | Khuyến mãi, voucher của shop và combo đã áp dụng cho đơn; đã được trừ sẵn vào số tiền khách trả. | `promo_discount + voucher + bundle` của các dòng đơn (`_offers_cost`); không trừ lần hai trong lợi nhuận; là một phần của `cost_marketing`. |
-| **ROI** | Lợi nhuận chia cho Tổng chi phí; một số lần, không phải phần trăm. | `profit ÷ cost_total` (màn hình, `kpis_of`); `None` khi chi phí = 0. Hiện một chữ số thập phân. |
+| **ROI** | Lợi nhuận chia cho Chi phí marketing; một số lần, không phải phần trăm. | `profit ÷ cost_total` (màn hình, `kpis_of`); `None` khi chi phí = 0. Hiện một chữ số thập phân. |
 | **Biên lợi nhuận** | Phần lợi nhuận trong doanh thu thực của kỳ. | `margin = profit ÷ net_revenue_known` (đơn có chi phí). Excel Tổng quan cùng công thức (dòng "Doanh thu thực của đơn đủ chi phí" = `Figures.net_revenue_known`). |
 | **Biên ở giá bán** | Biên của một đơn vị ở giá bán hiện tại, chỉ cần giá bán và giá vốn. | `(price_after_vat − fees − cogs − packaging) ÷ price_after_vat` (`variations.margin_pct`); thiếu giá vốn → "chưa tính". |
 | **Biên cuối** | Biên ở giá bán trừ phần voucher, hoa hồng và quảng cáo thật của 30 ngày gần nhất. | `margins.final_margin = Biên ở giá bán − 100 × (voucher + hoa hồng + quảng cáo)` theo tỷ lệ đo 30 ngày; `final_margin_basis` = variation \| product. |
@@ -177,13 +177,13 @@ khoản là "Thật" hay "Giả định" theo `real_pct`.
 
 | Nơi | Chi phí | ROI |
 |---|---|---|
-| Màn hình Tổng quan (`kpis_of`) | Quảng cáo + Tiếp thị liên kết + Ưu đãi (cộng các khoản biết được; `None` nếu không khoản nào biết) | Lợi nhuận ÷ Tổng chi phí; `None` khi chi phí = 0 hoặc thiếu |
+| Màn hình Tổng quan (`kpis_of`) | Quảng cáo + Tiếp thị liên kết + Ưu đãi (cộng các khoản biết được; `None` nếu không khoản nào biết) | Lợi nhuận ÷ Chi phí marketing; `None` khi chi phí = 0 hoặc thiếu |
 | Tệp Excel Tổng quan (`cost_of`, nhãn lấy từ registry: "Chi phí marketing", "ROI") | Quảng cáo + Tiếp thị liên kết + Ưu đãi | Lợi nhuận ÷ Chi phí marketing; Tổng (nhiều shop) tính lại từ tổng các phần |
 | Registry `roi` | `cost_marketing` = `cost_ads + cost_affiliate + cost_offers` | `profit ÷ cost_marketing` |
 | Registry `cost_total` (chưa nối vào màn hình) | tám khoản gồm giá vốn, đóng gói, phí sàn, vận chuyển, quảng cáo, liên kết, ưu đãi, chi phí khác | — |
 
 Màn hình, Excel và registry cùng một công thức (chủ 2026-11-20: backend là nguồn chuẩn, Excel theo sau). Phí sàn mới là thứ không bao giờ tính là chi phí marketing.
-Nhãn màn hình "Tổng chi phí" so với nhãn registry "Chi phí marketing" vẫn là câu hỏi mở (mục 13).
+Màn hình và Excel cùng dùng nhãn registry "Chi phí marketing" (chủ shop, 20/11). "Tổng chi phí" của registry (`cost_total`, tám khoản) chưa hiện trên màn hình nào.
 
 ### 3.3 Các mức biên
 
@@ -345,7 +345,7 @@ Hai khái niệm khác nhau; người bán hay nhầm:
 Khối → bộ số liệu (`SECTION_DATASETS`): `kpis` ← `shop_overview` (GMV, đơn: chỉ tổng của Shopee — owner T8, đơn lẻ muộn không được làm GMV lùi ngày); `profit` ←
 `shop_overview` + `order_lines` + quảng cáo (`ads_last_day`: ngày cuối có số quảng cáo trong kỳ); `channels` ← `shop_overview` + `traffic_overview` + quảng cáo; `plan` ←
 `shop_overview` + `order_lines`; `products` ← `shop_overview` + `order_lines`. Một bộ số liệu shop chưa có hàng thì bị bỏ khỏi phép `min`; khối không có bộ nào thì "—".
-Khi ngày của Lợi nhuận / Tổng chi phí cũ hơn ngày của GMV, ô đó hiện thêm dòng "Số liệu đến" riêng.
+Khi ngày của Lợi nhuận / Chi phí marketing cũ hơn ngày của GMV, ô đó hiện thêm dòng "Số liệu đến" riêng.
 
 Cách đọc khi người bán nói "số cũ": (1) xem **Cập nhật** — nếu cũ, Connector không gửi (xem thanh Juli Connector ở Thực hiện và danh sách **Reader lỗi** ở Ops);
 (2) nếu **Cập nhật** mới mà **Số liệu đến** cũ, Connector có gửi nhưng bộ số liệu chậm nhất của khối đó chưa có ngày mới (`last_period_end` có thể là ngày không có hàng nào — so với "ngày mới nhất đang giữ");
@@ -415,18 +415,16 @@ dòng "Chênh lệch: doanh thu dòng đơn khác Doanh số Shopee" đưa Σ do
 - `Mục tiêu`: mỗi shop `GMV nền / mục tiêu / thực tế / % đạt` rồi cùng bốn số cho Lợi nhuận; dòng **Tổng** chỉ khi **mọi** shop đều có mục tiêu đó (G23); bảng "Theo ngày" trải nền đều và phần tăng đúng ngày rơi vào.
   `goal = baseline + uplift`: baseline = mức 30 ngày "hôm nay" đã đóng băng của **kế hoạch đã chạy sớm nhất** (`aggregate.today`) ÷ `HORIZON_DAYS = 30` × số ngày; uplift = tổng P50 Δ của các thẻ đang chạy, mỗi thẻ trải đều trên số ngày của chính nó và chỉ tính ngày nằm trong khoảng;
   thẻ **ngoài kế hoạch** (Làm ngoài Juli / Tự tạo đã thực hiện, `plan_id` rỗng) tính như thẻ trong kế hoạch; nếu không có kế hoạch nào đã chạy, baseline là mức 30 ngày của shop trước thẻ sớm nhất. Không thẻ nào chạy → `goal = None` (không phải 0). `ahead` = thực tế ≥ mục tiêu chia theo tỷ lệ thời gian đã qua.
-- Trang Quảng cáo: `CPA`, `ROAS`, `CPA hoà vốn`, `ROAS hoà vốn` mỗi cái hai cột (dự kiến / thực tế); thực tế CPA = chi ÷ đơn của lần đọc lại (`ads_readback`), CPA hoà vốn và ROAS hoà vốn không có số thực tế. Trang KOL: `ROI KOL` là công thức **`Lợi nhuận ÷ Hoa hồng`** (`=H/G`: cột Lợi nhuận chia cột Hoa hồng) của dòng.
+- Trang Quảng cáo: `CPA`, `ROAS`, `CPA hoà vốn`, `ROAS hoà vốn` mỗi cái hai cột (dự kiến / thực tế); thực tế CPA = chi ÷ đơn của lần đọc lại (`ads_readback`), CPA hoà vốn và ROAS hoà vốn không có số thực tế. Trang KOL: cột `Chi phí mẫu` và `ROI KOL` = **(Lợi nhuận − Chi phí mẫu) ÷ (Hoa hồng + Chi phí mẫu)**, cùng công thức registry `roi_kol`.
 
 ## 13. Các khác biệt đã biết (nói đúng khi người bán hỏi)
 
-1. **Nhãn chi phí**: màn hình ghi "Tổng chi phí" nhưng đó là `cost_marketing` (registry: "Chi phí marketing"); `cost_total` (tám khoản) chưa nối màn hình. Excel ghi "Chi phí marketing". Chưa chốt nhãn nào hiện cho người bán.
-2. **ROI KOL**: registry (`roi_kol`) = `(kol_net − samples_cost) ÷ (kol_commission + samples_cost)` kèm khoảng tin cậy 90 % → ba trạng thái (`kol_status`); Excel trang KOL hiện `Lợi nhuận ÷ Hoa hồng`. Màn hình Phân tích chưa hiện ROI KOL.
-3. **Thứ tự chia kênh**: `metrics/allocation.channel_partition` (registry; "chưa nối màn hình") ưu tiên Tiếp thị liên kết rồi Quảng cáo; màn hình cấp Sản phẩm (`partition_channels`) ưu tiên **Quảng cáo** rồi Tiếp thị liên kết;
+1. **Thứ tự chia kênh**: `metrics/allocation.channel_partition` (registry; "chưa nối màn hình") ưu tiên Tiếp thị liên kết rồi Quảng cáo; màn hình cấp Sản phẩm (`partition_channels`) ưu tiên **Quảng cáo** rồi Tiếp thị liên kết;
    cấp Shop không chia mà lấy nguồn Seller Centre trực tiếp (mục 2).
-4. **Nhãn Đo lường**: hai cách chấm (mục 6.1) cùng dùng nhãn "Trong khoảng / Dưới khoảng / Vượt khoảng" nhưng so **Δ lợi nhuận** với dải lợi nhuận (khi đã đủ N ngày) hoặc **thay đổi tương đối** của chỉ số mục tiêu với P10–P90 lift (verdict trước đó).
-5. **Ngưỡng hiệu chỉnh**: 5 kết quả sạch, không phải 3 (mục 5.2).
-6. **Tên biên** trong GLOSSARY (Biên cuối ở giá hiện tại / Biên thực hiện 30 ngày) khác nhãn màn hình (Biên ở giá bán / Biên cuối).
-7. **Juli tab** (hỏi đáp số liệu) thuộc batch chưa gộp; tài liệu người bán mô tả ngắn, cần kiểm lại khi gộp.
+2. **Nhãn Đo lường**: hai cách chấm (mục 6.1) cùng dùng nhãn "Trong khoảng / Dưới khoảng / Vượt khoảng" nhưng so **Δ lợi nhuận** với dải lợi nhuận (khi đã đủ N ngày) hoặc **thay đổi tương đối** của chỉ số mục tiêu với P10–P90 lift (verdict trước đó).
+3. **Ngưỡng hiệu chỉnh**: mã hiện cần 5 kết quả sạch và còn bậc gộp nhiều shop; quyết định 19/11 là 3 kết quả, riêng từng shop (đang sửa trong lô thẻ 2) (mục 5.2).
+4. **Tên biên** trong GLOSSARY (Biên cuối ở giá hiện tại / Biên thực hiện 30 ngày) khác nhãn màn hình (Biên ở giá bán / Biên cuối).
+5. **Juli tab** (hỏi đáp số liệu) thuộc batch chưa gộp; tài liệu người bán mô tả ngắn, cần kiểm lại khi gộp.
 
 ## Phụ lục: TikTok Shop
 

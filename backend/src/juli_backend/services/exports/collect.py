@@ -762,7 +762,8 @@ async def _kols_of(
     for r in section["rows"]:
         k = by.setdefault(r["kol_key"], kh.KolRow(shop, platform, r["handle"] or r["kol_key"]))
         for attr, key in (("clicks", "clicks"), ("orders", "orders"), ("gmv", "gmv"),
-                          ("commission", "commission"), ("profit", "profit")):  # fmt: skip
+                          ("commission", "commission"), ("profit", "profit"),
+                          ("sample_cost", "sample_cost")):  # fmt: skip
             v = _f(r.get(key))
             if v is not None:
                 setattr(k, attr, (getattr(k, attr) or 0.0) + v)

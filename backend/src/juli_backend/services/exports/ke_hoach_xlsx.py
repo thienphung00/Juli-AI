@@ -171,6 +171,7 @@ class KolRow:
     commission: float | None = None
     profit: float | None = None
     cards: int = 0
+    sample_cost: float | None = None
 
 
 @dataclass
@@ -396,7 +397,7 @@ def _goals(wb: Workbook, data: KeHoachData) -> None:
 
 KOL_HEADER = [
     "Shop", "Nền tảng", "KOL", "Lượt nhấp", "Đơn liên kết", "GMV", "Hoa hồng", "Lợi nhuận",
-    "ROI KOL", "Số thẻ",
+    "Chi phí mẫu", "ROI KOL", "Số thẻ",
 ]  # fmt: skip
 
 
@@ -408,10 +409,12 @@ def _kols(wb: Workbook, data: KeHoachData) -> None:
         for c, text in ((1, k.shop), (2, k.platform), (3, k.kol)):
             put(ws, r, c, text)
         for c, v, fmt in ((4, k.clicks, INT), (5, k.orders, INT), (6, k.gmv, MONEY),
-                          (7, k.commission, MONEY), (8, k.profit, MONEY)):  # fmt: skip
+                          (7, k.commission, MONEY), (8, k.profit, MONEY),
+                          (9, k.sample_cost, MONEY)):  # fmt: skip
             put(ws, r, c, v, fmt)
-        put(ws, r, 9, f'=IFERROR(H{r}/G{r},"")', POINTS)
-        put(ws, r, 10, k.cards, INT)
+        # registry roi_kol = (lợi nhuận KOL − chi phí mẫu) ÷ (hoa hồng + chi phí mẫu)
+        put(ws, r, 10, f'=IFERROR((H{r}-N(I{r}))/(G{r}+N(I{r})),"")', POINTS)
+        put(ws, r, 11, k.cards, INT)
     widths(ws, {1: 24, 3: 28}, 14)
     finish(ws, "D4")
 

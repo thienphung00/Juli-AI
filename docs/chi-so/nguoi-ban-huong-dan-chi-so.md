@@ -35,9 +35,9 @@ Có câu hỏi, bạn cứ nhắn đội ngũ Juli ({Kênh liên hệ}) hoặc e
 | **CTR** | Trong 100 lượt xem có bao nhiêu lượt nhấp. |
 | **CTOR** | Trong 100 lượt nhấp có bao nhiêu thành đơn. |
 | **Lợi nhuận** | Tiền còn lại sau giá vốn, phí sàn, đóng gói, vận chuyển, quảng cáo, tiếp thị liên kết, theo thiết lập VAT của shop. |
-| **Tổng chi phí** | Quảng cáo + Tiếp thị liên kết + Ưu đãi của kỳ. |
+| **Chi phí marketing** | Quảng cáo + Tiếp thị liên kết + Ưu đãi của kỳ. |
 | **Ưu đãi** | Khuyến mãi, voucher của shop và combo đã áp dụng cho đơn; đã được trừ sẵn vào số tiền khách trả. |
-| **ROI** | Lợi nhuận chia cho Tổng chi phí; một số lần, không phải phần trăm. |
+| **ROI** | Lợi nhuận chia cho Chi phí marketing; một số lần, không phải phần trăm. |
 | **Biên lợi nhuận** | Phần lợi nhuận trong doanh thu thực của kỳ. |
 | **Biên ở giá bán** | Biên của một đơn vị ở giá bán hiện tại, chỉ cần giá bán và giá vốn. |
 | **Biên cuối** | Biên ở giá bán trừ phần voucher, hoa hồng và quảng cáo thật của 30 ngày gần nhất. |
@@ -139,8 +139,8 @@ tiêu.
 |---|---|
 | **GMV** | Doanh số của shop theo Seller Centre |
 | **Lợi nhuận** | Tiền còn lại sau mọi chi phí, mục 6.2 |
-| **Tổng chi phí** | **Quảng cáo** + **Tiếp thị liên kết** + **Ưu đãi** (ba dòng nhỏ bên dưới) |
-| **ROI** | **Lợi nhuận** ÷ **Tổng chi phí**, đọc là một số như "2,3", không có dấu % |
+| **Chi phí marketing** | **Quảng cáo** + **Tiếp thị liên kết** + **Ưu đãi** (ba dòng nhỏ bên dưới) |
+| **ROI** | **Lợi nhuận** ÷ **Chi phí marketing**, đọc là một số như "2,3", không có dấu % |
 
 **Thanh GMV theo luồng** chia GMV thành **Organic**, **Quảng cáo**, **Tiếp thị liên kết** (phần trăm và số tiền, kèm mũi tên).
 
@@ -303,7 +303,7 @@ Từng khoản trừ:
 - **Quảng cáo**: chi phí quảng cáo của mọi ngày trong kỳ, kể cả ngày không có đơn.
 - **Tiếp thị liên kết**: hoa hồng cho KOL.
 - **Ưu đãi** (khuyến mãi, voucher của shop, combo): đã được trừ sẵn vào số tiền khách trả (doanh thu thực), nên lợi nhuận không
-  trừ thêm lần nữa; ưu đãi vẫn là một phần của **Tổng chi phí** và của ROI.
+  trừ thêm lần nữa; ưu đãi vẫn là một phần của **Chi phí marketing** và của ROI.
 - **Thuế VAT**: theo thiết lập của shop. Nếu giá bán đã gồm VAT (thiết lập "Giá bán đã gồm VAT") thì
   Doanh thu thực = tiền khách trả ÷ (1 + thuế suất), thuế suất là 0 %, 5 %, 8 % hoặc 10 %. Thuế suất đặt theo từng sản phẩm, hoặc một mức mặc định cho cả shop; đội ngũ Juli đặt cùng bạn.
   Sản phẩm chưa có thuế suất riêng thì dùng mức mặc định của shop; chưa có cả hai thì lợi nhuận của dòng đó chưa tính được, Juli không
@@ -328,9 +328,9 @@ trong ngày đó.
 | **Quảng cáo** | Chi phí quảng cáo (báo cáo DVHT) | 4.000.000 đ |
 | **Tiếp thị liên kết** | Hoa hồng KOL | 1.000.000 đ |
 | **Ưu đãi** | Khuyến mãi + voucher của shop + combo | 2.000.000 đ |
-| **Tổng chi phí** | Quảng cáo + Tiếp thị liên kết + Ưu đãi | 7.000.000 đ |
+| **Chi phí marketing** | Quảng cáo + Tiếp thị liên kết + Ưu đãi | 7.000.000 đ |
 | **Lợi nhuận** | mục 6.2 | 16.000.000 đ |
-| **ROI** | Lợi nhuận ÷ Tổng chi phí | 16.000.000 ÷ 7.000.000 ≈ 2,3 |
+| **ROI** | Lợi nhuận ÷ Chi phí marketing | 16.000.000 ÷ 7.000.000 ≈ 2,3 |
 
 ROI là số lần, không phải phần trăm. Không có chi phí (hoặc chưa biết) thì ROI hiện "—".
 
@@ -524,7 +524,7 @@ trước chi phí marketing của shop − chi phí của kênh; các dòng cộ
 - **Mục tiêu**: mỗi shop có GMV nền, GMV mục tiêu, GMV thực tế, % đạt GMV, rồi cùng bốn số đó cho Lợi nhuận, và bảng **Theo ngày**.
 - Một trang cho mỗi nhóm loại thẻ: Quảng cáo, Voucher, Combo - Deal Sốc, Giá - Chương trình - Flash, Phân loại, Listing,
   Liên kết - KOL, và Thẻ khác. Trang Quảng cáo có thêm CPA, CPA hoà vốn, ROAS, ROAS hoà vốn (dự kiến và thực tế).
-- **KOL**: mỗi KOL một dòng: Lượt nhấp, Đơn liên kết, GMV, Hoa hồng, Lợi nhuận, ROI KOL (= Lợi nhuận ÷ Hoa hồng), Số thẻ.
+- **KOL**: mỗi KOL một dòng: Lượt nhấp, Đơn liên kết, GMV, Hoa hồng, Lợi nhuận, Chi phí mẫu, ROI KOL (= (Lợi nhuận − Chi phí mẫu) ÷ (Hoa hồng + Chi phí mẫu)), Số thẻ.
 
 Cột của mỗi dòng thẻ: STT, Mã thẻ, Mã gốc, **Nguồn**, Shop, Nền tảng, Trạng thái (Đang chạy, Trong nháp, Đang đo, Đã đo), Nhóm,
 Phương án, Phiên bản, Sản phẩm, Đề xuất, Bắt đầu, Kết thúc, Số ngày chạy; rồi với **Lợi nhuận, GMV, Đơn, AOV** mỗi cái có bốn
