@@ -477,3 +477,29 @@ async def test_enabled_tells_a_reviewer_whether_the_pin_has_the_tab(
     after = await _snapshot(session, reviewer_id=world["reviewer_id"])
     assert [n for n in before if before[n] != after[n]] == []
     assert await _audits(session, "reviewer_read_refused") == []  # a status read, not refused
+
+
+async def test_a_lost_expire_never_locks_a_reviewer_out(monkeypatch, reviewer_redis):
+    """INCR returned 1 but EXPIRE failed (or the process died between them): the next ask
+    sees the key without a TTL and sets one, so the window still ends."""
+    from juli_backend.services.juli_agent_api import reviewer_limits
+
+    user = uuid.uuid4()
+    real_expire = reviewer_redis.expire
+    failures = {"left": 1}
+
+    async def flaky_expire(key: str, seconds: int) -> bool:
+        if failures["left"]:
+            failures["left"] -= 1
+            raise ConnectionError("lost between INCR and EXPIRE")
+        return await real_expire(key, seconds)
+
+    monkeypatch.setattr(reviewer_redis, "expire", flaky_expire)
+    first = await reviewer_limits.try_acquire(user)
+    assert first.allowed is False  # fail-closed on the store error
+    hour = reviewer_limits.key(user, "hour")
+    assert hour in reviewer_redis.store and hour not in reviewer_redis.ttls  # the orphan
+    second = await reviewer_limits.try_acquire(user)
+    assert second.allowed is True
+    assert reviewer_redis.ttls[hour] == reviewer_limits.HOUR_S  # healed: the window ends
+    assert reviewer_redis.ttls[reviewer_limits.key(user, "day")] == reviewer_limits.DAY_S
