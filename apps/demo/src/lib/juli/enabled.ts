@@ -18,7 +18,8 @@ export function resetJuliEnabledCache(): void {
   inflight.clear();
 }
 
-export function fetchJuliEnabled(token: string, shopId: string, fetchImpl?: typeof fetch): Promise<boolean> {
+export function fetchJuliEnabled(token: string, shopId: string, fetchImpl?: typeof fetch, signal?: AbortSignal): Promise<boolean> {
+  if (typeof window === "undefined" || signal?.aborted) return Promise.resolve(false);
   const cached = known.get(shopId);
   if (cached !== undefined) return Promise.resolve(cached);
   const pending = inflight.get(shopId);
@@ -28,6 +29,7 @@ export function fetchJuliEnabled(token: string, shopId: string, fetchImpl?: type
     try {
       const response = await (fetchImpl ?? fetch)(`${JULI_BASE}/enabled`, {
         headers: { Authorization: `Bearer ${token}`, "X-Shop-Id": shopId },
+        signal,
       });
       if (response.ok) {
         const body = (await response.json()) as { enabled?: unknown };
@@ -36,8 +38,10 @@ export function fetchJuliEnabled(token: string, shopId: string, fetchImpl?: type
     } catch {
       enabled = false;
     }
-    known.set(shopId, enabled);
     inflight.delete(shopId);
+    // An abort (unmount) is not an answer: never cache it, and touch nothing else after it.
+    if (signal?.aborted) return false;
+    known.set(shopId, enabled);
     return enabled;
   })();
   inflight.set(shopId, request);
@@ -52,11 +56,13 @@ export function useJuliEnabled(state: ShopReportState | null, fetchImpl?: typeof
   useEffect(() => {
     if (!shopId || !token || known.has(shopId)) return;
     let live = true;
-    void fetchJuliEnabled(token, shopId, fetchImpl).then((enabled) => {
-      if (live) setAnswer({ shopId, enabled });
+    const controller = new AbortController();
+    void fetchJuliEnabled(token, shopId, fetchImpl, controller.signal).then((enabled) => {
+      if (live && !controller.signal.aborted) setAnswer({ shopId, enabled });
     });
     return () => {
       live = false;
+      controller.abort();
     };
   }, [shopId, token, fetchImpl]);
   if (!shopId || !token) return false;
