@@ -81,6 +81,7 @@ from juli_backend.integrations.tiktok import (
     expand_analytics_sku_detail,
     expand_analytics_sku_list_item,
 )
+from juli_backend.services.ingest import noted_call
 from juli_backend.services.ingestion import HandoffFn
 from juli_backend.workers.services.polling.sync import (
     SyncOutcome,
@@ -376,7 +377,11 @@ async def _detail_fan_out(
             return item_id, item, _SKIPPED
         counters.detail_calls += 1
         try:
-            return item_id, item, await asyncio.to_thread(call, item_id)
+            # P101 W2 (B-3b): a 429 starts the shop's backoff; a success resets it.
+            response = await asyncio.to_thread(
+                noted_call, rate_limiter, app_id, shop_id, call, item_id
+            )
+            return item_id, item, response
         except TikTokAPIError as exc:
             return item_id, item, exc
 
@@ -425,7 +430,7 @@ async def _list_call(
         return None, None, True
     counters.list_calls += 1
     try:
-        response = await asyncio.to_thread(fetch)
+        response = await asyncio.to_thread(noted_call, rate_limiter, app_id, shop_id, fetch)
     except TikTokAPIError as exc:
         logger.warning(
             f"sync_analytics_{label}_failed",

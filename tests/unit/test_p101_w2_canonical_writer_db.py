@@ -82,7 +82,8 @@ async def test_writing_twice_is_the_same_rows(session) -> None:
         await writer.upsert_settlements(shop.id, "tiktok", [settlement]),
     )
 
-    assert first == second == (2, 1)
+    # S-3: the re-post changes nothing, so nothing is counted (and no day is touched)
+    assert (first, second) == ((2, 1), (0, 0))
     stored = await _lines(session)
     assert {r.line_no: (r.status, r.deal_price, r.day) for r in stored} == snapshot
     assert len(stored) == 2 and len(await _settlements(session)) == 1
@@ -237,3 +238,55 @@ async def test_load_income_never_passes_withheld_tax_to_profit(session) -> None:
     income = loaded["ref-a"]
     assert (income.vat_withheld, income.pit_withheld) == (None, None)
     assert income.tax_withheld == D("0")
+
+
+def _columns(row) -> dict[str, object]:
+    return {
+        c.key: getattr(row, c.key) for c in row.__table__.columns if c.key not in ("updated_at",)
+    }
+
+
+async def test_a_rerun_writes_no_row_and_changes_no_value(session) -> None:
+    _, shop = await make_tenant(session, platform="tiktok")
+    writer = DbCanonicalWriter(session)
+    lines = [_line(shop.id, fee_fixed=D("5000")), _line(shop.id, line_no=1, variation_id="v2")]
+    settlement = _settlement(shop.id, ordered_on=date(2026, 10, 5), fee_other=D("4000"))
+    first = await writer.write_order_lines(shop.id, "tiktok", lines)
+    first_settlement = await writer.write_settlements(shop.id, "tiktok", [settlement])
+    before = (
+        [_columns(r) for r in await _lines(session)],
+        [_columns(r) for r in await _settlements(session)],
+    )
+
+    again = await writer.write_order_lines(shop.id, "tiktok", lines)
+    again_settlement = await writer.write_settlements(shop.id, "tiktok", [settlement])
+
+    assert (first.written, first.days) == (2, frozenset({date(2026, 10, 5)}))
+    assert (first_settlement.written, first_settlement.days) == (1, frozenset({date(2026, 10, 5)}))
+    assert (again.written, again.days, again_settlement.written) == (0, frozenset(), 0)
+    after = (
+        [_columns(r) for r in await _lines(session)],
+        [_columns(r) for r in await _settlements(session)],
+    )
+    assert after == before
+    assert (len(after[0]), len(after[1])) == (2, 1)
+
+
+async def test_a_changed_value_counts_and_touches_only_its_day(session) -> None:
+    _, shop = await make_tenant(session, platform="tiktok")
+    writer = DbCanonicalWriter(session)
+    other_day = datetime(2026, 10, 9, 3, 0, tzinfo=UTC)
+    await writer.write_order_lines(
+        shop.id, "tiktok", [_line(shop.id), _line(shop.id, order_ref="ref-b", ordered_at=other_day)]
+    )
+
+    late = await writer.write_order_lines(
+        shop.id,
+        "tiktok",
+        [
+            _line(shop.id, status="cancelled"),
+            _line(shop.id, order_ref="ref-b", ordered_at=other_day),
+        ],
+    )
+
+    assert (late.written, late.days) == (1, frozenset({date(2026, 10, 5)}))

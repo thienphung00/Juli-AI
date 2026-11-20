@@ -10,6 +10,12 @@ provenance with the higher writer; a NULL never clears a stored value; a rerun i
 (a row without a raw payload has no capture, which does not block an equal rank). No tax is
 calculated: the reported ``vat_withheld`` / ``pit_withheld`` are stored as given.
 
+Counting (P101 W2 t1, S-3): a post counts only when it inserts a row or changes a stored value
+(a stated value that differs, a gap it fills, or the provenance of a higher writer); a re-post of
+the same values is NOT counted and its day is not touched. ``write_order_lines`` /
+``write_settlements`` return the count and the VN days of the rows that changed (both the stored
+and the posted day, when a post moves an order), for the day rebuild (S-4).
+
 Times: a mapper emits aware UTC; the column is ``timestamptz``, so the instant is kept. ``day`` is
 the VN calendar day of ``ordered_at`` (a 03:00 VN order is the previous UTC date but its own VN
 day).
@@ -19,7 +25,8 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable, Sequence
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -40,6 +47,15 @@ from juli_backend.services.ingest.canonical import (
 )
 from juli_backend.services.ingest.income import STATED_COLUMNS, upsert_settlement_values
 from juli_backend.services.ingest.writers import canonical_status, upsert_line_values
+
+
+@dataclass(frozen=True)
+class WriteResult:
+    """What one write changed: the row count and the VN days of the changed rows."""
+
+    written: int = 0
+    days: frozenset[date] = frozenset()
+
 
 #: ``OrderLine`` fields copied to the column of the same name (the rest are set below).
 _LINE_FIELDS: tuple[str, ...] = (
@@ -137,28 +153,52 @@ class DbCanonicalWriter:
     async def upsert_order_lines(
         self, shop_id: uuid.UUID, platform: str, lines: Sequence[OrderLine]
     ) -> int:
-        check_scope(shop_id, platform, lines)
-        rows = _unique(lines)
-        if not rows:
-            return 0
-        stored = await self._stored(ShopeeOrderLine, shop_id, platform, rows)
-        written = sum(1 for row in rows if _line_changes(stored.get(row.key), row))
-        now = self._now()
-        await upsert_line_values(self._session, [line_values(row, now) for row in rows])
-        return written
+        return (await self.write_order_lines(shop_id, platform, lines)).written
 
     async def upsert_settlements(
         self, shop_id: uuid.UUID, platform: str, rows: Sequence[OrderSettlement]
     ) -> int:
+        return (await self.write_settlements(shop_id, platform, rows)).written
+
+    async def write_order_lines(
+        self, shop_id: uuid.UUID, platform: str, lines: Sequence[OrderLine]
+    ) -> WriteResult:
+        """As :meth:`upsert_order_lines`, with the VN days of the lines that changed."""
+        check_scope(shop_id, platform, lines)
+        rows = _unique(lines)
+        if not rows:
+            return WriteResult()
+        stored = await self._stored(ShopeeOrderLine, shop_id, platform, rows)
+        changed = [row for row in rows if _line_changes(stored.get(row.key), row)]
+        if not changed:
+            return WriteResult()
+        now = self._now()
+        await upsert_line_values(self._session, [line_values(row, now) for row in changed])
+        days = {vn_day(row.ordered_at) for row in changed}
+        days |= {s.day for row in changed if (s := stored.get(row.key)) is not None and s.day}
+        return WriteResult(len(changed), frozenset(days))
+
+    async def write_settlements(
+        self, shop_id: uuid.UUID, platform: str, rows: Sequence[OrderSettlement]
+    ) -> WriteResult:
+        """As :meth:`upsert_settlements`, with the order days (``ordered_on``) that changed."""
         check_scope(shop_id, platform, rows)
         unique = _unique(rows)
         if not unique:
-            return 0
+            return WriteResult()
         stored = await self._stored(ShopeeOrderIncome, shop_id, platform, unique)
-        written = sum(1 for row in unique if _settlement_changes(stored.get(row.key), row))
+        changed = [row for row in unique if _settlement_changes(stored.get(row.key), row)]
+        if not changed:
+            return WriteResult()
         now = self._now()
-        await upsert_settlement_values(self._session, [settlement_values(r, now) for r in unique])
-        return written
+        await upsert_settlement_values(self._session, [settlement_values(r, now) for r in changed])
+        days = {row.ordered_on for row in changed if row.ordered_on is not None}
+        days |= {
+            s.ordered_on
+            for row in changed
+            if (s := stored.get(row.key)) is not None and s.ordered_on is not None
+        }
+        return WriteResult(len(changed), frozenset(days))
 
     async def _stored(
         self, model: Any, shop_id: uuid.UUID, platform: str, rows: Sequence[Any]
@@ -184,11 +224,15 @@ class DbCanonicalWriter:
 
 
 def _line_changes(stored: ShopeeOrderLine | None, line: OrderLine) -> bool:
-    """Whether the post inserts, replaces or fills a gap (a lower rank that adds nothing: no)."""
+    """Whether the post inserts, changes or fills a gap (a re-post of the same values: no)."""
     if stored is None:
         return True
     if replaces(effective_rank(stored.source, stored.source_rank), SOURCE_RANK.get(line.source, 0)):
-        return True
+        stated = {n: getattr(line, n) for n in _LINE_FIELDS}
+        stated.update({n: as_vn(getattr(line, n)) for n in _LINE_TIMES})
+        stated["status"] = canonical_status(line.status, paid=line.paid_at is not None)
+        stated["source_rank"] = SOURCE_RANK.get(line.source, 0)
+        return _differs(stored, stated)
     incoming = {n: getattr(line, n) for n in (*_LINE_FIELDS, *_LINE_TIMES)}
     return _fills(stored, incoming)
 
@@ -200,8 +244,18 @@ def _settlement_changes(stored: ShopeeOrderIncome | None, row: OrderSettlement) 
         effective_rank(stored.source, stored.source_rank),
         effective_rank(row.source, row.source_rank),
     ):
-        return True
+        stated: dict[str, Any] = {name: getattr(row, name) for name in STATED_COLUMNS}
+        stated.update({name: getattr(row, name) for name in _SETTLEMENT_PROVENANCE})
+        return _differs(stored, stated)
     return _fills(stored, {name: getattr(row, name) for name in STATED_COLUMNS})
+
+
+def _differs(stored: Any, stated: dict[str, Any]) -> bool:
+    """A stated (non-null) value the stored row does not hold. A NULL never clears a stored
+    value, so a NULL is never a change."""
+    return any(
+        value is not None and getattr(stored, name, None) != value for name, value in stated.items()
+    )
 
 
 def _fills(stored: Any, incoming: dict[str, Any]) -> bool:
@@ -212,4 +266,4 @@ def _fills(stored: Any, incoming: dict[str, Any]) -> bool:
     )
 
 
-__all__ = ["DbCanonicalWriter", "line_values", "settlement_values"]
+__all__ = ["DbCanonicalWriter", "WriteResult", "line_values", "settlement_values"]

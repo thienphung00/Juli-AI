@@ -21,6 +21,7 @@ import {
 import { PLATFORM_LABEL, type ShopPlatform } from "../../lib/shop-platform";
 import { vnClock } from "../../lib/vn-format";
 import { BusinessSwitcher } from "./business-switcher";
+import { SyncStatusLine } from "./sync-status-line";
 
 /**
  * The shell's header (ADR-109 decision 7): shop avatar (initials), shop name,
@@ -169,6 +170,9 @@ export function ShopHeader({
             {sample ? <span className="badge badge-pink">{DEMO_MODE_REPLAY_LABEL}</span> : null}
           </p>
           <p className="shop-header__sub">{shopSubline({ platform })}</p>
+          {sellerToken && activeShopId && platform === "tiktok" && !sampleShop ? (
+            <SyncStatusLine shopId={activeShopId} token={sellerToken} />
+          ) : null}
         </div>
         {sellerToken && activeShopId ? <BusinessSwitcher activeShopId={activeShopId} token={sellerToken} /> : null}
         <div className="shop-menu" hidden={!open} id={menuId}>

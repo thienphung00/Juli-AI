@@ -55,8 +55,30 @@ from juli_backend.services.ingest.schemas import (
 )
 from juli_backend.services.ingest.shops import connect_shopee_shop
 from juli_backend.services.ingest.status import dataset_status, record_connector_event, report_drift
+from juli_backend.services.ingest.tiktok_canonical import (
+    ORDER_REFETCH_ERRORS,
+    CanonicalApplyResult,
+    RedisRefetchQueue,
+    RefetchQueue,
+    TikTokCanonicalSync,
+    order_details_fetcher,
+    order_search_kwargs,
+    reconcile_shop,
+)
+from juli_backend.services.ingest.tiktok_canonical import enabled as tiktok_canonical_enabled
+from juli_backend.services.ingest.tiktok_canonical_throttle import noted_call
 
 __all__ = [
+    "ORDER_REFETCH_ERRORS",
+    "CanonicalApplyResult",
+    "RedisRefetchQueue",
+    "RefetchQueue",
+    "TikTokCanonicalSync",
+    "order_details_fetcher",
+    "order_search_kwargs",
+    "reconcile_shop",
+    "tiktok_canonical_enabled",
+    "noted_call",
     "min_version",
     "DATASETS",
     "MAX_BODY_BYTES",

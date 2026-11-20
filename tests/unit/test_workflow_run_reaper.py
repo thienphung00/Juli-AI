@@ -855,6 +855,8 @@ def test_beat_schedule_has_exactly_the_expected_entries():
         "stock-alert-daily",
         # P101 W1: the automatic business backfill, every 10 minutes.
         "businesses-backfill",
+        # P101 W2 (S-4): the nightly TikTok raw vs canonical reconcile.
+        "tiktok-canonical-reconcile",
     }
 
 

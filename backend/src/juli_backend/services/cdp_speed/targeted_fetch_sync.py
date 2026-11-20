@@ -35,6 +35,7 @@ from juli_backend.services.analytics_backfill.live_partition import (
     sum_live_impressions,
     sum_live_views,
 )
+from juli_backend.services.ingest.tiktok_canonical import TikTokCanonicalSync, order_search_kwargs
 from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)
@@ -49,8 +50,10 @@ async def sync_orders(
     shop_key: str,
     sync_state: dict[str, Any],
     correlation_id: str,
+    canonical: TikTokCanonicalSync | None = None,
 ) -> None:
-    """Fetch orders since last sync and hand off normalized rows to bronze handoff."""
+    """Fetch orders since last sync, hand off normalized rows to bronze handoff, and map them to
+    the canonical tables in the same job (``canonical``, P101 W2 S-1)."""
     if not rate_limiter.acquire(
         app_id, shop_key, ORDER_SEARCH_PATH, max_requests=10, window_seconds=60
     ):
@@ -69,8 +72,10 @@ async def sync_orders(
     # latter let an upstream 500 abort the whole Shared Compute job, taking the silver
     # and gold stages with it — including ctor and live_hours, which read local rows and
     # need nothing from TikTok at all.
+    # P101 W2 (B-1): a first read (no watermark) is bounded to the connect window by
+    # create_time, as the poll's.
     try:
-        orders = resource.search_all(update_time_from=update_from)
+        orders = resource.search_all(**order_search_kwargs(update_from))
     except (TikTokAPIError, requests.RequestException):
         logger.warning(
             "targeted_fetch_orders_failed",
@@ -89,6 +94,8 @@ async def sync_orders(
         )
         max_update_time = max(max_update_time, order.get("update_time", 0))
 
+    if canonical is not None and orders:
+        await canonical.on_orders(orders)
     if orders:
         sync_state["orders_last_update_time"] = max_update_time
 
@@ -102,8 +109,10 @@ async def sync_returns(
     shop_key: str,
     sync_state: dict[str, Any],
     correlation_id: str,
+    canonical: TikTokCanonicalSync | None = None,
 ) -> None:
-    """Fetch returns since last sync and hand off normalized rows to bronze handoff."""
+    """Fetch returns since last sync, hand off normalized rows to bronze handoff, and re-map the
+    returned lines' orders to the canonical tables (``canonical``, P101 W2)."""
     if not rate_limiter.acquire(
         app_id, shop_key, RETURN_SEARCH_PATH, max_requests=10, window_seconds=60
     ):
@@ -137,6 +146,8 @@ async def sync_returns(
             ret.get("update_time") or ret.get("create_time") or 0,
         )
 
+    if canonical is not None and returns:
+        await canonical.on_returns(returns)
     if returns:
         sync_state["returns_last_update_time"] = max_update_time
 

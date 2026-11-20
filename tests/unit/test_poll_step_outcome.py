@@ -45,6 +45,8 @@ class FakeOrdersResource:
         status: str | None = None,
         update_time_from: int | None = None,
         update_time_to: int | None = None,
+        create_time_from: int | None = None,
+        create_time_to: int | None = None,
         page_size: int = 50,
     ) -> list[dict]:
         self.calls.append({"update_time_from": update_time_from})
@@ -65,6 +67,8 @@ class FakeProductsResource:
         status: str | None = None,
         update_time_from: int | None = None,
         update_time_to: int | None = None,
+        create_time_from: int | None = None,
+        create_time_to: int | None = None,
         page_size: int = 50,
     ) -> list[dict]:
         return list(self._products)
@@ -392,6 +396,8 @@ class _TruncatingResource:
         status: str | None = None,
         update_time_from: int | None = None,
         update_time_to: int | None = None,
+        create_time_from: int | None = None,
+        create_time_to: int | None = None,
         page_size: int = 50,
     ) -> list[dict]:
         raise self.error
