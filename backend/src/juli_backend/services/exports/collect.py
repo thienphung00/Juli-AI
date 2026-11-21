@@ -548,7 +548,9 @@ def _card_row(
         source=kh.source_label(card.get("origin")),
         external_ref=card.get("external_ref"),
     )  # fmt: skip
-    row.figures = figures_of(forecast_block(card, ev), None)
+    block = forecast_block(card, ev)
+    row.figures = figures_of(block, None)
+    row.prediction_type = kh.prediction_label(block.get("prediction_type"))
     row.tailored = ads_tailored(card, own)
     return row
 

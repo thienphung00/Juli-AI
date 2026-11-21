@@ -93,7 +93,82 @@ def test_card_without_an_estimate_exports_empty_cells_and_a_live_formula():
     ws = kh.build(data)[kh.SHEET_HISTORY]
     assert [ws.cell(4, c).value for c in (16, 17, 18)] == [None, None, None]
     assert ws["S4"].value == '=IF(OR(Q4="",R4=""),"",R4-Q4)'
-    assert ws.cell(4, 33).value is None
+    assert ws.cell(4, 34).value is None  # Đã đo, one column after Loại dự kiến
     with pytest.raises(KeyError) as exc:
         kh.build(data)["Quảng cáo"]
     assert "Quảng cáo" in str(exc.value)
+
+
+def _history_col(ws, title: str) -> int:
+    head = [c.value for c in ws[3]]
+    return head.index(title) + 1
+
+
+def test_history_and_kind_sheets_print_the_forecast_type_once():
+    """Batch 2 row IF: the Excel column prints "ước tính" / "dữ liệu shop" / "Juli".
+
+    The type sits beside the amounts, once per card. Nguồn stays the card's origin.
+    A missing type and any other word are an empty cell.
+    """
+    shop = _row("A-1")
+    shop.source = "Tự tạo"
+    shop.prediction_type = "dữ liệu shop"
+    shop.figures = {"profit": (1000.0, 1400.0, None)}
+    shop.kind_key, shop.family = "min_spend_voucher", "voucher"
+    prior = _row("B-2")
+    prior.prediction_type = "ước tính"
+    prior.figures = {"profit": (1.0, 1.0, None)}
+    prior.kind_key, prior.family = "min_spend_voucher", "voucher"
+    blank = _row("C-3")
+    blank.prediction_type = "pooled"  # not one of the three words
+    blank.figures = {"profit": (1.0, 1.0, None)}
+    blank.kind_key, blank.family = "min_spend_voucher", "voucher"
+    data = kh.KeHoachData(date(2026, 11, 1), date(2026, 11, 30), ["Shop A"], [shop, prior, blank])
+    wb = kh.build(data)
+    for name in (kh.SHEET_HISTORY, "Voucher"):
+        ws = wb[name]
+        head = [c.value for c in ws[3]]
+        assert head.count("Loại dự kiến") == 1
+        assert head[head.index("Loại dự kiến") - 1] == "AOV chênh lệch"
+        assert head[head.index("Loại dự kiến") + 1] == "Chi phí"
+        col = _history_col(ws, "Loại dự kiến")
+        assert [ws.cell(r, col).value for r in (4, 5, 6)] == ["dữ liệu shop", "ước tính", None]
+    history = wb[kh.SHEET_HISTORY]
+    assert history.cell(4, _history_col(history, "Nguồn")).value == "Tự tạo"
+
+
+def test_card_row_reads_the_forecast_type_and_keeps_it_when_measured():
+    card = {
+        "code": "A-1",
+        "change_kind": "min_spend_voucher",
+        "family": "voucher",
+        "origin": "manual",
+        "forecast": {"prediction_type": "Juli", "metrics": _forecast()["metrics"]},
+    }
+    row = collect._card_row(
+        card, "KH-1", kh.MEASURING, None, {}, shop="Shop A", platform="Shopee", proposed=None
+    )
+    assert row.source == "Tự tạo"
+    assert row.prediction_type == "Juli"
+    collect._apply_measure(
+        row,
+        {"actual": _actual(14, 14), "measured_with": [], "verdict": execution_state.VERDICT_INSIDE},
+        {},
+    )
+    assert row.prediction_type == "Juli"
+    assert row.figures["profit"][2] == 500.0
+
+    unknown = {**card, "forecast": {"prediction_type": "pooled", "metrics": {}}}
+    assert (
+        collect._card_row(
+            unknown, None, kh.DRAFT, None, {}, shop="Shop A", platform="Shopee", proposed=None
+        ).prediction_type
+        is None
+    )
+    missing = {**card, "forecast": {"metrics": {}}}
+    assert (
+        collect._card_row(
+            missing, None, kh.DRAFT, None, {}, shop="Shop A", platform="Shopee", proposed=None
+        ).prediction_type
+        is None
+    )
