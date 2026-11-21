@@ -167,17 +167,14 @@ async def test_the_decision_cycle_and_the_executed_change_on_postgres(shopee_ten
             assert done["events"] == 1
             await session.commit()
         async with with_shop_scope(session, a.shop_id):
-            types = [
-                e.event_type
-                for e in (
-                    await session.scalars(
-                        select(CardEvent)
-                        .where(CardEvent.card_id == cid)
-                        .order_by(CardEvent.occurred_at)
-                    )
-                ).all()
-            ]
-            assert types == ["proposed", "accepted", "executed"]
+            events = (
+                await session.scalars(select(CardEvent).where(CardEvent.card_id == cid))
+            ).all()
+            at = {e.event_type: e.occurred_at for e in events}
+            # proposed and accepted share the frozen clock's instant, so a sort on occurred_at
+            # alone has no defined order between them on Postgres: check the set and the times
+            assert sorted(at) == ["accepted", "executed", "proposed"] and len(events) == 3
+            assert at["proposed"] <= at["accepted"] <= at["executed"]
             pend = await pending_changes(session, a.shop_id, NOW + timedelta(hours=2))
             mine = [c for c in pend if c.card_id == cid]
             assert [(c.change_kind, c.expected) for c in mine] == [

@@ -35,6 +35,10 @@ describe("sections and tabs", () => {
     expect(tabOfCard({ status: "approved" })).toBe("thuc-hien");
     expect(tabOfCard({ status: "executed", verification: { state: "pending" } })).toBe("thuc-hien");
     expect(tabOfCard({ status: "executed", verification: { state: "verified" } })).toBe("do-luong");
+    // a deadline verdict is final: the card is measured in Đo lường, not stuck in Thực hiện
+    expect(tabOfCard({ status: "executed", verification: { state: "mismatch" } })).toBe("do-luong");
+    expect(tabOfCard({ status: "executed", verification: { state: "not_seen" } })).toBe("do-luong");
+    expect(tabOfCard({ status: "executed" })).toBe("do-luong");
     expect(tabOfCard({ status: "rejected" })).toBeNull();
     // P100 S2-C: a card whose measurement window closed stays in Đo lường with its result.
     expect(tabOfCard({ status: "measured" })).toBe("do-luong");

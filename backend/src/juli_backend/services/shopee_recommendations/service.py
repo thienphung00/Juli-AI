@@ -658,6 +658,11 @@ async def verification_states(
     seen: dict[uuid.UUID, Counter[str]] = {}
     for r in rows:
         if r.event_type == EVENT_EXECUTED:
+            # an execution marked "no read-back" (an imported card done before Juli) is never
+            # checked by the Connector (`verification.pending_changes` skips it), so it must not
+            # wait in Thực hiện as "pending" either
+            if (r.payload or {}).get(verification.NO_READBACK_FLAG) is False:
+                continue
             kind = ((r.payload or {}).get("change") or {}).get("change_kind")
             if kind in verification.CHANGE_KINDS:
                 readable[r.card_id] += 1

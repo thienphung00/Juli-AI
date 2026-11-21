@@ -58,8 +58,18 @@ describe("F1.5 · non-fillable kinds", () => {
     expect(screen.queryByRole("button", { name: "Mở Seller Centre" })).toBeNull();
   });
 
-  it("a fillable card keeps its button/link", async () => {
-    renderReco(<ThucHienView />, fakeReco({ execution: states([exec({ card_id: "f", change_kind: "title" })]) }));
+  it("a fillable card without a fill job opens its Seller Centre page", async () => {
+    const detail = detailOf(voucherCard());
+    const withLink = { ...detail, card: { ...detail.card, execution_sheet: { ...detail.card.execution_sheet, page: { ...detail.card.execution_sheet.page, deep_link: "https://banhang.shopee.vn/portal/product/1" } } } };
+    renderReco(<ThucHienView />, fakeReco({ detail: withLink, execution: states([exec({ card_id: "g", change_kind: "title" })]) }));
+    const row = await screen.findByTestId("sd-th-g");
+    await waitFor(() => expect(within(row).getByRole("link", { name: "Mở Seller Centre" })).toHaveAttribute("href", "https://banhang.shopee.vn/portal/product/1"));
+  });
+
+  it("a fillable card with no known Seller Centre page keeps a disabled button", async () => {
+    const detail = detailOf(voucherCard());
+    const noLink = { ...detail, card: { ...detail.card, execution_sheet: { ...detail.card.execution_sheet, page: { ...detail.card.execution_sheet.page, deep_link: null } } } };
+    renderReco(<ThucHienView />, fakeReco({ detail: noLink, execution: states([exec({ card_id: "f", change_kind: "title" })]) }));
     const row = await screen.findByTestId("sd-th-f");
     const btn = within(row).getByRole("button", { name: "Mở Seller Centre" });
     expect(btn).toBeDisabled();
