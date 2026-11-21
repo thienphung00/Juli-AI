@@ -15,8 +15,10 @@ There is no "Kế hoạch nháp" sheet: a draft card is a row of "Lịch sử th
 Per metric (Lợi nhuận, GMV, Đơn, AOV) the columns are Hiện tại · Dự kiến · Thực tế · Chênh lệch
 (F7 data: the card's stored forecast and its running measurement, all over the measured days, one
 amount, no range); Chênh lệch is the one formula (Thực tế - Dự kiến, empty when either is empty).
-Then Chi phí, Đã đo ("k/N ngày"), Đo chung với (the card's change group) and Kết luận. An unknown
-value is an empty cell, never 0. ``fullCalcOnLoad`` is set. Only Excel-2007 functions.
+Then one Loại dự kiến cell for the card (the forecast's prediction type, printed only when it is
+one of the three words), Chi phí, Đã đo ("k/N ngày"), Đo chung với (the card's change group) and
+Kết luận. An unknown value is an empty cell, never 0. ``fullCalcOnLoad`` is set. Only Excel-2007
+functions.
 """
 
 from __future__ import annotations
@@ -70,6 +72,9 @@ OTHER_SHEET = "Thẻ khác"
 CORE = (("Lợi nhuận", "profit"), ("GMV", "gmv"), ("Đơn", "orders"), ("AOV", "aov"))
 CORE_FORMAT = {"profit": MONEY, "gmv": MONEY, "orders": INT, "aov": MONEY}
 PHASES = ("hiện tại", "dự kiến", "thực tế", "chênh lệch")
+#: one cell per card, after the amounts. Only these three words are printed (batch 2, row IF).
+PREDICTION_COLUMN = "Loại dự kiến"
+PREDICTION_TYPES = ("ước tính", "dữ liệu shop", "Juli")
 TAIL = ("Chi phí", "Đã đo", "Đo chung với", "Kết luận")
 
 
@@ -117,6 +122,8 @@ class CardRow:
     measured_with: list[str] = field(default_factory=list)
     #: tailored rows of the kind sheet: label -> (Dự kiến, Thực tế); absent / ``None`` = "—"
     tailored: dict[str, tuple[float | None, float | None]] = field(default_factory=dict)
+    #: Loại dự kiến: the forecast's prediction type, already limited to the three printed words
+    prediction_type: str | None = None
 
     @property
     def run_days(self) -> int | None:
@@ -263,6 +270,18 @@ def _core_head() -> list[str]:
     return [f"{label} {phase}" for label, _ in CORE for phase in PHASES]
 
 
+def prediction_label(value: object) -> str | None:
+    """The word the Loại dự kiến cell prints. Any other value is an empty cell."""
+    if value in PREDICTION_TYPES:
+        return str(value)
+    return None
+
+
+def _prediction_cell(ws, r: int, c0: int, c: CardRow) -> int:
+    put(ws, r, c0, prediction_label(c.prediction_type))
+    return c0 + 1
+
+
 # ----------------------------------------------------------------------------- Lịch sử thẻ
 
 HISTORY_LEAD = [
@@ -302,7 +321,7 @@ def _lead(ws, r: int, i: int, c: CardRow) -> None:
 def _history(wb: Workbook, data: KeHoachData) -> None:
     ws = wb.create_sheet(SHEET_HISTORY)
     put(ws, 1, 1, title_of(data, "LỊCH SỬ THẺ")).font = TITLE
-    header(ws, 3, [*HISTORY_LEAD, *_core_head(), *TAIL])
+    header(ws, 3, [*HISTORY_LEAD, *_core_head(), PREDICTION_COLUMN, *TAIL])
     first = 4
     for i, c in enumerate(data.cards, start=1):
         r = first + i - 1
@@ -310,10 +329,13 @@ def _history(wb: Workbook, data: KeHoachData) -> None:
         c0 = len(HISTORY_LEAD) + 1
         for _, key in CORE:
             c0 = _metric_cells(ws, r, c0, c, key, with_gap=True)
+        c0 = _prediction_cell(ws, r, c0, c)
         _tail(ws, r, c0, c)
     widths(ws, LEAD_WIDTHS, 14)
-    ws.column_dimensions[col(len(HISTORY_LEAD) + 1 + 4 * len(CORE) + 3)].width = 22
-    ws.column_dimensions[col(len(HISTORY_LEAD) + 1 + 4 * len(CORE) + 2)].width = 22
+    type_col = len(HISTORY_LEAD) + 1 + 4 * len(CORE)
+    ws.column_dimensions[col(type_col)].width = 16
+    ws.column_dimensions[col(type_col + 2)].width = 22  # Đã đo
+    ws.column_dimensions[col(type_col + 3)].width = 22  # Đo chung với
     finish(ws, "C4")
 
 
@@ -324,7 +346,7 @@ def _kind_sheet(wb: Workbook, data: KeHoachData, name: str, tailored: tuple[str,
                 cards: list[CardRow]) -> None:  # fmt: skip
     ws = wb.create_sheet(name)
     put(ws, 1, 1, title_of(data, name.upper())).font = TITLE
-    head = [*HISTORY_LEAD, *_core_head(), "Chi phí", "Đã đo", "Đo chung với"]
+    head = [*HISTORY_LEAD, *_core_head(), PREDICTION_COLUMN, "Chi phí", "Đã đo", "Đo chung với"]
     for label in tailored:
         head += [f"{label} dự kiến", f"{label} thực tế"]
     header(ws, 3, [*head, "Kết luận"])
@@ -334,6 +356,7 @@ def _kind_sheet(wb: Workbook, data: KeHoachData, name: str, tailored: tuple[str,
         c0 = len(HISTORY_LEAD) + 1
         for _, key in CORE:
             c0 = _metric_cells(ws, r, c0, c, key, with_gap=True)
+        c0 = _prediction_cell(ws, r, c0, c)
         put(ws, r, c0, c.cost, MONEY)
         put(ws, r, c0 + 1, measured_text(c))
         put(ws, r, c0 + 2, measured_with_text(c))
