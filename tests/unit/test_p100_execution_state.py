@@ -471,9 +471,21 @@ async def test_a_mismatch_after_the_automatic_execution_reads_lech(session, shop
         {"expected": {"daily_budget": 80_000}, "observed": {"daily_budget": 100_000}},
     )
     await session.commit()
+    # the derived state is still "lệch" ...
+    assert (
+        es.derive_state(
+            [{"status": "saved", "kind": job.kind, "progress": None}],
+            [
+                (EVENT_EXECUTED, executed.occurred_at, executed.payload),
+                (EVENT_MISMATCH, executed.occurred_at + timedelta(hours=48), {}),
+            ],
+        )["state"]
+        == es.STATE_MISMATCH
+    )
+    # ... but a deadline verdict is final (owner 21/11): the card leaves Thực hiện for Đo lường,
+    # the same rule as the tab badge, so it is never listed in both tabs
     out = await es.execution_states(session, seeded.shop_id, now=NOW)
-    (row,) = [c for c in out["cards"] if c["card_id"] == str(ids[1])]
-    assert row["state"] == es.STATE_MISMATCH
+    assert str(ids[1]) not in [c["card_id"] for c in out["cards"]]
 
 
 async def test_a_reviewer_request_never_auto_executes(session, shop):

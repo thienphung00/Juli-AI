@@ -350,6 +350,10 @@ async def execution_states(
     rows = await store.list_cards(session, shop_id, statuses=[STATUS_APPROVED, STATUS_EXECUTED])
     ids = [p.id for p, _ in rows]
     measured = await service.measurement_states(session, shop_id, ids)
+    # Same rule as the tab badge (`tabOfCard`): an executed card stays in Thực hiện only while
+    # its read-back is pending; verified, mismatch, not_seen or never read back (an imported
+    # card) → it is measured in Đo lường and leaves this list.
+    readback = await service.verification_states(session, shop_id, ids)
     events = await _events_by_card(
         session, shop_id, ids, (EVENT_EXECUTED, EVENT_VERIFIED, EVENT_MISMATCH, EVENT_NOT_SEEN)
     )
@@ -367,6 +371,8 @@ async def execution_states(
         if str(p.id) in reverted:  # "Đã hoàn tác": the card leaves Thực hiện (F1.4)
             continue
         if (measured.get(str(p.id)) or {}).get("window_closed"):
+            continue
+        if p.status == STATUS_EXECUTED and readback.get(p.id) != "pending":
             continue
         mine = [j for j in jobs.get(p.id, []) if not fill_queue.is_aux(j)]  # F3: forward only
         captured_voucher_id = _captured_voucher_id(mine)

@@ -731,8 +731,8 @@ async def test_da_lam_on_the_sample_shop_needs_no_voucher_code_and_reads_back(
     assert target["voucher_id"] == sample_voucher_id(card_id)
     assert verified[0].payload["observed"] == verified[0].payload["expected"]
     body = states.json()
-    row = next(c for c in body.get("data", body)["cards"] if c["card_id"] == str(card_id))
-    assert row["state"] == "khop" and row["verified_at"] is not None
+    # verified (Khớp) → the card is measured in Đo lường and leaves the Thực hiện list
+    assert str(card_id) not in [c["card_id"] for c in body.get("data", body)["cards"]]
     assert not tripwire.hits
 
 
