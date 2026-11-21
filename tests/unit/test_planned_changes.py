@@ -342,6 +342,11 @@ async def test_apply_makes_a_card_per_row_and_backdates_the_finished_one(session
     assert cards["TD1"].id not in await verification_states(
         session, shop.shop_id, [cards["TD1"].id]
     )
+    # and the Thực hiện list does not show it either (it is measured in Đo lường)
+    from juli_backend.services.shopee_recommendations import execution_state
+
+    listed = await execution_state.execution_states(session, shop.shop_id, now=NOW)
+    assert str(cards["TD1"].id) not in [c["card_id"] for c in listed["cards"]]
     accepted = list(
         await session.scalars(
             select(CardEvent).where(
