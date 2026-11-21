@@ -60,6 +60,9 @@ VERSION_WINDOW = timedelta(days=7)
 BLOCKS_WINDOW = timedelta(hours=36)
 ERROR_REVIEWER = "connector_command_refused"
 _OPEN = (COMMAND_PENDING, COMMAND_SENT)
+#: A "Đối chiếu ngay" the Connector never picked up stops counting as open after this, so the
+#: button is never stuck disabled (the next press queues a fresh command).
+COMMAND_TTL = timedelta(minutes=15)
 
 #: The audit action of the Connector's scheduler tick (``POST /v1/ingest/connector-ticks``).
 ACTION_CONNECTOR_TICK = "system_connector_tick"
@@ -111,15 +114,23 @@ def _iso(moment: datetime | None) -> str | None:
 
 
 async def _open_command(
-    session: AsyncSession, shop_id: uuid.UUID, kind: str = COMMAND_RECONCILE
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    kind: str = COMMAND_RECONCILE,
+    *,
+    now: datetime | None = None,
 ) -> ShopeeConnectorCommand | None:
-    return await session.scalar(
-        select(ShopeeConnectorCommand).where(
-            ShopeeConnectorCommand.shop_id == shop_id,
-            ShopeeConnectorCommand.type == kind,
-            ShopeeConnectorCommand.status.in_(_OPEN),
-        )
+    """The newest open command created within ``COMMAND_TTL`` of ``now`` (an older one is
+    stale: the Connector never acked it)."""
+    query = select(ShopeeConnectorCommand).where(
+        ShopeeConnectorCommand.shop_id == shop_id,
+        ShopeeConnectorCommand.type == kind,
+        ShopeeConnectorCommand.status.in_(_OPEN),
     )
+    if now is not None:
+        cutoff = (now.astimezone(UTC).replace(tzinfo=None) if now.tzinfo else now) - COMMAND_TTL
+        query = query.where(ShopeeConnectorCommand.created_at >= cutoff)
+    return await session.scalar(query.order_by(ShopeeConnectorCommand.created_at.desc()).limit(1))
 
 
 async def record_heartbeat(
@@ -270,7 +281,13 @@ async def request_reconcile(
 
     if reviewer_session_active():
         raise ProposalError(ERROR_REVIEWER, 403)
-    cmd = await _open_command(session, shop_id)
+    cmd = await _open_command(session, shop_id, now=now)
+    stale = None if cmd is not None else await _open_command(session, shop_id)
+    if stale is not None:
+        # never picked up within COMMAND_TTL: queue it again (one open command per shop)
+        stale.status, stale.created_at, stale.sent_at = COMMAND_PENDING, now, None
+        await session.flush()
+        cmd = stale
     if cmd is None:
         cmd = ShopeeConnectorCommand(
             id=uuid.uuid4(), shop_id=shop_id, type=COMMAND_RECONCILE, status=COMMAND_PENDING,
@@ -290,7 +307,7 @@ async def commands(
 ) -> list[dict[str, str]]:
     """The open command for the Connector's poll (handed over once ``pending``; until it is acked
     the same id is served again, the Connector runs each id once)."""
-    cmd = await _open_command(session, shop_id)
+    cmd = await _open_command(session, shop_id, now=now)
     if cmd is None:
         return []
     if cmd.status == COMMAND_PENDING:
@@ -333,7 +350,7 @@ async def read(session: AsyncSession, shop_id: uuid.UUID, *, now: datetime) -> d
         "alive": fresh,
         "seller_centre_open": row.seller_centre_open if row and fresh else None,
         "connector_version": row.connector_version if row else None,
-        "reconcile_pending": await _open_command(session, shop_id) is not None,
+        "reconcile_pending": await _open_command(session, shop_id, now=now) is not None,
         "reader_blocks": blocks,
         "computers": computers,
     }

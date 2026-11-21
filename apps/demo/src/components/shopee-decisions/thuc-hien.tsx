@@ -139,6 +139,23 @@ function ManualPage({ cardId }: { readonly cardId: string }) {
   );
 }
 
+/** A fillable card with no fill job yet: open the card's own Seller Centre page (its execution
+ * sheet's deep link) instead of a dead button; disabled only while that link is unknown. */
+function SellerCentrePage({ cardId }: { readonly cardId: string }) {
+  const host = useReco();
+  const res = useResource(() => host.reco.detail(cardId), `${host.shopKey}|th-page|${cardId}`);
+  const link = res.status === "ready" ? (res.data.card.execution_sheet?.page?.deep_link ?? null) : null;
+  return link ? (
+    <a className="sa-btn sa-btn--primary" href={link} rel="noopener noreferrer" target="_blank">
+      Mở Seller Centre
+    </a>
+  ) : (
+    <button className="sa-btn sd-btn--off" disabled type="button">
+      Mở Seller Centre
+    </button>
+  );
+}
+
 export function Row({
   c,
   name,
@@ -220,9 +237,7 @@ export function Row({
             ) : !FILLABLE_CHANGE_KINDS.includes(c.change_kind) ? (
               <ManualPage cardId={c.card_id} />
             ) : (
-              <button className="sa-btn sd-btn--off" disabled type="button">
-                Mở Seller Centre
-              </button>
+              <SellerCentrePage cardId={c.card_id} />
             )
           ) : null}
           {(c.state === "da_dien" || (sample && c.state === "cho_dien")) && !c.executed_at ? (

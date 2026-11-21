@@ -519,6 +519,15 @@ async def test_the_poll_heartbeat_and_the_reconcile_command(session, shop):
     assert await cs.commands(session, seeded.shop_id, now=NOW) == []
     again = await cs.request_reconcile(session, seeded.shop_id, now=NOW)  # closed: a new one opens
     assert again["command_id"] != asked["command_id"]
+    # a command the Connector never picks up expires: the button is not stuck disabled
+    later = NOW + cs.COMMAND_TTL + timedelta(minutes=1)
+    out = await es.connector_status(session, seeded.shop_id, "shopee", later)
+    assert out["reconcile_pending"] is False
+    fresh = await cs.request_reconcile(session, seeded.shop_id, now=later)
+    assert fresh["command_id"] == again["command_id"]  # the stale one is queued again
+    assert await cs.commands(session, seeded.shop_id, now=later) == [
+        {"type": "reconcile", "id": fresh["command_id"]}
+    ]
 
 
 async def test_reconcile_over_http_reaches_the_connector_and_reviewers_are_refused(session, shop):

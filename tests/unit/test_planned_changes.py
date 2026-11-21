@@ -336,6 +336,12 @@ async def test_apply_makes_a_card_per_row_and_backdates_the_finished_one(session
         and events[0].payload["change"]["change_kind"] == "title"
     )
     assert await verification.pending_changes(session, shop.shop_id, NOW) == []
+    # and the card does not wait in Thực hiện for a read-back that never runs
+    from juli_backend.services.shopee_recommendations.service import verification_states
+
+    assert cards["TD1"].id not in await verification_states(
+        session, shop.shop_id, [cards["TD1"].id]
+    )
     accepted = list(
         await session.scalars(
             select(CardEvent).where(

@@ -126,8 +126,9 @@ export function tabOfCard(card: Pick<CardSummary, "status" | "verification">): D
     case "approved":
       return "thuc-hien";
     case "executed": {
-      const v = card.verification?.state;
-      return v === "pending" || v === "mismatch" || v === "not_seen" ? "thuc-hien" : "do-luong";
+      // Only a read-back still running keeps the card in Thực hiện; a deadline verdict
+      // (mismatch / not_seen) is final, so the card is measured in Đo lường like any other.
+      return card.verification?.state === "pending" ? "thuc-hien" : "do-luong";
     }
     // P100 S2-C: the API says "measured" once the measurement window has closed (the result is
     // final, `services/shopee_recommendations/service.py` `_summary`). Đo lường shows the result.
