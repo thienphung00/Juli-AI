@@ -122,6 +122,8 @@ class ProductRow:
     name: str
     now: Figures
     prev: Figures
+    cause: str = DASH
+    fix: str = DASH
 
 
 @dataclass
@@ -306,7 +308,7 @@ def _overview(wb: Workbook, data: TongQuanData) -> None:
                 f'=IF(AND(ISNUMBER(B{r}),ISNUMBER(D{r})),IFERROR(B{r}/D{r}-1,"{DASH}"),"{DASH}")',
                 PCT,
             )  # fmt: skip
-        if key in goals:
+        if key in goals and goals[key] is not None:
             put(ws, r, 6, _dash(goals[key]), fmt)
             if key == "margin":
                 put(ws, r, 7, f'=IF(AND(ISNUMBER(B{r}),ISNUMBER(F{r})),B{r}-F{r},"{DASH}")', PCT)
@@ -564,8 +566,11 @@ def _days(wb: Workbook, data: TongQuanData) -> None:
 P_HEADER = [
     "Mã SP", "Sản phẩm", "GMV", "Thay đổi", "Lợi nhuận", "% GMV Organic", "% GMV Quảng cáo",
     "% GMV TTLK", ROI_LABEL, "% doanh thu shop", "% lợi nhuận shop", "Chi phí / doanh thu SP",
-    f"% {COST_LABEL.lower()} shop",
+    f"% {COST_LABEL.lower()} shop", "Nguyên nhân", "Đề xuất",
 ]  # fmt: skip
+P_HEADER_MAIN = P_HEADER[:13]
+P_HEADER_ISSUE = P_HEADER[13:]
+P_ISSUE_COL = 19
 #: hidden helper columns the formulas read: GMV Organic, Quảng cáo, TTLK (they add up to the GMV),
 #: Chi phí marketing
 P_HELP = ["O", "P", "Q", "R"]
@@ -589,8 +594,9 @@ def _product_formulas(ws, r: int, total: int, gmv: float | str | None = None) ->
 def _products(wb: Workbook, data: TongQuanData) -> None:
     ws = wb.create_sheet(SHEET_PRODUCT)
     put(ws, 1, 1, title_of(data)).font = TITLE
-    header(ws, 3, P_HEADER)
+    header(ws, 3, P_HEADER_MAIN)
     header(ws, 3, P_HELP_HEADER, P_HELP_COL)
+    header(ws, 3, P_HEADER_ISSUE, P_ISSUE_COL)
     total = P_FIRST + len(data.products)
     r = P_FIRST - 1
     for r, p in enumerate(data.products, start=P_FIRST):
@@ -602,6 +608,8 @@ def _products(wb: Workbook, data: TongQuanData) -> None:
         for c, key in zip((15, 16, 17), CHANNELS, strict=True):
             put(ws, r, c, _dash(p.now.channel(key).gmv), MONEY)
         put(ws, r, 18, cost_of(p.now), MONEY)
+        put(ws, r, P_ISSUE_COL, p.cause)
+        put(ws, r, P_ISSUE_COL + 1, p.fix)
         _product_formulas(ws, r, total, p.now.gmv)
     last = max(r, P_FIRST)
     put(ws, total, 1, "Tổng", bold=True)
@@ -613,7 +621,7 @@ def _products(wb: Workbook, data: TongQuanData) -> None:
     )
     put(ws, total, 4, _change_vs(f"C{total}", prev_total), PCT)
     _product_formulas(ws, total, total, f"=SUM(C{P_FIRST}:C{last})")
-    widths(ws, {1: 16, 2: 44}, 15)
+    widths(ws, {1: 16, 2: 44, 19: 44, 20: 36}, 15)
     _hide(ws, *P_HELP)
     finish(ws, "C4")
 

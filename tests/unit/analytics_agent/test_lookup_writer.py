@@ -33,12 +33,14 @@ async def test_metric_total_with_direction_and_freshness() -> None:
         gmv=lambda d: 2_000_000.0 if d > AS_OF - timedelta(days=7) else 1_000_000.0,
     )
     out = await lookup.run_lookup(FakeData(shop), L, "metric_total", "gmv", PRESET, AS_OF)
-    assert out["value"]["value_vi"] == "14.000.000đ" and out["delta"] == {
+    assert out["value"] == "14.000.000đ" and out["delta"] == {
         "dir": "up",
         "text_vi": "▲ 100,0%",
     }
     assert out["fresh_vi"] == f"Số liệu đến hết {AS_OF:%d/%m}"
     assert out["type"] == "data_answer" and out["kind"] == "metric_total"
+    # the UI renders `value` as text: an object crashed the page (React #31, 22/11)
+    assert isinstance(out["value"], str) and out["value_raw"] == 14_000_000.0
 
 
 async def test_metric_total_money_chain_metric_comes_from_overview() -> None:
@@ -50,7 +52,7 @@ async def test_metric_total_money_chain_metric_comes_from_overview() -> None:
     out = await lookup.run_lookup(
         FakeData(shop, overview=ov), L, "metric_total", "margin", PRESET, AS_OF
     )
-    assert out["value"]["value_vi"] == "42,8%" and out["delta"]["dir"] == "up"
+    assert out["value"] == "42,8%" and out["delta"]["dir"] == "up"
 
 
 async def test_top_products_from_product_rows_top_five() -> None:
@@ -69,12 +71,17 @@ async def test_top_products_from_product_rows_top_five() -> None:
     )
     assert [r["item_id"] for r in out["rows"]] == ["p6", "p5", "p4", "p3", "p2"]
     assert out["rows"][0]["name"] == "Sản phẩm G" and out["rows"][0]["gmv_vi"] == "7.000đ"
+    # the UI row contract (JuliDataRow): rows rendered blank without these keys (22/11)
+    first = out["rows"][0]
+    assert (first["label_vi"], first["value_vi"]) == ("Sản phẩm G", "7.000đ")
+    assert first["link"] == {"kind": "product", "item_id": "p6"} and first["detail_vi"]
 
 
 async def test_daily_trend_series() -> None:
     shop = shop_rows(AS_OF - timedelta(days=20), AS_OF, orders=lambda d: float(d.day))
     out = await lookup.run_lookup(FakeData(shop), L, "daily_trend", "orders", PRESET, AS_OF)
     assert len(out["series"]) == 7 and out["series"][-1]["value"] == float(AS_OF.day)
+    assert out["series"][-1]["label_vi"] == f"{AS_OF:%d/%m}"
 
 
 async def test_channel_breakdown_labels_and_thieu_du_lieu() -> None:

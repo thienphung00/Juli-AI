@@ -231,7 +231,9 @@ async def _run(
                     "type": "intent_block",
                     "index": idx,
                     "total": total,
-                    "title_vi": (intent.get("metric_phrase") or restated),
+                    # Vietnamese always: the parsed intent is English (metric_phrase too)
+                    "title_vi": f"Câu {idx}/{total}"
+                    + (f" · {labels.metric(str(dec['metric']))}" if dec.get("metric") else ""),
                 }
             )
         if dec["outcome"] == "unsupported":

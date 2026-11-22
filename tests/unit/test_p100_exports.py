@@ -123,7 +123,8 @@ def test_day_totals_equal_the_channel_sheet():
 def test_product_sheet_total_equals_the_shop():
     d = _data()
     ws = tq.build(d)[tq.SHEET_PRODUCT]
-    assert [c.value for c in ws[3]][:13] == tq.P_HEADER
+    assert [ws.cell(3, c).value for c in range(1, 14)] == tq.P_HEADER_MAIN
+    assert [ws.cell(3, c).value for c in (tq.P_ISSUE_COL, tq.P_ISSUE_COL + 1)] == tq.P_HEADER_ISSUE
     total = tq.P_FIRST + 3
     assert ws.cell(tq.P_FIRST + 2, 1).value == "Cả shop" and ws.cell(total, 1).value == "Tổng"
     for letter in "OPQRE":

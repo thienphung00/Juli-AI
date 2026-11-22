@@ -17,6 +17,7 @@ from juli_backend.services.exports._style import (
     INT,
     MONEY,
     PCT,
+    POINTS,
     TITLE,
     col,
     finish,
@@ -26,6 +27,7 @@ from juli_backend.services.exports._style import (
 )
 from juli_backend.services.exports.report_calc import DASH
 from juli_backend.services.metrics.registry import METRICS
+from juli_backend.services.shopee_recommendations import kinds
 
 SHEET_MONTH = "Theo tháng"
 SHEET_KOC = "KOC"
@@ -89,7 +91,8 @@ def months_sheet(wb: Workbook, title: str, months: Sequence[MonthRow]) -> None:
 
 KOC_HEADER = [
     "KOC", "Kênh", "Đơn", "GMV (đ)", "Hoa hồng (đ)", "Lợi nhuận (đ)", "GMV kỳ trước (đ)",
-    "Thay đổi GMV", "Lợi nhuận kỳ trước (đ)", "Thay đổi lợi nhuận", "Sản phẩm bán nhiều nhất",
+    "Thay đổi GMV", "Lợi nhuận kỳ trước (đ)", "Thay đổi lợi nhuận", "Chi phí mẫu (đ)",
+    f"{METRICS['roi_kol'].label_vi}", "Sản phẩm bán nhiều nhất",
 ]  # fmt: skip
 KOC_FIRST = 4
 
@@ -104,6 +107,7 @@ class KocRow:
     profit: float | None = None
     prev_gmv: float | None = None
     prev_profit: float | None = None
+    sample_cost: float | None = None
     top_product: str | None = None
 
 
@@ -131,6 +135,7 @@ def koc_rows(section: Mapping[str, Any]) -> list[KocRow]:
         for attr, src in (
             ("orders", "orders"), ("gmv", "gmv"), ("commission", "commission"),
             ("profit", "profit"), ("prev_gmv", "prev_gmv"), ("prev_profit", "prev_profit"),
+            ("sample_cost", "sample_cost"),
         ):  # fmt: skip
             v = r.get(src)
             if v is not None:
@@ -145,6 +150,11 @@ def koc_rows(section: Mapping[str, Any]) -> list[KocRow]:
         k.channels = ", ".join(chans.get(key, [])) or DASH
         k.top_product = best[key][1] if key in best else None
     return sorted(by.values(), key=lambda k: (-(k.gmv or 0.0), k.handle))
+
+
+def koc_effective_count(rows: Sequence[KocRow]) -> int:
+    """KOCs that had at least one affiliate order in the period."""
+    return sum(1 for k in rows if k.orders is not None and k.orders > 0)
 
 
 def koc_sheet(wb: Workbook, title: str, rows: Sequence[KocRow], share: AffiliateShare) -> None:
@@ -172,15 +182,28 @@ def koc_sheet(wb: Workbook, title: str, rows: Sequence[KocRow], share: Affiliate
             ws,
             r,
             10,
-            DASH if k.prev_profit in (None, 0) else f'=IFERROR(F{r}/I{r}-1,"{DASH}")',
+            DASH if k.prev_profit is None else f'=IFERROR(F{r}/I{r}-1,"{DASH}")',
             PCT,
         )
-        put(ws, r, 11, k.top_product or DASH)
+        put(ws, r, 11, _v(k.sample_cost), MONEY)
+        put(
+            ws,
+            r,
+            12,
+            f"=IF(AND(ISNUMBER(F{r}),ISNUMBER(E{r}),ISNUMBER(K{r})),"
+            f'IFERROR((F{r}-K{r})/(E{r}+K{r}),"{DASH}"),"{DASH}")',
+            POINTS,
+        )
+        put(ws, r, 13, k.top_product or DASH)
     total, last = r + 1, max(r, KOC_FIRST)
     put(ws, total, 1, "Tổng", bold=True)
-    for c, fmt in ((3, INT), (4, MONEY), (5, MONEY), (6, MONEY), (7, MONEY), (9, MONEY)):
+    tot_cols = ((3, INT), (4, MONEY), (5, MONEY), (6, MONEY), (7, MONEY), (9, MONEY), (11, MONEY))
+    for c, fmt in tot_cols:
         put(ws, total, c, f"=SUM({col(c)}{KOC_FIRST}:{col(c)}{last})", fmt, bold=True)
     s = total + 2
+    put(ws, s, 1, "Số KOC có đơn", bold=True)
+    put(ws, s, 2, koc_effective_count(rows), INT, bold=True)
+    s += 1
     put(ws, s, 1, "Tiếp thị liên kết so với cả shop", bold=True)
     header(ws, s + 1, ["", "Kỳ này", share.prev_label.capitalize(), "Thay đổi (điểm %)"])
     put(ws, s + 2, 1, "GMV tiếp thị liên kết (đ)")
@@ -277,12 +300,54 @@ def _num(x: Any) -> float | None:
     return None if x is None else float(x)
 
 
+def _fix_labels(change_kinds: Sequence[str]) -> str:
+    labels = [kinds.KINDS[k].label for k in change_kinds if k in kinds.KINDS]
+    return ", ".join(labels) if labels else DASH
+
+
+def product_issue_texts(
+    items: Sequence[Mapping[str, Any]],
+) -> dict[str, tuple[str, str]]:
+    """Per product id: (cause, fix) from the critical item with the largest at-stake."""
+    best: dict[str, tuple[float, Mapping[str, Any]]] = {}
+    for it in items:
+        pid = it.get("product_id")
+        if not pid:
+            continue
+        stake = float(it.get("at_stake_per_day") or 0)
+        if pid not in best or stake > best[pid][0]:
+            best[str(pid)] = (stake, it)
+    out: dict[str, tuple[str, str]] = {}
+    for pid, (_, it) in best.items():
+        cause = str((it.get("cause") or {}).get("text") or DASH)
+        fix = _fix_labels(it.get("change_kinds") or [])
+        out[pid] = (cause, fix)
+    return out
+
+
+def _aggregate_cards(
+    mine: Sequence[Any],
+) -> tuple[str, str, float | None, float | None, float | None, str]:
+    codes = ", ".join(c.code for c in mine)
+    kinds_seen: list[str] = []
+    for c in mine:
+        if c.kind not in kinds_seen:
+            kinds_seen.append(c.kind)
+    kind_s = ", ".join(kinds_seen) if kinds_seen else DASH
+    if len(mine) == 1:
+        c = mine[0]
+        exp_p, exp_g, actual = c.profit_mid, c.gmv_mid, c.actual_profit
+        status = c.conclusion or c.status
+    else:
+        exp_p = exp_g = actual = None
+        statuses = {c.conclusion or c.status for c in mine}
+        status = next(iter(statuses)) if len(statuses) == 1 else DASH
+    return codes, kind_s, exp_p, exp_g, actual, status if status else DASH
+
+
 def analysis_rows(items: Sequence[Mapping[str, Any]], cards: Sequence[Any]) -> list[AnalysisRow]:
-    """The rows of "Phân tích & đề xuất": each critical metric of ``queries.critical`` with the
-    cards Juli created for it (``ke_hoach_xlsx.CardRow``): the metric's card kinds
-    (``change_kinds``) on the same product (a metric of the shop or of a flow: any product). Dự
-    kiến = the card's P50 Δ, Thực tế = its measured Δ lợi nhuận, Trạng thái = its Kết luận, else
-    its status. A metric with no card is one row "Chưa có thẻ"."""
+    """One row per critical issue (``items`` entry): its cards are listed on that row. Dự kiến Δ
+    stays "—" when there is no single card or the card has no figure."""
     out: list[AnalysisRow] = []
     for it in items:
         pid = it.get("product_id")
@@ -298,23 +363,25 @@ def analysis_rows(items: Sequence[Mapping[str, Any]], cards: Sequence[Any]) -> l
             at_stake_per_day=_num(it.get("at_stake_per_day")),
             cause=str((it.get("cause") or {}).get("text") or DASH),
         )
-        kinds = set(it.get("change_kinds") or [])
-        mine = [c for c in cards if c.kind_key in kinds and (pid is None or c.product_id == pid)]
+        kind_keys = set(it.get("change_kinds") or [])
+        mine = [
+            c for c in cards if c.kind_key in kind_keys and (pid is None or c.product_id == pid)
+        ]
         if not mine:
             out.append(base)
             continue
-        for c in mine:
-            out.append(
-                AnalysisRow(
-                    **{
-                        **base.__dict__,
-                        "card_code": c.code,
-                        "card_kind": c.kind,
-                        "expected_profit": c.profit_mid,
-                        "expected_gmv": c.gmv_mid,
-                        "actual_profit": c.actual_profit,
-                        "status": c.conclusion or c.status,
-                    }
-                )
+        code, kind, exp_p, exp_g, actual, status = _aggregate_cards(mine)
+        out.append(
+            AnalysisRow(
+                **{
+                    **base.__dict__,
+                    "card_code": code,
+                    "card_kind": kind,
+                    "expected_profit": exp_p,
+                    "expected_gmv": exp_g,
+                    "actual_profit": actual,
+                    "status": status,
+                }
             )
+        )
     return out
