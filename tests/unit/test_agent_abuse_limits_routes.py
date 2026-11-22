@@ -448,13 +448,13 @@ async def test_sse_wrapper_releases_slot_when_explicitly_closed_by_its_consumer(
     that ("Starlette calls `.aclose()` on disconnect"); checked directly
     against the installed `starlette.responses.StreamingResponse` source
     (`inspect.getsource`), it does not -- `.aclose()` appears nowhere in
-    that class. See `_sse_stream_with_concurrency_slot`'s own docstring for
+    that class. See `sse_stream_with_concurrency_slot`'s own docstring for
     what Starlette actually does on each ASGI spec version, and
     `test_sse_wrapper_releases_slot_when_the_consuming_task_is_cancelled`
     below for the real, synchronous-release disconnect mechanism (task
     cancellation) proven directly.
     """
-    from juli_backend.api.routes.agent_runs import _StreamSlot, _sse_stream_with_concurrency_slot
+    from juli_backend.api.agent_run_sse import StreamSlot, sse_stream_with_concurrency_slot
 
     gate = InMemoryAbuseLimitGate(sse_max_concurrent=1)
 
@@ -468,7 +468,9 @@ async def test_sse_wrapper_releases_slot_when_explicitly_closed_by_its_consumer(
     await gate.release_stream("shop-explicit-close")  # back to a single real occupant
     await gate.try_acquire_stream("shop-explicit-close")  # the "connection" this test simulates
 
-    wrapped = _sse_stream_with_concurrency_slot(_never_ending_stream(), _StreamSlot(gate, "shop-explicit-close"))
+    wrapped = sse_stream_with_concurrency_slot(
+        _never_ending_stream(), StreamSlot(gate, "shop-explicit-close")
+    )
     first_chunk = await wrapped.__anext__()
     assert first_chunk == ": heartbeat\n\n"
 
@@ -500,10 +502,10 @@ async def test_sse_wrapper_releases_slot_when_the_consuming_task_is_cancelled():
     generator's own frame and release is NOT synchronous -- is not
     reproduced by a test asserting a passing release, because it does not
     reliably produce one; it is documented instead, in
-    `_sse_stream_with_concurrency_slot`'s own docstring, as relying on GC
+    `sse_stream_with_concurrency_slot`'s own docstring, as relying on GC
     finalization plus the safety TTL.
     """
-    from juli_backend.api.routes.agent_runs import _StreamSlot, _sse_stream_with_concurrency_slot
+    from juli_backend.api.agent_run_sse import StreamSlot, sse_stream_with_concurrency_slot
 
     gate = InMemoryAbuseLimitGate(sse_max_concurrent=1)
     await gate.try_acquire_stream("shop-cancel")
@@ -518,7 +520,9 @@ async def test_sse_wrapper_releases_slot_when_the_consuming_task_is_cancelled():
         await asyncio.Event().wait()
         yield ": unreachable\n\n"  # pragma: no cover -- cancelled before this
 
-    wrapped = _sse_stream_with_concurrency_slot(_never_ending_stream(), _StreamSlot(gate, "shop-cancel"))
+    wrapped = sse_stream_with_concurrency_slot(
+        _never_ending_stream(), StreamSlot(gate, "shop-cancel")
+    )
 
     async def _consume():
         async for _chunk in wrapped:
@@ -541,7 +545,7 @@ async def test_sse_wrapper_releases_slot_when_the_consuming_task_is_cancelled():
 
 
 async def test_demo_sse_response_releases_slot_when_the_body_is_never_iterated():
-    from juli_backend.api.routes.agent_runs import _sse_response
+    from juli_backend.api.agent_run_sse import sse_response
 
     gate = InMemoryAbuseLimitGate(sse_max_concurrent=1)
     await gate.try_acquire_stream("shop-never-read")
@@ -549,7 +553,7 @@ async def test_demo_sse_response_releases_slot_when_the_body_is_never_iterated()
     async def _body():
         yield "event: x\ndata: {}\n\n"
 
-    response = _sse_response(_body(), gate, "shop-never-read")
+    response = sse_response(_body(), gate, "shop-never-read")
     await response.background()
     assert (await gate.try_acquire_stream("shop-never-read")).allowed is True
 
@@ -560,7 +564,7 @@ async def test_sse_wrapper_releases_slot_when_run_terminates_mid_stream():
     soon as it sees a terminal event) -- proven here with a generator that
     yields two chunks then returns, standing in for a terminal event
     closing the underlying stream."""
-    from juli_backend.api.routes.agent_runs import _StreamSlot, _sse_stream_with_concurrency_slot
+    from juli_backend.api.agent_run_sse import StreamSlot, sse_stream_with_concurrency_slot
 
     gate = InMemoryAbuseLimitGate(sse_max_concurrent=1)
     await gate.try_acquire_stream("shop-terminate")
@@ -569,7 +573,9 @@ async def test_sse_wrapper_releases_slot_when_run_terminates_mid_stream():
         yield "event: workflow.status\ndata: {}\n\n"
         yield "event: workflow.completed\ndata: {}\n\n"
 
-    wrapped = _sse_stream_with_concurrency_slot(_terminating_stream(), _StreamSlot(gate, "shop-terminate"))
+    wrapped = sse_stream_with_concurrency_slot(
+        _terminating_stream(), StreamSlot(gate, "shop-terminate")
+    )
     chunks = [chunk async for chunk in wrapped]
 
     assert len(chunks) == 2

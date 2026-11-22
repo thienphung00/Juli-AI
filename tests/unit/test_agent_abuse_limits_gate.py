@@ -397,7 +397,7 @@ async def test_redis_gate_sse_acquire_denies_over_max_and_decrements_back():
 
 @pytest.mark.asyncio
 async def test_redis_gate_increment_window_heals_missing_ttl():
-    """INCR without EXPIRE (TTL -1) must set the window again on the next hit, like reviewer_limits."""
+    """A window with no TTL is given one again on the next hit."""
     from unittest.mock import AsyncMock
 
     store: dict[str, int] = {}

@@ -20,14 +20,13 @@ from __future__ import annotations
 
 import logging
 import uuid
-from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from starlette.background import BackgroundTask
 
+from juli_backend.api.agent_run_sse import sse_response
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
 from juli_backend.api.reviewer import (
     ConfirmedWriteOut,
@@ -117,54 +116,6 @@ def _enqueue_resume_agent_workflow(run_id: uuid.UUID, *, approved: bool) -> str:
     return agent_workflow_tasks.resume_agent_workflow.delay(str(run_id), approved).id
 
 
-class _StreamSlot:
-    """The per-shop SSE slot, released exactly once whichever exit comes first."""
-
-    def __init__(self, gate: agent_abuse_limits.AbuseLimitGate, shop_id: str) -> None:
-        self._gate, self._shop_id, self._released = gate, shop_id, False
-
-    async def release(self) -> None:
-        if not self._released:
-            self._released = True
-            await self._gate.release_stream(self._shop_id)
-
-
-async def _sse_stream_with_concurrency_slot(
-    generator: AsyncIterator[str],
-    slot: _StreamSlot,
-) -> AsyncIterator[str]:
-    """Release the SSE concurrency slot on every exit path (ADR-075 decision 4).
-
-    A clean end and a run terminating mid-stream both exit through ``finally``
-    synchronously. A client disconnect does not: Starlette abandons the
-    generator at its last ``yield`` and release waits for the async-generator
-    GC finalizer, which is real but not prompt. The gate's one-hour safety TTL
-    on the slot bounds that case. ``test_agent_abuse_limits_routes.py`` proves
-    the cancellation path by cancelling the consuming task, the mechanism the
-    legacy ASGI path actually uses.
-    """
-    try:
-        async for chunk in generator:
-            yield chunk
-    finally:
-        await slot.release()
-
-
-def _sse_response(
-    generator: AsyncIterator[str],
-    gate: agent_abuse_limits.AbuseLimitGate,
-    shop_id: str,
-) -> StreamingResponse:
-    """Stream events and release the slot on every exit, including an unread body."""
-    slot = _StreamSlot(gate, shop_id)
-    return StreamingResponse(
-        _sse_stream_with_concurrency_slot(generator, slot),
-        media_type="text/event-stream",
-        headers={"X-Accel-Buffering": "no"},
-        background=BackgroundTask(slot.release),
-    )
-
-
 # -- routes --------------------------------------------------------------------
 
 
@@ -209,7 +160,7 @@ async def stream_run_events(
         heartbeat_interval_s=heartbeat_interval_s,
         poll_interval_s=poll_interval_s,
     )
-    return _sse_response(generator, gate, str(shop.id))
+    return sse_response(generator, gate, str(shop.id))
 
 
 @router.post("/{run_id}/cancel", status_code=status.HTTP_202_ACCEPTED)
