@@ -396,6 +396,41 @@ async def test_redis_gate_sse_acquire_denies_over_max_and_decrements_back():
 
 
 @pytest.mark.asyncio
+async def test_redis_gate_increment_window_heals_missing_ttl():
+    """A window with no TTL is given one again on the next hit."""
+    from unittest.mock import AsyncMock
+
+    store: dict[str, int] = {}
+    ttls: dict[str, int] = {}
+
+    async def _incr(key: str) -> int:
+        store[key] = store.get(key, 0) + 1
+        return store[key]
+
+    async def _ttl(key: str) -> int:
+        return ttls.get(key, -1)
+
+    async def _expire(key: str, seconds: int) -> bool:
+        ttls[key] = seconds
+        return True
+
+    redis_client = AsyncMock()
+    redis_client.incr.side_effect = _incr
+    redis_client.ttl.side_effect = _ttl
+    redis_client.expire.side_effect = _expire
+    gate = RedisAbuseLimitGate(redis_client)
+
+    key = "juli:agent:abuse_limit:confirmation:shop-heal"
+    first = await gate._increment_window(key, 3600)
+    assert first == 1
+    assert ttls[key] == 3600
+    ttls.pop(key, None)
+    second = await gate._increment_window(key, 3600)
+    assert second == 2
+    assert ttls[key] == 3600
+
+
+@pytest.mark.asyncio
 async def test_redis_gate_sse_release_decrements():
     from unittest.mock import AsyncMock
 

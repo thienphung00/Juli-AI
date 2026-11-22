@@ -1340,11 +1340,12 @@ async function readOrderIncome(env: ReaderEnv, ids: string[], collected: ReaderR
     return t !== undefined && t.lastResponse === undefined && t.lastStatus === 403 && Number(t.lastCode) !== ANTI_FRAUD_CODE;
   };
   const walled = () => env.captchaVisible?.() === true || env.passwordModalVisible?.() === true;
-  const settled = () => own()?.lastStatus !== undefined || (env.hasSession() && own()?.lastResponse !== undefined);
-  await env.waitFor(() => denied() || walled() || settled(), READER_TEMPLATE_WAIT_MS);
-  if (denied()) throw new Stop(fail("blocked_no_permission", collected, "page"));
+  if (await env.waitFor(() => denied() || walled(), READER_TEMPLATE_WAIT_MS) && denied()) {
+    throw new Stop(fail("blocked_no_permission", collected, "page"));
+  }
+  // 0.3.31: the income call appears only after the order page has loaded its own detail request.
+  await waitForPage(env, ["order_detail", "order_income_components"], collected);
   if (refused()) throw new Stop(fail("blocked_no_permission", collected, `http_403${own()?.lastCode ? `_code_${own()?.lastCode}` : ""}`));
-  await waitForPage(env, ["order_income_components"], collected);
   const template = env.template("order_income_components") as Template;
   if (template.lastResponse !== undefined && isPermissionRefusal(200, template.lastResponse)) {
     throw new Stop(fail("blocked_no_permission", collected, `http_200_code_${answerCode(template.lastResponse)}`));

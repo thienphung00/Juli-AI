@@ -282,6 +282,9 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     for (let k = 0; k < 5; k++) fireEvent.click(screen.getByRole("button", { name: "Tăng 1 % LIVE CTR" }));
     fireEvent.click(screen.getByRole("button", { name: "Lưu kịch bản" }));
     await waitFor(() => expect(createScenario).toHaveBeenCalledWith(SHOP_ID, expect.stringMatching(/^Kịch bản /), { seller_live: { ctr: 5 } }, false));
+    // The handler stores the new id only after the request resolves. Clicking
+    // before that render takes the empty-selection path and never calls setTarget.
+    expect(await screen.findByRole("status")).toHaveTextContent("Đã lưu kịch bản.");
     fireEvent.click(screen.getByRole("button", { name: "Đặt kịch bản đang xem làm mục tiêu của shop ›" }));
     await waitFor(() => expect(setTarget).toHaveBeenCalledWith(SHOP_ID, "s2"));
     expect(screen.getByText("Mục tiêu shop")).toBeInTheDocument();

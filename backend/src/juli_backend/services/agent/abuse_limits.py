@@ -319,7 +319,8 @@ class RedisAbuseLimitGate:
 
     async def _increment_window(self, key: str, window_seconds: int) -> int:
         count = await self._redis.incr(key)
-        if count == 1:
+        ttl = window_seconds if count == 1 else await self._redis.ttl(key)
+        if count == 1 or ttl == -1:
             await self._redis.expire(key, window_seconds)
         return int(count)
 

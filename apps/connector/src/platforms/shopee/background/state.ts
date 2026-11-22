@@ -198,6 +198,8 @@ export interface ReaderSchedule {
   incomeReadAt?: number;
   /** 0.3.25: re-read starts today (capped, so a dialog that keeps coming back cannot loop). */
   rereadCount?: { day: string; n: number };
+  /** 0.3.31: failed reader runs today (outcome not "done"); at READER_FAIL_ATTEMPTS_PER_DAY the page waits until tomorrow. */
+  readerFails?: { day: string; counts: Partial<Record<ReaderId, number>> };
   /** 0.3.27 (contract C): pages a read-back job asked for, read in a run of their own as soon as possible. */
   readback?: { pages: ReaderId[]; at: string };
   /** 0.3.27: when each page last finished "done" (ms), for the read-back's captured. */

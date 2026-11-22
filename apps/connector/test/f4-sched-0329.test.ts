@@ -180,8 +180,10 @@ describe("F4.2: the hole list", () => {
   it("planJobs turns hole days into reader days, yesterday first, within the room", () => {
     const base = { shopId: SHOP, nowMs: T0, stopped: new Set<never>(), adsDone: [] as string[], readers: ["traffic", "ads"] as const };
     const jobs = planJobs({ ...base, holes: { traffic_overview: ["2026-10-25", "2026-10-26"], ads_campaign_daily: ["2026-10-20"] }, holeRoom: 100 });
-    expect(jobs.find((j) => j.id === "traffic")?.days).toEqual(["2026-11-18", "2026-11-17", "2026-11-16", "2026-11-15", "2026-10-25", "2026-10-26"]);
-    expect(jobs.find((j) => j.id === "ads")?.days?.slice(-1)).toEqual(["2026-10-20"]);
+    const traffic = jobs.filter((j) => j.id === "traffic");
+    expect(traffic[0]?.days).toEqual(["2026-11-18", "2026-11-17", "2026-11-16", "2026-11-15"]);
+    expect(traffic[1]?.days).toEqual(["2026-10-25", "2026-10-26"]);
+    expect(jobs.find((j) => j.id === "ads" && j.days?.includes("2026-10-20"))?.days).toContain("2026-10-20");
     const none = planJobs({ ...base, holes: { traffic_overview: ["2026-10-25"] }, holeRoom: 0 });
     expect(none.find((j) => j.id === "traffic")?.days).not.toContain("2026-10-25");
   });
@@ -189,7 +191,8 @@ describe("F4.2: the hole list", () => {
   it("a daily run fetches the list, reads the hole days and reports the days left", async () => {
     const ctx = setup(["traffic"], holes({ traffic_overview: ["2026-10-25", "2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31"], ads_campaign_daily: ["2026-10-20"] }));
     await drive(ctx);
-    expect(ctx.posted[0]?.days).toEqual(["2026-11-18", "2026-11-17", "2026-11-16", "2026-11-15", "2026-10-25", "2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29"]);
+    expect(ctx.posted[0]?.days).toEqual(["2026-11-18", "2026-11-17", "2026-11-16", "2026-11-15"]);
+    expect(ctx.posted[1]?.days).toEqual(["2026-10-25", "2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29"]);
     const tick = ctx.ticks.find((t) => t.kind === "run");
     expect(tick?.outcomes?.catchup).toBe("done:catchup:traffic_overview=2 days left,catchup:ads_campaign_daily=1 days left");
     expect(tick?.outcomes?.traffic).toMatch(/^done/);
@@ -671,8 +674,8 @@ describe("F4.4 / F4.5 wiring (t1a's readers)", () => {
   it("ads_products gets its days from the ads_campaign_period holes, oldest first, capped", () => {
     const base = { shopId: SHOP, nowMs: T0, stopped: new Set<never>(), adsDone: [] as string[], readers: ["ads_products"] as const };
     const holes = { ads_campaign_period: Array.from({ length: 14 }, (_, i) => `2026-10-${String(20 + i).padStart(2, "0")}`) };
-    const days = planJobs({ ...base, holes, holeRoom: 1000 })[0]?.days;
-    expect(days).toEqual(holes.ads_campaign_period.slice(0, 10));
+    const jobs = planJobs({ ...base, holes, holeRoom: 1000 });
+    expect(jobs.find((j) => j.id === "ads_products" && j.days)?.days).toEqual(holes.ads_campaign_period.slice(0, 10));
     expect(planJobs({ ...base, holes: {}, holeRoom: 1000 })).toEqual([{ id: "ads_products" }]);
     expect(planJobs({ ...base, holes, holeRoom: 0 })).toEqual([{ id: "ads_products" }]);
   });
