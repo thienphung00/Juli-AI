@@ -24,9 +24,9 @@ from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
-from starlette.background import BackgroundTask
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from starlette.background import BackgroundTask
 
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
 from juli_backend.api.reviewer import (
@@ -155,7 +155,7 @@ def _sse_response(
     gate: agent_abuse_limits.AbuseLimitGate,
     shop_id: str,
 ) -> StreamingResponse:
-    """Stream events; release the slot on a clean end, mid-stream end, and if the client never reads the body."""
+    """Stream events and release the slot on every exit, including an unread body."""
     slot = _StreamSlot(gate, shop_id)
     return StreamingResponse(
         _sse_stream_with_concurrency_slot(generator, slot),
