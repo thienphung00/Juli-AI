@@ -33,6 +33,7 @@ import {
   READER_KICK_DELAY_MINUTES,
   READER_KICK_RETRY_MINUTES,
   READER_REREAD_DELAY_MINUTES,
+  READER_FAIL_ATTEMPTS_PER_DAY,
   READER_REREAD_MAX_PER_DAY,
   STOCK_MAX_ATTEMPTS_PER_DAY,
   STOCK_READ_HOUR_GMT7,
@@ -67,7 +68,7 @@ import { completedOrders, incomeReadIds, zeroRowsStep } from "../orders-map";
 import { viewedItemIds } from "../product-period-map";
 import { activeItemIds, adsDayAnswer, completedTrafficDays, ongoingAdsCampaigns } from "../reader-map";
 import type { CaptureOutcome } from "./connector";
-import { catchupSummary, daysLeft, isBackfillHole, parseReadDays, type ReadDays, withHoleDays } from "./catchup";
+import { catchupSummary, daysLeft, isBackfillHole, parseReadDays, splitHoleDays, type ReadDays, withHoleDays } from "./catchup";
 import { READER_PAGES, readerPageUrl, readerSection } from "../endpoints";
 import { blockedPath, classify, type ReaderJob, type ReaderResponse } from "../reader";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "../../../core/time";
@@ -232,7 +233,8 @@ export function planJobs(args: {
 }): PlannedJob[] {
   const todayDay = gmt7Date(Math.floor(args.nowMs / 1000));
   const held = args.held ?? HELD_DATASETS;
-  const jobs: PlannedJob[] = [];
+  const todayJobs: PlannedJob[] = [];
+  const backfillJobs: PlannedJob[] = [];
   const room = args.holeRoom ?? 0;
   for (const id of args.readers ?? READER_IDS) {
     if (!readerActive(id, args.shopId)) continue;
@@ -240,70 +242,55 @@ export function planJobs(args: {
     const postable = READER_DATASETS[id].some((dataset) => !held.has(dataset as ReaderDataset) && !args.stopped.has(dataset));
     if (!postable) continue;
     if (id === "products") {
-      if (!args.productsFresh) jobs.push({ id });
+      if (!args.productsFresh) todayJobs.push({ id });
     } else if (id === "traffic") {
-      const days = withHoleDays(
-        id,
-        lastFinishedDays(args.nowMs, 1 + TRAFFIC_OVERVIEW_CATCHUP_DAYS).filter((day) => !(args.trafficOverviewDone ?? []).includes(day)),
-        args.holes,
-        room,
-        0,
-      );
-      if (days.length > 0) jobs.push({ id, days });
+      const catchUp = lastFinishedDays(args.nowMs, 1 + TRAFFIC_OVERVIEW_CATCHUP_DAYS).filter((day) => !(args.trafficOverviewDone ?? []).includes(day));
+      const split = splitHoleDays(id, catchUp, args.holes, room, 0);
+      if (split.today.length > 0) todayJobs.push({ id, days: split.today });
+      if (split.backfill.length > 0) backfillJobs.push({ id, days: split.backfill });
     } else if (id === "ads") {
-      const days = withHoleDays(
-        id,
-        lastFinishedDays(args.nowMs, 1 + ADS_CATCHUP_DAYS).filter((day) => !args.adsDone.includes(day)),
-        args.holes,
-        room,
-        0,
-      );
-      // Every day posted: the list is still opened once a day for its campaign settings, once
-      // a first settings capture has been recorded (before that, an open day always exists).
-      const settingsDue = args.adsSettingsDay !== undefined && args.adsSettingsDay !== gmt7Date(Math.floor(args.nowMs / 1000));
-      const historyDays = (args.adsHistoryDays ?? []).filter((day) => !days.includes(day));
-      if (days.length > 0 || settingsDue || historyDays.length > 0) {
-        jobs.push({ id, days, ...(historyDays.length > 0 ? { historyDays: [...historyDays] } : {}) });
+      const catchUp = lastFinishedDays(args.nowMs, 1 + ADS_CATCHUP_DAYS).filter((day) => !args.adsDone.includes(day));
+      const split = splitHoleDays(id, catchUp, args.holes, room, 0);
+      const settingsDue = args.adsSettingsDay !== undefined && args.adsSettingsDay !== todayDay;
+      const historyDays = (args.adsHistoryDays ?? []).filter((day) => !catchUp.includes(day) && !split.backfill.includes(day));
+      if (split.today.length > 0 || settingsDue) {
+        todayJobs.push({ id, ...(split.today.length > 0 ? { days: split.today } : {}) });
       }
+      if (split.backfill.length > 0) backfillJobs.push({ id, days: split.backfill });
+      if (historyDays.length > 0) backfillJobs.push({ id, historyDays: [...historyDays] });
     } else if (id === "item_traffic") {
-      // The item ids are filled in when the job's turn comes (the product list is read first).
-      const days = withHoleDays(
-        id,
-        lastFinishedDays(args.nowMs, 1 + TRAFFIC_CATCHUP_DAYS).filter((day) => !(args.trafficDone ?? []).includes(day)),
-        args.holes,
-        room,
-        args.itemCount ?? 0,
-      );
-      if (days.length > 0) jobs.push({ id, days });
+      const catchUp = lastFinishedDays(args.nowMs, 1 + TRAFFIC_CATCHUP_DAYS).filter((day) => !(args.trafficDone ?? []).includes(day));
+      const split = splitHoleDays(id, catchUp, args.holes, room, args.itemCount ?? 0);
+      if (split.today.length > 0) todayJobs.push({ id, days: split.today });
+      if (split.backfill.length > 0) backfillJobs.push({ id, days: split.backfill });
     } else if (id === "shop_totals") {
-      // 30 days right after pairing, then the last 7 finished days once a day (placed / paid settle late).
       if (args.totalsDay !== todayDay) {
         const count = args.totalsBackfilled ? SHOP_TOTALS_REFRESH_DAYS : SHOP_TOTALS_BACKFILL_DAYS;
-        jobs.push({ id, days: withHoleDays(id, lastFinishedDays(args.nowMs, count), args.holes, room, 0) });
+        const split = splitHoleDays(id, lastFinishedDays(args.nowMs, count), args.holes, room, 0);
+        if (split.today.length > 0) todayJobs.push({ id, days: split.today });
+        if (split.backfill.length > 0) backfillJobs.push({ id, days: split.backfill });
       } else {
-        const holeDays = withHoleDays(id, [], args.holes, room, 0);
-        if (holeDays.length > 0) jobs.push({ id, days: holeDays });
+        const holeDays = splitHoleDays(id, [], args.holes, room, 0).backfill;
+        if (holeDays.length > 0) backfillJobs.push({ id, days: holeDays });
       }
     } else if (id === "ads_products") {
-      // F4.5: the group campaigns' per-product table, plus the days the backend lacks (ads_campaign_period)
-      const holeDays = withHoleDays(id, [], args.holes, room, 0);
-      jobs.push(holeDays.length > 0 ? { id, days: holeDays } : { id });
+      const split = splitHoleDays(id, [], args.holes, room, 0);
+      todayJobs.push({ id });
+      if (split.backfill.length > 0) backfillJobs.push({ id, days: split.backfill });
     } else if (id === "product_period") {
       // The 30-day product table, once a day (one page open; at most PRODUCT_PERIOD_MAX_PAGES requests).
-      if (args.productPeriodDay !== todayDay) jobs.push({ id });
+      if (args.productPeriodDay !== todayDay) todayJobs.push({ id });
     } else if (id === "orders") {
-      if (args.ordersDay !== todayDay) jobs.push({ id, sinceDay: ordersSinceDay(todayDay, args.ordersCoveredDay) });
+      if (args.ordersDay !== todayDay) todayJobs.push({ id, sinceDay: ordersSinceDay(todayDay, args.ordersCoveredDay) });
     } else if (id === "order_income") {
-      // Planned every day, right after "orders" (which fills the queue in the same run); its turn
-      // opens nothing when no completed order is waiting.
-      if (args.incomeDay !== todayDay) jobs.push({ id });
+      if (args.incomeDay !== todayDay) todayJobs.push({ id });
     } else if (id === "affiliate" && args.shopId && args.affiliateHistoryShop !== args.shopId) {
-      jobs.push({ id, history: affiliateHistoryWindows(args.nowMs) });
+      backfillJobs.push({ id, history: affiliateHistoryWindows(args.nowMs) });
     } else {
-      jobs.push({ id });
+      todayJobs.push({ id });
     }
   }
-  return jobs;
+  return [...todayJobs, ...backfillJobs];
 }
 
 /**
@@ -384,6 +371,22 @@ export function jobOutcome(id: ReaderId, posted: Record<string, string>, summary
   return `${summary ? `done:${summary}` : "done"}${note ? `|${note}` : ""}`;
 }
 
+/** Outcomes that count as one failed reader run today (0.3.31); reread and skip reasons do not. */
+const READER_FAIL_SKIP = new Set([
+  "waiting_budget",
+  "no_orders",
+  "no_items",
+  "no_campaigns",
+  "no_group_campaigns",
+]);
+
+export function readerFailureOutcome(outcome: string): boolean {
+  if (outcome.startsWith("done")) return false;
+  if (READER_FAIL_SKIP.has(outcome)) return false;
+  if (outcome.startsWith("blocked:")) return false;
+  return true;
+}
+
 /** Tick results that mean "nothing started" for a reason worth telling Juli (once a day each). */
 const SKIP_RESULTS: ReadonlySet<string> = new Set([
   "off",
@@ -438,6 +441,22 @@ export class ReaderScheduler {
   private gap(): number {
     const random = this.deps.random ?? Math.random;
     return READER_PAGE_GAP_MS + Math.floor(random() * READER_PAGE_GAP_JITTER_MS);
+  }
+
+  private readerFailPatch(
+    sched: ReaderSchedule,
+    day: string,
+    id: ReaderId | undefined,
+    outcome: string,
+  ): Partial<ReaderSchedule> {
+    if (!id || !readerFailureOutcome(outcome)) return {};
+    const counts = sched.readerFails?.day === day ? { ...sched.readerFails.counts } : {};
+    counts[id] = (counts[id] ?? 0) + 1;
+    return { readerFails: { day, counts } };
+  }
+
+  private readerFailAfter(sched: ReaderSchedule, day: string, id: ReaderId | undefined, outcome: string): ReaderSchedule {
+    return { ...sched, ...this.readerFailPatch(sched, day, id, outcome) };
   }
 
   /** Tab ids the scheduler holds open (the Connector must not use them for the daily sync). */
@@ -545,6 +564,7 @@ export class ReaderScheduler {
     const productsFresh = (sched.productsAt ?? 0) >= stockDueAt(today) && (sched.itemIds?.length ?? 0) > 0;
     const adsHistory = this.adsHistoryPlan(sched, shopId as string);
     const adsHistoryDays = this.adsHistoryToday(adsHistory, sched, backfillRequestsLeft(state, today));
+    const failCounts = sched.readerFails?.day === today ? sched.readerFails.counts : {};
     const planned = planJobs({
       shopId,
       nowMs: now,
@@ -566,7 +586,7 @@ export class ReaderScheduler {
       holeRoom: backfillRequestsLeft(state, today),
       itemCount: sched.itemIds?.length ?? 0,
       ...(this.deps.readers ? { readers: this.deps.readers } : {}),
-    });
+    }).filter((job) => (failCounts[job.id] ?? 0) < READER_FAIL_ATTEMPTS_PER_DAY);
     // A same-day re-run opens pages that still have missing days. A manual
     // "Đồng bộ" also reopens a page whose last outcome did not post (KOL
     // needs_data_page), otherwise that page waits until tomorrow.
@@ -944,8 +964,8 @@ export class ReaderScheduler {
       current: undefined,
       nextAt: this.deps.now() + this.gap(),
     };
-    if (next.index >= next.jobs.length) return this.finishRun(sched, next);
-    await this.save({ ...sched, run: next });
+    if (next.index >= next.jobs.length) return this.finishRun(this.readerFailAfter(sched, run.day, job?.id, outcome), next);
+    await this.save({ ...sched, run: next, ...this.readerFailPatch(sched, run.day, job?.id, outcome) });
     this.deps.later?.((next.nextAt ?? 0) - this.deps.now() + 1_000, () => void this.tick());
     return outcome;
   }

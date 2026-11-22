@@ -206,6 +206,8 @@ describe("O5: a day with truly no order is read and empty, not an error", () => 
 describe("O4: an account without the Tài chính right is blocked:no_permission, never silent", () => {
   const INCOME = { code: 0, data: { sections: [{ items: [{ name: "Số tiền cuối cùng", amount: 90_000 }] }] } };
   const income = (over: Partial<Template> = {}): Template => ({ query: { order_id: "8001" }, lastResponse: INCOME, ...over });
+  const DETAIL: Template = { query: { order_id: "8001" }, lastResponse: { code: 0, data: {} } };
+  const incomePage = (templates: Partial<Record<ReaderEndpoint, Template>>) => ({ order_detail: DETAIL, ...templates });
 
   it("Seller Centre's permission page: blocked_no_permission (page), nothing sent", async () => {
     const h = env({ templates: {}, permissionPage: true });
@@ -215,25 +217,25 @@ describe("O4: an account without the Tài chính right is blocked:no_permission,
   });
 
   it("the page's own income call refused with 403: blocked_no_permission (http_403)", async () => {
-    const h = env({ templates: { order_income_components: { query: { order_id: "8001" }, lastStatus: 403, lastCode: "10013" } } });
+    const h = env({ templates: incomePage({ order_income_components: { query: { order_id: "8001" }, lastStatus: 403, lastCode: "10013" } }) });
     const outcome = await runReaderJob({ id: "order_income", orderIds: ["8001", "8002"] }, h.env);
     expect(outcome).toMatchObject({ status: "blocked_no_permission", detail: "http_403_code_10013" });
     expect(h.sent).toHaveLength(0);
   });
 
   it("a replayed income read refused with a JSON 403 stops the job as no_permission; the anti-fraud 403 stays a CAPTCHA", async () => {
-    const denied = env({ templates: { order_income_components: income() }, answer: () => ({ status: 403, body: { error: 10013, message: "no permission" } }) });
+    const denied = env({ templates: incomePage({ order_income_components: income() }), answer: () => ({ status: 403, body: { error: 10013, message: "no permission" } }) });
     expect(await runReaderJob({ id: "order_income", orderIds: ["8001", "8002", "8003"] }, denied.env)).toMatchObject({
       status: "blocked_no_permission",
       detail: "http_403_code_10013",
     });
     expect(denied.sent).toHaveLength(1);
-    const fraud = env({ templates: { order_income_components: income() }, answer: () => ({ status: 403, body: { error: 90309999 } }) });
+    const fraud = env({ templates: incomePage({ order_income_components: income() }), answer: () => ({ status: 403, body: { error: 90309999 } }) });
     expect((await runReaderJob({ id: "order_income", orderIds: ["8001", "8002"] }, fraud.env)).status).toBe("blocked_captcha");
   });
 
   it("a Shopee 'no permission' code on the page's own answer: blocked_no_permission", async () => {
-    const h = env({ templates: { order_income_components: income({ lastResponse: { code: 403001, message: "Bạn không có quyền truy cập" } }) } });
+    const h = env({ templates: incomePage({ order_income_components: income({ lastResponse: { code: 403001, message: "Bạn không có quyền truy cập" } }) }) });
     expect(await runReaderJob({ id: "order_income", orderIds: ["8001"] }, h.env)).toMatchObject({ status: "blocked_no_permission", detail: "http_200_code_403001" });
   });
 
@@ -246,13 +248,23 @@ describe("O4: an account without the Tài chính right is blocked:no_permission,
     expect(isPermissionRefusal(200, { code: 0, message: "permission" })).toBe(false);
   });
 
+  it("waits for order_detail before reading income (0.3.31)", async () => {
+    const INCOME = { code: 0, data: { sections: [{ items: [{ name: "Số tiền cuối cùng", amount: 90_000 }] }] } };
+    const withDetail = env({
+      templates: incomePage({ order_income_components: { query: { order_id: "8001" }, lastResponse: INCOME } }),
+    });
+    expect((await runReaderJob({ id: "order_income", orderIds: ["8001"] }, withDetail.env)).status).toBe("done");
+    const bare = env({ templates: {} });
+    expect((await runReaderJob({ id: "order_income", orderIds: ["8001"] }, bare.env)).status).toBe("needs_template");
+  });
+
   it("no order key in the page's own income call: nothing replayed, said as no_order_key / partial:no_order_key", async () => {
-    const keyless = env({ templates: { order_income_components: { query: { x: "1" }, lastStatus: 500 } } });
+    const keyless = env({ templates: incomePage({ order_income_components: { query: { x: "1" }, lastStatus: 500 } }) });
     const none = await runReaderJob({ id: "order_income", orderIds: ["8001", "8002"] }, keyless.env);
     expect(none).toMatchObject({ status: "done", detail: "no_order_key" });
     expect(keyless.sent).toHaveLength(0);
     expect(jobOutcome("order_income", { order_income: "ignored" }, "", none.detail ?? "", none.responses)).toBe("error:order_income:0_rows:no_order_key");
-    const opened = env({ templates: { order_income_components: { query: { x: "1" }, lastResponse: INCOME } } });
+    const opened = env({ templates: incomePage({ order_income_components: { query: { x: "1" }, lastResponse: INCOME } }) });
     const some = await runReaderJob({ id: "order_income", orderIds: ["8001", "8002"] }, opened.env);
     expect(some).toMatchObject({ status: "done", detail: "partial:no_order_key" });
     expect(opened.sent).toHaveLength(0);

@@ -334,6 +334,8 @@ export const READER_KICK_DELAY_MINUTES = 1;
 export const READER_REREAD_DELAY_MINUTES = 2;
 /** 0.3.25: at most this many re-read starts a day (a dialog that keeps coming back cannot loop). */
 export const READER_REREAD_MAX_PER_DAY = 3;
+/** 0.3.31: a page that ends without posting waits until tomorrow after this many failed runs a day. */
+export const READER_FAIL_ATTEMPTS_PER_DAY = 2;
 
 /**
  * 0.3.29 (F4.2, contract C2): the backend's hole list names, per dataset, the days of the last

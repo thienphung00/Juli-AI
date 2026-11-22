@@ -70,6 +70,19 @@ export function withHoleDays(
   return [...days, ...fresh.slice(0, allowed)];
 }
 
+/** 0.3.31: yesterday / catch-up days first; hole days (older backfill) separately for scheduling after today's readers. */
+export function splitHoleDays(
+  reader: ReaderId,
+  days: readonly string[],
+  holes: Record<string, string[]> | undefined,
+  room: number,
+  itemCount: number,
+): { today: string[]; backfill: string[] } {
+  const merged = withHoleDays(reader, days, holes, room, itemCount);
+  const today = [...days];
+  return { today, backfill: merged.filter((day) => !today.includes(day)) };
+}
+
 /** Hole days per dataset still open after `read` (days accepted this run). */
 export function daysLeft(holes: Record<string, string[]>, read: Record<string, string[]> | undefined): Record<string, number> {
   return Object.fromEntries(Object.entries(holes).map(([dataset, list]) => [dataset, list.filter((d) => !(read?.[dataset] ?? []).includes(d)).length]));
