@@ -8,7 +8,7 @@ import { type JobLabels, jobLabels } from "../../../core/fill/job-panel";
 import { findControl } from "../../../core/fill/locate";
 import { fillOne } from "../../../core/fill/settle";
 import { findRow } from "./controls";
-import { COMBO_LABELS, fillAds, fillAffiliate, fillCombo, fillVoucher, VOUCHER_LABELS } from "./fillers";
+import { COMBO_LABELS, cssAttr, fillAds, fillAffiliate, fillCombo, fillVariationPrices, fillVoucher, VOUCHER_LABELS } from "./fillers";
 import { fillEnd, productCurrent, readProduct } from "./revert";
 import { readAffiliate } from "./fillers";
 import type { FillJob, JobKind } from "./job-types";
@@ -68,6 +68,11 @@ export const SHOPEE_FORMS: Readonly<Record<JobKind, FormMap<FillJob>>> = {
     fill: async (env, job) => (job.payload.kind === "affiliate_commission" ? fillAffiliate(env, job.payload.affiliate) : NOTHING()),
   },
   combo: { page: FILL_JOB_PAGES.bundle_new, ready: rowReady(COMBO_LABELS.name), fill: async (env, job) => (job.payload.kind === "combo" ? fillCombo(env, job.payload.combo) : NOTHING()) },
+  price: {
+    page: FILL_JOB_PAGES.product_edit,
+    ready: (doc, job) => job.payload.kind === "price" && job.payload.price.variations.some((v) => !!doc.querySelector(`[data-variation-id="${cssAttr(v.variationId)}"]`)),
+    fill: async (env, job) => (job.payload.kind === "price" ? fillVariationPrices(env, job.payload.price.variations) : NOTHING()),
+  },
   voucher_end: { page: FILL_JOB_PAGES.voucher_list, fill: fillEnd },
   combo_end: { page: FILL_JOB_PAGES.bundle_list, fill: fillEnd },
   // a read-back of a product opens its edit page, an affiliate one the open campaign (the list

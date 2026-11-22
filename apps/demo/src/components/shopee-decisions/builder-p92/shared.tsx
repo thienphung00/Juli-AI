@@ -91,6 +91,8 @@ export interface PanelCtx {
   readonly product: PickerProduct;
   /** The variations chosen in step 2. */
   readonly variations: readonly VariationRow[];
+  /** Every variation of the product. Giá bán and Flash sale price each of these, not only the chosen one. */
+  readonly catalogVariations?: readonly VariationRow[];
   /** Every active listing (for combo partners, add-ons, gifts). */
   readonly products: readonly PickerProduct[];
   readonly aov: number | null;

@@ -291,6 +291,120 @@ def test_no_cost_is_chua_tinh_never_the_one_third_fallback():
     assert out["missing_cost"] == ["v1"]
 
 
+def _combo_pack(vid: str, name: str, price: int) -> dict:
+    return {
+        "variation_id": vid,
+        "name": name,
+        "selling_price": price,
+        "list_price": price,
+        "stock": 4,
+    }
+
+
+COMBO_ROWS = [
+    _combo_pack("v20", "Combo 20 hộp", 20_000),
+    _combo_pack("v30", "Combo 30 hộp", 30_000),
+    _combo_pack("v40", "Combo 40 hộp", 40_000),
+    _combo_pack("v50", "Combo 50 hộp", 50_000),
+]
+
+
+def test_four_variations_keep_their_own_prices_and_do_not_borrow_the_item_price():
+    info = ItemInfo(
+        "9",
+        "Hộp",
+        variations=tuple(Variation(r["variation_id"], r["name"], None) for r in COMBO_ROWS),
+        list_price=D(50_000),
+        current_price=D(50_000),
+    )
+    priced = var.variation_rows(
+        "9",
+        info,
+        COMBO_ROWS,
+        rules=ProfitRules(),
+        schedule=SCHEDULE,
+        on=date(2026, 10, 7),
+        item_list_price=D(50_000),
+        item_current_price=D(50_000),
+    )
+    assert {r["variation_id"]: r["selling_price"] for r in priced} == {
+        "v20": 20_000,
+        "v30": 30_000,
+        "v40": 40_000,
+        "v50": 50_000,
+    }
+    bare = var.variation_rows(
+        "9",
+        info,
+        [],
+        rules=ProfitRules(),
+        schedule=SCHEDULE,
+        on=date(2026, 10, 7),
+        item_list_price=D(50_000),
+        item_current_price=D(50_000),
+    )
+    assert [r["selling_price"] for r in bare] == [None, None, None, None]
+
+
+def test_minus_twenty_on_the_first_variation_does_not_use_the_last_price():
+    prices = var.variation_fill_prices(
+        COMBO_ROWS,
+        [{"variation_id": "v20", "change_pct": -20}],
+        kind="price",
+    )
+    by = {row["variation_id"]: row["price"] for row in prices}
+    assert [row["variation_id"] for row in prices] == ["v20", "v30", "v40", "v50"]
+    assert by["v20"] == 16_000
+    assert by["v20"] != 40_000
+    assert by["v50"] == 50_000
+    flash = var.variation_fill_prices(
+        COMBO_ROWS,
+        [
+            {"variation_id": "v20", "discount_pct": 20},
+            {"variation_id": "v50", "discount_pct": 20},
+        ],
+        kind="flash_sale",
+    )
+    flash_by = {row["variation_id"]: row["price"] for row in flash}
+    assert flash_by == {"v20": 16_000, "v50": 40_000}
+
+
+def test_shared_sku_price_does_not_replace_the_first_variation():
+    """A shared cost key quotes the last variation. The fill keeps the first price."""
+    from juli_backend.services.shopee_builder.translate import _variation_inputs
+
+    class Env:
+        def current_price(self, sku: str) -> D:
+            return D(50_000)
+
+        def list_price(self, sku: str) -> D:
+            return D(50_000)
+
+    class Ctx:
+        env = Env()
+
+        def variation(self, item_id: str, variation_id: str) -> dict:
+            return next(r for r in COMBO_ROWS if r["variation_id"] == variation_id)
+
+        def sku_key(self, item_id: str, variation_id: str) -> str:
+            return "SHARED"
+
+    out = _variation_inputs(
+        Ctx(),
+        "9",
+        [
+            sp.VariationPrice(variation_id="v20", change_pct=-20),
+            sp.VariationPrice(variation_id="v50", change_pct=-20),
+        ],
+        discount=False,
+    )
+    by = {row["variation_id"]: row for row in out}
+    assert by["v20"]["final_price"] == 16_000
+    assert by["v50"]["final_price"] == 40_000
+    assert by["v20"]["sku"] != by["v50"]["sku"]
+    assert "new_price_pct" not in by["v20"]
+
+
 def test_a_listing_without_variations_is_one_default_row_and_a_bom_costs_its_parts():
     plain = var.variation_rows(
         "7",

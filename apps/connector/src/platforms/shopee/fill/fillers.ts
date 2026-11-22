@@ -33,7 +33,7 @@ import {
   waitFor,
   writeBox,
 } from "./controls";
-import type { AdsPayload, AffiliatePayload, ComboPayload, FillJob, VoucherPayload } from "./job-types";
+import type { AdsPayload, AffiliatePayload, ComboPayload, FillJob, PriceVariation, VoucherPayload } from "./job-types";
 import { normalizeLabel } from "../../../core/fill/locate";
 import { keyed } from "../../../core/fill/log";
 import { writeValue } from "../../../core/fill/write";
@@ -42,6 +42,50 @@ export type { FillOutcome, Step } from "../../../core/fill/form";
 import type { CurrentRow, FillOutcome, Step } from "../../../core/fill/form";
 
 const dong = (n: number) => `${n.toLocaleString("vi-VN")} ₫`;
+
+/** A value safe inside a CSS attribute selector. jsdom tests have no CSS.escape. */
+export function cssAttr(value: string): string {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
+  return value.replace(/[^a-zA-Z0-9_-]/g, (ch) => `\\${ch}`);
+}
+
+/** The variation row on the product edit page, by its id, else by its name when that name is unique. */
+export function variationPriceRow(doc: Document, variationId: string, name?: string): HTMLElement | null {
+  const byId = doc.querySelector<HTMLElement>(`[data-variation-id="${cssAttr(variationId)}"]`);
+  if (byId) return byId;
+  if (!name) return null;
+  const wanted = normalizeLabel(name);
+  const hits = Array.from(doc.querySelectorAll<HTMLElement>("div,tr,li")).filter((el) => {
+    if (!textBoxesIn(el).length) return false;
+    const own = Array.from(el.childNodes)
+      .filter((n) => n.nodeType === 3 || n.nodeType === 1)
+      .map((n) => normalizeLabel(n.textContent ?? ""))
+      .join(" ");
+    return own.includes(wanted) && !Array.from(el.querySelectorAll("[data-variation-id]")).some((inner) => inner !== el && textBoxesIn(inner).length > 0);
+  });
+  return hits.length === 1 ? (hits[0] as HTMLElement) : null;
+}
+
+/** Writes each variation's price into its own box. One variation never receives another's price. */
+export async function fillVariationPrices(env: Env, variations: readonly PriceVariation[]): Promise<FillOutcome> {
+  const steps: Step[] = [];
+  for (const v of variations) {
+    const row = variationPriceRow(env.doc, v.variationId, v.name);
+    const box = row ? textBoxesIn(row)[0] : undefined;
+    const ok = !!box && writeBox(keyed(env, `price:${v.variationId}`), box, String(v.price));
+    steps.push({
+      label: `${v.name ?? v.variationId}: ${dong(v.price)}`,
+      ok,
+      keys: [`price:${v.variationId}`],
+      ...(ok ? {} : { note: row ? "Shopee chưa nhận giá." : "Không thấy ô giá của phân loại này." }),
+    });
+  }
+  return {
+    steps,
+    todo: ["Kiểm tra từng phân loại rồi bấm Cập nhật / Lưu của Shopee."],
+    notes: [],
+  };
+}
 
 export const VOUCHER_LABELS = {
   name: "Tên chương trình giảm giá",

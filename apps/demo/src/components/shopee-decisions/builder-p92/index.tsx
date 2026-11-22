@@ -9,7 +9,7 @@ import type { BuilderP98Api } from "../../../lib/shopee-decisions/builder-p98-ap
 import { useNarrow } from "../../quyet-dinh/use-narrow";
 import { NavLink, errorText } from "../ui";
 import type { Entry } from "./compare";
-import { ComboPanel, DealSocPanel, DiscountPanel, PriceFlashPanel, SetPanel, VoucherPanel } from "./panels-offers";
+import { ComboPanel, DealSocPanel, DiscountPanel, PriceFlashPanel, SetPanel, VoucherPanel, applyOwnPrices } from "./panels-offers";
 import { AdsPanel, AffiliatePanel, CoverPanel, DescPanel, PriceDisplayPanel, TitlePanel } from "./panels-listing";
 import { Stepper, VariationChoice } from "./picker";
 import { StepChienLuoc } from "./step-chien-luoc";
@@ -157,9 +157,15 @@ function Builder({ data, from, productId, kinds = KINDS_92, onNewCampaign, newCa
   const effective = useMemo<readonly string[]>(() => selIds ?? (first !== undefined ? [first] : []), [selIds, first]);
   const chosen = useMemo(() => (list ? list.variations.filter((v) => allVars || effective.includes(v.variation_id)) : []), [list, allVars, effective]);
 
-  const built = useMemo(() => (kind && product ? buildVersion(kind, forms, { product, variations: chosen }) : { version: null, problem: null }), [kind, forms, product, chosen]);
+  const catalog = list?.variations ?? chosen;
+  const built = useMemo(() => {
+    const raw = kind && product ? buildVersion(kind, forms, { product, variations: catalog }) : { version: null, problem: null };
+    if (!raw.version) return raw;
+    const version = applyOwnPrices(raw.version as Record<string, unknown>, catalog);
+    return version === raw.version ? raw : { problem: null, version: version as typeof raw.version };
+  }, [kind, forms, product, catalog]);
   const key = built.version ? JSON.stringify(built.version) : "";
-  const ctx: PanelCtx | null = product ? { api, product, variations: chosen, products, aov, outcome: result?.state.status === "ready" && result.key === key ? result.state.outcome : null, narrow, costLink, market: host.market ?? null, ...(onNewCampaign ? { onNewCampaign } : {}), ...(newCampaign ? { newCampaign } : {}) } : null;
+  const ctx: PanelCtx | null = product ? { api, product, variations: chosen, catalogVariations: catalog, products, aov, outcome: result?.state.status === "ready" && result.key === key ? result.state.outcome : null, narrow, costLink, market: host.market ?? null, ...(onNewCampaign ? { onNewCampaign } : {}), ...(newCampaign ? { newCampaign } : {}) } : null;
 
   useEffect(() => {
     if (step !== "phuong-an" || !built.version) return;

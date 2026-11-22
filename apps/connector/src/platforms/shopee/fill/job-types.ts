@@ -14,6 +14,8 @@ export type JobKind =
   | "ads_edit"
   | "affiliate_commission"
   | "combo"
+  /** One new price per variation of a product (Giá bán / Flash sale). */
+  | "price"
   /** 0.3.27 (F3.1, contract B): undo of an executed voucher / combo: the list row's Kết thúc / Xóa is shown, never pressed. */
   | "voucher_end"
   | "combo_end"
@@ -54,6 +56,17 @@ export interface AffiliatePayload {
 
 export type ComboType = "pct" | "amount" | "special_price";
 
+export interface PriceVariation {
+  variationId: string;
+  price: number;
+  name?: string;
+}
+
+export interface PricePayload {
+  itemId: string;
+  variations: PriceVariation[];
+}
+
 export interface ComboPayload {
   name: string;
   startsAt: string;
@@ -86,7 +99,8 @@ export type JobPayload =
   | { kind: "voucher"; voucher: VoucherPayload }
   | { kind: "ads_edit"; ads: AdsPayload }
   | { kind: "affiliate_commission"; affiliate: AffiliatePayload }
-  | { kind: "combo"; combo: ComboPayload };
+  | { kind: "combo"; combo: ComboPayload }
+  | { kind: "price"; price: PricePayload };
 
 export interface FillJob extends CoreJob {
   id: string;
@@ -234,6 +248,10 @@ function addressOk(kind: JobKind, openPath: string, payload: JobPayload): boolea
     return !!m && m[1] === payload.ads.variant && m[2] === payload.ads.campaignId;
   }
   if (kind === "combo") return payload.kind === "combo" && FILL_JOB_PAGES.bundle_new.test(path) && url.search === "";
+  if (kind === "price" && payload.kind === "price") {
+    const m = FILL_JOB_PAGES.product_edit.exec(path);
+    return !!m && m[1] === payload.price.itemId && url.search === "";
+  }
   if (kind === "affiliate_commission") return FILL_JOB_PAGES.affiliate_open.test(path);
   if (kind === "voucher_end") return payload.kind === kind && FILL_JOB_PAGES.voucher_list.test(path);
   if (kind === "combo_end") return payload.kind === kind && FILL_JOB_PAGES.bundle_list.test(path);
@@ -332,6 +350,31 @@ export function parseFillJob(raw: unknown): FillJob | null {
   } else if (kind === "combo") {
     const c = combo(p);
     payload = c ? { kind, combo: c } : null;
+  } else if (kind === "price") {
+    const itemId = /\/portal\/product\/(\d{1,20})$/.exec(openPath.split("?")[0] ?? "")?.[1];
+    const rows = p.variations;
+    if (!itemId || !Array.isArray(rows) || rows.length < 1 || rows.length > 40) payload = null;
+    else {
+      const variations: PricePayload["variations"] = [];
+      const seen = new Set<string>();
+      let ok = true;
+      for (const row of rows) {
+        if (!isRecord(row)) {
+          ok = false;
+          break;
+        }
+        const variationId = str(row.variation_id, 64);
+        const price = int(row.price, 1, 1_000_000_000);
+        const name = row.name === undefined ? undefined : str(row.name, 255);
+        if (!variationId || price === undefined || seen.has(variationId) || (row.name !== undefined && !name)) {
+          ok = false;
+          break;
+        }
+        seen.add(variationId);
+        variations.push({ variationId, price, ...(name ? { name } : {}) });
+      }
+      payload = ok ? { kind, price: { itemId, variations } } : null;
+    }
   } else if (kind === "voucher_end" || kind === "combo_end") {
     const end = endTarget(p, kind === "voucher_end" ? "voucher_id" : "combo_id");
     payload = end ? { kind, end } : null;
