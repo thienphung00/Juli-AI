@@ -140,6 +140,25 @@ dự kiến / thực tế / Hiệu quả (needs actual spend per card), ROAS Tù
 7. Screen chips: Juli-tab cards show nothing in seller Đề xuất and "Juli" in the Ops list — show "Từ tab Juli"
    (`components/shopee-decisions/top-cards.tsx`, `ops-list.tsx`).
 
+### W5b — Juli tab free-text answers (live test 22/11, pilot shop A, numbers checked against SQL)
+
+Fixed in PR #2350: data answers crashed the page (metric_total `value` sent as an object), blank top-product rows,
+English intent titles, raw `**`. Still open, in order of harm:
+1. **Wrong entity presented as the asked one** (worst): "đơn dùng voucher" and "đơn từ Tiếp thị liên kết" answered with
+   all shop orders; "<sản phẩm> lãi hay lỗ" answered with the shop's profit and margin labelled as the product's.
+   The intent keeps the filter (voucher / channel / product); the lookup and chains drop it
+   (`analytics_agent/routing.py`, `lookup.py`, `chains.py`). If a filter cannot be applied, answer "unsupported" or ask
+   — never show an unfiltered number under the filtered label. Add a test per filter.
+2. **"Tuần trước" windows**: three different windows across answers in one session; the window chosen in a needs_choice
+   was ignored on resume; the freshness line said "đến hết 20/11" while shop totals had 21/11
+   (`analytics_agent/windows.py`, the resume path in `engine.py`).
+3. **Multi-intent**: "giảm mạnh nhất" returned the top-by-GMV list again (needs a "biggest decline" lookup); a second
+   intent (affiliate commission) was dropped.
+4. Unsupported today: voucher effectiveness, voucher cost, campaign-level loss — decide in the grill whether they become
+   chains or stay "unsupported".
+Data (not the agent): days with shop totals but no order lines store profit = −ads; lines with an unknown SKU use an
+assumed cost per window instead of per day — S1's.
+
 ### W6 — Platform knowledge (not urgent; grill)
 
 Local corpus only, no live web search. TikTok corpus exists on the owner's machine (not in the repo); a Shopee Seller
