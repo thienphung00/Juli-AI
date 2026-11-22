@@ -257,7 +257,7 @@ async def _goal(
     try:
         plan = await month_plan.range_plan(
             session, shop_id, window.start, window.end, scope=month_plan.SCOPE_RUNNING, now=now,
-            view=view, product_id=product_id,
+            actual_to=window.end, view=view, product_id=product_id,
         )  # fmt: skip
     except RowsNotMaterialized:
         return None, None
@@ -319,12 +319,17 @@ async def collect_tong_quan(
     shop_now = await figures(view, cur, None, frows)
     shop_prev = await figures(pview, prv, None, prev_rows)
 
+    product_notes = await _product_notes(session, shop_id, cur, product_id)
     rows: list[tq.ProductRow] = []
     ids = [product_id] if product_id else sorted(names, key=lambda i: -_gmv_of(listing, i))
     for i in ids:
         now_fig = await figures(view, cur, i, frows)
+        cause, fix = product_notes.get(i, (calc.DASH, calc.DASH))
         rows.append(
-            tq.ProductRow(i, names.get(i, i), now_fig, await figures(pview, prv, i, prev_rows))
+            tq.ProductRow(
+                i, names.get(i, i), now_fig, await figures(pview, prv, i, prev_rows),
+                cause=cause, fix=fix,
+            )  # fmt: skip
         )
     if product_id:  # the Sản phẩm level: the file's period figures are the product's
         shop_now, shop_prev = rows[0].now, rows[0].prev
@@ -351,7 +356,7 @@ async def collect_tong_quan(
         }
         sd = prod_days.get(d) if product_id else shop_days.get(d)
         # no traffic-source rows that day: the channel split is unknown (not "all affiliate")
-        traffic = by["organic"]["gmv"] is not None or by["ads"]["gmv"] is not None
+        traffic = any(by.get(key, {}).get("gmv") is not None for key in tq.CHANNELS)
         gmv_by = {key: _f(by[key]["gmv"]) if traffic else None for key in tq.CHANNELS}
         orders_by = {key: _f(by[key]["orders"]) if traffic else None for key in tq.CHANNELS}
         days.append(
@@ -474,6 +479,24 @@ async def _koc(
     if product_id is not None:
         section = {**section, "rows": [r for r in section["rows"] if r["item_id"] == product_id]}
     return rs.koc_rows(section), share
+
+
+async def _product_notes(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window, product_id: str | None,
+) -> dict[str, tuple[str, str]]:
+    try:
+        crit = await queries.critical(
+            session, shop_id, period="custom", start=window.start, end=window.end
+        )
+    except (RowsNotMaterialized, NoShopeeData):
+        return {}
+    items = [it for it in crit["items"] if product_id is None or it.get("product_id") == product_id]
+    return rs.product_issue_texts(items)
+
+
+def _goal_rows_for_products(items: Sequence[Mapping[str, Any]]) -> dict[str, tuple[str, str]]:
+    """Test seam: ``product_issue_texts`` on critical items (product id -> cause, fix)."""
+    return rs.product_issue_texts(items)
 
 
 async def _analysis(

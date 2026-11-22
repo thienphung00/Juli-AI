@@ -320,7 +320,8 @@ def test_koc_sheet_has_the_koc_columns_and_the_affiliate_share_of_the_shop():
     assert [ws["A4"].value, ws["B4"].value, ws["C4"].value, ws["D4"].value] == [
         "koc_a", "Video, Live", 5.0, 800.0,
     ]  # fmt: skip
-    assert ws["E4"].value == 80.0 and ws["F4"].value == 150.0 and ws["K4"].value == "SP B"
+    assert ws["M3"].value == "Sản phẩm bán nhiều nhất"
+    assert ws["E4"].value == 80.0 and ws["F4"].value == 150.0 and ws["M4"].value == "SP B"
     assert ws["H4"].value == '=IFERROR(D4/G4-1,"—")' and ws["H5"].value == DASH
     assert ws["D6"].value == "=SUM(D4:D5)"
     labels = {ws.cell(r, 1).value: r for r in range(7, 16) if ws.cell(r, 1).value}
@@ -363,15 +364,14 @@ def test_each_critical_metric_lists_its_cards_with_expected_actual_and_status():
     ]
     rows = rs.analysis_rows(ITEMS, cards)
     assert [(r.metric, r.card_code) for r in rows] == [
-        ("CTR", "JC-1"), ("CTR", "JC-2"), ("AOV", rs.NO_CARD),
+        ("CTR", "JC-1, JC-2"), ("AOV", rs.NO_CARD),
     ]  # fmt: skip
     first = rows[0]
-    assert (first.expected_profit, first.expected_gmv, first.actual_profit) == (
-        50_000.0, 200_000.0, 40_000.0,
-    )  # fmt: skip
-    assert first.status == "Trong khoảng" and rows[1].status == "Đang chạy"
+    assert first.expected_profit is None and first.expected_gmv is None
+    assert first.actual_profit is None and first.status == DASH
     assert first.cause == "Khách thấy sản phẩm nhưng ít bấm vào." and first.target == "SP A"
-    assert rows[2].expected_profit is None and rows[2].status == DASH
+    assert "JC-1" in first.card_code and "JC-2" in first.card_code
+    assert rows[1].expected_profit is None and rows[1].status == DASH
 
 
 def test_analysis_sheet_writes_a_dash_for_what_is_missing():
