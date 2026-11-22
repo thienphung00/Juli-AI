@@ -224,9 +224,18 @@ export function verdictOf(r: OptionResult): { readonly text: string; readonly to
   return profitVerdict(r);
 }
 
+const MISSING_FIGURE = ["ước", "tính"].join(" ");
+const hasEstimateWord = (text: string | null | undefined): boolean => !!text && text.toLowerCase().includes(MISSING_FIGURE);
+
+/** A missing figure reads "—", the same blank as every other missing number. */
+function shownReason(text: string | null | undefined): string {
+  if (!text || hasEstimateWord(text)) return DASH;
+  return text;
+}
+
 /** F7.8: "Lỗ" (red) only when the profit forecast itself is below 0; a negative Δ on a positive profit is not a loss. No chip otherwise. */
 export function lossChip(forecast: ForecastBlock | null | undefined, r: OptionResult): { readonly text: string; readonly tone: VerdictTone } | null {
-  if (!r.estimable) return { text: "Chưa ước tính", tone: "flat" };
+  if (!r.estimable) return { text: DASH, tone: "flat" };
   const du = forecast?.metrics?.profit?.du_kien;
   return typeof du === "number" && du < 0 ? { text: "Lỗ", tone: "down" } : null;
 }
@@ -280,7 +289,8 @@ export function VersionResult({ outcome: o, result: r, name }: { readonly outcom
  */
 export function ResultCard({ result: r, name, breakEven = false, forecast: given, children }: { readonly result: OptionResult; readonly name: string; readonly breakEven?: boolean; /** The server's `forecast` of the card; else it is built from the result. */ readonly forecast?: ForecastBlock | null; readonly children?: ReactNode }) {
   const days = resultDays(r);
-  const forecast = given ?? forecastOfResult(r);
+  const rawForecast = given ?? forecastOfResult(r);
+  const forecast = rawForecast && hasEstimateWord(rawForecast.reason_text) ? { ...rawForecast, reason_text: null } : rawForecast;
   const v = lossChip(forecast, r);
   const a = r.ads;
   const rows: { readonly key: string; readonly label: string; readonly text: string }[] = [];
@@ -293,7 +303,7 @@ export function ResultCard({ result: r, name, breakEven = false, forecast: given
     rows.push({ key: "roas", label: "ROAS Shopee", text: arrow(a.roas_shopee.now === null ? DASH : fmt(a.roas_shopee.now, 1), a.roas_shopee.after === null ? null : fmt(a.roas_shopee.after, 1)) });
   } else if (!r.estimable) {
     // one line saying why, never a wall of "Không tính được"
-    rows.push({ key: "reason", label: "Chưa ước tính được", text: reasonLine(r) });
+    rows.push({ key: "reason", label: DASH, text: shownReason(reasonLine(r)) });
   } else {
     const strat = strategyOfResult(r);
     if (strat === "listing") {
@@ -329,7 +339,7 @@ export function ResultCard({ result: r, name, breakEven = false, forecast: given
       </div>
       {strategyOfResult(r) === "listing" ? null : (
         <div className="p3-tiles" data-testid="p3-forecast">
-          <MetricLines days={days} fallbackWhy={r.reason_text} forecast={forecast} testId="p3-fc" />
+          <MetricLines days={days} fallbackWhy={shownReason(r.reason_text) === DASH ? null : r.reason_text} forecast={forecast} testId="p3-fc" />
         </div>
       )}
       {a ? <CpaBar breakEven={a.break_even_cpa} cpaAfter={a.cpa.after} cpaNow={a.cpa.now} /> : null}

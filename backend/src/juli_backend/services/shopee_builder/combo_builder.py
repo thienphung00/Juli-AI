@@ -25,7 +25,7 @@ from juli_backend.services.shopee_recommendations.unit_cost import unit_cost
 
 MARGIN_BASIS = {
     "price": "Biên ở giá bán (chắc chắn): sau phí sàn, giá vốn, đóng gói",
-    "final": "Biên cuối (ước tính): biên ở giá bán trừ voucher shop, hoa hồng liên kết và "
+    "final": "Biên cuối: biên ở giá bán trừ voucher shop, hoa hồng liên kết và "
     "quảng cáo đo trong 30 ngày",
 }
 

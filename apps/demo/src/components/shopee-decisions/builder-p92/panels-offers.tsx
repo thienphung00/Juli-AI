@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { MarketPriceMarker } from "../../shopee-analytics/market-price-marker";
 import { fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
-import type { CoPurchase } from "../../../lib/shopee-decisions/builder-api";
+import type { CoPurchase, VariationRow } from "../../../lib/shopee-decisions/builder-api";
 import { DEAL_SOC_TYPES, FORM_DEFAULTS, MAX_ADDONS, comboTierDefault, belowPaidHint, belowPaidProblem, MAX_COMBO_NAME, MAX_COMBO_TIERS, MAX_PROGRAMME_NAME, MAX_TITLE, kmoney, marginText, newTier, num, voucherChips, type AddonRow, type ComboTierRow, type Forms, type GiftForm, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
 import { HourIn, NumIn, Pills, ProductSelect, Seg, TextIn, VariationSelect, setAt, type PanelCtx } from "./shared";
 import { ProductTargets } from "./targets";
@@ -331,6 +331,67 @@ function GiftFields({ form, set, ctx }: { readonly form: GiftForm; readonly set:
 
 // ── Giảm giá, Giá bán + Flash sale ───────────────────────────────────────
 
+export interface FillPrice {
+  readonly variation_id: string;
+  readonly price: number;
+}
+
+/** Whole đồng, half up, to the nearest 100đ — the same step a percent price change uses. */
+function roundPrice(raw: number): number {
+  return Math.round(raw / 100) * 100;
+}
+
+/**
+ * The price one variation would sell at, from that variation's own current or list price.
+ * A price change moves the current price. A flash sale moves the list price.
+ */
+export function quoteVariationPrice(
+  variation: Pick<VariationRow, "selling_price" | "list_price">,
+  change: { readonly change_pct?: number | null; readonly discount_pct?: number | null; readonly final_price?: number | null } | undefined,
+  kind: "price" | "flash_sale",
+): number | null {
+  if (change?.final_price != null && change.final_price > 0) return Math.round(change.final_price);
+  if (kind === "flash_sale") {
+    const base = variation.list_price ?? variation.selling_price;
+    if (change?.discount_pct == null) return variation.selling_price ?? null;
+    if (base == null) return null;
+    const price = Math.floor((base * (1 - change.discount_pct / 100)) / 100) * 100;
+    return price > 0 ? price : null;
+  }
+  if (variation.selling_price == null) return null;
+  if (change?.change_pct == null) return roundPrice(variation.selling_price);
+  const price = roundPrice(variation.selling_price * (1 + change.change_pct / 100));
+  return price > 0 ? price : null;
+}
+
+/** One price per variation. A flash sale leaves out variations the seller did not fill in. */
+export function fillPricesFor(
+  variations: readonly VariationRow[],
+  specRows: readonly { readonly variation_id?: string; readonly change_pct?: number; readonly discount_pct?: number; readonly final_price?: number }[],
+  kind: "price" | "flash_sale",
+): FillPrice[] {
+  const byId = new Map(specRows.map((r) => [r.variation_id ?? "", r]));
+  const out: FillPrice[] = [];
+  for (const v of variations) {
+    const spec = byId.get(v.variation_id);
+    if (kind === "flash_sale" && !spec) continue;
+    const price = quoteVariationPrice(v, spec, kind);
+    if (price == null || price <= 0) continue;
+    out.push({ variation_id: v.variation_id, price });
+  }
+  return out;
+}
+
+/** The version sent to evaluate / save: each variation's final price, never another variation's. */
+export function applyOwnPrices(version: Record<string, unknown>, variations: readonly VariationRow[]): Record<string, unknown> {
+  if (version.kind !== "price" && version.kind !== "flash_sale") return version;
+  const kind = version.kind;
+  const specRows = Array.isArray(version.variations) ? (version.variations as { variation_id?: string; change_pct?: number; discount_pct?: number; final_price?: number }[]) : [];
+  const prices = fillPricesFor(variations, specRows, kind);
+  if (prices.length === 0) return version;
+  return { ...version, variations: prices.map((p) => ({ variation_id: p.variation_id, final_price: p.price })) };
+}
+
 /** The price a buyer sees after the typed row: the final price, or the list price moved by the percentage. */
 function draftPrice(selling: number | null, mode: "pct" | "final_price", raw: string, direction: "off" | "change"): number | null {
   const n = num(raw);
@@ -347,17 +408,24 @@ export function pctLabel(mode: "pct" | "final_price", direction: "off" | "change
   return direction === "change" ? "Thay đổi" : "Giảm";
 }
 
-function VarRows({ ctx, rows, mode, direction, onRow, labels, bounded }: { readonly bounded?: boolean; readonly labels?: { readonly pct: string; readonly final: string }; readonly ctx: PanelCtx; readonly direction: "off" | "change"; readonly rows: readonly { readonly variationId: string; readonly value: string }[]; readonly mode: "pct" | "final_price"; readonly onRow: (id: string, value: string) => void }) {
+function VarRows({ ctx, rows, mode, direction, onRow, labels, bounded, variations }: { readonly bounded?: boolean; readonly labels?: { readonly pct: string; readonly final: string }; readonly ctx: PanelCtx; readonly direction: "off" | "change"; readonly rows: readonly { readonly variationId: string; readonly value: string }[]; readonly mode: "pct" | "final_price"; readonly onRow: (id: string, value: string) => void; readonly variations?: readonly VariationRow[] }) {
   const skus = (Array.isArray(ctx.outcome?.details?.["skus"]) ? ctx.outcome!.details!["skus"] : []) as Readonly<Record<string, unknown>>[];
+  const list = variations ?? ctx.variations;
   return (
     <div className="p2-rows" data-testid="p2-varrows">
-      {ctx.variations.map((v, i) => {
+      {list.map((v, i) => {
         const val = rows.find((r) => r.variationId === v.variation_id)?.value ?? "";
-        const sku = skus[i];
+        const sku = skus.find((s) => {
+          const key = String(s["sku"] ?? "");
+          return key !== "" && (key === v.sku || key === v.variation_id);
+        });
         const bound = bounded ? belowPaidHint(v) : null;
         const under = bounded ? belowPaidProblem(v, mode, val) : null;
+        const typed = num(val);
+        const next = typed === null ? null : quoteVariationPrice(v, mode === "final_price" ? { final_price: typed } : direction === "change" ? { change_pct: typed } : { discount_pct: typed }, direction === "change" ? "price" : "flash_sale");
+        const rowId = v.variation_id || "default";
         return (
-          <div className="p2-row p2-row--wrap" key={v.variation_id || "default"}>
+          <div className="p2-row p2-row--wrap" data-testid={`p2-var-${rowId}`} key={rowId}>
             <span className="p2-row__name">
               <b>{v.name}</b>
               <span className="sa-hint">giá hiện tại {vnd(v.selling_price)}</span>
@@ -373,9 +441,14 @@ function VarRows({ ctx, rows, mode, direction, onRow, labels, bounded }: { reado
                 {under}
               </span>
             ) : null}
+            {next !== null ? (
+              <span className="sa-hint" data-testid={`p2-next-${rowId}`}>
+                {vnd(v.selling_price)} → {vnd(next)}
+              </span>
+            ) : null}
             {sku ? (
-              <span className="sa-hint" data-testid={`p2-sku-${i + 1}`}>
-                {vnd(dn(sku, "price_before"))} → {vnd(dn(sku, "price_after"))} · biên {marginText(dn(sku, "margin_pct_before"))} → {marginText(dn(sku, "margin_pct_after"))}
+              <span className="sa-hint" data-testid={`p2-sku-${rowId}`}>
+                {vnd(v.selling_price)} → {vnd(next ?? dn(sku, "price_after"))} · biên {marginText(dn(sku, "margin_pct_before"))} → {marginText(dn(sku, "margin_pct_after"))}
               </span>
             ) : null}
             {ctx.market && val.trim() !== "" ? (
@@ -426,11 +499,12 @@ export function DiscountPanel({ form, set, ctx }: P<"product_discount">) {
 }
 
 export function PriceFlashPanel({ form, set, ctx }: P<"price_flash">) {
+  const variations = ctx.catalogVariations && ctx.catalogVariations.length > 0 ? ctx.catalogVariations : ctx.variations;
   return (
     <div className="p2-panel" data-testid="p2-panel-flash">
       <Pills label="Loại thay đổi" onChange={(what) => set({ what })} options={[["price", "Đổi giá niêm yết"], ["flash_sale", "Flash sale của shop"]]} value={form.what} />
       <Seg label={form.what === "price" ? "Nhập giá theo" : "Nhập giảm theo"} onChange={(mode) => set({ mode })} options={[["pct", form.what === "price" ? "Thay đổi (%)" : "Giảm (%)"], ["final_price", form.what === "price" ? "Giá bán mới (đ)" : "Giá flash sale (đ)"]]} value={form.mode} />
-      <VarRows bounded={form.what === "flash_sale"} ctx={ctx} direction={form.what === "price" ? "change" : "off"} mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} />
+      <VarRows bounded={form.what === "flash_sale"} ctx={ctx} direction={form.what === "price" ? "change" : "off"} mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} variations={variations} />
       {form.what === "flash_sale" ? (
         <div className="p2-grid">
           <NumIn label="Số lượng (suất)" onChange={(units) => set({ units })} placeholder={FORM_DEFAULTS.flashUnits} value={form.units} />

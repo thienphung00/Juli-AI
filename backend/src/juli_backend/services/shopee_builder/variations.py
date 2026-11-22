@@ -5,8 +5,9 @@
 loại, VAT) into the rows the builder's variation picker and the product page's "So sánh phân loại"
 show:
 
-- ``list_price`` / ``selling_price`` -- the snapshot's list and current price of the variation
-  (the item's own when the variation has none);
+- ``list_price`` / ``selling_price`` -- the snapshot's list and current price of the variation.
+  A listing with one variation uses the item price when the variation has none. A listing with
+  several variations never borrows the item price (that figure is the range, often the largest);
 - ``pack_count`` -- from the Thông số shop pack column, else read from the name ("Combo 3 hộp" = 3),
   else 1; ``price_per_unit`` = selling price / pack count;
 - ``margin_pct`` -- contribution of ONE order of this variation (platform fees by the shop's fee
@@ -26,7 +27,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from juli_backend.services.shopee_analytics.catalog import ItemInfo
@@ -34,7 +35,7 @@ from juli_backend.services.shopee_analytics.fmt import num, pct
 from juli_backend.services.shopee_analytics.margins import Rates, final_margin, measured_rates
 from juli_backend.services.shopee_analytics.rules_view import ProfitRules
 from juli_backend.services.shopee_profit.fees import FeeSchedule
-from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
+from juli_backend.services.shopee_profit.money import ZERO, pct_points, round_down_to, safe_div
 from juli_backend.services.shopee_profit.order_profit import (
     OrderLine,
     SkuCost,
@@ -188,11 +189,14 @@ def variation_rows(
         (vid, name, sku or _observed_for(observed, vid, entries)) for vid, name, sku in entries
     ]
     rows: list[dict[str, Any]] = []
+    # One variation: the item price is that variation's. Several: each keeps its own snapshot
+    # price, or none. The item price is the range (often the largest) and must not be copied.
+    one = len(entries) == 1
     for variation_id, name, sku in sorted(entries, key=lambda e: (e[0] == "", e[0])):
         snap = snaps.get(variation_id) or {}
         own_list, own_now = _dec(snap.get("list_price")), _dec(snap.get("current_price"))
-        listed = own_list or own_now or base_list
-        selling = own_now or own_list or base_now or base_list
+        listed = own_list or own_now or (base_list if one else None)
+        selling = own_now or own_list or ((base_now or base_list) if one else None)
         cost = unit_cost(rules, item_id, variation_id, seller_sku=sku, variation_name=name)
         key = cost_key(item_id, variation_id, sku, cost)
         margin: Decimal | None = None
@@ -269,6 +273,100 @@ def _observed_for(
     return None
 
 
+def _money(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, Decimal):
+        number = value
+    elif isinstance(value, int):
+        number = Decimal(value)
+    elif isinstance(value, float):
+        number = Decimal(str(value))
+    else:
+        return None
+    whole = int(number)
+    return whole if whole > 0 else None
+
+
+def quote_variation_price(
+    selling: int | None,
+    listed: int | None,
+    *,
+    change_pct: float | None = None,
+    discount_pct: float | None = None,
+    final_price: int | None = None,
+    discount: bool = False,
+) -> int | None:
+    """The price this variation would sell at, from its own current and list price.
+
+    A percent change moves ``selling``. A discount moves the list price (else the current
+    price). Neither figure is taken from another variation.
+    """
+    if final_price is not None:
+        return final_price if final_price > 0 else None
+    if discount or discount_pct is not None:
+        if discount_pct is None:
+            return selling
+        base = listed if listed is not None else selling
+        if base is None:
+            return None
+        raw = Decimal(base) * (Decimal(1) - Decimal(str(discount_pct)) / Decimal(100))
+        price = int(round_down_to(raw, Decimal(100)))
+        return price if price > 0 else None
+    if change_pct is None:
+        return selling
+    if selling is None:
+        return None
+    raw = Decimal(selling) * (Decimal(100) + Decimal(str(change_pct))) / Decimal(100)
+    price = int((raw / Decimal(100)).to_integral_value(rounding=ROUND_HALF_UP) * 100)
+    return price if price > 0 else None
+
+
+def variation_fill_prices(
+    rows: Sequence[Mapping[str, Any]],
+    changes: Sequence[Mapping[str, Any]],
+    *,
+    kind: str,
+) -> list[dict[str, Any]]:
+    """One price per variation for a price change or a flash sale.
+
+    A variation the change does not name keeps its own current price on a price change, and
+    stays out of a flash sale. The first variation's price is never the last variation's.
+    """
+    by_id = {str(c.get("variation_id") or ""): c for c in changes}
+    discount = kind != "price"
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    source: Sequence[Mapping[str, Any]] = (
+        list(rows) if rows else [{"variation_id": vid} for vid in by_id]
+    )
+    for row in source:
+        vid = str(row.get("variation_id") or "")
+        if vid in seen:
+            continue
+        seen.add(vid)
+        change = by_id.get(vid)
+        if discount and change is None:
+            continue
+        selling = _money(row.get("selling_price"))
+        listed = _money(row.get("list_price"))
+        if change is None:
+            price = selling
+        else:
+            price = quote_variation_price(
+                selling,
+                listed,
+                change_pct=change.get("change_pct"),
+                discount_pct=change.get("discount_pct"),
+                final_price=_money(change.get("final_price")),
+                discount=discount,
+            )
+        if price is None:
+            continue
+        out.append({"variation_id": vid, "price": price})
+    return out
+
+
 def economics(
     item_id: str,
     name: str,
@@ -282,7 +380,7 @@ def economics(
         "name": name,
         "variations": rows,
         "columns": ["list_price", "selling_price", "price_per_unit", "margin_pct"],
-        "final_margin_note": "Biên cuối (ước tính) = biên ở giá bán trừ tỉ lệ voucher shop, "
+        "final_margin_note": "Biên cuối = biên ở giá bán trừ tỉ lệ voucher shop, "
         "hoa hồng liên kết và chi phí quảng cáo đo trong 30 ngày",
         "margin_basis": "Biên của một đơn gồm 1 đơn vị bán của phân loại này, sau phí sàn, "
         "giá vốn, đóng gói" + (" và VAT" if vat.get("basis") == "after_vat" else ""),

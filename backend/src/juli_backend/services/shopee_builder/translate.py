@@ -19,6 +19,10 @@ from juli_backend.services.shopee_builder import banner, multi
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
 from juli_backend.services.shopee_builder.engine import engine
+from juli_backend.services.shopee_builder.variations import (
+    quote_variation_price,
+    variation_fill_prices,
+)
 from juli_backend.services.shopee_recommendations import evaluate
 from juli_backend.services.shopee_recommendations import listing as lst
 from juli_backend.services.shopee_recommendations.env import RecoEnv
@@ -61,6 +65,14 @@ def _voucher_inputs(
     return out
 
 
+def _own_base(row: dict[str, Any], *, discount: bool) -> int | None:
+    selling = row.get("selling_price")
+    listed = row.get("list_price")
+    if discount:
+        return int(listed) if listed else (int(selling) if selling else None)
+    return int(selling) if selling else None
+
+
 def _variation_inputs(
     ctx: BuilderContext,
     item_id: str,
@@ -68,15 +80,37 @@ def _variation_inputs(
     *,
     discount: bool,
 ) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
+    prepared: list[tuple[sp.VariationPrice, str]] = []
     for v in variations:
         key = ctx.sku_key(item_id, v.variation_id)
         if key is None:
             raise SpecRefused("variation_required")
-        row: dict[str, Any] = {"sku": key}
-        if v.final_price is not None:
+        prepared.append((v, key))
+    # Variations that share a cost key would collapse to the last row's price. Keep each one.
+    collision = len({key for _, key in prepared}) != len(prepared)
+    out: list[dict[str, Any]] = []
+    for v, key in prepared:
+        own = ctx.variation(item_id, v.variation_id) or {}
+        sku = f"{key}#{v.variation_id}" if collision and v.variation_id else key
+        row: dict[str, Any] = {"sku": sku, "variation_id": v.variation_id}
+        quoted = quote_variation_price(
+            int(own["selling_price"]) if own.get("selling_price") else None,
+            int(own["list_price"]) if own.get("list_price") else None,
+            change_pct=v.change_pct,
+            discount_pct=v.discount_pct,
+            final_price=v.final_price,
+            discount=discount,
+        )
+        own_base = _own_base(own, discount=discount)
+        # A shared cost key collapses to the last variation in the evaluator. Pin this
+        # variation's own price then. A unique key keeps the percent, which the evaluator
+        # prices from that key's own order line.
+        pin = quoted is not None and own_base is not None and collision
+        if pin:
+            row["final_price"] = quoted
+        elif v.final_price is not None:
             row["final_price"] = v.final_price
-            listed = (ctx.variation(item_id, v.variation_id) or {}).get("list_price")
+            listed = own.get("list_price")
             if discount and listed and v.final_price >= listed:
                 raise SpecRefused("final_price_not_below_list")
         elif v.discount_pct is not None:
@@ -87,6 +121,19 @@ def _variation_inputs(
             _refuse_unless_below_today(ctx, item_id, key, row)
         out.append(row)
     return out
+
+
+def _fill_price_details(
+    ctx: BuilderContext, item_id: str, variations: list[sp.VariationPrice], *, kind: str
+) -> dict[str, Any]:
+    """The prices the fill writes: one per variation, each from that variation's own price."""
+    return {
+        "variation_prices": variation_fill_prices(
+            ctx.rows(item_id),
+            [v.model_dump() for v in variations],
+            kind=kind,
+        )
+    }
 
 
 def _refuse_unless_below_today(
@@ -364,6 +411,7 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext, *, _flat: bool = False
             },
             "price",
             items=[spec.item_id],
+            details=_fill_price_details(ctx, spec.item_id, spec.variations, kind="price"),
         )
     if isinstance(spec, sp.FlashSaleSpec):
         if not spec.variations:
@@ -385,6 +433,7 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext, *, _flat: bool = False
             },
             "flash_sale",
             items=[spec.item_id],
+            details=_fill_price_details(ctx, spec.item_id, spec.variations, kind="flash_sale"),
         )
     if isinstance(spec, sp.VariationSetSpec):
         return _variation_set(spec, ctx)
