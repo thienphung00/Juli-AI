@@ -106,6 +106,8 @@ async def test_one_jev_routing_request_per_intent_in_parallel() -> None:
     routing_calls = [c for c in jev.calls if "fits" in c[1]]
     assert len(routing_calls) == 2
     assert [e["index"] for e in sink.of("intent_block")] == [1, 2]
+    # intent titles are Vietnamese (the parsed intent is English)
+    assert all(e["title_vi"].startswith("Câu ") for e in sink.of("intent_block"))
 
 
 async def test_more_items_beyond_cap() -> None:
