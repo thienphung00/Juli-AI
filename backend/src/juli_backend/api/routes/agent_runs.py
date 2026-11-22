@@ -24,6 +24,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -116,11 +117,21 @@ def _enqueue_resume_agent_workflow(run_id: uuid.UUID, *, approved: bool) -> str:
     return agent_workflow_tasks.resume_agent_workflow.delay(str(run_id), approved).id
 
 
+class _StreamSlot:
+    """The per-shop SSE slot, released exactly once whichever exit comes first."""
+
+    def __init__(self, gate: agent_abuse_limits.AbuseLimitGate, shop_id: str) -> None:
+        self._gate, self._shop_id, self._released = gate, shop_id, False
+
+    async def release(self) -> None:
+        if not self._released:
+            self._released = True
+            await self._gate.release_stream(self._shop_id)
+
+
 async def _sse_stream_with_concurrency_slot(
     generator: AsyncIterator[str],
-    *,
-    gate: agent_abuse_limits.AbuseLimitGate,
-    shop_id: str,
+    slot: _StreamSlot,
 ) -> AsyncIterator[str]:
     """Release the SSE concurrency slot on every exit path (ADR-075 decision 4).
 
@@ -136,7 +147,22 @@ async def _sse_stream_with_concurrency_slot(
         async for chunk in generator:
             yield chunk
     finally:
-        await gate.release_stream(shop_id)
+        await slot.release()
+
+
+def _sse_response(
+    generator: AsyncIterator[str],
+    gate: agent_abuse_limits.AbuseLimitGate,
+    shop_id: str,
+) -> StreamingResponse:
+    """Stream events; release the slot on a clean end, mid-stream end, and if the client never reads the body."""
+    slot = _StreamSlot(gate, shop_id)
+    return StreamingResponse(
+        _sse_stream_with_concurrency_slot(generator, slot),
+        media_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no"},
+        background=BackgroundTask(slot.release),
+    )
 
 
 # -- routes --------------------------------------------------------------------
@@ -183,13 +209,7 @@ async def stream_run_events(
         heartbeat_interval_s=heartbeat_interval_s,
         poll_interval_s=poll_interval_s,
     )
-    # X-Accel-Buffering pairs with the stream's immediate first byte (#1292)
-    # so nginx/Cloudflare never hold the response back.
-    return StreamingResponse(
-        _sse_stream_with_concurrency_slot(generator, gate=gate, shop_id=str(shop.id)),
-        media_type="text/event-stream",
-        headers={"X-Accel-Buffering": "no"},
-    )
+    return _sse_response(generator, gate, str(shop.id))
 
 
 @router.post("/{run_id}/cancel", status_code=status.HTTP_202_ACCEPTED)
