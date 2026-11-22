@@ -257,7 +257,7 @@ async def _goal(
     try:
         plan = await month_plan.range_plan(
             session, shop_id, window.start, window.end, scope=month_plan.SCOPE_RUNNING, now=now,
-            view=view, product_id=product_id,
+            actual_to=window.end, view=view, product_id=product_id,
         )  # fmt: skip
     except RowsNotMaterialized:
         return None, None
@@ -319,12 +319,23 @@ async def collect_tong_quan(
     shop_now = await figures(view, cur, None, frows)
     shop_prev = await figures(pview, prv, None, prev_rows)
 
+    # One critical read feeds both the product cause/fix columns and Phân tích & đề xuất.
+    critical_items = await _critical_items(session, shop_id, cur, product_id)
+    product_notes = rs.product_issue_texts(critical_items)
     rows: list[tq.ProductRow] = []
     ids = [product_id] if product_id else sorted(names, key=lambda i: -_gmv_of(listing, i))
     for i in ids:
         now_fig = await figures(view, cur, i, frows)
+        cause, fix = product_notes.get(i, (calc.DASH, calc.DASH))
         rows.append(
-            tq.ProductRow(i, names.get(i, i), now_fig, await figures(pview, prv, i, prev_rows))
+            tq.ProductRow(
+                i,
+                names.get(i, i),
+                now_fig,
+                await figures(pview, prv, i, prev_rows),
+                cause=cause,
+                fix=fix,
+            )  # fmt: skip
         )
     if product_id:  # the Sản phẩm level: the file's period figures are the product's
         shop_now, shop_prev = rows[0].now, rows[0].prev
@@ -351,7 +362,7 @@ async def collect_tong_quan(
         }
         sd = prod_days.get(d) if product_id else shop_days.get(d)
         # no traffic-source rows that day: the channel split is unknown (not "all affiliate")
-        traffic = by["organic"]["gmv"] is not None or by["ads"]["gmv"] is not None
+        traffic = any(by.get(key, {}).get("gmv") is not None for key in tq.CHANNELS)
         gmv_by = {key: _f(by[key]["gmv"]) if traffic else None for key in tq.CHANNELS}
         orders_by = {key: _f(by[key]["orders"]) if traffic else None for key in tq.CHANNELS}
         days.append(
@@ -373,7 +384,7 @@ async def collect_tong_quan(
         session, shop_id, cur, view, {(prv.start, prv.end): pview} if pview else {}
     )
     koc, share = await _koc(session, shop_id, cur, product_id, shop_now, shop_prev)
-    analysis = await _analysis(session, shop_id, cur, product_id, names, now, shop_name, platform)
+    analysis = await _analysis(session, shop_id, critical_items, names, now, shop_name, platform)
     return tq.TongQuanData(
         shop_name, cur.start, cur.end, prv.start, prv.end, shop_now, shop_prev, days, rows,
         platform, product_name=names.get(product_id, product_id) if product_id else None,
@@ -476,19 +487,39 @@ async def _koc(
     return rs.koc_rows(section), share
 
 
-async def _analysis(
-    session: AsyncSession, shop_id: uuid.UUID, window: Window, product_id: str | None,
-    names: dict[str, str], now: datetime, shop_name: str, platform: str,
-) -> list[rs.AnalysisRow]:  # fmt: skip
-    """ "Phân tích & đề xuất": Phân tích's critical metrics (``queries.critical``) and the cards
-    Juli created for them (the Kế hoạch's cards, ``_cards_of``)."""
+async def _critical_items(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    window: Window,
+    product_id: str | None,
+) -> list[Mapping[str, Any]]:
+    """Phân tích's critical metrics for this window, once. Product cause/fix and the analysis
+    sheet both read this list."""
     try:
         crit = await queries.critical(
             session, shop_id, period="custom", start=window.start, end=window.end
         )
     except (RowsNotMaterialized, NoShopeeData):
         return []
-    items = [it for it in crit["items"] if product_id is None or it.get("product_id") == product_id]
+    return [it for it in crit["items"] if product_id is None or it.get("product_id") == product_id]
+
+
+def _goal_rows_for_products(items: Sequence[Mapping[str, Any]]) -> dict[str, tuple[str, str]]:
+    """Test seam: ``product_issue_texts`` on critical items (product id -> cause, fix)."""
+    return rs.product_issue_texts(items)
+
+
+async def _analysis(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    items: Sequence[Mapping[str, Any]],
+    names: dict[str, str],
+    now: datetime,
+    shop_name: str,
+    platform: str,
+) -> list[rs.AnalysisRow]:
+    """ "Phân tích & đề xuất": the critical metrics already loaded, with the cards Juli created
+    for them (the Kế hoạch's cards, ``_cards_of``)."""
     if not items:
         return []
     cards = await _cards_of(
