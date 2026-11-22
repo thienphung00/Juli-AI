@@ -319,7 +319,9 @@ async def collect_tong_quan(
     shop_now = await figures(view, cur, None, frows)
     shop_prev = await figures(pview, prv, None, prev_rows)
 
-    product_notes = await _product_notes(session, shop_id, cur, product_id)
+    # One critical read feeds both the product cause/fix columns and Phân tích & đề xuất.
+    critical_items = await _critical_items(session, shop_id, cur, product_id)
+    product_notes = rs.product_issue_texts(critical_items)
     rows: list[tq.ProductRow] = []
     ids = [product_id] if product_id else sorted(names, key=lambda i: -_gmv_of(listing, i))
     for i in ids:
@@ -382,7 +384,7 @@ async def collect_tong_quan(
         session, shop_id, cur, view, {(prv.start, prv.end): pview} if pview else {}
     )
     koc, share = await _koc(session, shop_id, cur, product_id, shop_now, shop_prev)
-    analysis = await _analysis(session, shop_id, cur, product_id, names, now, shop_name, platform)
+    analysis = await _analysis(session, shop_id, critical_items, names, now, shop_name, platform)
     return tq.TongQuanData(
         shop_name, cur.start, cur.end, prv.start, prv.end, shop_now, shop_prev, days, rows,
         platform, product_name=names.get(product_id, product_id) if product_id else None,
@@ -485,20 +487,21 @@ async def _koc(
     return rs.koc_rows(section), share
 
 
-async def _product_notes(
+async def _critical_items(
     session: AsyncSession,
     shop_id: uuid.UUID,
     window: Window,
     product_id: str | None,
-) -> dict[str, tuple[str, str]]:
+) -> list[Mapping[str, Any]]:
+    """Phân tích's critical metrics for this window, once. Product cause/fix and the analysis
+    sheet both read this list."""
     try:
         crit = await queries.critical(
             session, shop_id, period="custom", start=window.start, end=window.end
         )
     except (RowsNotMaterialized, NoShopeeData):
-        return {}
-    items = [it for it in crit["items"] if product_id is None or it.get("product_id") == product_id]
-    return rs.product_issue_texts(items)
+        return []
+    return [it for it in crit["items"] if product_id is None or it.get("product_id") == product_id]
 
 
 def _goal_rows_for_products(items: Sequence[Mapping[str, Any]]) -> dict[str, tuple[str, str]]:
@@ -507,18 +510,16 @@ def _goal_rows_for_products(items: Sequence[Mapping[str, Any]]) -> dict[str, tup
 
 
 async def _analysis(
-    session: AsyncSession, shop_id: uuid.UUID, window: Window, product_id: str | None,
-    names: dict[str, str], now: datetime, shop_name: str, platform: str,
-) -> list[rs.AnalysisRow]:  # fmt: skip
-    """ "Phân tích & đề xuất": Phân tích's critical metrics (``queries.critical``) and the cards
-    Juli created for them (the Kế hoạch's cards, ``_cards_of``)."""
-    try:
-        crit = await queries.critical(
-            session, shop_id, period="custom", start=window.start, end=window.end
-        )
-    except (RowsNotMaterialized, NoShopeeData):
-        return []
-    items = [it for it in crit["items"] if product_id is None or it.get("product_id") == product_id]
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    items: Sequence[Mapping[str, Any]],
+    names: dict[str, str],
+    now: datetime,
+    shop_name: str,
+    platform: str,
+) -> list[rs.AnalysisRow]:
+    """ "Phân tích & đề xuất": the critical metrics already loaded, with the cards Juli created
+    for them (the Kế hoạch's cards, ``_cards_of``)."""
     if not items:
         return []
     cards = await _cards_of(
