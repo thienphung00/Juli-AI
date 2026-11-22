@@ -327,8 +327,12 @@ async def collect_tong_quan(
         cause, fix = product_notes.get(i, (calc.DASH, calc.DASH))
         rows.append(
             tq.ProductRow(
-                i, names.get(i, i), now_fig, await figures(pview, prv, i, prev_rows),
-                cause=cause, fix=fix,
+                i,
+                names.get(i, i),
+                now_fig,
+                await figures(pview, prv, i, prev_rows),
+                cause=cause,
+                fix=fix,
             )  # fmt: skip
         )
     if product_id:  # the Sản phẩm level: the file's period figures are the product's
@@ -482,7 +486,10 @@ async def _koc(
 
 
 async def _product_notes(
-    session: AsyncSession, shop_id: uuid.UUID, window: Window, product_id: str | None,
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    window: Window,
+    product_id: str | None,
 ) -> dict[str, tuple[str, str]]:
     try:
         crit = await queries.critical(

@@ -118,7 +118,8 @@ def test_analysis_one_row_per_issue_lists_all_cards():
         _Card(f"JC-{i}-{j}", k, f"p{i}", 10.0 * j, 20.0 * j)
         for i in range(8)
         for j, k in enumerate(["cover_image", "title", "product_discount"], start=1)
-        if (i % 2 == 0 and k in ("cover_image", "title")) or (i % 2 == 1 and k == "product_discount")
+        if (i % 2 == 0 and k in ("cover_image", "title"))
+        or (i % 2 == 1 and k == "product_discount")
     ]
     rows = rs.analysis_rows(_eight_issues(), cards)
     assert len(rows) == 8

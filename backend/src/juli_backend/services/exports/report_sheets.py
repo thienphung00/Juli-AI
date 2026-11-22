@@ -190,7 +190,7 @@ def koc_sheet(wb: Workbook, title: str, rows: Sequence[KocRow], share: Affiliate
             ws,
             r,
             12,
-            f'=IF(AND(ISNUMBER(F{r}),ISNUMBER(E{r}),ISNUMBER(K{r})),'
+            f"=IF(AND(ISNUMBER(F{r}),ISNUMBER(E{r}),ISNUMBER(K{r})),"
             f'IFERROR((F{r}-K{r})/(E{r}+K{r}),"{DASH}"),"{DASH}")',
             POINTS,
         )
