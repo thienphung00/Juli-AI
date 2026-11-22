@@ -370,7 +370,7 @@ def test_minus_twenty_on_the_first_variation_does_not_use_the_last_price():
 
 
 def test_shared_sku_price_does_not_replace_the_first_variation():
-    """The order-line price of a shared cost key is the last variation's. The fill must not use it."""
+    """A shared cost key quotes the last variation. The fill keeps the first price."""
     from juli_backend.services.shopee_builder.translate import _variation_inputs
 
     class Env:
