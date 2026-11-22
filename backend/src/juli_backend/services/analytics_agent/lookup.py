@@ -72,6 +72,11 @@ async def run_lookup(
                 "orders": o,
                 "gmv_vi": fmt.value("gmv", g),
                 "orders_vi": fmt.value("orders", o),
+                # the UI row contract (`JuliDataRow`): label, value, detail, link
+                "label_vi": names.get(k, k),
+                "value_vi": fmt.value("gmv", g),
+                "detail_vi": f"{fmt.value('orders', o)} đơn",
+                "link": {"kind": "product", "item_id": k},
             }
             for i, (k, (g, o)) in enumerate(top)
         ]
@@ -88,7 +93,13 @@ async def run_lookup(
         ]
         out["title_vi"] = f"{label} theo ngày"
         out["series"] = [
-            {"day": f"{d:%d/%m}", "value": v, "value_vi": fmt.value(metric, v)} for d, v in series
+            {
+                "day": f"{d:%d/%m}",
+                "label_vi": f"{d:%d/%m}",
+                "value": v,
+                "value_vi": fmt.value(metric, v),
+            }
+            for d, v in series
         ]
     elif kind == "channel_breakdown":
         v = await data.metric_view(metric, w.cur[0], w.cur[1], item_id)
@@ -113,6 +124,7 @@ async def run_lookup(
                     "value": c.get("now"),
                     "value_vi": fmt.value(metric, c.get("now")) if not missing else MISSING,
                     "note_vi": MISSING if (partial or missing) else None,
+                    "missing": bool(partial or missing),
                 }
             )
         out["title_vi"] = f"{label} theo kênh"
@@ -120,12 +132,12 @@ async def run_lookup(
     else:
         now, before = await _total(data, metric, w, rows)
         out["title_vi"] = label
-        out["value"] = {
-            "now": now,
-            "before": before,
-            "value_vi": fmt.value(metric, now),
-            "before_vi": fmt.value(metric, before) if w.prev else None,
-        }
+        # `value` is the display string the UI renders (`JuliDataAnswerData.value`); an object here
+        # crashed the page (React #31). The raw numbers ride beside it.
+        out["value"] = fmt.value(metric, now)
+        out["value_raw"] = now
+        out["before"] = before
+        out["before_vi"] = fmt.value(metric, before) if w.prev else None
         out["delta"] = fmt.delta(metric, now, before) if w.prev else None
     return out
 

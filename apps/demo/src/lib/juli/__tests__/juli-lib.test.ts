@@ -5,7 +5,7 @@ import { adaptConversation, createJuliClient, JuliApiError } from "../client";
 import { EXPLANATION_CARD, EXPLANATION_REPLACED, MULTI_INTENT, RUNNING } from "../fixtures";
 import { formatDong, formatPercent, formatSignedDong, dirOfChange } from "../format";
 import { juliHref } from "../links";
-import { reduceAnswer } from "../reduce";
+import { normalizeDataAnswer, reduceAnswer, stripMarkdown } from "../reduce";
 
 describe("format (U10a)", () => {
   it("formats đồng, signs and percents the Vietnamese way", () => {
@@ -206,5 +206,36 @@ describe("history query", () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ conversations: [] }))) as unknown as typeof fetch;
     await createJuliClient({ token: "t", shopId: "s", fetchImpl }).conversations("tiktok");
     expect((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toBe("/v1/demo/juli/conversations?platform=tiktok");
+  });
+});
+
+describe("data answers saved with the engine's older shapes (22/11 crash)", () => {
+  it("a metric_total value object becomes its text, so it can render", () => {
+    const d = normalizeDataAnswer({
+      kind: "metric_total",
+      title_vi: "Đơn hàng",
+      value: { now: 12, before: 27, value_vi: "12", before_vi: "27" } as unknown as string,
+      window_vi: "14/11–20/11",
+      fresh_vi: "Số liệu đến hết 20/11",
+    });
+    expect(d.value).toBe("12");
+  });
+
+  it("top product rows and series get the UI's keys", () => {
+    const d = normalizeDataAnswer({
+      kind: "top_products",
+      title_vi: "Top sản phẩm theo GMV",
+      rows: [{ name: "Sản phẩm A", gmv_vi: "7.000đ", orders_vi: "3", item_id: "p1" }] as never,
+      series: [{ day: "20/11", value: 1, value_vi: "1" }] as never,
+      window_vi: "",
+      fresh_vi: "",
+    });
+    expect(d.rows?.[0]).toMatchObject({ label_vi: "Sản phẩm A", value_vi: "7.000đ", detail_vi: "3 đơn" });
+    expect(d.rows?.[0]?.link).toEqual({ kind: "product", item_id: "p1" });
+    expect(d.series?.[0]?.label_vi).toBe("20/11");
+  });
+
+  it("markdown emphasis never reaches the screen", () => {
+    expect(stripMarkdown("Nguyên nhân: **Thẻ sản phẩm** giảm")).toBe("Nguyên nhân: Thẻ sản phẩm giảm");
   });
 });
