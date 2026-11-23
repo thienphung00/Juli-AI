@@ -293,7 +293,7 @@ class ServiceData:
                       from order_lines
                      where shop_id = :s and platform = 'shopee' and day between :a and :b
                        and {self._sales_basis()} and {cond}
-                       and (cast(:i as text) is null or item_id = cast(:i as text))""",
+                       and (cast(:i as text) is null or item_id = cast(:i as text))""",  # nosec B608 — fragments are fixed literals (closed dict, registry enum)
                 a=a,
                 b=b,
                 i=item,
@@ -323,7 +323,7 @@ class ServiceData:
                  where shop_id = :s and platform = 'shopee' and day between :a and :b
                    and {self._sales_basis()} and shop_voucher_share > 0
                    and voucher_code is not null
-                 group by voucher_code order by sum(deal_price * qty) desc""",
+                 group by voucher_code order by sum(deal_price * qty) desc""",  # nosec B608 — fragments are fixed literals (registry enum)
             a=a,
             b=b,
         )
