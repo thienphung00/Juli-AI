@@ -1398,8 +1398,10 @@ async function readOrderIncome(
   if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_password_recheck", collected, "password_modal"));
   if (env.captchaVisible?.()) throw new Stop(fail("blocked_captcha", collected, "page"));
   if (shown() && !called()) return readOrderPage(env, ids, collected, sns, job);
-  // 0.3.31: the income call appears only after the order page has loaded its own detail request.
-  await waitForPage(env, ["order_detail", "order_income_components"], collected);
+  // 0.3.31 waited for the page's detail call too, but the order page makes it before the hook is
+  // in place (capture 2026-11-23), so a page whose income call WAS seen ended needs_template
+  // (0.3.32): the income call is all the replay needs.
+  await waitForPage(env, ["order_income_components"], collected);
   if (refused()) throw new Stop(fail("blocked_no_permission", collected, `http_403${own()?.lastCode ? `_code_${own()?.lastCode}` : ""}`));
   const template = env.template("order_income_components") as Template;
   if (template.lastResponse !== undefined && isPermissionRefusal(200, template.lastResponse)) {
