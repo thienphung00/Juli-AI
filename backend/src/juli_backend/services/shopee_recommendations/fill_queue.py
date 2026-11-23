@@ -1094,7 +1094,37 @@ async def build_jobs(
         await _promo_jobs(
             session, shop_id, p.code, card, version, now, kind, given, scope_items, job
         )
+    if kind in ("voucher", "combo"):
+        await _add_product_names(session, shop_id, jobs)
     return jobs
+
+
+async def product_names_of(
+    session: AsyncSession | None, shop_id: uuid.UUID, ids: list[str]
+) -> list[str | None]:
+    """The catalogue name of each product id (same length and order; ``None`` when unknown)."""
+    if session is None or not ids:
+        return [None] * len(ids)
+    from juli_backend.models.platform_data import PlatformItem
+
+    names: dict[str, str] = {}
+    for row in await session.scalars(
+        select(PlatformItem).where(PlatformItem.shop_id == shop_id, PlatformItem.item_id.in_(ids))
+    ):
+        if row.name and row.item_id not in names:
+            names[row.item_id] = str(row.name)
+    return [names.get(i) for i in ids]
+
+
+async def _add_product_names(
+    session: AsyncSession | None, shop_id: uuid.UUID, jobs: list[dict[str, Any]]
+) -> None:
+    """E111: the Connector types the name into Shopee's product picker (it searches by name) and
+    highlights the row whose "Mã: <id>" matches: ``product_names`` lines up with ``product_ids``."""
+    for j in jobs:
+        ids = list((j.get("payload") or {}).get("product_ids") or [])
+        if ids:
+            j["payload"]["product_names"] = await product_names_of(session, shop_id, ids)
 
 
 _PROMO_KINDS = (

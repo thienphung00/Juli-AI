@@ -274,3 +274,26 @@ def test_the_card_header_uses_shopees_names():
     assert FAMILY_LABELS["voucher"] == "Mã Giảm Giá"
     assert FAMILY_LABELS["combo"] == "Combo Khuyến Mãi"
     assert FAMILY_LABELS["sale"] == "Flash Sale Của Shop"
+
+
+async def test_product_names_line_up_with_product_ids_in_voucher_and_combo_jobs(monkeypatch):
+    async def fake(session, shop_id, ids):
+        known = {"1001": "Găng tay", "1003": "Hộp 3"}
+        return [known.get(i) for i in ids]
+
+    monkeypatch.setattr(fill_queue, "product_names_of", fake)
+    jobs = [
+        {"kind": "voucher", "payload": {"product_ids": ["1001", "1002", "1003"]}},
+        {"kind": "combo", "payload": {"product_ids": ["1003"]}},
+        {"kind": "voucher", "payload": {"product_ids": []}},  # a shop voucher: nothing to name
+    ]
+    await fill_queue._add_product_names(None, uuid.uuid4(), jobs)
+    first, second, shop_wide = (j["payload"] for j in jobs)
+    assert first["product_names"] == ["Găng tay", None, "Hộp 3"]
+    assert len(first["product_names"]) == len(first["product_ids"])
+    assert second["product_names"] == ["Hộp 3"]
+    assert "product_names" not in shop_wide
+
+
+async def test_without_a_session_every_name_is_unknown_but_the_arrays_still_line_up():
+    assert await fill_queue.product_names_of(None, uuid.uuid4(), ["1", "2"]) == [None, None]

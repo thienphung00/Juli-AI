@@ -161,21 +161,21 @@ def _revert_spec(
         code = code or payload.get("voucher_code")
         suffix = payload.get("code_suffix") or (fill_refs.voucher_suffix(code) if code else None)
         name = payload.get("name")
-        body = {
+        vbody: dict[str, Any] = {
             "mode": MODE_REVERT,
             "open_path": VOUCHER_LIST_PATH,
             "code_suffix": suffix,
             "name": name,
         }
         if vid:
-            body["voucher_id"] = vid
+            vbody["voucher_id"] = vid
         if code:
-            body["code"] = code
+            vbody["code"] = code
         return {
             "kind": KIND_VOUCHER_END,
             "target": fill_refs.voucher_target(vid, code or suffix, name),
             "target_key": f"{REVERT_PREFIX}voucher:{vid or suffix or j.seq}",
-            "payload": body,
+            "payload": vbody,
             "error": None if (vid or suffix or name) else ERROR_TARGET_UNKNOWN,
         }
     if j.kind == "combo":

@@ -298,10 +298,10 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext, *, _flat: bool = False
             inputs["start"] = spec.start.isoformat()
         if spec.end:
             inputs["end"] = spec.end.isoformat()
-        for key in ("start_hour", "start_minute", "end_hour", "end_minute"):
-            value = getattr(spec, key)
-            if value is not None:
-                inputs[key] = value
+        for clock_key in ("start_hour", "start_minute", "end_hour", "end_minute"):
+            clock = getattr(spec, clock_key)
+            if clock is not None:
+                inputs[clock_key] = clock
         return Translation(
             {
                 "label": _label(spec, "Combo khuyến mãi"),
