@@ -666,10 +666,22 @@ async def _upsert_sources(
         items += source_rows(
             split_sources(None, 0, ZERO, None), shop_id=shop_id, day=day, item_id=gone, ads=None
         )
+    shop_rows = [r for r in rows if r["item_id"] is None]
+    if len(shop_rows) < len(FUNNEL_SOURCES):
+        # W3.1: a TikTok day without A-34 blocks writes only its residual row; the source rows an
+        # earlier build stored (0 đơn, read as a count) go. Shopee always writes all six.
+        await session.execute(
+            delete(t).where(
+                t.shop_id == shop_id,
+                t.day == day,
+                t.item_id.is_(None),
+                t.source.not_in([r["source"] for r in shop_rows]),
+            )
+        )
     await _upsert(
         session,
         t,
-        [r for r in rows if r["item_id"] is None],
+        shop_rows,
         ("shop_id", "day", "source"),
         t.item_id.is_(None),
     )

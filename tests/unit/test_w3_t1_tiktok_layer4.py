@@ -294,7 +294,33 @@ async def test_a_day_stored_without_blocks_keeps_its_total_in_the_residual(built
     _, _, shops, _, sources = built
     shop = _by(sources, D2)
     assert shop["chenh_lech_nguon"].gmv == shops[D2].gmv
-    assert shop["trang_shop"].views is None
+    assert shop["chenh_lech_nguon"].orders == shops[D2].orders
+    assert set(shop) == {"chenh_lech_nguon"}, "W3.1: no source row (no 0) without A-34 blocks"
+
+
+async def test_a_rebuild_drops_the_zero_source_rows_an_earlier_build_stored(session, built):
+    """W3.1 (V-2a): rows stored by the old rule (the five sources at 0) go on the next build."""
+    shop, _, _, _, sources = built
+    for src in SUMMED[:-1] + ("trang_shop",):
+        session.add(
+            ShopeeSourceMetricsDaily(
+                shop_id=shop.id, day=D2, item_id=None, source=src, views=None, clicks=None,
+                orders=0, gmv=Decimal(0),
+            )
+        )  # fmt: skip
+    await session.flush()
+    await materialize.rebuild_days(session, shop.id, [D2])
+    again = await _rows(session, ShopeeSourceMetricsDaily, shop.id)
+    assert set(_by(again, D2)) == {"chenh_lech_nguon"}
+    assert set(_by(again, D1)) >= set(SUMMED), "a day with blocks is untouched"
+
+
+async def test_the_sum_check_passes_on_a_day_without_a_breakdown(session, built):
+    from juli_backend.services.shopee_analytics import funnel_check
+
+    shop, *_ = built
+    assert await funnel_check.check_day(session, shop.id, D2) == []
+    assert await funnel_check.check_day(session, shop.id, D1) == []
 
 
 # ------------------------------------------------------------------------------- M-5
@@ -358,7 +384,7 @@ async def test_one_number_per_metric_across_the_three_tables(built):
         day_products = [p for p in products if p.day == day]
         assert sum(p.gmv for p in day_products) == shops[day].gmv, "the residual row closes it"
         shop_sources = _by(sources, day)
-        assert sum(shop_sources[k].gmv for k in SUMMED) == shops[day].gmv
+        assert sum(r.gmv for k, r in shop_sources.items() if k in SUMMED) == shops[day].gmv
 
 
 # --------------------------------------------- M-5: settlement-only profit (coordinator note)

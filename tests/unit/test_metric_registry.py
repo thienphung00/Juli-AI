@@ -507,7 +507,15 @@ SHOPEE_SOURCES = (
     "chenh_lech_nguon",
 )
 # W3 decision #7: the product card, shop tab, video, LIVE and affiliate (A-34 blocks)
-TIKTOK_SOURCES = ("the_san_pham_khac", "trang_shop", "live", "video", "lien_ket")
+# W3.1: plus the residual (the total of a day without the A-34 breakdown)
+TIKTOK_SOURCES = (
+    "the_san_pham_khac",
+    "trang_shop",
+    "live",
+    "video",
+    "lien_ket",
+    "chenh_lech_nguon",
+)
 
 
 def test_source_availability_matrix() -> None:

@@ -243,7 +243,8 @@ _BOTH = frozenset(Platform)
 #: #7, A-34): Thẻ sản phẩm, Video, LIVE (Organic) and Tiếp thị liên kết (TTLK) are the shop total;
 #: Tab cửa hàng (``trang_shop``) is its own row, excluded from every sum (:func:`counts_in_total`),
 #: with no orders / CTOR / AOV (:data:`SOURCE_METRIC_GAPS`). Quảng cáo is "—" until the Business
-#: API scope exists and the Shopee residual has no TikTok counterpart (:data:`SOURCE_REASONS`).
+#: API scope exists (:data:`SOURCE_REASONS`). W3.1: ``chenh_lech_nguon`` is on TikTok too: the
+#: day's total of a day without stored A-34 blocks, which has no source breakdown.
 TRAFFIC_SOURCES: Mapping[str, SourceSpec] = MappingProxyType(
     {
         "the_san_pham_khac": SourceSpec(
@@ -255,7 +256,7 @@ TRAFFIC_SOURCES: Mapping[str, SourceSpec] = MappingProxyType(
         "lien_ket": SourceSpec("traffic_overview", OrderBasis.none, "views", "affiliate", _BOTH),
         "ads": SourceSpec("traffic_overview", OrderBasis.none, "ads_views", "ads", _SHOPEE_ONLY),
         "chenh_lech_nguon": SourceSpec(
-            "traffic_overview", OrderBasis.none, "views", "source residual", _SHOPEE_ONLY
+            "traffic_overview", OrderBasis.none, "views", "source residual", _BOTH
         ),
     }
 )
@@ -263,13 +264,14 @@ TRAFFIC_SOURCES: Mapping[str, SourceSpec] = MappingProxyType(
 #: Reason codes of a "—" (a ``None`` value, never 0); the screens map a code to its words.
 REASON_ADS_SCOPE_MISSING = "ads_scope_missing"
 REASON_SOURCE_NOT_ON_PLATFORM = "source_not_on_platform"
+#: W3.1 (decision #28 Q2): a source of a TikTok window whose days have no stored A-34 blocks
+REASON_SOURCE_BREAKDOWN_MISSING = "source_breakdown_missing"
 REASON_TAB_REPORTS_NO_ORDERS = "tab_reports_no_orders"
 
 #: (platform, source) -> why the whole source is "—" there
 SOURCE_REASONS: Mapping[tuple[Platform, str], str] = MappingProxyType(
     {
         (Platform.tiktok, "ads"): REASON_ADS_SCOPE_MISSING,
-        (Platform.tiktok, "chenh_lech_nguon"): REASON_SOURCE_NOT_ON_PLATFORM,
     }
 )
 

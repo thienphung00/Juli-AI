@@ -35,7 +35,7 @@ describe("Xem như shop (OpsViewAs.dc.html, D25.3 amended: always read-only)", (
     // P22: no blanket disabled wrapper — reading works; write controls are disabled one by one (ops-p22.test).
     expect(screen.getByTestId("seller-view").tagName).not.toBe("FIELDSET");
     expect(screen.getByTestId("write-note")).toHaveTextContent("Mọi nút ghi đều khoá.");
-    for (const name of ["Trang chủ", "Quyết định", "Phân tích", "Juli", "Quy tắc"]) {
+    for (const name of ["Tổng quan", "Quyết định", "Phân tích", "Juli", "Quy tắc"]) {
       expect(screen.getByRole("button", { name })).toBeInTheDocument();
     }
     await waitFor(() => expect(fetchStub).toHaveBeenCalledWith(`/v1/ops/shops/${SHOP_ID}/view/decisions`, expect.anything()));

@@ -43,7 +43,11 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.services.metrics.registry import Platform, metric_reason
+from juli_backend.services.metrics.registry import (
+    REASON_SOURCE_BREAKDOWN_MISSING,
+    Platform,
+    metric_reason,
+)
 from juli_backend.services.shopee_analytics import channel_split, funnel, kol, loaders, service
 from juli_backend.services.shopee_analytics import kol_labels as labels
 from juli_backend.services.shopee_analytics.catalog import Catalog
@@ -52,7 +56,12 @@ from juli_backend.services.shopee_analytics.fmt import frac, num
 from juli_backend.services.shopee_analytics.queries import NoShopeeData, resolve_window
 from juli_backend.services.shopee_analytics.stored import RowsNotMaterialized
 from juli_backend.services.shopee_analytics.windows import Window
-from juli_backend.services.shopee_builder.engine.contract import AdShare, FunnelBase, SourceFunnel
+from juli_backend.services.shopee_builder.engine.contract import (
+    RESIDUAL,
+    AdShare,
+    FunnelBase,
+    SourceFunnel,
+)
 from juli_backend.services.shopee_recommendations import store
 from juli_backend.services.shopee_recommendations.kol_cards import KOL_KINDS
 from juli_backend.services.shopee_recommendations.refs import (
@@ -256,6 +265,8 @@ def channel_cell(
     if platform != Platform.shopee:
         if channel in ("ads", "ads_product", "ads_shop"):
             return None
+        if channel in _SOURCE_OF_CHANNEL and channel_split.breakdown_missing(base, platform):
+            return None  # W3.1: no A-34 breakdown in the window: "—", the gap holds the total
         if channel == "the_san_pham":
             return _src_cell(_by_source(base).get(channel_split.CARD))
     if channel == "the_san_pham":
@@ -416,11 +427,26 @@ def assemble(
         row_of(
             "lien_ket",
             metric,
-            _no_margin(channel_cell(c_now, "lien_ket"), metric),
-            _no_margin(channel_cell(c_before, "lien_ket"), metric),
+            _no_margin(_affiliate_cell(c_now, platform), metric),
+            _no_margin(_affiliate_cell(c_before, platform), metric),
             cards=by_channel.get("lien_ket", 0),
         )
     )
+
+    if platform != Platform.shopee and not product_id:
+        # W3.1: Chênh lệch nguồn, only when a window day has no A-34 breakdown (never a 0 row)
+        gap_now = _src_cell(_by_source(c_now).get(RESIDUAL))
+        gap_before = _src_cell(_by_source(c_before).get(RESIDUAL))
+        if any(c is not None and (c.orders or c.gmv) for c in (gap_now, gap_before)):
+            channels.append(
+                row_of(
+                    RESIDUAL,
+                    metric,
+                    _no_margin(gap_now, metric),
+                    _no_margin(gap_before, metric),
+                    cards=0,
+                )
+            )
 
     # sản phẩm rows (restricted to a luồng when one is asked)
     products: list[dict[str, Any]] = []
@@ -466,6 +492,14 @@ def assemble(
         "channels": channels,
         "products": products[:MAX_PRODUCTS],
     }
+
+
+def _affiliate_cell(base: FunnelBase, platform: str) -> Cell | None:
+    """The Tiếp thị liên kết row's cell (the call keeps its Shopee-basis views rule on TikTok);
+    W3.1: ``None`` when a TikTok window has no A-34 breakdown."""
+    if channel_split.breakdown_missing(base, platform):
+        return None
+    return channel_cell(base, "lien_ket")
 
 
 def _no_margin(cell: Cell | None, metric: str) -> Cell | None:
@@ -655,6 +689,11 @@ async def metric_view(
     )
     if platform != Platform.shopee:
         body["unavailable"] = unavailable_channels(platform, metric)
+        if not product_id and channel_split.breakdown_missing(
+            funnel.base_from_rows(now_rows, str(shop_id)), platform
+        ):
+            for key in _SOURCE_OF_CHANNEL:
+                body["unavailable"].setdefault(key, REASON_SOURCE_BREAKDOWN_MISSING)
     # P100 B.5: "Số liệu đến dd/mm" per section (channels / products)
     body["data_through"] = {k: through[k] for k in ("channels", "products")}
     return body

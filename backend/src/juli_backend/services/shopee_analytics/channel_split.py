@@ -64,6 +64,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import IngestDatasetStatus
 from juli_backend.services.metrics.registry import (
+    REASON_SOURCE_BREAKDOWN_MISSING,
     Platform,
     counts_in_total,
     metric_reason,
@@ -401,6 +402,52 @@ def split_rows(
     return with_share(rows, base.total("gmv"))
 
 
+#: W3.1: the rows whose figures come from the A-34 source breakdown (the sum rows included)
+_BREAKDOWN_ROWS = (
+    "organic",
+    "organic_card",
+    "organic_shop",
+    "organic_video",
+    "organic_live",
+    "affiliate",
+)
+#: the sources a day with the A-34 blocks stores (the residual alone is stored without them)
+BREAKDOWN_SOURCES = (CARD, SHOP_PAGE, LIVE, VIDEO, AFFILIATE)
+
+
+def breakdown_missing(base: FunnelBase, platform: str) -> bool:
+    """W3.1 (decision #28 Q2/Q3): a TikTok shop whose window has no day with the A-34 source
+    breakdown -- no source reports any traffic, yet the residual holds the days' đơn / GMV. Every
+    source is then "—" (never 0) and the gap is the whole total. A window with even one breakdown
+    day is mixed: each source is the sum over the days that have it. Product scopes and Shopee
+    never are."""
+    if platform == Platform.shopee or base.scope != "shop":
+        return False
+    src = _by_source(base)
+    gap = src.get(RESIDUAL)
+    if gap is None or not (gap.orders or gap.gmv):
+        return False
+    return all(src[k].views is None for k in BREAKDOWN_SOURCES if k in src)
+
+
+def gap_row(base: FunnelBase) -> dict[str, Any] | None:
+    """The TikTok Chênh lệch nguồn row: the total minus the four sources, only when it is not
+    0 (a window with the breakdown on every day has none)."""
+    gap = _by_source(base).get(RESIDUAL)
+    if gap is None or not (gap.orders or gap.gmv):
+        return None
+    return _row(RESIDUAL, None, None, None, gap.orders, gap.gmv)
+
+
+def _blank_missing(rows: list[dict[str, Any]]) -> None:
+    for r in rows:
+        if r["key"] in _BREAKDOWN_ROWS:
+            for m in _CELL_METRICS:
+                r[m] = None
+            r["share"] = None
+            r["unavailable"] = {m: REASON_SOURCE_BREAKDOWN_MISSING for m in _CELL_METRICS}
+
+
 def _split_rows_tiktok(base: FunnelBase, platform: str) -> list[dict[str, Any]]:
     """The TikTok channel table (decision #7): the four A-34 sources add up to the total, Tab cửa
     hàng is a row beside them, Quảng cáo is "—". No ads overlay, residual or fallback exists."""
@@ -461,7 +508,13 @@ def _split_rows_tiktok(base: FunnelBase, platform: str) -> list[dict[str, Any]]:
             aff.gmv if aff else None,
         )
     )
-    return with_reasons(with_share(rows, total.total("gmv")), platform)
+    gap = gap_row(base) if not product_level else None
+    if gap is not None:
+        rows.append(gap)
+    rows = with_reasons(with_share(rows, total.total("gmv")), platform)
+    if breakdown_missing(base, platform):
+        _blank_missing(rows)
+    return rows
 
 
 def _partition_product_rows(rows: list[dict[str, Any]], total: Decimal | None) -> None:

@@ -111,14 +111,16 @@ describe("Xem như shop on a Shopee shop", () => {
     expect(calls.some((c) => c.url.includes("/view/analysis"))).toBe(false);
   });
 
-  it("still loads the TikTok analysis for a TikTok shop", async () => {
+  it("still loads the TikTok analysis for a TikTok shop behind ?adr108=1", async () => {
+    search = "adr108=1";
     const { fn, calls } = opsFetch();
     render(<OpsViewAs api={{ viewSession: async () => VIEW_SESSION }} baseFetch={fn} me={ME} shopId={SHOP_ID} />);
     await screen.findByTestId("view-as-banner");
     await waitFor(() => expect(calls.some((c) => c.url.includes("/view/analysis"))).toBe(true));
   });
 
-  it("a TikTok shop keeps Trang chủ / Quyết định / Phân tích / Juli / Quy tắc", async () => {
+  it("a TikTok shop behind ?adr108=1 keeps Trang chủ / Quyết định / Phân tích / Juli / Quy tắc", async () => {
+    search = "adr108=1";
     const { fn } = opsFetch();
     render(<OpsViewAs api={{ viewSession: async () => VIEW_SESSION }} baseFetch={fn} me={ME} shopId={SHOP_ID} />);
     await screen.findByTestId("view-as-banner");

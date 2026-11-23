@@ -21,7 +21,6 @@ from juli_backend.api.routes import shopee_analytics_common as common
 from juli_backend.services.metrics.registry import (
     DERIVATION_VERSION,
     REASON_ADS_SCOPE_MISSING,
-    REASON_SOURCE_NOT_ON_PLATFORM,
     REASON_TAB_REPORTS_NO_ORDERS,
     Platform,
     counts_in_total,
@@ -78,10 +77,10 @@ def test_decision_7_sources_are_available_on_tiktok(source: str) -> None:
     assert source_reason(TIKTOK, source) is None
 
 
-def test_ads_and_the_residual_are_unavailable_on_tiktok_with_a_reason_code() -> None:
+def test_ads_is_unavailable_on_tiktok_with_a_reason_code_and_the_residual_is_available() -> None:
     assert not source_available(TIKTOK, "ads")
     assert source_reason(TIKTOK, "ads") == REASON_ADS_SCOPE_MISSING
-    assert source_reason(TIKTOK, "chenh_lech_nguon") == REASON_SOURCE_NOT_ON_PLATFORM
+    assert source_reason(TIKTOK, "chenh_lech_nguon") is None  # W3.1: the no-breakdown total
     assert source_reason(SHOPEE, "ads") is None
 
 

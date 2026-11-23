@@ -144,6 +144,7 @@ function renderViewAs() {
 
 describe("Xem như shop: read-only controls (P22)", () => {
   it("Xem thêm, tabs and links work; Duyệt / Từ chối / Sửa quy tắc are disabled with the view-as title", async () => {
+    nav.reset("trang=quyet-dinh"); // a TikTok shop opens on the shared Tổng quan (W3.1); this test reads Quyết định
     const { calls } = renderViewAs();
     const toggle = await screen.findByRole("button", { name: /Xem thêm/ });
     expect(toggle).toBeEnabled();

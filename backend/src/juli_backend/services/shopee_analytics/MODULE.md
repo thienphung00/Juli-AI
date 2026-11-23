@@ -153,6 +153,11 @@ carries the same facts for the KOL cards. Entry points `queries.kol_table` / `qu
   `split_sources` over the shop total (the gap to it in `chenh_lech_nguon`); `trang_shop` (Tab cửa
   hàng) stored with its own views / clicks / GMV, orders 0 (NOT NULL column;
   `detail.trang_shop_orders_known` False, routes return None), in no sum. Ads stay NULL.
+  W3.1: a day without A-34 blocks stores the residual row alone (the five source rows are absent,
+  never 0; a rebuild deletes rows an earlier build stored). Readers (`channel_split.breakdown_missing`)
+  show every source "—" with `source_breakdown_missing` when no day of the window has the breakdown;
+  a mixed window sums the sources over the days that have it, and `chenh_lech_nguon` (TikTok row
+  only when non-zero) holds the rest, so sources + gap = the shop total.
 - A day without a shop-grain row (lag), or all-zero analytics beside order lines, keeps the order-line
   numbers and stores `detail.analytics_through` (the newest covered day before it).
 - Profit for `tiktok_days.SETTLEMENT_ONLY_PLATFORMS` shops: no fee formula rows reach the view;
