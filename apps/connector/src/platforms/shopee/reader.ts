@@ -33,7 +33,7 @@ import {
 import { isDatacenterPath, isMydataPath } from "./config";
 import { isReadOnlyOrderDetailPath, isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, READER_PAGES, type ReaderEndpoint } from "./endpoints";
 import { isNoCampaign } from "./promotion-map";
-import { cardOrdersWithoutSku, type PageItem, trimOrderCards, trimOrderDetail, trimOrderIndex, withPageSkus, withUnresolvedSkus } from "./orders-map";
+import { cardOrdersWithoutSku, type PageItem, pageIncomeFinal, trimOrderCards, trimOrderDetail, trimOrderIndex, withPageSkus, withUnresolvedSkus } from "./orders-map";
 import type { Pacer } from "./runner";
 import { buildBackfillDayPlan } from "./sync";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "../../core/time";
@@ -1382,7 +1382,10 @@ function readOrderPage(
   const sn = sns[0] ? { orderSn: sns[0] } : {};
   const at = env.now();
   const income = env.orderPageIncome?.() ?? [];
-  if (job.incomeFor?.[0] !== false && income.length > 0) {
+  const wantIncome = job.incomeFor?.[0] !== false;
+  // a2 C-A10: only a page that shows the final amount is posted as the order's income
+  const incomeNote = wantIncome && income.length > 0 && !pageIncomeFinal(income) ? INCOME_NOT_SHOWN : undefined;
+  if (wantIncome && pageIncomeFinal(income)) {
     collected.push({ endpoint: "order_income_components", url: `${env.origin}${READER_PAGES.order_income.path}${opened}`, status: 200, body: { code: 0, data: { items: income } }, capturedAt: at, source: "page", orderId: opened, ...sn });
   }
   const stored = job.fixBodies?.[0];
@@ -1395,8 +1398,13 @@ function readOrderPage(
     if (fixed) collected.push({ endpoint: "order_detail", url: `${env.origin}${READER_PAGES.order_income.path}${opened}`, status: 200, body: fixed, capturedAt: at, source: "page", orderId: opened, ...sn });
     note = matched ? undefined : fixed ? "unresolved_item" : "page_lines_unmatched";
   }
-  return ids.length > 1 ? "partial:one_order_per_page" : note;
+  return ids.length > 1 ? "partial:one_order_per_page" : (note ?? incomeNote);
 }
+
+/** a2 C-A10: the order page showed its income rows but not "Doanh Thu Đơn Hàng" within the wait: nothing posted for it. */
+export const INCOME_NOT_SHOWN = "income_final_not_shown";
+/** How long the reader waits for the order page's "Doanh Thu Đơn Hàng" row once the page shows its lines. */
+export const PAGE_INCOME_WAIT_MS = 15_000;
 
 /**
  * Per-order income: the order page the scheduler opened is `ids[0]`: its own answer is kept; for
@@ -1428,7 +1436,11 @@ async function readOrderIncome(
   if (settled && denied()) throw new Stop(fail("blocked_no_permission", collected, "page"));
   if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_password_recheck", collected, "password_modal"));
   if (env.captchaVisible?.()) throw new Stop(fail("blocked_captcha", collected, "page"));
-  if (shown() && !called()) return readOrderPage(env, ids, collected, sns, job);
+  if (shown() && !called()) {
+    // a2 C-A10: the lines can draw before the "Doanh thu" block: wait for its final amount
+    if (job.incomeFor?.[0] !== false) await env.waitFor(() => pageIncomeFinal(env.orderPageIncome?.() ?? []), PAGE_INCOME_WAIT_MS);
+    return readOrderPage(env, ids, collected, sns, job);
+  }
   // 0.3.31 waited for the page's detail call too, but the order page makes it before the hook is
   // in place (capture 2026-11-23), so a page whose income call WAS seen ended needs_template
   // (0.3.32): the income call is all the replay needs.

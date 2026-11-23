@@ -503,6 +503,10 @@ const INCOME_LABELS: [RegExp, string][] = [
 ];
 /** The income answer's final amount, under the income call's label or the order page's (0.3.32). */
 const FINAL_AMOUNT = /^(so tien cuoi cung|doanh thu don hang)$/;
+/** a2 C-A10: the order page's income rows hold the final amount ("Doanh Thu Đơn Hàng"). */
+export function pageIncomeFinal(items: readonly { name: string }[]): boolean {
+  return items.some((i) => FINAL_AMOUNT.test(plain(i.name)));
+}
 /** A cost is stored as a positive amount the seller bore; these are signed as sent. */
 const SIGNED = new Set(["payout", "product_price"]);
 
@@ -573,7 +577,10 @@ export function mapOrderIncome(responses: ReaderResponse[], capturedAt: number):
       row[field] = SIGNED.has(field) ? vnd : Math.abs(vnd);
     }
     if (!("payout" in row)) {
-      if (!drift.missing.includes("components.final_amount")) drift.missing.push("components.final_amount");
+      // a2 C-A10: an order PAGE read without its "Doanh Thu Đơn Hàng" row (not drawn yet, folded, not
+      // final) is skipped, never drift: drift stops order_income for the whole version (live 23/11,
+      // 0.3.32 "Tạm dừng"). Only the income call's own answer without a final amount is drift.
+      if (response.source !== "page" && !drift.missing.includes("components.final_amount")) drift.missing.push("components.final_amount");
       continue; // "Ước tính" until the order completes: no final amount, nothing to post yet
     }
     rows.push(row);
