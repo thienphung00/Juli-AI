@@ -250,7 +250,7 @@ def total_base(base: FunnelBase, platform: str = "shopee") -> FunnelBase:
     """The base whose sums are the shop (or product) total: on TikTok without the sources the
     registry keeps out of it (Tab cửa hàng overlaps the others, decision #7). Shopee: ``base``.
     A source the registry does not know is left out of the total and logged, never an error."""
-    if platform == "shopee":
+    if platform == Platform.shopee:
         return base
     plat = Platform(platform)
 
@@ -267,7 +267,7 @@ def total_base(base: FunnelBase, platform: str = "shopee") -> FunnelBase:
 def with_reasons(rows: list[dict[str, Any]], platform: str) -> list[dict[str, Any]]:
     """R-2: a cell the platform does not give is ``None`` and the row names why
     (``unavailable``: metric -> registry reason code). Shopee rows are left untouched."""
-    if platform == "shopee":
+    if platform == Platform.shopee:
         return rows
     plat = Platform(platform)
     for r in rows:
@@ -307,7 +307,7 @@ def split_rows(
 
     ``ad_types``: the ads report by type (shop level only). ``ads_known`` (product level): the
     shop has ad data at all, so a product without an ad figure has 0 ads instead of "no data"."""
-    if platform != "shopee":
+    if platform != Platform.shopee:
         return _split_rows_tiktok(base, platform)
     src = _by_source(base)
     product_level = base.scope == "products"
@@ -929,7 +929,7 @@ async def channel_split_products(
             aff_fb = _product_affiliate(view, item)
             if aff_fb is not None:
                 aff_gmv = aff_fb["gmv"]
-        if platform != "shopee":
+        if platform != Platform.shopee:
             # decision #7: card + video + LIVE + affiliate are the total; no ads (None, reason in
             # the registry); Tab cửa hàng is not a channel here
             total = total_base(b, platform).total("gmv")
@@ -943,7 +943,7 @@ async def channel_split_products(
         images = list(header.image_urls) if header and header.image_urls else []
         # C4: the three channels partition the product's GMV (sum = GMV, 100 %). The ads report
         # is a placed-order overlay, so it is capped at the GMV; the raw figure stays in ads_overlay
-        if platform != "shopee":
+        if platform != Platform.shopee:
             ads_part, aff_part, organic_part = None, tiktok_aff, organic_gmv
         else:
             ads_part, aff_part, organic_part = partition_channels(total, ads_gmv, aff_gmv)

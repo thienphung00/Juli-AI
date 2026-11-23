@@ -12,6 +12,7 @@ from dataclasses import replace
 from decimal import Decimal
 from typing import Any
 
+from juli_backend.services.metrics.registry import Platform, metric_reason
 from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import (
@@ -191,7 +192,29 @@ def _shop_chain(view: PeriodView, metrics: ShopMetrics | None = None) -> dict[st
     }
 
 
-def _flows_block(view: PeriodView, prev: PeriodView) -> dict[str, Any]:
+_ORDER_METRICS = ("orders", "ctor", "aov")
+
+
+def _with_reasons(rows: list[dict[str, Any]], platform: str) -> None:
+    """R-2: a flow whose orders / CTOR / AOV the platform does not give (registry
+    ``metric_reason``, e.g. Tab cửa hàng on TikTok) shows ``None`` and the reason code, never the
+    stored 0. A flow the registry does not know is left as it is. Shopee: untouched."""
+    plat = Platform(platform)
+    for row in rows:
+        gaps: dict[str, str] = {}
+        for m in _ORDER_METRICS:
+            try:
+                reason = metric_reason(plat, str(row["key"]), m)
+            except KeyError:
+                break
+            if reason is not None and m in row:
+                gaps[m] = reason
+        if gaps:
+            row.update(dict.fromkeys(gaps))
+            row["unavailable"] = gaps
+
+
+def _flows_block(view: PeriodView, prev: PeriodView, platform: str = "shopee") -> dict[str, Any]:
     if view.flows is None:
         return {"available": False}
     table = view.flows.shop
@@ -233,6 +256,9 @@ def _flows_block(view: PeriodView, prev: PeriodView) -> dict[str, Any]:
             "chain": _shop_chain(view),
         }
     )
+    if platform != Platform.shopee:
+        _with_reasons(block["rows"], platform)
+        _with_reasons(block["the_san_pham_children"]["rows"], platform)
     return block
 
 
@@ -480,7 +506,7 @@ def build_overview(
             "line_gmv": num(now.line_gmv),
             "line_orders": now.line_orders,
         },
-        "flows": _flows_block(now, before),
+        "flows": _flows_block(now, before, platform),
         "levers": _levers_block(now),
         "five_numbers": five_json(five, comparable=comparable),
         "profit": _profit_block(now),

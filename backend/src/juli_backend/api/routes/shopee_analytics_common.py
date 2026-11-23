@@ -16,6 +16,7 @@ from urllib.parse import quote
 from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse, Response
 
+from juli_backend.services.metrics.registry import Platform
 from juli_backend.services.shopee_analytics import (
     InvalidWindow,
     NoShopeeData,
@@ -52,7 +53,7 @@ def stamped(body: dict[str, Any], platform: str, kind: str | None = None) -> dic
     ads). A Shopee payload is returned as it is."""
     from juli_backend.services.shopee_analytics import ads_gate
 
-    if platform == "shopee":
+    if platform == Platform.shopee:
         return body
     if "platform" in body:
         body["platform"] = platform

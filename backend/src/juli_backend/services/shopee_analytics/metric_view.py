@@ -253,7 +253,7 @@ def channel_cell(
             whole.total("orders"),
             whole.total("gmv"),
         )
-    if platform != "shopee":
+    if platform != Platform.shopee:
         if channel in ("ads", "ads_product", "ads_shop"):
             return None
         if channel == "the_san_pham":
@@ -263,10 +263,10 @@ def channel_cell(
     src = _by_source(base)
     if channel in _SOURCE_OF_CHANNEL:
         cell = _src_cell(src.get(_SOURCE_OF_CHANNEL[channel]))
-        if channel == "lien_ket" and cell is not None and platform == "shopee":
+        if channel == "lien_ket" and cell is not None and platform == Platform.shopee:
             return replace(cell, views=None)
         if (
-            platform != "shopee"
+            platform != Platform.shopee
             and cell is not None
             and metric_reason(Platform(platform), _UNAVAILABLE_SOURCE[channel], "orders")
         ):
@@ -653,7 +653,7 @@ async def metric_view(
         channel=channel,
         product_id=product_id,
     )
-    if platform != "shopee":
+    if platform != Platform.shopee:
         body["unavailable"] = unavailable_channels(platform, metric)
     # P100 B.5: "Số liệu đến dd/mm" per section (channels / products)
     body["data_through"] = {k: through[k] for k in ("channels", "products")}
