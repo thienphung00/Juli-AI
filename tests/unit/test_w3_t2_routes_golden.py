@@ -190,3 +190,44 @@ async def test_a_shopee_shop_reads_exactly_its_shopee_lines(session):
     await session.flush()
     assert await repo.in_window(seeded.shop_id, CUR_START, CUR_END) == []
     assert await repo.day_bounds(seeded.shop_id) is None
+
+
+async def test_a_product_name_containing_shopee_survives_unchanged(session):
+    from juli_backend.models.platform_data import PlatformItem
+
+    seeded = await seed_shopee_shop(session, rules=True)
+    sid = seeded.shop_id
+    await session.execute(
+        update(PlatformItem)
+        .where(PlatformItem.shop_id == sid, PlatformItem.item_id == "1001")
+        .values(name="Áo Shopee Edition")
+    )
+    for model in (PlatformItem, PlatformItemSnapshot, PlatformPeriodMetric, PlatformPromotion):
+        await session.execute(update(model).where(model.shop_id == sid).values(platform="tiktok"))
+    await session.execute(
+        update(ShopeeOrderLine).where(ShopeeOrderLine.shop_id == sid).values(platform="tiktok")
+    )
+    await session.execute(update(Shop).where(Shop.id == sid).values(platform="tiktok"))
+    await session.commit()
+    await session.refresh(seeded.shop)
+    app = build_app(session)
+    authenticate(app, user=seeded.user, shop=seeded.shop)
+    async with client_for(app) as c:
+        text = (await c.get(f"{DEMO}/matrix", params=PARAMS)).text
+    app.dependency_overrides.clear()
+    assert "Áo Shopee Edition" in text
+
+
+async def test_profit_and_margins_are_none_with_the_reason_on_tiktok(client):
+    overview = (await client.get(f"{DEMO}/overview", params=PARAMS)).json()
+    assert overview["shop_metrics"]["profit"] is None
+    assert overview["shop_metrics"]["margin_pct"] is None
+    assert overview["shop_profit"]["profit"] is None
+    assert overview["shop_profit"]["bridge"]["ads_charged"] is None
+    assert overview["unavailable"]["profit"] == "ads_scope_missing"
+    split = (await client.get(f"{DEMO}/channel-split", params=PARAMS)).json()
+    assert split["kpis"]["profit"] is None and split["unavailable"]["margin"] == "ads_scope_missing"
+    margin = (await client.get(f"{DEMO}/metric-view", params={**PARAMS, "metric": "margin"})).json()
+    assert margin["total"]["now"] is None
+    assert all(c["now"] is None for c in margin["channels"])
+    assert all(p["now"] is None for p in margin.get("products", []))

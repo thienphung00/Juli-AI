@@ -253,17 +253,49 @@ async def test_a_dependency_opens_a_tiktok_shop_on_the_widened_gate() -> None:
     assert await dep(tiktok) is tiktok
 
 
-def test_stamped_renames_the_platform_for_tiktok_only() -> None:
+def test_stamped_sets_the_platform_key_and_the_ads_reason_only() -> None:
     body = {
         "platform": "shopee",
-        "label": "GMV shop (Shopee)",
-        "rows": [{"note": "Doanh số của Shopee"}],
+        "label": "Shopee shirt",
+        "rows": [{"name": "Áo Shopee"}],
         "ads": {"spend": 0, "gmv_placed": 0, "basis": {"key": "placed"}},
     }
-    assert common.stamped(body, "shopee") is body and body["label"] == "GMV shop (Shopee)"
+    assert common.stamped(body, "shopee") is body and body["label"] == "Shopee shirt"
     got = common.stamped(body, "tiktok")
-    assert got["platform"] == "tiktok" and got["label"] == "GMV shop (TikTok Shop)"
-    assert got["rows"][0]["note"] == "Doanh số của TikTok Shop"
-    assert got["ads"]["spend"] is None and got["ads"]["gmv_placed"] is None
-    assert got["ads"]["basis"] == {"key": "placed"}
-    assert got["unavailable"] == {"ads": REASON_ADS_SCOPE_MISSING}
+    assert got["platform"] == "tiktok"
+    assert got["label"] == "Shopee shirt" and got["rows"][0]["name"] == "Áo Shopee"
+    assert got["ads"]["spend"] is None and got["ads"]["basis"] == {"key": "placed"}
+    assert got["unavailable"]["ads"] == REASON_ADS_SCOPE_MISSING
+
+
+def test_builders_take_the_platform_name_from_the_registry() -> None:
+    from juli_backend.services.shopee_analytics import fmt
+
+    assert fmt.platform_name("shopee") == "Shopee"
+    assert fmt.platform_name("tiktok") == "TikTok Shop"
+    assert fmt.ads_basis_note() == fmt.ADS_BASIS_NOTE
+    assert "TikTok Shop" in fmt.ads_basis_note("tiktok")
+    assert "Shopee" not in fmt.ads_basis_note("tiktok")
+
+
+def test_tiktok_profit_and_margins_are_none_with_the_reason_until_ads_are_known() -> None:
+    body = {
+        "platform": "shopee",
+        "shop_metrics": {"gmv": 5, "profit": 100, "margin_pct": 12.5},
+        "shop_profit": {
+            "profit": 100,
+            "bridge": {"ads_charged": 7, "product_profit": 9, "ads_total": 3},
+        },
+        "products": [{"gmv": 5, "margin": 0.3, "profit": 4}],
+        "kpis": {"gmv": 5, "profit": 1, "cost_ads": 2, "roi": 1.5},
+    }
+    got = common.stamped(body, "tiktok")
+    assert got["shop_metrics"] == {"gmv": 5, "profit": None, "margin_pct": None}
+    assert got["shop_profit"]["profit"] is None
+    assert got["shop_profit"]["bridge"] == {
+        "ads_charged": None, "product_profit": None, "ads_total": None,
+    }  # fmt: skip
+    assert got["products"] == [{"gmv": 5, "margin": None, "profit": None}]
+    assert got["kpis"] == {"gmv": 5, "profit": None, "cost_ads": None, "roi": None}
+    for key in ("ads", "profit", "margin"):
+        assert got["unavailable"][key] == REASON_ADS_SCOPE_MISSING

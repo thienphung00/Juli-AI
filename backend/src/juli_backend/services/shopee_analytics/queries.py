@@ -130,12 +130,13 @@ async def overview(
     start: date | None = None,
     end: date | None = None,
     as_of: date | None = None,
+    platform: str = "shopee",
 ) -> dict[str, Any]:
     ctx, now, before = await _views(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     anchor = await service.anchor_for(session, shop_id, as_of)
-    body = build_overview(ctx, now, before, anchor)
+    body = build_overview(ctx, now, before, anchor, platform)
     body["period"]["kind"] = period
     body["freshness"] = freshness_json(
         await loaders.load_freshness(session, shop_id), now.window.end
@@ -154,13 +155,14 @@ async def matrix(
     as_of: date | None = None,
     sort: str = "gmv",
     limit: int | None = None,
+    platform: str = "shopee",
 ) -> dict[str, Any]:
     if sort not in SORTS:
         raise ValueError(f"sort must be one of {list(SORTS)}")
     _, now, before = await _views(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
-    return build_matrix(now, sort=sort, limit=limit, before=before)
+    return build_matrix(now, sort=sort, limit=limit, before=before, platform=platform)
 
 
 async def product_price_margin(
@@ -246,12 +248,13 @@ async def critical(
     start: date | None = None,
     end: date | None = None,
     as_of: date | None = None,
+    platform: str = "shopee",
 ) -> dict[str, Any]:
     ctx, now, before = await _views(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     series = await loaders.load_flow_series(session, shop_id, now.window.end)
-    return build_critical(ctx, now, series, before)
+    return build_critical(ctx, now, series, before, platform)
 
 
 async def ranking(
@@ -267,11 +270,14 @@ async def ranking(
     start: date | None = None,
     end: date | None = None,
     as_of: date | None = None,
+    platform: str = "shopee",
 ) -> dict[str, Any]:
     _, now, before = await _views(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
-    return build_ranking(now, before, kind=kind, source=source, sub=sub, xep_theo=xep_theo)
+    return build_ranking(
+        now, before, kind=kind, source=source, sub=sub, xep_theo=xep_theo, platform=platform
+    )
 
 
 async def product_page(
@@ -281,6 +287,7 @@ async def product_page(
     *,
     period: str = "30d",
     as_of: date | None = None,
+    platform: str = "shopee",
 ) -> dict[str, Any]:
     if period not in PRODUCT_PERIODS:
         raise ValueError(f"period must be one of {list(PRODUCT_PERIODS)}")
@@ -325,6 +332,7 @@ async def product_page(
         history=history,
         daily=daily,
         freshness=freshness,
+        platform=platform,
     )
 
 

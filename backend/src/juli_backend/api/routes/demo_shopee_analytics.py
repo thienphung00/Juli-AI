@@ -74,7 +74,10 @@ async def shopee_overview(
     try:
         return stamped(
             await queries.overview(
-                session, shop_id, **window_args(period, month, start, end, as_of)
+                session,
+                shop_id,
+                platform=shop.platform,
+                **window_args(period, month, start, end, as_of),
             ),
             shop.platform,
         )
@@ -99,6 +102,7 @@ async def shopee_matrix(
         body = await queries.matrix(
             session,
             shop_id,
+            platform=shop.platform,
             sort=sort,
             limit=limit,
             **window_args(period, month, start, end, as_of),
@@ -122,7 +126,10 @@ async def shopee_critical(
     shop_id = shop.id
     try:
         body = await queries.critical(
-            session, shop_id, **window_args(period, month, start, end, as_of)
+            session,
+            shop_id,
+            platform=shop.platform,
+            **window_args(period, month, start, end, as_of),
         )
         body = await reco.attach_card_refs(session, shop_id, "critical", body, audience="seller")
         return stamped(body, shop.platform)
@@ -155,6 +162,7 @@ async def shopee_ranking(
             source=source,
             sub=sub,
             xep_theo=xep_theo,
+            platform=shop.platform,
             **window_args(period, month, start, end, as_of),
         )
         body = await reco.attach_card_refs(session, shop_id, "ranking", body, audience="seller")
@@ -173,7 +181,9 @@ async def shopee_product(
 ) -> dict[str, Any]:
     shop_id = shop.id
     try:
-        body = await queries.product_page(session, shop_id, item_id, period=period, as_of=as_of)
+        body = await queries.product_page(
+            session, shop_id, item_id, period=period, as_of=as_of, platform=shop.platform
+        )
         body = await reco.attach_card_refs(session, shop_id, "product", body, audience="seller")
         return stamped(body, shop.platform)
     except REFUSALS as exc:
@@ -278,12 +288,15 @@ async def shopee_channel_split(
     """P100 Tổng quan: Organic / Quảng cáo / Tiếp thị liên kết of the shop or one product."""
     shop_id = shop.id
     try:
-        return await channel_split.channel_split(
-            session,
-            shop_id,
-            product_id=product_id,
-            platform=shop.platform,
-            **window_args(period, month, start, end, as_of),
+        return stamped(
+            await channel_split.channel_split(
+                session,
+                shop_id,
+                product_id=product_id,
+                platform=shop.platform,
+                **window_args(period, month, start, end, as_of),
+            ),
+            shop.platform,
         )
     except REFUSALS as exc:
         raise refusal(exc, shop.platform) from None
@@ -330,15 +343,18 @@ async def shopee_metric_view(
     """P100 Phân tích: one metric by luồng and by sản phẩm, now vs the previous period."""
     shop_id = shop.id
     try:
-        return await metric_view.metric_view(
-            session,
-            shop_id,
-            metric=metric,
-            audience="seller",
-            channel=channel,
-            product_id=product_id,
-            platform=shop.platform,
-            **window_args(period, month, start, end, as_of),
+        return stamped(
+            await metric_view.metric_view(
+                session,
+                shop_id,
+                metric=metric,
+                audience="seller",
+                channel=channel,
+                product_id=product_id,
+                platform=shop.platform,
+                **window_args(period, month, start, end, as_of),
+            ),
+            shop.platform,
         )
     except REFUSALS as exc:
         raise refusal(exc, shop.platform) from None

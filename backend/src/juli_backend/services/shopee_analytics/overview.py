@@ -16,14 +16,15 @@ from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import (
     ADS_BASIS,
-    ADS_BASIS_NOTE,
     ASSUMED_COST_LABEL,
     ORDER_BASIS,
+    ads_basis_note,
     delta_pct,
     frac,
     num,
     pct,
     pct_of,
+    platform_name,
     ratio,
 )
 from juli_backend.services.shopee_analytics.funnel import CTOR_NOTE
@@ -105,7 +106,7 @@ def data_status(view: PeriodView) -> dict[str, Any]:
     }
 
 
-def warnings(view: PeriodView) -> list[dict[str, str]]:
+def warnings(view: PeriodView, platform: str = "shopee") -> list[dict[str, str]]:
     d, out = view.data, []
 
     def add(code: str, message: str) -> None:
@@ -123,7 +124,10 @@ def warnings(view: PeriodView) -> list[dict[str, str]]:
         add("traffic_partial", "Lưu lượng theo nguồn chưa đủ số ngày trong kỳ.")
     rec = view.profit.reconciliation
     if rec.warn:
-        add("gmv_reconciliation", "Tổng GMV theo dòng đơn lệch hơn 2 % so với Doanh số của Shopee.")
+        add(
+            "gmv_reconciliation",
+            f"Tổng GMV theo dòng đơn lệch hơn 2 % so với Doanh số của {platform_name(platform)}.",
+        )
     if not view.profit.ad_spend_consistent:
         add(
             "ad_spend_inconsistent",
@@ -308,13 +312,13 @@ def _fee_sources(view: PeriodView) -> dict[str, int]:
     return out
 
 
-def _ads_block(view: PeriodView) -> dict[str, Any]:
+def _ads_block(view: PeriodView, platform: str = "shopee") -> dict[str, Any]:
     ads = view.ads
     daily = view.data.ads_daily
     camp_gmv = sum((c.gmv for c in ads.campaigns), ZERO)
     return {
         "basis": ADS_BASIS,
-        "note": ADS_BASIS_NOTE,
+        "note": ads_basis_note(platform),
         "in_which": "trong đó (overlay, không phải một dòng của tổng)",
         "spend": num(ads.total_spend),
         "gmv_placed": num(daily.gmv if daily.days_covered else camp_gmv),
@@ -399,7 +403,11 @@ PREVIOUS_THIN = (
 
 
 def build_overview(
-    ctx: ShopContext, now: PeriodView, before: PeriodView, anchor: Anchor | None = None
+    ctx: ShopContext,
+    now: PeriodView,
+    before: PeriodView,
+    anchor: Anchor | None = None,
+    platform: str = "shopee",
 ) -> dict[str, Any]:
     cap = ctx.rules.target("daily_marketing_cap")
     five = five_for(now, before, cap)
@@ -418,7 +426,7 @@ def build_overview(
     if not prev_totals_ok:
         prev_chain = {k: v for k, v in prev_chain.items() if k != "aov"}
     profit_now, profit_before = shop_profit_of(now), shop_profit_of(before)
-    warns = warnings(now)
+    warns = warnings(now, platform)
     if not comparable:
         warns.append({"code": "previous_period_thin", "message": PREVIOUS_THIN})
     targets = ctx.rules.targets
@@ -426,7 +434,7 @@ def build_overview(
         "platform": "shopee",
         "order_basis": ORDER_BASIS,
         "period": {"window": now.window.json(), "previous": before.window.json()},
-        "shop_metrics": {**metrics.json(), **shop_profit_fields(now)},
+        "shop_metrics": {**metrics.json(platform), **shop_profit_fields(now)},
         "shop_profit": profit_now.json(),
         "funnel": funnel.basis_json(now.data.funnel),
         "data": data_status(now),
@@ -476,7 +484,7 @@ def build_overview(
         "levers": _levers_block(now),
         "five_numbers": five_json(five, comparable=comparable),
         "profit": _profit_block(now),
-        "ads": _ads_block(now),
+        "ads": _ads_block(now, platform),
         "vouchers": _vouchers_block(now, ctx),
         "affiliate": _affiliate_block(now),
         "targets": {k: (num(v) if v is not None else None) for k, v in targets.items()},

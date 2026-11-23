@@ -13,7 +13,14 @@ from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
-from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, num, pct, ratio
+from juli_backend.services.shopee_analytics.fmt import (
+    ADS_BASIS,
+    ads_basis_note,
+    num,
+    pct,
+    platform_name,
+    ratio,
+)
 from juli_backend.services.shopee_analytics.overview import CHILD_LABELS, LEVER_LABELS
 from juli_backend.services.shopee_analytics.shared import (
     cell_json,
@@ -31,14 +38,14 @@ SORTS = ("gmv", "bien", "orders", "profit")
 
 
 def ads_overlay(
-    view: PeriodView, product_id: str, pp: ProductProfit | None = None
+    view: PeriodView, product_id: str, pp: ProductProfit | None = None, platform: str = "shopee"
 ) -> dict[str, Any]:
     spend = view.ads.product_spend.get(product_id)
     fig = view.ads.product_figures.get(product_id)
     pp = pp or view.profit.products.get(product_id)
     return {
         "basis": ADS_BASIS,
-        "note": ADS_BASIS_NOTE,
+        "note": ads_basis_note(platform),
         "spend": num(spend),
         "gmv_placed": num(fig.gmv if fig else None),
         "direct_gmv_placed": num(fig.direct_gmv if fig else None),
@@ -131,7 +138,9 @@ def _days_label(a: date, b: date) -> str:
     return f"{a.day:02d}/{a.month:02d}–{b.day:02d}/{b.month:02d}"
 
 
-def product_traffic(view: PeriodView, product_id: str) -> dict[str, Any] | None:
+def product_traffic(
+    view: PeriodView, product_id: str, platform: str = "shopee"
+) -> dict[str, Any] | None:
     """P100 A.6: the product's own Hiển thị / clicks / đơn from Shopee's product table
     (``product_period``, the rows Sản phẩm + luồng reads) over the period chosen for the
     window, with its coverage ("Shopee 11/10–09/11 · 30/30 ngày"); None without such a row.
@@ -148,11 +157,13 @@ def product_traffic(view: PeriodView, product_id: str) -> dict[str, Any] | None:
         "orders": int(agg.orders),
         "source": TRAFFIC_SOURCE,
         "basis": basis.json(),
-        "label": f"Shopee {periods} · {basis.covered_days}/{view.window.days} ngày",
+        "label": (
+            f"{platform_name(platform)} {periods} · {basis.covered_days}/{view.window.days} ngày"
+        ),
     }
 
 
-def product_row(view: PeriodView, product_id: str) -> dict[str, Any]:
+def product_row(view: PeriodView, product_id: str, platform: str = "shopee") -> dict[str, Any]:
     pp = view.profit.products.get(product_id)
     levers = []
     for lever in PriceLever:
@@ -197,9 +208,9 @@ def product_row(view: PeriodView, product_id: str) -> dict[str, Any]:
             "basis": pf.flows_basis.json(),
         },
         "levers": levers,
-        "ads": ads_overlay(view, product_id, pp),
+        "ads": ads_overlay(view, product_id, pp, platform),
         "card_children": card_children(view, product_id),
-        "traffic": product_traffic(view, product_id),
+        "traffic": product_traffic(view, product_id, platform),
     }
 
 
@@ -221,11 +232,12 @@ def build_matrix(
     sort: str = "gmv",
     limit: int | None = None,
     before: PeriodView | None = None,
+    platform: str = "shopee",
 ) -> dict[str, Any]:
     ids = (
         set(view.matrix.totals) | set(view.data.product_flows.totals) | set(view.ads.product_spend)
     ) - set(view.excluded)
-    rows = [product_row(view, pid) for pid in ids]
+    rows = [product_row(view, pid, platform) for pid in ids]
     rows = [r for r in rows if (r["gmv"] or 0) > 0 or r["ads"]["spend"]]
     rows.sort(key=lambda r: _sort_key(sort, r))
     total = len(rows)

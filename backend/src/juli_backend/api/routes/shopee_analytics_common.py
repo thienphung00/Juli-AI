@@ -58,39 +58,75 @@ _ADS_FIGURES = (
 )
 
 
-def _rename(value: Any, old: str, new: str) -> Any:
-    if isinstance(value, str):
-        return value.replace(old, new)
-    if isinstance(value, list):
-        return [_rename(v, old, new) for v in value]
+#: W3-Q5: without ads spend there is no profit or margin (never a before-ads figure, never 0)
+_PROFIT_FIGURES = frozenset(
+    {
+        "profit",
+        "margin",
+        "margin_pct",
+        "product_profit",
+        "ads_charged",
+        "ads_total",
+        "ads_unattributed",
+        "ads_no_order_days",
+        "ad_spend",
+        "ads_spend",
+        "ads_roas_placed",
+        "cost_total",
+        "cost_ads",
+        "roi",
+    }
+)
+_METRIC_CELLS = ("now", "prev", "change", "impact")
+
+
+def _null_profit(value: Any) -> Any:
     if isinstance(value, dict):
-        return {k: _rename(v, old, new) for k, v in value.items()}
+        return {
+            k: None if k in _PROFIT_FIGURES and not isinstance(v, (dict, list)) else _null_profit(v)
+            for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [_null_profit(v) for v in value]
     return value
 
 
+def _null_margin_view(body: dict[str, Any]) -> None:
+    """A metric-view of ``margin``: every cell is None."""
+    for block in [body.get("total"), *body.get("channels", []), *body.get("products", [])]:
+        if isinstance(block, dict):
+            for key in _METRIC_CELLS:
+                if key in block:
+                    block[key] = None
+
+
 def stamped(body: dict[str, Any], platform: str) -> dict[str, Any]:
-    """The page builders name Shopee ("platform", "GMV shop (Shopee)", ...); a payload for a
-    TikTok shop names TikTok Shop, from the registry's one platform-name table. A Shopee payload
-    is returned as it is."""
-    from juli_backend.services.metrics.registry import PLATFORM_NAMES, Platform, source_reason
+    """The page builders write the platform's name where they build text (``platform`` argument);
+    this sets the ``platform`` key and, for a platform without ads figures, the ads reason
+    (null, never 0). A Shopee payload is returned as it is."""
+    from juli_backend.services.metrics.registry import Platform, source_reason
 
     if platform == "shopee":
         return body
-    out: dict[str, Any] = _rename(
-        body, PLATFORM_NAMES[Platform.shopee], PLATFORM_NAMES[Platform(platform)]
-    )
-    if "platform" in out:
-        out["platform"] = platform
+    if "platform" in body:
+        body["platform"] = platform
     reason = source_reason(Platform(platform), "ads")
     if reason is not None:
-        # R-2: a platform without ads figures says so (null + the registry reason), never 0
-        out["unavailable"] = {**out.get("unavailable", {}), "ads": reason}
-        ads = out.get("ads")
-        if isinstance(ads, dict):
-            for key in _ADS_FIGURES:
-                if key in ads:
-                    ads[key] = None
-    return out
+        gaps = {"ads": reason, "profit": reason, "margin": reason}
+        body["unavailable"] = {**body.get("unavailable", {}), **gaps}
+        body.update(_null_profit({k: v for k, v in body.items() if k != "unavailable"}))
+        if body.get("metric") == "margin":
+            _null_margin_view(body)
+        blocks = [
+            body.get("ads"),
+            *(p.get("ads") for p in body.get("products", []) if isinstance(p, dict)),
+        ]
+        for ads in blocks:
+            if isinstance(ads, dict):
+                for key in _ADS_FIGURES:
+                    if key in ads:
+                        ads[key] = None
+    return body
 
 
 def refusal(exc: Exception, platform: str = "shopee") -> HTTPException:

@@ -557,11 +557,12 @@ def build_critical(
     now: PeriodView,
     series: dict[str, dict[date, tuple[float, float, float, float]]],
     before: PeriodView | None = None,
+    platform: str = "shopee",
 ) -> dict[str, Any]:
     flow_crit, flow_ok, notes = _flow_items(now, series)
     drops: list[dict[str, Any]] = []
     if before is not None:
-        table = build_ranking(now, before, kind="products", source="all")
+        table = build_ranking(now, before, kind="products", source="all", platform=platform)
         stages = {
             str(r.get("product_id") or r["id"]): drop_stage(
                 _funnel(now, str(r.get("product_id") or r["id"])),
