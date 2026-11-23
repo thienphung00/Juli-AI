@@ -15,6 +15,7 @@ from datetime import date
 from typing import Any
 
 from juli_backend.services.analytics_agent.chains import CHAIN_METRIC
+from juli_backend.services.analytics_agent.create_card import CARD_TYPES
 from juli_backend.services.analytics_agent.types import (
     DataPort,
     JevPort,
@@ -22,7 +23,11 @@ from juli_backend.services.analytics_agent.types import (
     LLMPort,
     Usage,
 )
-from juli_backend.services.analytics_agent.windows import build_windows
+from juli_backend.services.analytics_agent.windows import (
+    anchor_for,
+    build_windows,
+    window_from_phrase,
+)
 
 MAX_INTENTS = 3  # config value (J3); the rest is offered through `more`
 FITS_GO, FITS_NO = 0.7, 0.3
@@ -57,7 +62,9 @@ METRICS: dict[str, str] = {
 }
 WINDOWS: dict[str, str] = {
     "yesterday_vs_same_weekday": "yesterday or one recent day",
-    "last_7d_vs_prev_7d": "this week, the last 7 days, recently over a few days",
+    "this_week_vs_same_days_last_week": "this week so far (Monday to yesterday) compared with the "
+    "same days last week",
+    "last_7d_vs_prev_7d": "the last 7 days, recently over a few days",
     "last_full_week_vs_week_before": "last calendar week (Mon-Sun) compared with the week before",
     "last_30d_vs_prev_30d": "the last 30 days or 'recently' with no period named",
     "mtd_vs_same_days_last_month": "this month so far compared with last month",
@@ -72,6 +79,7 @@ MODES = {
 LOOKUPS = {
     "metric_total": "one metric's value for a period, compared with the period before",
     "top_products": "the products ranked by revenue or orders for a period",
+    "top_decliners": "the products whose revenue fell the most compared with the period before",
     "daily_trend": "the metric day by day over a period",
     "channel_breakdown": "the metric split by traffic source / channel for a period",
 }
@@ -84,6 +92,147 @@ CHAIN_ALLOWED_METRICS = {
     "ads_change": {"ads_spend", "roas"},
     "cost_change": {"cost_ratio"},
 }
+
+# A named metric needs no picker (Q19): the words map to one metric, code decides, not the model.
+METRIC_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(rx, re.I), m)
+    for rx, m in (
+        (r"chi phí quảng cáo|ad(s|vertising)?\s*(spend|cost)|tiền quảng cáo", "ads_spend"),
+        (r"roas hoà vốn|roas hòa vốn|break-?even roas", "roas_break_even"),
+        (r"roas", "roas"),
+        (r"biên|margin", "margin"),
+        (r"lợi nhuận|profit", "profit"),
+        (r"average order value|\baov\b|giá trị đơn trung bình|đơn trung bình", "aov"),
+        (r"doanh thu|\bgmv\b|revenue|sales value", "gmv"),
+        (r"đơn hàng|số đơn|\borders?\b", "orders"),
+        (r"\bctor\b|chuyển đổi|conversion", "ctor"),
+        (r"\bctr\b|click[- ]through", "ctr"),
+        (r"lượt xem|\bviews?\b", "views"),
+    )
+)
+DECLINE_WORDS = re.compile(
+    r"biggest (decline|drop|fall)|fell (the )?most|declin|(dropped|fallen|falling) (the )?most|"
+    r"giảm (mạnh|nhiều) nhất|giảm mạnh|tụt (mạnh|nhiều)|tụt nhất|worst",
+    re.I,
+)
+LIST_LOOKUPS = ("top_products", "top_decliners")
+METRIC_CHAIN = {m: c for c, m in CHAIN_METRIC.items()}
+METRIC_CHAIN.update(
+    roas="ads_change",
+    roas_break_even="ads_change",
+    ads_spend="ads_change",
+    margin="profit_change",
+    aov="gmv_change",
+)
+
+# An entity the seller names (Q17): the answer must be filtered to it or refused, never a shop
+# number under the entity's label.
+ENTITY_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(rx, re.I), k)
+    for rx, k in (
+        # a Shopee programme named as the seller sees it: no reader filters by it -> refusal
+        (
+            r"chương trình của shop|flash sale của shop|combo khuyến mãi|mua kèm deal sốc|"
+            r"mua để nhận quà",
+            "program",
+        ),
+        (r"voucher|mã giảm giá", "voucher"),
+        # "phí hoa hồng" / "phí cố định" are Shopee fees, never affiliate commission
+        (r"affiliate|tiếp thị liên kết|\bttlk\b|\bkoc\b|\bkol\b|hoa hồng tiếp thị", "affiliate"),
+    )
+)
+_AD_WORDS = re.compile(
+    r"quảng cáo|\bqc\b|dvht|dịch vụ hiển thị|\bads?\b|advertis",
+    re.I,
+)
+_CAMPAIGN = re.compile(r"campaign|chiến dịch", re.I)
+
+
+#: registry metric key -> the agent's own metric key (where they differ)
+REGISTRY_TO_AGENT = {
+    "cost_ads": "ads_spend",
+    "cost_total_pct": "cost_ratio",
+    "net_revenue": "net_revenue",
+}
+
+
+def named_metric_of(intent: dict[str, Any]) -> str | None:
+    """The metric the seller named: the parser's typed `metric_key` wins; the phrase words are a
+    safety net."""
+    mk = intent.get("metric_key")
+    if mk and mk != "none":
+        agent = REGISTRY_TO_AGENT.get(mk, mk)
+        if agent in METRICS or agent == "roas_break_even":
+            return agent
+    return metric_from_phrase(intent.get("metric_phrase"))
+
+
+def metric_from_phrase(phrase: str | None) -> str | None:
+    for rx, m in METRIC_WORDS:
+        if phrase and rx.search(phrase):
+            return m
+    return None
+
+
+def entity_kind(intent: dict[str, Any]) -> str | None:
+    """voucher | affiliate | campaign | program when the question names one (not a product: that
+    is `scope`). Scans the seller's own words (`raw_text`) as well as the parsed phrases."""
+    # the parser's own entity slot wins; the word lists are only a safety net
+    first = str(intent.get("entity_phrase") or "")
+    for rx, k in ENTITY_WORDS:
+        if first and rx.search(first):
+            return k
+    if first and _CAMPAIGN.search(first):
+        return "campaign"
+    blob = " ".join(
+        str(intent.get(k) or "")
+        for k in ("entity_phrase", "metric_phrase", "source_phrase", "raw_text")
+    )
+    for rx, k in ENTITY_WORDS:
+        if rx.search(blob):
+            return k
+    if _CAMPAIGN.search(blob) and _AD_WORDS.search(blob):  # a campaign means an ad campaign
+        return "campaign"
+    return None
+
+
+#: the empty value of each create-card slot (the strict schema allows no optional / union fields)
+CARD_SLOT_EMPTY: dict[str, Any] = {
+    "card_type": "none",
+    "from_date": "",
+    "to_date": "",
+    "start_hour": -1,
+    "amount": -1,
+    "amount_unit": "none",
+    "min_spend": -1,
+    "quantity": -1,
+    "name": "",
+}
+CREATE_SLOTS = (
+    "card_type",
+    "from_date",
+    "to_date",
+    "start_hour",
+    "amount",
+    "amount_unit",
+    "min_spend",
+    "quantity",
+    "name",
+)
+
+
+def _registry_metric_keys() -> list[str]:
+    from juli_backend.services.metrics.registry import METRICS as REG
+
+    return list(REG)
+
+
+def _registry_metric_names() -> str:
+    """User-facing metric names, generated from registry.py (never hand-typed)."""
+    from juli_backend.services.metrics.registry import METRICS
+
+    return "; ".join(f"{k} = {m.label_vi}" for k, m in METRICS.items() if "{" not in m.label_vi)
+
 
 INTENT_TOOL: dict[str, Any] = {
     "name": "emit_intent",
@@ -114,11 +263,23 @@ INTENT_TOOL: dict[str, Any] = {
                         "named_month",
                         "product_phrase",
                         "source_phrase",
+                        "entity_phrase",
+                        "metric_key",
+                        "ranking",
+                        "asks_why",
+                        "card",
                     ],
                     "properties": {
                         "question_type": {
                             "type": "string",
-                            "enum": ["why_changed", "status", "compare", "other"],
+                            "enum": [
+                                "why_changed",
+                                "status",
+                                "compare",
+                                "plan",
+                                "create_card",
+                                "other",
+                            ],
                         },
                         "metric_phrase": {"type": ["string", "null"]},
                         "claimed_direction": {
@@ -141,20 +302,93 @@ INTENT_TOOL: dict[str, Any] = {
                             "them, no translation",
                         },
                         "source_phrase": {"type": ["string", "null"]},
+                        "metric_key": {
+                            "type": "string",
+                            "enum": [*_registry_metric_keys(), "none"],
+                            "description": "the registry key of the metric the seller asks about "
+                            "(the prompt lists key = label); none when no metric is asked",
+                        },
+                        "ranking": {
+                            "type": "string",
+                            "enum": ["none", "top", "decline"],
+                            "description": "top = best sellers / top by a metric; decline = the "
+                            "biggest drop; none = not a ranking",
+                        },
+                        "asks_why": {
+                            "type": "boolean",
+                            "description": "true when the seller also asks why",
+                        },
+                        "card": {
+                            "type": "object",
+                            "description": "only for question_type create_card; otherwise leave "
+                            "every field at its empty value",
+                            "additionalProperties": False,
+                            "required": list(CARD_SLOT_EMPTY),
+                            "properties": {
+                                "card_type": {
+                                    "type": "string",
+                                    "enum": [*CARD_TYPES, "none"],
+                                    "description": "the kind of card; none when not said",
+                                },
+                                "from_date": {
+                                    "type": "string",
+                                    "description": "YYYY-MM-DD or empty",
+                                },
+                                "to_date": {"type": "string", "description": "YYYY-MM-DD or empty"},
+                                "start_hour": {
+                                    "type": "integer",
+                                    "description": "flash sale start hour 0-23, -1 if unsaid",
+                                },
+                                "amount": {
+                                    "type": "number",
+                                    "description": "discount value said, -1 if unsaid",
+                                },
+                                "amount_unit": {"type": "string", "enum": ["vnd", "pct", "none"]},
+                                "min_spend": {
+                                    "type": "integer",
+                                    "description": "minimum order in đ, 0 = none, -1 when not said",
+                                },
+                                "quantity": {"type": "integer", "description": "-1 when not said"},
+                                "name": {"type": "string", "description": "a name given, or empty"},
+                            },
+                        },
+                        "entity_phrase": {
+                            "type": ["string", "null"],
+                            "description": "a voucher, affiliate / commission or ad campaign the "
+                            "seller names, copied as written; null when none",
+                        },
                     },
                 },
             },
         },
     },
 }
+
+
 PARSE_SYSTEM = (
     "Turn a Shopee seller's Vietnamese question into English intent JSON by calling emit_intent. "
     "Today is {today} (Vietnam). Split a message that asks about several metrics into one intent "
     "each. "
     "Write phrases in plain English, except product_phrase: copy the seller's own product words "
     "verbatim. "
+    "The seller's metrics are named in this registry (a question that asks for or about any of "
+    "them is 'status' or 'why_changed', never 'other'; set metric_key to its key, none if no "
+    "metric is asked; ranking is top for best sellers / top by a metric, decline for the biggest "
+    "drop; asks_why is true when the seller also asks why): " + _registry_metric_names() + ". "
     "Do not invent ids. Dates only when the seller states them. Questions not about the shop's own "
-    "sales/traffic data (competitors, tax, advice, forecasts) get question_type 'other'."
+    "sales/traffic data (competitors, tax, forecasts) get question_type 'other'. A question asking "
+    "what the shop should do next week is question_type 'plan' (only that, not how-to "
+    "questions). A question about ONE product's profit, margin, revenue or orders is question_type "
+    "'status' with product_phrase, never 'other'. A question that asks both what and why (for "
+    "example the products that fell most, and why) is ONE intent with ranking and asks_why true. "
+    "A request to create or change something (voucher, discount, combo, deal, gift, "
+    "flash sale, price, product name / title, cover, variation set) is question_type "
+    "'create_card': fill the `card` object with only the slots the seller said (dates as "
+    "YYYY-MM-DD in the year of today, amount with amount_unit vnd or pct) and leave every other "
+    "field at its empty value (none, empty text, -1); never invent a value. "
+    "A request to change the ads budget, a ROAS target or an "
+    "affiliate commission, a how-to or knowledge question (how to get more views, how a Shopee fee "
+    "is calculated) and a question about competitors are question_type 'other'."
 )
 RESTATE_PREFIX = "Đang tìm hiểu: "
 _PREFIXES = re.compile(r"^\s*(đang tìm hiểu|tôi hiểu)\s*[:：]\s*", re.I)
@@ -170,6 +404,18 @@ def clean_restatement(restated: str | None, seller_text: str) -> str:
     return RESTATE_PREFIX + body.rstrip(".")
 
 
+def flatten_card(intent: dict[str, Any]) -> dict[str, Any]:
+    """The schema's `card` object (sentinels for "not said") becomes the flat slots the engine
+    reads, None for "not said". An intent with the flat slots already (tests, old rows) is kept."""
+    card = intent.pop("card", None)
+    if not isinstance(card, dict):
+        return intent
+    for k, empty in CARD_SLOT_EMPTY.items():
+        v = card.get(k, empty)
+        intent[k] = None if v == empty else v
+    return intent
+
+
 async def parse_intents(
     llm: LLMPort, text: str, today: date
 ) -> tuple[dict[str, Any] | None, Usage]:
@@ -181,6 +427,8 @@ async def parse_intents(
         cost += u.cost_usd
         intents = (out or {}).get("intents")
         if isinstance(intents, list) and intents and all(isinstance(i, dict) for i in intents):
+            for i in intents:
+                flatten_card(i)
             return (
                 {
                     "restated": clean_restatement((out or {}).get("restated_vi"), text),
@@ -197,6 +445,57 @@ async def parse_intents(
 
 def _crit(d: dict[str, str]) -> dict[str, str]:
     return dict(d)
+
+
+async def route(jev: JevPort, intent: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], Usage]:
+    """The Jev routing answers of one intent; a plan / create request needs none (code decides)."""
+    if intent.get("question_type") in ("plan", "create_card"):
+        return {}, Usage()
+    return await jev.ask(jev_state(intent), routing_questions(intent))
+
+
+async def classify(text: str, today: date, llm: LLMPort, jev: JevPort) -> dict[str, Any]:
+    """Parse + routing decision of one message, with NO data reads: what Juli understood and which
+    route it would take. For the 20-question check; costs one parse and one Jev call per intent."""
+    parsed, usage = await parse_intents(llm, text, today)
+    if parsed is None:
+        return {"outcome": "parse_failed", "intents": []}
+    single = len(parsed["intents"]) == 1
+    out: list[dict[str, Any]] = []
+    for intent in parsed["intents"]:
+        if single:
+            intent["raw_text"] = text
+        answers, _ = await route(jev, intent)
+        dec = (
+            decide(intent, answers)
+            if answers
+            or intent.get("question_type")
+            in (
+                "plan",
+                "create_card",
+            )
+            else {"outcome": "go", "checks": {}}
+        )
+        out.append(
+            {
+                "intent": {k: v for k, v in intent.items() if k != "raw_text"},
+                "outcome": dec.get("outcome"),
+                "mode": dec.get("mode"),
+                "chain": dec.get("chain"),
+                "metric": dec.get("metric"),
+                "window": dec.get("window"),
+                "lookup": dec.get("lookup"),
+                "entity": entity_kind(intent),
+                "card_type": intent.get("card_type"),
+                "checks": dec.get("checks"),
+            }
+        )
+    return {
+        "restated": parsed["restated"],
+        "outcome": "parsed",
+        "intents": out,
+        "cost_usd": usage.cost_usd,
+    }
 
 
 def jev_state(intent: dict[str, Any]) -> dict[str, Any]:
@@ -290,6 +589,12 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     """Thresholds (J7) + cross-checks (J6b) + lookup rules. `outcome` = go | needs_choice |
     unsupported."""
     dec: dict[str, Any] = {"checks": {}}
+    if intent.get("question_type") == "create_card":  # J10: a card from a free request
+        dec.update(outcome="go", mode="create")
+        return dec
+    if intent.get("question_type") == "plan":  # "what should the shop do next week" (J8)
+        dec.update(outcome="go", mode="analysis", window=window_from_phrase("last week"))
+        return dec
     fits = answers["fits"]["noul"]
     dec["checks"]["fits"] = {
         "noul": round(fits, 4),
@@ -301,7 +606,37 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     if fits <= FITS_NO:
         dec["outcome"] = "unsupported"
         return dec
-    if fits < FITS_GO:
+    if intent.get("ranking") in ("top", "decline"):  # the parser's typed slot decides, no picker
+        dec.update(
+            outcome="go",
+            mode="lookup",
+            lookup="top_decliners" if intent["ranking"] == "decline" else "top_products",
+        )
+        dec["window"] = window_from_phrase(intent.get("time_phrase")) or (
+            choice_ok(answers["window"])[1]["pick"] if "window" in answers else None
+        )
+        dec["metric"] = named_metric_of(intent) or "gmv"
+        return dec
+    ranking = False  # a ranking question needs no metric: it defaults to GMV decline
+    if "mode" in answers and "lookup" in answers:
+        okm, im = choice_ok(answers["mode"])
+        okl, il = choice_ok(answers["lookup"])
+        ranking = okm and okl and im["pick"] == "lookup" and il["pick"] in LIST_LOOKUPS
+    ent = entity_kind(intent)
+    if ent and fits > FITS_NO:  # an entity is answered from its own rows by code (Q17): no picker
+        dec.update(outcome="go", mode="lookup", lookup="metric_total")
+        dec["window"] = window_from_phrase(intent.get("time_phrase")) or (
+            choice_ok(answers["window"])[1]["pick"] if "window" in answers else None
+        )
+        named = named_metric_of(intent)
+        dec["metric"] = named or (
+            choice_ok(answers["metric"])[1]["pick"] if "metric" in answers else None
+        )
+        return dec
+    named_metric = named_metric_of(intent)
+    if (
+        fits < FITS_GO and not named_metric and not (ranking and fits > FITS_NO)
+    ):  # a named metric is a fit (J3): no picker
         dec.update(outcome="needs_choice", remaining=[("chain", list(CHAINS))])
         return dec
     unclear: list[tuple[str, list[str]]] = []
@@ -313,6 +648,12 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
             okl, infol = choice_ok(answers["lookup"])
             dec["checks"]["lookup"] = infol
             dec["lookup"] = infol["pick"] if okl else "metric_total"
+            if dec["lookup"] in ("top_products", "metric_total", "top_decliners") and (
+                DECLINE_WORDS.search(
+                    f"{intent.get('metric_phrase') or ''} {intent.get('raw_text') or ''}"
+                )
+            ):
+                dec["lookup"] = "top_decliners"  # "giảm mạnh nhất" is a decline, not top by GMV
     for k in ("chain", "metric", "window", "scope"):
         if k not in answers:
             continue
@@ -321,6 +662,22 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
         dec[k] = info["pick"]
         if not ok:
             unclear.append((k, info["top2"]))
+    preset = window_from_phrase(intent.get("time_phrase"))
+    if preset:  # one phrase, one window; never asked
+        dec["window"] = preset
+        dec["checks"]["window"] = {"pick": preset, "rule": "phrase"}
+        unclear = [x for x in unclear if x[0] != "window"]
+    named = named_metric_of(intent)
+    if named and dec.get("mode") != "lookup":  # a named metric is never asked about (Q19)
+        dec["metric"] = named
+        dec["chain"] = METRIC_CHAIN.get(named, dec.get("chain"))
+        dec["checks"]["metric"] = {"pick": named, "rule": "phrase"}
+        unclear = [x for x in unclear if x[0] not in ("chain", "metric")]
+        answers = {**answers, "metric_named": {"noul": 1.0}}
+    elif named and dec.get("lookup") not in LIST_LOOKUPS:
+        dec["metric"] = named
+        unclear = [x for x in unclear if x[0] != "metric"]
+        answers = {**answers, "metric_named": {"noul": 1.0}}
     mn = answers.get("metric_named", {}).get("noul")
     if mn is not None:
         dec["checks"]["metric_named"] = {
@@ -328,14 +685,14 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
             "rule": f"<={FITS_NO} -> ask which metric",
         }
         if mn <= FITS_NO and not (
-            dec.get("mode") == "lookup" and dec.get("lookup") == "top_products"
+            dec.get("mode") == "lookup" and dec.get("lookup") in LIST_LOOKUPS
         ):
             unclear.insert(0, ("chain", list(CHAINS)))
     pn = answers.get("product_named", {}).get("noul")
     if pn is not None:
         dec["checks"]["product_named"] = {"noul": round(pn, 4)}
     want = CHAIN_METRIC.get(dec.get("chain", ""))
-    if want and dec.get("metric") and dec["metric"] != want:
+    if want and dec.get("metric") and dec["metric"] != want and dec.get("mode") != "lookup":
         if dec["metric"] not in CHAIN_ALLOWED_METRICS.get(dec["chain"], set()):
             dec["checks"]["chain_metric_conflict"] = [dec["chain"], dec["metric"]]
             if dec["checks"]["chain"]["p_top"] >= 0.9:
@@ -350,7 +707,7 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
         dec["scope"] = "product" if pn >= FITS_GO and intent.get("product_phrase") else "shop"
     if (
         dec.get("mode") == "lookup"
-        and dec.get("lookup") != "top_products"
+        and dec.get("lookup") not in LIST_LOOKUPS
         and mn is not None
         and mn <= FITS_NO
     ):
@@ -360,7 +717,7 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     if (
         dec.get("mode") == "lookup"
     ):  # a data answer needs lookup kind + window (+ metric), never chain / scope
-        drop = {"chain", "scope"} | ({"metric"} if dec.get("lookup") == "top_products" else set())
+        drop = {"chain", "scope"} | ({"metric"} if dec.get("lookup") in LIST_LOOKUPS else set())
         unclear = [x for x in unclear if x[0] not in drop]
         dec["checks"].pop("chain_metric_conflict", None)
     order = ["chain", "metric", "window", "scope"]
@@ -381,6 +738,8 @@ QUESTION_VI = {
     "window": "Bạn muốn so sánh khoảng thời gian nào?",
     "product": "Bạn muốn nói sản phẩm nào?",
 }
+NO_FULL_DAY_VI = "Tuần này chưa có ngày nào đủ số liệu. Xem tuần trước?"
+NO_FULL_MONTH_DAY_VI = "Tháng này chưa có ngày nào đủ số liệu. Xem tháng trước?"
 CHAIN_VI = {
     "orders_change": "Đơn hàng",
     "ctr_change": "CTR",
@@ -398,6 +757,8 @@ def options_vi(
     labels: LabelTable,
     as_of: date,
     names: dict[str, str] | None = None,
+    latest: date | None = None,
+    sale_aware: bool = False,
 ) -> list[dict[str, str]]:
     out = []
     for v in values:
@@ -406,7 +767,9 @@ def options_vi(
         elif item == "metric":
             label = labels.metric(v)
         elif item == "window":
-            label = build_windows(v, as_of).label()  # real dates (U5a)
+            label = build_windows(
+                v, anchor_for(v, as_of, latest), sale_aware=sale_aware
+            ).label()  # real dates (U5a)
         else:
             label = (names or {}).get(v, v)
         out.append({"label_vi": label, "value": v})
@@ -420,6 +783,7 @@ def needs_choice_event(
     as_of: date,
     turns: int = 0,
     names: dict[str, str] | None = None,
+    latest: date | None = None,
 ) -> dict[str, Any]:
     """The event + the `pending` state that lets the engine resume in code (no new Jev call)."""
     item, values = dec["remaining"][0]
@@ -433,7 +797,7 @@ def needs_choice_event(
         "type": "needs_choice",
         "item": item,
         "question_vi": QUESTION_VI[item],
-        "options": options_vi(item, values, labels, as_of, names),
+        "options": options_vi(item, values, labels, as_of, names, latest, True),
         "pending": pending,
     }
 

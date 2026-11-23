@@ -258,3 +258,171 @@ class ServiceData:
         else:
             before = await self.cost_lines(a0, b0, item)
         return now, before
+
+    # ------------------------------------------------------------------ entities (Track J)
+
+    #: The shop headline basis (registry / `shopee_analytics.engine`): a confirmed line has a
+    #: payment time and a quantity, and counts in đơn / GMV / AOV unless its status is a refund
+    #: status (`counts_in_sales`); the day is the line's order day. Entity rows use exactly this,
+    #: so they are a subset of the shop totals.
+    @staticmethod
+    def _sales_basis() -> str:
+        from juli_backend.services.shopee_profit.order_profit import REFUND_STATUSES
+
+        refunds = ", ".join(f"'{x.value}'" for x in sorted(REFUND_STATUSES, key=lambda x: x.value))
+        return f"paid_at is not null and qty > 0 and status not in ({refunds})"
+
+    async def entity_totals(
+        self, kind: str, a: date, b: date, item: str | None = None
+    ) -> dict[str, Any]:
+        """Orders, GMV (deal price x qty) and the entity's own cost over [a, b], from the
+        canonical `order_lines`: voucher = lines with a seller voucher share (cost = that share,
+        registry `offer_voucher`); affiliate = lines flagged affiliate (cost = the commission of
+        `affiliate_lines`). Optionally one product."""
+        cond = {
+            "voucher": "shop_voucher_share > 0",
+            "no_voucher": "shop_voucher_share = 0",
+            "affiliate": "affiliate",
+            "all": "1 = 1",  # the shop's own lines on the same basis: the partition's whole
+        }[kind]
+        row = (
+            await self._q(
+                f"""select count(distinct order_ref) as orders,
+                           coalesce(sum(deal_price * qty), 0) as gmv,
+                           coalesce(sum(shop_voucher_share), 0) as voucher_cost
+                      from order_lines
+                     where shop_id = :s and platform = 'shopee' and day between :a and :b
+                       and {self._sales_basis()} and {cond}
+                       and (cast(:i as text) is null or item_id = cast(:i as text))""",
+                a=a,
+                b=b,
+                i=item,
+            )
+        )[0]
+        cost = row["voucher_cost"]
+        if kind == "affiliate":
+            comm = await self._q(
+                """select sum(commission) as c from affiliate_lines
+                    where shop_id = :s and platform = 'shopee' and day between :a and :b
+                      and coalesce(valid, true)
+                      and (cast(:i as text) is null or item_id = cast(:i as text))""",
+                a=a,
+                b=b,
+                i=item,
+            )
+            cost = comm[0]["c"]
+        return {"orders": row["orders"], "gmv": row["gmv"], "cost": cost}
+
+    async def voucher_rows(self, a: date, b: date) -> list[dict[str, Any]]:
+        """One row per voucher code: orders, GMV, the voucher's cost."""
+        return await self._q(
+            f"""select voucher_code as code, count(distinct order_ref) as orders,
+                       coalesce(sum(deal_price * qty), 0) as gmv,
+                       coalesce(sum(shop_voucher_share), 0) as cost
+                  from order_lines
+                 where shop_id = :s and platform = 'shopee' and day between :a and :b
+                   and {self._sales_basis()} and shop_voucher_share > 0
+                   and voucher_code is not null
+                 group by voucher_code order by sum(deal_price * qty) desc""",
+            a=a,
+            b=b,
+        )
+
+    async def _reco_env(self, s: AsyncSession, a: date, b: date) -> Any:
+        from dataclasses import replace
+
+        from juli_backend.services.shopee_analytics import loaders, service
+        from juli_backend.services.shopee_recommendations.env import RecoEnv
+
+        window = await service.resolve(s, self.shop, period="custom", start=a, end=b)
+        if window is None:
+            return None
+        ctx = await loaders.load_context(s, self.shop)
+        ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
+        view = await service.load_view(s, self.shop, ctx, window, funnel=True, rows="soft")
+        return RecoEnv(ctx=ctx, view=view, as_of=b)
+
+    async def product_profit(self, item: str, a: date, b: date) -> dict[str, Any] | None:
+        async with self._f() as s:
+            try:
+                env = await self._reco_env(s, a, b)
+                p = None if env is None else env.product(item)
+                if p is None:
+                    return None
+                return {
+                    "profit": p.profit,
+                    "margin_pct": p.margin_pct,
+                    "coverage_pct": p.cost_coverage_pct,
+                    "gmv": p.gmv,
+                }
+            finally:
+                await s.rollback()
+
+    async def campaign_rows(self, a: date, b: date) -> list[dict[str, Any]]:
+        """Per ad campaign from the ads report (the analytics view): spend, direct GMV, profit
+        before ads read by `shopee_recommendations.evaluate.campaign_profile`; ROAS and ROAS hoà
+        vốn come from the metric registry."""
+        from decimal import Decimal
+
+        from juli_backend.services.analytics_agent.registry_reads import (
+            roas_break_even,
+            roas_direct,
+        )
+        from juli_backend.services.shopee_recommendations.evaluate import campaign_profile
+
+        out: list[dict[str, Any]] = []
+        async with self._f() as s:
+            try:
+                env = await self._reco_env(s, a, b)
+                if env is None:
+                    return []
+                days = Decimal(env.window_days)
+                for c in env.view.ads.campaigns:
+                    prof = campaign_profile(env, c.key)
+                    if prof is None:
+                        continue
+                    direct = prof["direct_per_day"] * days
+                    before_ads = prof["profit_before_ads_per_day"] * days
+                    out.append(
+                        {
+                            "key": c.key,
+                            "name": c.name or c.key,
+                            "spend": c.spend,
+                            "gmv": direct,
+                            "roas": roas_direct(direct, c.spend),
+                            "break_even": roas_break_even(direct, before_ads),
+                            "profit_after_ads": before_ads - c.spend,
+                        }
+                    )
+            finally:
+                await s.rollback()
+        return out
+
+    async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]:
+        """Per day: the shop's ad spend and its summed daily budget (None when a campaign has no
+        budget limit that day). The ads report rows `ads_campaign_daily`, read through the
+        existing `PlatformDailyMetricsRepo`."""
+        from decimal import Decimal
+
+        from juli_backend.repositories import PlatformDailyMetricsRepo
+        from juli_backend.services.shopee_recommendations.loader import ADS_DAILY
+
+        async with self._f() as s:
+            try:
+                rows = await PlatformDailyMetricsRepo(s).window(
+                    self.shop, datasets=[ADS_DAILY], start=a, end=b, any_item=True
+                )
+                plain = [(r.day, r.segment, dict(r.extra or {})) for r in rows]
+            finally:
+                await s.rollback()
+        per: dict[date, dict[str, Any]] = {}
+        for day, seg, extra in plain:
+            if seg == "all":
+                continue
+            d = per.setdefault(day, {"day": day, "spend": Decimal(0), "budget": Decimal(0)})
+            d["spend"] += Decimal(str(extra.get("cost") or 0))
+            bud = extra.get("daily_budget")
+            d["budget"] = (
+                None if bud is None or d["budget"] is None else d["budget"] + Decimal(str(bud))
+            )
+        return [per[k] for k in sorted(per)]

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+
+from juli_backend.services.shopee_kpi.flow_glm import calendar_row
 
 WEEKDAYS = ["thứ Hai", "thứ Ba", "thứ Tư", "thứ Năm", "thứ Sáu", "thứ Bảy", "Chủ nhật"]
 
@@ -16,6 +19,9 @@ class Windows:
     context: tuple[date, date] | None = None
     same_weekday: list[date] = field(default_factory=list)
     flags: list[str] = field(default_factory=list)
+    #: the window the seller asked to compare with, when it held a sale day and `prev` was moved
+    #: to the nearest earlier normal one (a sale week is never the baseline)
+    sale_prev: tuple[date, date] | None = None
 
     def label(self) -> str:
         def f(w: tuple[date, date]) -> str:
@@ -37,14 +43,103 @@ def _clamp_day(y: int, m: int, day: int) -> date:
     return date(y, m, min(day, (nxt - timedelta(days=1)).day))
 
 
+def is_sale_day(d: date) -> bool:
+    """Sale days: double days (11/11, 12/12 ...), the 15th and the 25th: the one calendar of
+    `shopee_kpi.flow_glm.calendar_row`."""
+    cal = calendar_row(d)
+    return bool(cal["double_day"] or cal["day15"] or cal["day25"])
+
+
 def campaign_days(a: date, b: date) -> list[date]:
-    """Shopee double days (11/11, 12/12 ...): day == month."""
+    """Sale days in [a, b] (double days, 15th, 25th)."""
     out, d = [], a
     while d <= b:
-        if d.day == d.month:
+        if is_sale_day(d):
             out.append(d)
         d += timedelta(days=1)
     return out
+
+
+# Calendar windows follow today (VN), not the newest data day; the freshness line names the data.
+CALENDAR_PRESETS = frozenset(
+    {
+        "last_full_week_vs_week_before",
+        "this_week_vs_same_days_last_week",
+        "last_7d_vs_prev_7d",
+        "yesterday_vs_same_weekday",
+        "last_30d_vs_prev_30d",
+        "mtd_vs_same_days_last_month",
+        "last_month_vs_month_before",
+        "named_month_vs_previous",
+    }
+)
+
+
+WEEKLY = frozenset(
+    {"last_full_week_vs_week_before", "this_week_vs_same_days_last_week", "last_7d_vs_prev_7d"}
+)
+
+
+def sale_days_vi(w: Windows) -> str | None:
+    """The sale days inside the compared windows, for the answer's marker line."""
+    days = sorted(
+        set(campaign_days(*w.cur))
+        | (set(campaign_days(*w.sale_prev)) if w.sale_prev else set())
+        | (set(campaign_days(*w.prev)) if w.prev else set())
+    )
+    return "Ngày sale: " + ", ".join(f"{d:%d/%m}" for d in days) if days else None
+
+
+def anchor_for(preset: str, as_of: date, latest: date | None) -> date:
+    """as_of = the newest complete calendar day (yesterday, VN). Calendar presets keep it even
+    when the data stops earlier; the others never run past the newest complete data day."""
+    if preset in CALENDAR_PRESETS or latest is None:
+        return as_of
+    return min(as_of, latest)
+
+
+def this_week_empty(as_of: date) -> bool:
+    """Today (as_of + 1) is a Monday: this week has no complete day yet."""
+    return (as_of + timedelta(days=1)).weekday() == 0
+
+
+def this_period_empty(preset: str, as_of: date) -> bool:
+    """ "Tuần này" on a Monday, "tháng này" on the 1st: no complete day of the period yet."""
+    if preset == "this_week_vs_same_days_last_week":
+        return this_week_empty(as_of)
+    return preset == "mtd_vs_same_days_last_month" and (as_of + timedelta(days=1)).day == 1
+
+
+# One phrase -> one window (J2): the model never decides what "last week" means.
+_PHRASES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(r"tuần\s+(trước|vừa rồi|qua)|last\s+(full\s+)?week|previous\s+week", re.I),
+        "last_full_week_vs_week_before",
+    ),
+    (re.compile(r"tuần\s+này|this\s+week", re.I), "this_week_vs_same_days_last_week"),
+    (re.compile(r"hôm\s+qua|yesterday", re.I), "yesterday_vs_same_weekday"),
+    (
+        re.compile(r"tháng\s+trước|last\s+month|previous\s+month", re.I),
+        "last_month_vs_month_before",
+    ),
+    (re.compile(r"tháng\s+này|this\s+month", re.I), "mtd_vs_same_days_last_month"),
+    (
+        re.compile(r"30\s*ngày\s*(qua|gần nhất|vừa rồi)|(last|past)\s+30\s+days", re.I),
+        "last_30d_vs_prev_30d",
+    ),
+    (
+        re.compile(r"7\s*ngày\s*(qua|gần nhất|vừa rồi)|(last|past)\s+7\s+days", re.I),
+        "last_7d_vs_prev_7d",
+    ),
+)
+
+
+def window_from_phrase(phrase: str | None) -> str | None:
+    """The preset a time phrase names, or None when it names none."""
+    for rx, preset in _PHRASES:
+        if phrase and rx.search(phrase):
+            return preset
+    return None
 
 
 def build_windows(
@@ -53,6 +148,7 @@ def build_windows(
     *,
     explicit: tuple[date, date] | None = None,
     named_month: str | None = None,
+    sale_aware: bool = False,
 ) -> Windows:
     a_ = anchor
     if explicit:
@@ -67,6 +163,11 @@ def build_windows(
         w = Windows(
             preset, (a_ - timedelta(days=6), a_), (a_ - timedelta(days=13), a_ - timedelta(days=7))
         )
+    elif preset == "this_week_vs_same_days_last_week":
+        today = a_ + timedelta(days=1)
+        mon = today - timedelta(days=today.weekday())  # a_ = yesterday
+        last_mon = mon - timedelta(days=7)
+        w = Windows(preset, (mon, a_), (last_mon, last_mon + (a_ - mon)))
     elif preset == "last_full_week_vs_week_before":
         end = a_ - timedelta(days=(a_.weekday() + 1) % 7) if a_.weekday() != 6 else a_
         w = Windows(
@@ -96,8 +197,17 @@ def build_windows(
         first = date(y, m, 1)
         w = Windows(preset, (first, min(_clamp_day(y, m, 31), a_)), _prev_month(first))
     else:
-        w = build_windows("last_30d_vs_prev_30d", a_)
+        w = build_windows("last_30d_vs_prev_30d", a_, sale_aware=sale_aware)
         w.flags.append("window_defaulted")
+    if sale_aware and preset in WEEKLY and w.prev and not explicit and campaign_days(*w.prev):
+        for k in range(1, 6):
+            cand = (w.prev[0] - timedelta(days=7 * k), w.prev[1] - timedelta(days=7 * k))
+            if not campaign_days(*cand):
+                w.sale_prev, w.prev = w.prev, cand
+                w.flags.append("baseline_off_sale")
+                break
+        else:
+            w.flags.append("baseline_is_sale")
     lo = w.prev[0] if w.prev else (w.same_weekday[-1] if w.same_weekday else w.cur[0])
     days = campaign_days(lo, w.cur[1])
     if days:

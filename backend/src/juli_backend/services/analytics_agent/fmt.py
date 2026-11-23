@@ -31,9 +31,9 @@ def value(metric: str, v: float | None) -> str:
         return NODATA
     if metric in RATE2:
         return decimal(100 * v, 2) + "%"
-    if metric == "margin":
+    if metric in ("margin", "cost_ratio"):  # a share, shown as % (never "0")
         return decimal(100 * v, 1) + "%"
-    if metric == "roas":
+    if metric in ("roas", "roas_break_even"):
         return decimal(v, 2)
     if metric in MONEY:
         return integer(v) + "đ"
