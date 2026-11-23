@@ -75,3 +75,4 @@ Before saying "Juli changed X", check the actor or source field of the row (Conn
 | **Tuần** / **tuần trước** / **tuần này** | a week is Mon–Sun. "Tuần trước" = the last complete Mon–Sun. "Tuần này" = Monday to the newest complete day, against the same days last week. |
 | **7 ngày qua** | the last 7 complete days. |
 | **Đề xuất card** | a card in the seller's Đề xuất tab. Chat points to an existing one (flagging duplicates) or drafts a Draft card; it never sends or executes one. |
+| **Ngày chi dưới ngân sách** (tạm, chờ owner) | a day when the shop's ad spend is below its summed daily budget AND it had 0 orders (weekly analysis, Juli Chat). |
