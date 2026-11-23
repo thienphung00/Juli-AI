@@ -970,8 +970,10 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # changes each draw's profit, so a different draw is the middle one, exactly as in
             # the 437bea66 note above (350_716 vs 669_480 for a service fee on / off): 341_945 and
             # 2,79 orders here. Only the choice of draw moved, not the combo's reach or take-up.
-            assert cd["gmv"] == pytest.approx(341_945, rel=0.02)
-            assert round(cd["orders"]) == 3  # 2,79 rounded (was 1,65: the middle draw moved, above)
+            # Batch 1123-e5: hạ tầng is now its own line inside Phí Dịch Vụ, so the learned rate is
+            # 7,71 % (was 5,86 %) and the middle draw moved again: 620_589 / 4,49 orders.
+            assert cd["gmv"] == pytest.approx(620_589, rel=0.02)
+            assert round(cd["orders"]) == 4  # 4,49 rounded (was 3: the middle draw moved, above)
             assert cd["profit"] < 0
             ctx = await builder.build_context(session, report.shop_id, [set2], as_of=END, now=NOW)
             base = integrate.base_for(ctx.env, [nrc], "")
@@ -1022,3 +1024,39 @@ async def test_the_affiliate_programme_has_three_kols_and_a_known_commission(eng
     rows = [r for p in lines for r in p.body["rows"]]
     # the commission is on what the buyer paid (after the shop's combo / voucher)
     assert rows and all(0 < r["cost"] <= round(r["order_value"] * AFFILIATE_RATE) for r in rows)
+
+
+def _income_rows() -> list[dict]:
+    posts = [p for p in generate(END).posts if p.dataset == "order_income"]
+    return [r for p in posts for r in p.body["rows"]]
+
+
+def test_income_rows_carry_phi_ha_tang_as_their_own_line_inside_phi_dich_vu():
+    """Batch 1123-e5 (owner #25/#33/#34): like a real Shopee income file, every order has
+    phí hạ tầng (3.000đ) as its own field, and Phí Dịch Vụ states it inside (7,9 % + 3.000đ)."""
+    from juli_backend.services.shopee_profit.fees import INFRASTRUCTURE_FEE
+
+    rows = _income_rows()
+    assert rows
+    for r in rows:
+        assert r["fee_infra"] == int(INFRASTRUCTURE_FEE)
+        assert r["fee_service"] >= r["fee_infra"]
+        # the payout's gross (payout + every fee + net shipping) is what the buyer paid: never
+        # more than the price plus the shipping the buyer paid, so hạ tầng is deducted once
+        gross = r["payout"] + r["fee_fixed"] + r["fee_service"] + r["fee_payment"]
+        assert gross + r["net_shipping_cost"] <= r["product_price"] + r["ship_buyer_paid"]
+
+
+def test_the_fee_learner_reads_7_9_percent_on_the_sample_income():
+    """Batch 1123-e5: Phí Dịch Vụ minus the own hạ tầng line is the generator's 7,9 % basis
+    (it was 5,86 % when the sample had no hạ tầng part inside Phí Dịch Vụ)."""
+    from juli_backend.services.shopee_analytics.fee_table import learn_service_rate
+
+    rows = [
+        (Decimal(r["product_price"]), Decimal(r["fee_service"]), Decimal(r["fee_infra"]), None)
+        for r in _income_rows()
+    ]
+    rate = learn_service_rate(rows)
+    # 7,71 % not 7,90 %: the 7,9 % is taken on the buyer-paid value (after vouchers) while the
+    # learner divides by the product price (before them), so vouchers pull it down by 0,19 pt
+    assert rate is not None and abs(rate - Decimal("0.079")) <= Decimal("0.0025")
