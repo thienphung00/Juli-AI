@@ -213,3 +213,19 @@ def build_windows(
     if days:
         w.flags.append("contains_campaign_day:" + ",".join(f"{d:%d/%m}" for d in days))
     return w
+
+
+def clip_to_freshness(w: Windows, latest: date) -> Windows:
+    """The window never runs past the newest complete day: a day still being read
+    (shop_metrics_daily `complete=false`) is in no sum. The window before shrinks by the
+    same number of days, so the comparison stays day for day."""
+    if w.cur[1] <= latest:
+        return w
+    cut = timedelta(days=(w.cur[1] - latest).days)
+    w.cur = (min(w.cur[0], latest), latest)
+    if w.prev:
+        w.prev = (w.prev[0], max(w.prev[0], w.prev[1] - cut))
+    if w.sale_prev:
+        w.sale_prev = (w.sale_prev[0], max(w.sale_prev[0], w.sale_prev[1] - cut))
+    w.flags.append("clipped_to_freshness")
+    return w

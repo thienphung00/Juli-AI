@@ -165,10 +165,10 @@ async def test_voucher_orders_are_the_voucher_orders_not_the_shop_orders() -> No
             time_phrase="last week",
         ),
     )
-    tot, rows = sink.of("data_answer")
+    tot, per = sink.of("data_answer")
     assert tot["title_vi"].startswith("Đơn dùng voucher") and tot["value"] == "14"  # 2 x 7, not 210
     assert tot["window_vi"].startswith("16/11–22/11")
-    assert [r["label_vi"] for r in rows["rows"]] == ["VC-A", "VC-B"]
+    assert per["value"] == "Juli chưa có số liệu này"  # no source names the voucher code
     assert res.stop_reasons == ["data_answer"] and not sink.of("path")
 
 
@@ -233,7 +233,9 @@ async def test_campaign_rows_show_roas_against_break_even_and_loss_filter() -> N
     )
     rows = sink.of("data_answer")[0]["rows"]
     assert [r["label_vi"] for r in rows] == ["CDN/01", "CDN/02"]
-    assert rows[0]["value_vi"] == "ROAS 2,50 · hoà vốn 3,00"
+    assert rows[0]["value_vi"] == "Lỗ · ROAS 2,50 · hoà vốn 3,00"
+    assert rows[1]["value_vi"].startswith("Lãi")
+    assert "chi " in rows[0]["detail_vi"] and "GMV" in rows[0]["detail_vi"]
     sink2, _ = await _ask(
         data,
         intent(
@@ -244,7 +246,7 @@ async def test_campaign_rows_show_roas_against_break_even_and_loss_filter() -> N
         _lookup_jev("roas"),
     )
     loss = sink2.of("data_answer")[0]
-    assert loss["title_vi"] == "Chiến dịch dưới ROAS hoà vốn"
+    assert loss["title_vi"] == "Chiến dịch đang lỗ (dưới ROAS hoà vốn)"
     assert [r["label_vi"] for r in loss["rows"]] == ["CDN/01"]
 
 
@@ -357,7 +359,9 @@ async def test_window_chosen_is_the_window_run_and_freshness_is_the_newest_compl
         r2, llm=FakeLLM(None), jev=FakeJev(lambda s, q: full()), data=FakeData(shop)
     )
     da = sink2.of("data_answer")[0]
-    assert da["window_vi"] == shown and da["fresh_vi"] == "Số liệu đến hết 21/11"
+    # J-A7: the sums stop at the freshness day the footer names (day for day with the week before)
+    assert da["window_vi"] == "16/11–21/11 so với 02/11–07/11"
+    assert da["fresh_vi"] == "Số liệu đến hết 21/11"
 
 
 async def test_this_week_on_a_monday_offers_last_week_not_a_one_day_window() -> None:
