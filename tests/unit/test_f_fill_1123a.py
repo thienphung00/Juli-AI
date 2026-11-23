@@ -375,7 +375,7 @@ async def test_a_product_level_voucher_queues_the_product_scope():
 
 
 def test_only_voucher_and_combo_and_text_kinds_have_a_readback_the_rest_are_unsupported():
-    for kind in ("voucher", "combo", "title"):
+    for kind in ("voucher", "title"):
         assert fill_queue.job_json(_row(kind, {}))["readback"] != "unsupported"
     for kind in (
         "price",

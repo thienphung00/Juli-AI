@@ -88,13 +88,24 @@ def test_a_voucher_without_an_id_is_read_back_by_its_code_then_its_name():
     assert revert_fill._readback_of_change("voucher", {}) is None
 
 
-def test_a_combo_is_read_back_by_id_else_name_and_a_programme_has_no_reader():
-    assert revert_fill._readback_of_change("bundle_deal", {"combo_id": "9"})["target"] == {
-        "combo_id": "9"
-    }
-    by_name = revert_fill._readback_of_change("bundle_deal", {"combo_name": "Combo A"})
-    assert by_name["target"] == {"combo_name": "Combo A"} and by_name["forward_kind"] == "combo"
-    assert revert_fill._readback_of_change("product_discount", {"name": "x"}) is None
+def test_a_combo_and_a_programme_have_no_readback_job_but_keep_their_k1_target():
+    for kind in ("bundle_deal", "product_discount", "flash_sale", "add_on", "gift"):
+        assert revert_fill._readback_of_change(kind, {"combo_id": "9", "name": "x"}) is None
+
+
+def test_a_saved_combo_or_programme_says_it_was_not_read_back():
+    for kind in ("combo", "product_discount", "add_on"):
+        saved = job_view.view(_job(kind, status="saved"), {})
+        assert saved["status_label"] == "Đã lưu trên Shopee · chưa đọc lại"
+        assert saved["readback"] == {"result": None, "diffs": []}
+        done = job_view.view(_job(kind, status="filled"), {}, executed=True)
+        assert done["status_label"] == "Đã lưu trên Shopee · chưa đọc lại"
+    assert job_view.view(_job("combo", status="filled"), {})["status_label"] == (
+        "Đã điền · chờ bạn lưu"
+    )
+    assert job_view.view(_job("voucher", status="saved"), {})["status_label"] == (
+        "Đã lưu · chờ xác minh"
+    )  # a voucher keeps its read-back
 
 
 # --------------------------------------------------------------------------- S-E110
@@ -201,7 +212,9 @@ def test_status_words_follow_the_job_status_and_the_read_back_result():
 def test_a_saved_combo_never_reads_0_of_8():
     j = _job("combo", status="saved", payload={"progress": {"filled": 0, "total": 8}})
     v = job_view.view(j, {})
-    assert (v["filled"], v["total"]) == (8, 8) and v["status_label"] == "Đã lưu · chờ xác minh"
+    assert (v["filled"], v["total"]) == (8, 8) and v["status_label"] == (
+        "Đã lưu trên Shopee · chưa đọc lại"
+    )
     queued = job_view.view(_job("combo", payload={"progress": {"filled": 2, "total": 8}}), {})
     assert (queued["filled"], queued["total"]) == (2, 8)
 
@@ -225,8 +238,8 @@ def test_the_undo_job_wins_over_a_finished_forward_job_and_has_its_own_page():
 
 
 def test_a_finished_forward_job_with_a_readback_shows_the_readback_job():
-    fwd = _job("combo", key="combo:1", status="saved")
-    back = _job("readback", key="readback:combo:1", seq=2, status="captured")
+    fwd = _job("voucher", key="voucher:1", status="saved")
+    back = _job("readback", key="readback:voucher:1", seq=2, status="captured")
     assert job_view.pick([fwd, back]) is back
     assert job_view.pick([_job("combo", key="combo:1", status="filled")]).status == "filled"
     cancelled = _job("combo", status="cancelled")

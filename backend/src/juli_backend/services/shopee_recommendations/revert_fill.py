@@ -78,7 +78,6 @@ ERROR_TARGET_UNKNOWN = "revert_target_unknown"
 ERROR_NOT_CONFIRMED = "revert_not_confirmed"
 ERROR_ALREADY_REVERTED = "reco_already_reverted"
 DATASET_ITEMS = "item_catalog"
-DATASET_COMBOS = "combo_list"  # the Connector's combo list reader (S-E118)
 COMBO_CHANGE_KINDS = ("bundle_deal", "combo", "combo_multi")
 #: programme kinds: the executed change carries K1 ids / names, but no list reader confirms them
 #: (D5: a save nobody reads is never a match), so no read-back job is queued
@@ -427,19 +426,6 @@ def _readback_of_change(kind: str, target: dict[str, Any]) -> dict[str, Any] | N
             "target": {k: v for k, v in target.items() if v},
             "datasets": [DATASET_VOUCHERS],
             "forward_kind": "voucher",
-        }
-    if kind in COMBO_CHANGE_KINDS:
-        cid = str(target.get("combo_id") or "")
-        name = str(target.get("combo_name") or target.get("name") or "")
-        ref = cid or name[:40]
-        if not ref:
-            return None
-        return {
-            "key": f"{READBACK_PREFIX}combo:{ref}",
-            "open_path": COMBO_LIST_PATH,
-            "target": {"combo_id": cid} if cid else {"combo_name": name},
-            "datasets": [DATASET_COMBOS],
-            "forward_kind": "combo",
         }
     if kind == "affiliate_commission":
         ids = [str(i) for i in (target.get("product_ids") or [])]

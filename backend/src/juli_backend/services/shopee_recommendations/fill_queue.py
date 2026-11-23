@@ -409,7 +409,6 @@ READBACK_OF_KIND = {
     "title": "item_catalog",
     "description_first_line": "item_catalog",
     "voucher": "voucher_list",
-    "combo": "combo_list",
     "affiliate_commission": "item_catalog",
 }
 READBACK_UNSUPPORTED = "unsupported"

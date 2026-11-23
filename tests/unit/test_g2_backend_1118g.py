@@ -118,10 +118,7 @@ def test_readback_specs_name_the_page_and_dataset():
     assert t["target"] == {"item_id": "9"}
     v = revert_fill._readback_of_change("voucher", {"voucher_id": "5"})
     assert v["key"] == "readback:voucher:5" and v["datasets"] == ["voucher_list"]
-    c = revert_fill._readback_of_change("combo", {"name": "x"})  # S-E118: a combo is read back
-    assert c["key"] == "readback:combo:x" and c["target"] == {"combo_name": "x"}
-    assert c["datasets"] == ["combo_list"] and c["open_path"].endswith("/bundle/list")
-    assert revert_fill._readback_of_change("combo", {}) is None
+    assert revert_fill._readback_of_change("combo", {"name": "x"}) is None  # no combo reader
 
 
 # ------------------------------------------------------------------------------ DB flow

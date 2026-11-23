@@ -47,9 +47,11 @@ def role_of(j: ShopeeFillJob) -> str:
     return ROLE_FORWARD
 
 
-def status_label(role: str, status: str, result: str | None) -> str:
+def status_label(role: str, status: str, result: str | None, unread: bool = False) -> str:
     if status == STATUS_FAILED:
         return FAILED
+    if unread and role != ROLE_READBACK:
+        return fill_queue.SAVED_NOT_READ  # no reader confirms this save (combo, programmes: D5)
     if role == ROLE_READBACK and result == "match":
         return MATCH
     if role == ROLE_READBACK and result == "mismatch":
@@ -133,15 +135,16 @@ async def readback_result(
     return out
 
 
-def view(j: ShopeeFillJob, result: dict[str, Any]) -> dict[str, Any]:
+def view(j: ShopeeFillJob, result: dict[str, Any], executed: bool = False) -> dict[str, Any]:
     role = role_of(j)
+    unread = fill_queue.saved_only(j) and (executed or j.status in (STATUS_SAVED, STATUS_CAPTURED))
     filled, total = _progress(j)
     return {
         "job_id": str(j.id),
         "role": role,
         "kind": j.kind,
         "status": j.status,
-        "status_label": status_label(role, j.status, result.get("result")),
+        "status_label": status_label(role, j.status, result.get("result"), unread),
         "open_path": (j.payload or {}).get("open_path"),
         "filled": filled,
         "total": total,
@@ -150,7 +153,10 @@ def view(j: ShopeeFillJob, result: dict[str, Any]) -> dict[str, Any]:
 
 
 async def for_cards(
-    session: AsyncSession, shop_id: uuid.UUID, card_ids: Iterable[uuid.UUID]
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    card_ids: Iterable[uuid.UUID],
+    executed: frozenset[uuid.UUID] = frozenset(),
 ) -> dict[uuid.UUID, dict[str, Any]]:
     """``{card id: {"job": view | None, "can_mark_done": bool}}`` for every card id given."""
     ids = list(card_ids)
@@ -167,7 +173,7 @@ async def for_cards(
         chosen = pick(rows)
         result = await readback_result(session, shop_id, rows) if chosen is not None else {}
         out[cid] = {
-            "job": None if chosen is None else view(chosen, result),
+            "job": None if chosen is None else view(chosen, result, cid in executed),
             "has_forward": any(
                 role_of(j) == ROLE_FORWARD and j.status != STATUS_CANCELLED for j in rows
             ),
