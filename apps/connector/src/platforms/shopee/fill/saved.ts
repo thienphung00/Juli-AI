@@ -45,9 +45,33 @@ export function bundleIdFrom(body: unknown, depth = 0): string | null {
   return null;
 }
 
-/** The pack's saved signal: the new voucher / combo id in the page's own POST answer to the person's save. */
+/** a2 K2: a POST to a Chương Trình Của Shop / Deal Sốc create / add / save endpoint (a pattern, not recorded: capture 3 pending). */
+export function savedProgrammePath(pathname: string): boolean {
+  return /^\/api\/marketing\/.*(discount|add_on_deal|add-on-deal|addon).*\/(create|add|save)[a-z_]*\/?$/i.test(pathname);
+}
+
+/** The new programme id in a create answer (`discount_id`, `promotion_id`, `add_on_deal_id`), digits only; else null. */
+export function programmeIdFrom(body: unknown, depth = 0): string | null {
+  if (!isRecord(body) || depth > 3) return null;
+  for (const id of [body.discount_id, body.promotion_id, body.add_on_deal_id]) {
+    if ((typeof id === "number" && Number.isSafeInteger(id) && id > 0) || (typeof id === "string" && /^\d{1,20}$/.test(id))) return String(id);
+  }
+  for (const value of Object.values(body)) {
+    const found = programmeIdFrom(value, depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** The pack's saved signal: the new voucher / combo / programme id in the page's own POST answer to the person's save. */
 export function savedSignal(page: PageAnswer): SaveResult | null {
   if (page.method !== "POST") return null;
-  const ref = savedVoucherPath(page.pathname) ? voucherIdFrom(page.body) : savedBundlePath(page.pathname) ? bundleIdFrom(page.body) : null;
+  const ref = savedVoucherPath(page.pathname)
+    ? voucherIdFrom(page.body)
+    : savedBundlePath(page.pathname)
+      ? bundleIdFrom(page.body)
+      : savedProgrammePath(page.pathname)
+        ? programmeIdFrom(page.body)
+        : null;
   return ref ? { ref } : null;
 }

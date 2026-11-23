@@ -106,7 +106,7 @@ describe("F5.2 guided voucher (product voucher, usecase 2, live picker shapes)",
     expect(first).toContain("2. Chọn ngày kết thúc 02/03/2027 23:59");
     expect(first).toContain("3. Bật «Mã giảm giá thông minh»");
     expect(first).toContain("4. Chọn «Chia sẻ thông qua mã Voucher» ở «Thiết lập hiển thị»");
-    expect(first).toContain("5. Bấm «Thêm sản phẩm», tìm theo Mã sản phẩm 1001, tick, bấm Xác nhận của hộp chọn");
+    expect(first).toContain("5. Bấm «Thêm sản phẩm», đổi ô tìm sang «Mã sản phẩm», tìm 1001, tick, bấm Xác nhận của hộp chọn");
     expect(first).toContain("Chưa điền thời gian — đừng bấm Xác nhận");
     // the revealed search box got the id (a value write); the picker itself is still the person's
     expect(input("psearch").value).toBe("1001");

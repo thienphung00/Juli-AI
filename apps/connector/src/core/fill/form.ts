@@ -82,4 +82,4 @@ export interface FormMap<J extends CoreJob = CoreJob> {
 /** The reply of the service worker to the content script's job request. */
 export type JobReply<J extends CoreJob = CoreJob> =
   | { ok: true; value: J }
-  | { ok: false; reason: "inactive" | "unpaired" | "unknown_job" | "wrong_page" | "budget" | "error" };
+  | { ok: false; reason: "inactive" | "unpaired" | "unknown_job" | "malformed_job" | "wrong_page" | "budget" | "error" };

@@ -34,6 +34,12 @@ export type JobKind =
   | "flash_sale_end"
   | "deal_end";
 
+/** batch-1123-a2 C-K1: every kind this version can run (a served job of one of these that does not parse is reported, not dropped). */
+export const JOB_KINDS: readonly JobKind[] = [
+  "title", "description_first_line", "voucher", "ads_edit", "affiliate_commission", "combo", "price", "voucher_end", "combo_end", "readback",
+  "product_discount", "flash_sale", "add_on", "gift", "cover_image", "variation_set", "discount_end", "flash_sale_end", "deal_end",
+];
+
 /** batch-1123-a F: the end jobs of the programmes (revert only, like voucher_end / combo_end). */
 export const DEAL_LIST_QUERY = "?discountType=addondeal&status=all&page=1";
 export const DISCOUNT_LIST_QUERY = "?discountType=all&status=all&page=1";
@@ -59,6 +65,8 @@ export interface VoucherPayload {
   productIds: string[];
   /** "Mã giảm giá thông minh" as the card says (off when the card does not say). */
   smart: boolean;
+  /** a2 C-E111: optional product names by id (`product_names`, parallel to product_ids) for the picker's name search. */
+  productNames?: Record<string, string>;
 }
 
 export interface AdsPayload {
@@ -169,6 +177,8 @@ export interface ComboPayload {
   tiers: { qty: number; value: number }[];
   purchaseLimit?: number;
   productIds: string[];
+  /** a2 C-E111: optional product names by id (`product_names`). */
+  productNames?: Record<string, string>;
 }
 
 /** The row a revert ends: by id first, else by the code (its suffix: the shop's prefix is never assumed), else by name. */
@@ -183,7 +193,8 @@ export interface EndTarget {
 export type ReadbackDataset = "item_catalog" | "voucher_list" | "combo_list";
 
 export interface ReadbackPayload {
-  target: { itemId?: string; voucherId?: string; comboId?: string; name?: string; productIds?: string[] };
+  /** K1: `voucherId` / `comboId` are Shopee's numeric ids; else `voucherCode` (A–Z0–9) or `comboName`. */
+  target: { itemId?: string; voucherId?: string; comboId?: string; voucherCode?: string; comboName?: string; name?: string; productIds?: string[] };
   datasets: ReadbackDataset[];
 }
 
@@ -235,6 +246,23 @@ const ids = (v: unknown): string[] | undefined => {
   return out.length === v.length ? out : undefined;
 };
 
+/**
+ * a2 C-E111: `product_names` (optional, parallel to product_ids) as a map id -> name. Absent: {};
+ * present but malformed: null (the job is malformed).
+ */
+function productNames(raw: unknown, productIds: readonly string[]): Record<string, string> | null {
+  if (raw === undefined || raw === null) return {};
+  if (!Array.isArray(raw) || raw.length !== productIds.length) return null;
+  const out: Record<string, string> = {};
+  for (const [i, name] of raw.entries()) {
+    if (name === null) continue;
+    const s = str(name, 255);
+    if (!s || /[\r\n]/.test(s)) return null;
+    out[productIds[i]!] = s;
+  }
+  return out;
+}
+
 function voucher(raw: Record<string, unknown>): VoucherPayload | null {
   const usecase = raw.usecase === 1 ? 1 : raw.usecase === 2 ? 2 : undefined;
   const name = str(raw.name, 100);
@@ -270,7 +298,9 @@ function voucher(raw: Record<string, unknown>): VoucherPayload | null {
       discount = { type: "percent", value, max: { mode: "limited", value: cap } };
     }
   } else return null;
-  return { usecase, name, codeSuffix, startsAt, endsAt, discount, minSpend, usageTotal, perBuyer, display, productIds, smart };
+  const names = productNames(raw.product_names, productIds);
+  if (!names) return null;
+  return { usecase, name, codeSuffix, startsAt, endsAt, discount, minSpend, usageTotal, perBuyer, display, productIds, smart, ...(Object.keys(names).length > 0 ? { productNames: names } : {}) };
 }
 
 function ads(raw: Record<string, unknown>): AdsPayload | null {
@@ -319,7 +349,9 @@ function combo(raw: Record<string, unknown>): ComboPayload | null {
     if (!qty || !value || (tiers.length > 0 && qty <= (tiers[tiers.length - 1] as { qty: number }).qty)) return null;
     tiers.push({ qty, value });
   }
-  const out: ComboPayload = { name, startsAt, endsAt, discountType, tiers, productIds };
+  const names = productNames(raw.product_names, productIds);
+  if (!names) return null;
+  const out: ComboPayload = { name, startsAt, endsAt, discountType, tiers, productIds, ...(Object.keys(names).length > 0 ? { productNames: names } : {}) };
   if (raw.purchase_limit !== undefined) {
     const limit = int(raw.purchase_limit, 1, MAX_PURCHASE_LIMIT);
     if (!limit) return null;
@@ -381,13 +413,22 @@ const TEXT_KEYS: readonly FillKey[] = ["title", "description_first_line"];
 const digitsOf = (v: unknown): string | undefined =>
   typeof v === "string" && /^\d{1,20}$/.test(v) ? v : typeof v === "number" && Number.isSafeInteger(v) && v > 0 ? String(v) : undefined;
 
+/** K1: a voucher code (A–Z0–9). A typed code stored in `voucher_id` before batch-1123-a2 (E115) is read as the code. */
+const VOUCHER_CODE = /^[A-Z0-9]{1,20}$/;
+
 function endTarget(p: Record<string, unknown>, idKey: "voucher_id" | "combo_id"): EndTarget | null {
-  const id = digitsOf(p[idKey]);
+  const rawId = p[idKey];
+  const id = digitsOf(rawId);
   // t2 (2026-11-18): `code_suffix` (the shop's prefix is not Juli's to know, E54); `code` still read
-  const code = str(p.code_suffix, 20) ?? str(p.code, 40);
+  let code = str(p.code_suffix, 20) ?? str(p.code, 40);
   const name = str(p.name, 100);
-  if (p[idKey] !== undefined && p[idKey] !== null && !id) return null;
-  if (code !== undefined && !/^[A-Z0-9]{1,20}$/.test(code)) return null;
+  if (rawId !== undefined && rawId !== null && !id) {
+    // E115: a voucher's typed code in voucher_id is its code, never an id (K1); anything else is malformed
+    const asCode = idKey === "voucher_id" && typeof rawId === "string" ? rawId.trim().toUpperCase() : "";
+    if (!VOUCHER_CODE.test(asCode)) return null;
+    code = code ?? asCode;
+  }
+  if (code !== undefined && !/^[A-Z0-9]{1,40}$/.test(code)) return null;
   if (!id && !code && !name) return null;
   return { ...(id ? { id } : {}), ...(code ? { code } : {}), ...(name ? { name } : {}) };
 }
@@ -403,8 +444,24 @@ function readback(p: Record<string, unknown>): ReadbackPayload | null {
   for (const [key, out] of [["item_id", "itemId"], ["voucher_id", "voucherId"], ["combo_id", "comboId"]] as const) {
     if (t[key] === undefined || t[key] === null) continue;
     const id = digitsOf(t[key]);
-    if (!id) return null;
-    target[out] = id;
+    if (id) {
+      target[out] = id;
+      continue;
+    }
+    // E115 / K1: a typed voucher code stored as the id is the code
+    const asCode = key === "voucher_id" && typeof t[key] === "string" ? (t[key] as string).trim().toUpperCase() : "";
+    if (!VOUCHER_CODE.test(asCode)) return null;
+    target.voucherCode = asCode;
+  }
+  if (t.voucher_code !== undefined && t.voucher_code !== null) {
+    const code = typeof t.voucher_code === "string" ? t.voucher_code.trim().toUpperCase() : "";
+    if (!/^[A-Z0-9]{1,40}$/.test(code)) return null;
+    target.voucherCode = code;
+  }
+  if (t.combo_name !== undefined && t.combo_name !== null) {
+    const comboName = str(t.combo_name, 100);
+    if (!comboName) return null;
+    target.comboName = comboName;
   }
   const name = str(t.name, 100);
   if (name) target.name = name;
@@ -605,6 +662,18 @@ function programmeEnd(p: Record<string, unknown>): EndTarget | null {
   }
   if (!id && !name && !slot) return null;
   return { ...(id ? { id } : {}), ...(name ? { name } : {}), ...(slot ? { slot } : {}) };
+}
+
+/**
+ * C-K1 (E115): a served job this version would run (a known kind, still queued / opened, a valid id)
+ * that `parseFillJob` refuses: its id, so it is reported to Juli as an error instead of vanishing
+ * from the list. Null for a parsable job, an unknown kind (a newer Juli) or a closed one.
+ */
+export function malformedJobId(raw: unknown): string | null {
+  if (!isRecord(raw)) return null;
+  const id = typeof raw.id === "string" && FILL_JOB_ID_PATTERN.test(raw.id) ? raw.id : null;
+  if (!id || !JOB_KINDS.includes(raw.kind as JobKind) || (raw.status !== "queued" && raw.status !== "opened")) return null;
+  return parseFillJob(raw) ? null : id;
 }
 
 /** One job of the server's answer, or null when anything is off. */
