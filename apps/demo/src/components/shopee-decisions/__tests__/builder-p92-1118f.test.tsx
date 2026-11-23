@@ -25,14 +25,15 @@ describe("F1.7 · Shopee limits before So sánh", () => {
   it("parses hours as HH:mm", () => {
     expect(parseHour("00:00")).toBe(0);
     expect(parseHour("23:00")).toBe(23);
-    expect(parseHour("08:30")).toBeNull();
-    expect(parseHour("23:59")).toBeNull();
+    expect(parseHour("08:30")).toBe(8);
+    expect(parseHour("23:59")).toBe(23);
+    expect(parseHour("08:60")).toBeNull();
     expect(parseHour("8")).toBe(8);
     expect(parseHour("24:00")).toBeNull();
     expect(parseHour("ab")).toBeNull();
   });
 
-  it("a combo with 00:00 / 23:00 builds; a bad hour or any minutes are refused with the hour message", () => {
+  it("a combo with 00:00 / 23:00 builds; a bad time is refused; minutes are kept with the hour message", () => {
     const f = initialForms();
     const combo = { ...f.combo, items: ["1001", "1002"], tiers: [{ qty: "2", value: "5" }, { qty: "3", value: "8" }], start: "2026-11-20", end: "2026-11-21" };
     const good = buildVersion("combo", { ...f, combo: { ...combo, startHour: "00:00", endHour: "23:00" } }, ctx);
@@ -40,8 +41,13 @@ describe("F1.7 · Shopee limits before So sánh", () => {
     expect(good.version).toMatchObject({ start_hour: 0, end_hour: 23 });
     const bad = buildVersion("combo", { ...f, combo: { ...combo, startHour: "25:00" } }, ctx);
     expect(bad.problem).toBe(HOUR_PROBLEM);
-    expect(HOUR_PROBLEM).toBe("Chỉ chọn giờ tròn (0–23)");
-    expect(buildVersion("combo", { ...f, combo: { ...combo, startHour: "08:30" } }, ctx).problem).toBe(HOUR_PROBLEM);
+    expect(HOUR_PROBLEM).toBe("Nhập giờ dạng HH:mm (00:00–23:59)");
+    // E117: minutes are accepted (HH:mm) and kept in the card spec next to the hour
+    const timed = buildVersion("combo", { ...f, combo: { ...combo, startHour: "08:30", endHour: "23:59" } }, ctx);
+    expect(timed.problem).toBeNull();
+    expect(timed.version).toMatchObject({ start_hour: 8, start_minute: 30, end_hour: 23, end_minute: 59 });
+    expect(good.version).not.toHaveProperty("start_minute");
+    expect(buildVersion("combo", { ...f, combo: { ...combo, startHour: "08:60" } }, ctx).problem).toBe(HOUR_PROBLEM);
   });
 
   it("the hour field shows its error next to it", () => {

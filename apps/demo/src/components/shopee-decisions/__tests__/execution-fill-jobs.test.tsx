@@ -68,7 +68,7 @@ describe("Connector điền sẵn · danh sách trang", () => {
     const done = screen.getByRole("button", { name: "Đã làm" });
     expect(done).toBeEnabled();
     fireEvent.click(done);
-    await waitFor(() => expect(reco.calls.find((c) => c.name === "executed")?.args).toEqual(["card-voucher", { voucherId: null }]));
+    await waitFor(() => expect(reco.calls.find((c) => c.name === "executed")?.args).toEqual(["card-voucher", { id: "88001" }]));
   });
 
   it("without a captured id the voucher id is still typed by hand", async () => {

@@ -40,8 +40,10 @@ export interface ApproveInput {
 }
 
 export interface ExecutedInput {
-  /** The voucher's id in Seller Centre (required to read a voucher back). */
-  readonly voucherId?: string | null;
+  /** The numeric id of the object the person saved (digits only; sent as `id`). */
+  readonly id?: string | null;
+  /** A code the person typed (voucher code without the shop prefix, A-Z0-9; sent as `code`, never as an id). */
+  readonly code?: string | null;
   readonly evidenceRef?: string | null;
   readonly executedAt?: string | null;
 }
@@ -187,7 +189,8 @@ export function createRecoApi(options: RecoClientOptions): RecoApi {
     executed: (cardId, body = {}) =>
       call<ExecutedResult>("POST", `${id(cardId)}/executed`, {
         executed_at: body.executedAt ?? null,
-        voucher_id: body.voucherId ?? null,
+        ...(body.id ? { id: body.id } : {}),
+        ...(body.code ? { code: body.code } : {}),
         evidence_ref: body.evidenceRef ?? null,
       }),
     reverted: (cardId, body = {}) => call<RevertedResult>("POST", `${id(cardId)}/reverted`, { note: body.note ?? null, ...(body.manual ? { manual: true } : {}) }),

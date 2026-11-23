@@ -24,13 +24,13 @@ describe("recommendation client", () => {
     await api.approve("c1", { inputs: { a: 1 } });
     await api.requestChange("c1", "note");
     await api.dismiss("c1", { reasonCode: "later" });
-    await api.executed("c1", { voucherId: "v9" });
+    await api.executed("c1", { code: "V9" });
     const bodies = f.mock.calls.map((c) => [c[0], JSON.parse((c[1] as RequestInit).body as string)]);
     expect(bodies).toEqual([
       ["/v1/demo/shopee/recommendations/c1/approve", { inputs: { a: 1 }, note: null, chosen_version: 1, acknowledge_breaches: false }],
       ["/v1/demo/shopee/recommendations/c1/request-change", { note: "note" }],
       ["/v1/demo/shopee/recommendations/c1/dismiss", { reason_code: "later", note: null }],
-      ["/v1/demo/shopee/recommendations/c1/executed", { executed_at: null, voucher_id: "v9", evidence_ref: null }],
+      ["/v1/demo/shopee/recommendations/c1/executed", { executed_at: null, code: "V9", evidence_ref: null }],
     ]);
   });
 
