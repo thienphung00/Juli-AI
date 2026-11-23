@@ -115,6 +115,8 @@ class CardEnginePort(Protocol):
 
     async def engine_card(self, kind: str, item: str | None, as_of: date) -> dict[str, Any]: ...
 
+    async def build_custom(self, spec: dict[str, Any], as_of: date) -> dict[str, Any]: ...
+
 
 @dataclass(frozen=True)
 class LabelTable:

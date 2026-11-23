@@ -183,7 +183,7 @@ async def test_needs_choice_then_resume_from_pending_without_a_new_routing_call(
     )
 
 
-async def test_unsupported_is_fixed_line_with_templates_and_other_platform_switch() -> None:
+async def test_unsupported_offers_closest_action_with_templates_and_other_platform_switch() -> None:
     it = intent(source_phrase="tiktok shop")
     llm = FakeLLM({"restated_vi": "Doanh thu tiktok", "intents": [it]})
     sink, res = await go(
@@ -191,7 +191,7 @@ async def test_unsupported_is_fixed_line_with_templates_and_other_platform_switc
     )
     u = sink.of("unsupported")[0]
     assert (
-        u["text_vi"] == "Juli chưa hỗ trợ câu hỏi này"
+        u["text_vi"].startswith("Juli có thể")
         and len(u["templates"]) == 5
         and u["switch_platform"] == "tiktok"
     )

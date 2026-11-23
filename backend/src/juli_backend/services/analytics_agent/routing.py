@@ -15,6 +15,7 @@ from datetime import date
 from typing import Any
 
 from juli_backend.services.analytics_agent.chains import CHAIN_METRIC
+from juli_backend.services.analytics_agent.create_card import CARD_TYPES
 from juli_backend.services.analytics_agent.types import (
     DataPort,
     JevPort,
@@ -135,7 +136,12 @@ ENTITY_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
         (r"affiliate|tiếp thị liên kết|\bttlk\b|\bkoc\b|\bkol\b|hoa hồng tiếp thị", "affiliate"),
     )
 )
-_AD_WORDS = re.compile(r"quảng cáo|\bqc\b|dvht|dịch vụ hiển thị|\bads?\b|advertis", re.I)
+_AD_WORDS = re.compile(
+    r"quảng cáo|\bqc\b|dvht|dịch vụ hiển thị|\bads?\b|advertis|roas hoà vốn|roas hòa vốn|"
+    r"break-?even",
+    re.I,
+)
+_BREAK_EVEN = re.compile(r"roas hoà vốn|roas hòa vốn|break-?even roas", re.I)
 _CAMPAIGN = re.compile(r"campaign|chiến dịch", re.I)
 
 
@@ -149,6 +155,13 @@ def metric_from_phrase(phrase: str | None) -> str | None:
 def entity_kind(intent: dict[str, Any]) -> str | None:
     """voucher | affiliate | campaign | program when the question names one (not a product: that
     is `scope`). Scans the seller's own words (`raw_text`) as well as the parsed phrases."""
+    # the parser's own entity slot wins; the word lists are only a safety net
+    first = str(intent.get("entity_phrase") or "")
+    for rx, k in ENTITY_WORDS:
+        if first and rx.search(first):
+            return k
+    if first and _CAMPAIGN.search(first):
+        return "campaign"
     blob = " ".join(
         str(intent.get(k) or "")
         for k in ("entity_phrase", "metric_phrase", "source_phrase", "raw_text")
@@ -158,7 +171,21 @@ def entity_kind(intent: dict[str, Any]) -> str | None:
             return k
     if _CAMPAIGN.search(blob) and _AD_WORDS.search(blob):  # a campaign means an ad campaign
         return "campaign"
+    if _BREAK_EVEN.search(blob):  # ROAS hoà vốn: Juli reads it per campaign
+        return "campaign"
     return None
+
+
+CREATE_SLOTS = (
+    "card_type",
+    "from_date",
+    "to_date",
+    "amount",
+    "amount_unit",
+    "min_spend",
+    "quantity",
+    "name",
+)
 
 
 INTENT_TOOL: dict[str, Any] = {
@@ -191,11 +218,19 @@ INTENT_TOOL: dict[str, Any] = {
                         "product_phrase",
                         "source_phrase",
                         "entity_phrase",
+                        *CREATE_SLOTS,
                     ],
                     "properties": {
                         "question_type": {
                             "type": "string",
-                            "enum": ["why_changed", "status", "compare", "plan", "other"],
+                            "enum": [
+                                "why_changed",
+                                "status",
+                                "compare",
+                                "plan",
+                                "create_card",
+                                "other",
+                            ],
                         },
                         "metric_phrase": {"type": ["string", "null"]},
                         "claimed_direction": {
@@ -218,6 +253,24 @@ INTENT_TOOL: dict[str, Any] = {
                             "them, no translation",
                         },
                         "source_phrase": {"type": ["string", "null"]},
+                        "card_type": {
+                            "type": ["string", "null"],
+                            "enum": [*CARD_TYPES, None],
+                            "description": "the kind of card the seller wants created",
+                        },
+                        "from_date": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
+                        "to_date": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
+                        "amount": {
+                            "type": ["number", "null"],
+                            "description": "the discount value the seller said (đ or %)",
+                        },
+                        "amount_unit": {"type": ["string", "null"], "enum": ["vnd", "pct", None]},
+                        "min_spend": {"type": ["integer", "null"], "description": "đ, 0 = none"},
+                        "quantity": {"type": ["integer", "null"]},
+                        "name": {
+                            "type": ["string", "null"],
+                            "description": "a name the seller gave",
+                        },
                         "entity_phrase": {
                             "type": ["string", "null"],
                             "description": "a voucher, affiliate / commission or ad campaign the "
@@ -237,7 +290,15 @@ PARSE_SYSTEM = (
     "verbatim. "
     "Do not invent ids. Dates only when the seller states them. Questions not about the shop's own "
     "sales/traffic data (competitors, tax, forecasts) get question_type 'other'. A question asking "
-    "what the shop should do next / next week, or how to improve, is question_type 'plan'."
+    "what the shop should do next week is question_type 'plan' (only that, not how-to "
+    "questions). A request to create or change something (voucher, discount, combo, deal, gift, "
+    "flash sale, price, product name / title, cover, variation set) is question_type "
+    "'create_card': fill card_type and "
+    "only the slots the seller said (dates as YYYY-MM-DD in the year of today, amount with "
+    "amount_unit vnd or pct), null for "
+    "the rest; never invent a value. A request to change the ads budget, a ROAS target or an "
+    "affiliate commission, a how-to or knowledge question (how to get more views, how a Shopee fee "
+    "is calculated) and a question about competitors are question_type 'other'."
 )
 RESTATE_PREFIX = "Đang tìm hiểu: "
 _PREFIXES = re.compile(r"^\s*(đang tìm hiểu|tôi hiểu)\s*[:：]\s*", re.I)
@@ -280,6 +341,57 @@ async def parse_intents(
 
 def _crit(d: dict[str, str]) -> dict[str, str]:
     return dict(d)
+
+
+async def route(jev: JevPort, intent: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], Usage]:
+    """The Jev routing answers of one intent; a plan / create request needs none (code decides)."""
+    if intent.get("question_type") in ("plan", "create_card"):
+        return {}, Usage()
+    return await jev.ask(jev_state(intent), routing_questions(intent))
+
+
+async def classify(text: str, today: date, llm: LLMPort, jev: JevPort) -> dict[str, Any]:
+    """Parse + routing decision of one message, with NO data reads: what Juli understood and which
+    route it would take. For the 20-question check; costs one parse and one Jev call per intent."""
+    parsed, usage = await parse_intents(llm, text, today)
+    if parsed is None:
+        return {"outcome": "parse_failed", "intents": []}
+    single = len(parsed["intents"]) == 1
+    out: list[dict[str, Any]] = []
+    for intent in parsed["intents"]:
+        if single:
+            intent["raw_text"] = text
+        answers, _ = await route(jev, intent)
+        dec = (
+            decide(intent, answers)
+            if answers
+            or intent.get("question_type")
+            in (
+                "plan",
+                "create_card",
+            )
+            else {"outcome": "go", "checks": {}}
+        )
+        out.append(
+            {
+                "intent": {k: v for k, v in intent.items() if k != "raw_text"},
+                "outcome": dec.get("outcome"),
+                "mode": dec.get("mode"),
+                "chain": dec.get("chain"),
+                "metric": dec.get("metric"),
+                "window": dec.get("window"),
+                "lookup": dec.get("lookup"),
+                "entity": entity_kind(intent),
+                "card_type": intent.get("card_type"),
+                "checks": dec.get("checks"),
+            }
+        )
+    return {
+        "restated": parsed["restated"],
+        "outcome": "parsed",
+        "intents": out,
+        "cost_usd": usage.cost_usd,
+    }
 
 
 def jev_state(intent: dict[str, Any]) -> dict[str, Any]:
@@ -373,6 +485,9 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     """Thresholds (J7) + cross-checks (J6b) + lookup rules. `outcome` = go | needs_choice |
     unsupported."""
     dec: dict[str, Any] = {"checks": {}}
+    if intent.get("question_type") == "create_card":  # J10: a card from a free request
+        dec.update(outcome="go", mode="create")
+        return dec
     if intent.get("question_type") == "plan":  # "what should the shop do next week" (J8)
         dec.update(outcome="go", mode="analysis", window=window_from_phrase("last week"))
         return dec
@@ -387,7 +502,19 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     if fits <= FITS_NO:
         dec["outcome"] = "unsupported"
         return dec
-    if fits < FITS_GO:
+    ent = entity_kind(intent)
+    if ent and fits > FITS_NO:  # an entity is answered from its own rows by code (Q17): no picker
+        dec.update(outcome="go", mode="lookup", lookup="metric_total")
+        dec["window"] = window_from_phrase(intent.get("time_phrase")) or (
+            choice_ok(answers["window"])[1]["pick"] if "window" in answers else None
+        )
+        named = metric_from_phrase(intent.get("metric_phrase"))
+        dec["metric"] = named or (
+            choice_ok(answers["metric"])[1]["pick"] if "metric" in answers else None
+        )
+        return dec
+    named_metric = metric_from_phrase(intent.get("metric_phrase"))
+    if fits < FITS_GO and not named_metric:  # a named metric is a fit (J3): no picker
         dec.update(outcome="needs_choice", remaining=[("chain", list(CHAINS))])
         return dec
     unclear: list[tuple[str, list[str]]] = []

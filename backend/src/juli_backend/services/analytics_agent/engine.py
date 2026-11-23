@@ -9,6 +9,8 @@ recommendation engine. Nothing is written, nothing persisted.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import logging
 import os
 import time
 from collections.abc import Callable
@@ -18,6 +20,7 @@ from zoneinfo import ZoneInfo
 
 from juli_backend.services.analytics_agent import cards as cardstage
 from juli_backend.services.analytics_agent import (
+    create_card,
     entities,
     lookup,
     present,
@@ -44,6 +47,7 @@ from juli_backend.services.analytics_agent.types import (
 )
 
 VN = ZoneInfo("Asia/Ho_Chi_Minh")
+logger = logging.getLogger(__name__)
 CHAIN_TIMEOUT_ENV = "JULI_AGENT_CHAIN_TIMEOUT_S"
 DEFAULT_CHAIN_TIMEOUT_S = 90.0
 #: a chain must end before the run's own 120 s limit, so the answer is `busy`, not a cut-off stream
@@ -59,7 +63,22 @@ def chain_timeout_s() -> float:
     return min(value, MAX_CHAIN_TIMEOUT_S) if value > 0 else DEFAULT_CHAIN_TIMEOUT_S
 
 
-UNSUPPORTED_VI = "Juli chưa hỗ trợ câu hỏi này"
+OFFER_VI = (
+    "Juli có thể xem số liệu (đơn, GMV, chi phí quảng cáo…), giải thích vì sao một chỉ số đổi, "
+    "phân tích tuần hoặc tạo thẻ nháp. Bạn muốn làm gì?"
+)
+LABELS_FOR_OFFER = {
+    "gmv": "GMV",
+    "orders": "số đơn",
+    "ads_spend": "chi phí quảng cáo",
+    "roas": "ROAS",
+    "profit": "lợi nhuận",
+    "margin": "biên lợi nhuận",
+    "views": "lượt xem",
+    "ctr": "CTR",
+    "ctor": "tỷ lệ chuyển đổi",
+    "aov": "AOV",
+}
 NO_TIKTOK_CARD_VI = "Chưa có đề xuất cho TikTok"
 ANALYTICS_PLATFORMS = ("shopee",)  # TikTok joins when P101 W3 opens its analytics routes (U12)
 #: Platforms whose recommendation engine can fill a draft card (Shopee only for now).
@@ -160,17 +179,39 @@ async def run(
 
 
 async def _unsupported(
-    out: _Out, result: AnswerResult, platform: str, switch: str | None = None
+    out: _Out,
+    result: AnswerResult,
+    platform: str,
+    switch: str | None = None,
+    *,
+    text: str | None = None,
+    intent: dict[str, Any] | None = None,
+    restated: str | None = None,
 ) -> None:
+    """J11: nothing fits -> Juli offers the closest thing it can do, or asks ONE question; never a
+    number. The unmet request is logged (hash, restatement, parser output) in the run's routing."""
+    metric = routing.metric_from_phrase((intent or {}).get("metric_phrase"))
+    offer = (
+        f"Juli có thể cho bạn xem {LABELS_FOR_OFFER.get(metric, metric)} theo kỳ bạn chọn. "
+        "Bạn muốn xem kỳ nào?"
+        if metric
+        else OFFER_VI
+    )
     ev: dict[str, Any] = {
         "type": "unsupported",
-        "text_vi": UNSUPPORTED_VI,
+        "text_vi": offer,
         "templates": [t.key for t in TEMPLATES],
     }
     if switch:
         ev["switch_platform"] = switch
     await out.emit(ev)
     result.stop_reasons.append("unsupported")
+    digest = hashlib.sha256((text or "").encode()).hexdigest()[:16]
+    parsed = {k: v for k, v in (intent or {}).items() if k != "raw_text"}
+    result.routing.append(
+        {"step": "unmet_request", "text_hash": digest, "restated": restated, "parsed": parsed}
+    )
+    logger.info("juli_unmet_request", extra={"text_hash": digest, "restated": restated})
 
 
 async def _run(
@@ -213,9 +254,13 @@ async def _run(
             )
         )
     elif req.choice and req.pending:
-        dec = routing.resume(req.pending, req.choice)
         restated = req.pending.get("restated") or routing.RESTATE_PREFIX
-        blocks.append((req.pending["intent"], dec))
+        if (req.pending.get("dec") or {}).get("mode") == "create":  # J10: a slot answer
+            filled = create_card.fill(req.pending["intent"], str(req.choice.get("value") or ""))
+            blocks.append((filled, {"outcome": "go", "mode": "create"}))
+        else:
+            dec = routing.resume(req.pending, req.choice)
+            blocks.append((req.pending["intent"], dec))
         # the intents queued behind the one that asked: every intent gets its answer (B4)
         blocks.extend((i, d) for i, d in req.pending.get("rest") or [])
         more = req.pending.get("more") or []
@@ -223,7 +268,7 @@ async def _run(
         parsed, usage = await routing.parse_intents(llm, req.text or "", as_of)
         result.cost_usd += usage.cost_usd
         if parsed is None:  # parse failed twice: template buttons (J11)
-            await _unsupported(out, result, req.platform)
+            await _unsupported(out, result, req.platform, text=req.text)
             return
         restated = parsed["restated"]
         intents = parsed["intents"][: max_intents or routing.MAX_INTENTS]
@@ -231,9 +276,7 @@ async def _run(
             intents[0]["raw_text"] = req.text or ""
         more = parsed["more"] + parsed["intents"][max_intents or routing.MAX_INTENTS :]
         # one Jev routing request per intent, in parallel
-        replies = await asyncio.gather(
-            *(jev.ask(routing.jev_state(i), routing.routing_questions(i)) for i in intents)
-        )
+        replies = await asyncio.gather(*(routing.route(jev, i) for i in intents))
         for intent, (answers, u) in zip(intents, replies, strict=True):
             result.cost_usd += u.cost_usd
             dec = routing.decide(intent, answers)
@@ -261,7 +304,15 @@ async def _run(
                 }
             )
         if dec["outcome"] == "unsupported":
-            await _unsupported(out, result, req.platform, _other_platform(intent, req.platform))
+            await _unsupported(
+                out,
+                result,
+                req.platform,
+                _other_platform(intent, req.platform),
+                text=req.text,
+                intent=intent,
+                restated=restated,
+            )
             continue
         if windows.this_period_empty(str(dec.get("window")), as_of) and not (
             intent.get("explicit_from") and intent.get("explicit_to")
@@ -333,6 +384,33 @@ async def _answer(
     template: Template | None,
 ) -> None:
     mode = dec.get("mode", "why")
+    if mode == "create":  # J10: a Juli DRAFT card from a free request (never sent)
+        await out.emit(present.status("checking_data"))
+        outcome = cardstage.CardOutcome()
+        what = await create_card.run_create(
+            intent=intent,
+            data=data,
+            engine=engine if req.platform in CARD_PLATFORMS else None,
+            jev=jev,
+            labels=labels,
+            as_of=as_of,
+            restated=restated,
+            emit=out.emit,
+            out_cards=outcome,
+        )
+        result.cost_usd += outcome.cost_usd
+        for a in outcome.accepted:
+            result.cards.append(
+                {
+                    "draft_ref": a["ref"],
+                    "kind": a["kind"],
+                    "item_id": a["item_id"],
+                    "recommended": a["recommended"],
+                    "engine_card": a["engine_card"],
+                }
+            )
+        result.stop_reasons.append("needs_choice" if what == "asked" else "data_answer")
+        return
     if mode == "analysis":  # J8: the weekly analysis, composed by code (no template, no writer)
         no_data = {
             "type": "label",

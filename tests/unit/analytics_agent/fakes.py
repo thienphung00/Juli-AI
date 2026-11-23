@@ -241,6 +241,14 @@ class FakeCardEngine:
         self.calls.append((kind, item))
         return self.per_kind.get(kind, self.result)
 
+    async def build_custom(self, spec: dict[str, Any], as_of: date) -> dict[str, Any]:
+        self.custom_calls = [*getattr(self, "custom_calls", []), spec]
+        return {
+            "ok": True,
+            "kind": "min_spend_voucher",
+            "card": {**engine_card(), "title": "Mã giảm giá cho cả shop", "kind": spec["kind"]},
+        }
+
 
 def version(
     label: str, gmv: float | None, profit: float | None, estimable: bool = True
