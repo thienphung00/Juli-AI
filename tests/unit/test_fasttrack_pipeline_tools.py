@@ -422,3 +422,172 @@ def test_no_pr_run_for_the_tree_is_missing_not_valid():
     get, _ = _fake_github([], {})
     ok, detail = gate_status.ci_gate("t" * 40, get, "o/r")
     assert not ok and detail.startswith("MISSING")
+
+
+# ---- W48 pipeline fixes (pipeline-eval 2026-W47) ------------------------------------------
+
+brief_rules = _load("brief_rules", REPO / "fasttrack" / "bin" / "brief_rules.py")
+
+
+def _st_main(*args: str) -> int:
+    return state.main(list(args))
+
+
+def _read_state(tmp_path: Path) -> dict:
+    return json.loads((tmp_path / "state" / "STATE.json").read_text())
+
+
+def test_an_owner_decision_reaches_every_other_session_once(repo, tmp_path, capsys):
+    _st_main("session", "s1", "--role", "r")
+    _st_main("session", "s2", "--role", "r")
+    assert _st_main("decide", "--session", "s1", "no writes to the shop cover") == 0
+    capsys.readouterr()
+    _st_main("check", "--session", "s2", "--no-refresh")
+    first = capsys.readouterr().out
+    _st_main("check", "--session", "s2", "--no-refresh")
+    second = capsys.readouterr().out
+    _st_main("check", "--session", "s1", "--no-refresh")
+    own = capsys.readouterr().out
+    assert "OWNER DECISION #1" in first and "no writes to the shop cover" in first
+    assert "OWNER DECISION" not in second
+    assert "OWNER DECISION" not in own
+
+
+def test_handover_moves_open_batches_and_claims_and_needs_an_approval(repo, tmp_path):
+    st = _base_state(repo)
+    st["sessions"] = {"old": {"role": "x"}}
+    st["batches"] = {
+        "fasttrack/b1": {"session": "old", "status": "building"},
+        "fasttrack/b0": {"session": "old", "status": "merged"},
+    }
+    st["migrations"] = {
+        "140": {"session": "old", "status": "claimed"},
+        "139": {"session": "old", "status": "live"},
+    }
+    moved = state.handover(st, "old", "new", "owner 2026-11-23")
+    assert st["batches"]["fasttrack/b1"]["session"] == "new"
+    assert st["batches"]["fasttrack/b0"]["session"] == "old"
+    assert st["migrations"]["140"]["session"] == "new"
+    assert st["migrations"]["139"]["session"] == "old"
+    assert st["sessions"]["old"]["role"].startswith("inactive")
+    assert moved == ["batch fasttrack/b1", "migration 140"]
+    with pytest.raises(SystemExit) as exc:
+        _st_main("handover", "--from", "old", "--to", "new")
+    assert exc.value.code == 2  # --approved-by is required
+
+
+def test_only_one_full_suite_holds_the_lock(repo, tmp_path, capsys):
+    assert _st_main("suite-lock", "acquire", "--session", "s1", "--what", "predeploy full") == 0
+    assert _st_main("suite-lock", "acquire", "--session", "s2") == 1
+    assert "already running: s1" in capsys.readouterr().err
+    assert _st_main("suite-lock", "release", "--session", "s2") == 1
+    _st_main("session", "s2", "--role", "r")
+    capsys.readouterr()
+    _st_main("check", "--session", "s2", "--no-refresh")
+    assert "full test suite running: s1" in capsys.readouterr().out
+    assert _st_main("suite-lock", "release", "--session", "s1") == 0
+    assert _read_state(tmp_path)["suite_lock"] is None
+    assert _st_main("suite-lock", "acquire", "--session", "s2") == 0
+
+
+def test_a_stale_suite_lock_can_be_taken(repo):
+    st = _base_state(repo)
+    st["suite_lock"] = {"session": "s1", "what": "x", "at": "2020-01-01T00:00:00Z"}
+    assert state.suite_lock(st, "acquire", "s2", "y") is None
+    assert st["suite_lock"]["session"] == "s2"
+
+
+def test_check_says_to_rotate_a_session_past_six_hours(repo):
+    st = _base_state(repo)
+    st["sessions"] = {
+        "s1": {"started_at": "2020-01-01T00:00:00Z"},
+        "s2": {"started_at": state.now()},
+    }
+    _, adv_old = state.blockers(st, "s1", None)
+    _, adv_new = state.blockers(st, "s2", None)
+    assert any("write the handoff" in a for a in adv_old)
+    assert not any("write the handoff" in a for a in adv_new)
+
+
+def test_session_fresh_resets_the_start(repo, tmp_path):
+    _st_main("session", "s1", "--role", "r")
+    st = json.loads((tmp_path / "state" / "STATE.json").read_text())
+    st["sessions"]["s1"]["started_at"] = "2020-01-01T00:00:00Z"
+    (tmp_path / "state" / "STATE.json").write_text(json.dumps(st))
+    _st_main("session", "s1")
+    assert _read_state(tmp_path)["sessions"]["s1"]["started_at"] == "2020-01-01T00:00:00Z"
+    _st_main("session", "s1", "--fresh")
+    assert _read_state(tmp_path)["sessions"]["s1"]["started_at"] != "2020-01-01T00:00:00Z"
+
+
+def _note(d: Path, name: str, kind: str, desc: str) -> None:
+    (d / f"{name}.md").write_text(
+        f'---\nname: {name}\ndescription: "{desc}"\nmetadata:\n  type: {kind}\n---\n\n{desc}\n'
+    )
+
+
+def test_brief_rules_picks_matching_notes_and_flags_platform_and_library(
+    tmp_path, monkeypatch, capsys
+):
+    mem = tmp_path / "mem"
+    mem.mkdir()
+    _note(
+        mem,
+        "fix-all-staleness",
+        "feedback",
+        "Connector staleness gaps are fixed together, never one dataset",
+    )
+    _note(mem, "ratchet", "feedback", "pytest tests without assert break the test quality ratchet")
+    _note(mem, "who-i-am", "user", "Connector staleness owner profile")
+    _note(mem, "lunch", "project", "Lunch menu planning for the team offsite")
+    brief = tmp_path / "brief.md"
+    brief.write_text("Fix Connector staleness for the Shopee voucher reader; bump the react chart.")
+    monkeypatch.setenv("JULI_FASTTRACK_STATE_DIR", str(tmp_path / "nostate"))
+    assert brief_rules.main([str(brief), "--memory-dir", str(mem), "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    names = [n["name"] for n in out["notes"]]
+    assert names == ["fix-all-staleness"]  # user notes and unrelated notes never match
+    assert {"shopee", "connector", "voucher", "reader"} <= set(out["platform"])
+    assert out["library"] == ["react"]
+
+
+def test_brief_rules_includes_owner_decisions_that_match_the_brief(tmp_path, monkeypatch, capsys):
+    sd = tmp_path / "state"
+    sd.mkdir()
+    (sd / "STATE.json").write_text(
+        json.dumps(
+            {
+                "decisions": [
+                    {
+                        "id": 1,
+                        "text": "voucher reader keeps the per-line promo fields",
+                        "by": "s1",
+                        "at": "t",
+                    },
+                    {"id": 2, "text": "landing page colour stays blue", "by": "s1", "at": "t"},
+                ]
+            }
+        )
+    )
+    monkeypatch.setenv("JULI_FASTTRACK_STATE_DIR", str(sd))
+    brief = tmp_path / "brief.md"
+    brief.write_text("Change the voucher reader promo mapping.")
+    brief_rules.main([str(brief), "--memory-dir", str(tmp_path / "none"), "--json"])
+    out = json.loads(capsys.readouterr().out)
+    assert [d["id"] for d in out["decisions"]] == [1]
+    assert out["library"] == []
+
+
+def test_the_brief_template_and_pipeline_carry_the_w48_rows_and_rules():
+    brief = (REPO / "fasttrack" / "contracts" / "EXECUTOR-BRIEF.md").read_text()
+    for row in ("| R1… |", "| PLATFORM |", "| LIB |", "brief_rules.py"):
+        assert row in brief
+    pipe = (REPO / "fasttrack" / "PIPELINE.md").read_text()
+    for rule in (
+        "Grill exit checklist",
+        "state.py decide",
+        "state.py handover",
+        "suite-lock",
+        "~6 h of work",
+    ):
+        assert rule in pipe
