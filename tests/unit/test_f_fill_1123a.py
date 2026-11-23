@@ -110,7 +110,7 @@ async def test_the_price_revert_holds_the_old_prices():
         {"variation_id": "v1", "price": 100_000, "name": "Hộp 1"}
     ]
     # what the Connector read on the page before it wrote wins over the catalogue
-    fwd.payload = {**fwd.payload, "before_values": {"price:v1": "99.000"}}
+    fwd.payload = {**fwd.payload, "before_values": {"price_v1": "99.000"}}
     assert revert_fill._revert_spec(fwd, {})["payload"]["variations"][0]["price"] == 99_000
 
 
@@ -471,3 +471,68 @@ async def test_a_locked_product_page_ends_the_job_with_the_vietnamese_reason(ses
     )
     assert out["status"] == "failed" and out["error"] == fill_queue.PROMOTION_LOCKED
     assert not fill_queue.promotion_locked([{"key": "promotion_lock", "ok": True}])
+
+
+# ------------------------------------------- decision #13: each Shopee form's own name limit
+
+
+def _add_on(n):
+    return sp.AddOnSpec(
+        kind="add_on", name=n, main_item_id="1", addons=[{"item_id": "2", "pct": 5}]
+    )
+
+
+def _gift(n):
+    trigger = {"type": "min_spend", "amount": 1}
+    return sp.GiftSpec(kind="gift", name=n, gift={"item_id": "3"}, trigger=trigger)
+
+
+def _combo(n):
+    tiers = [{"qty": 2, "value": 5}]
+    return sp.ComboSpec(kind="combo", name=n, item_ids=["1"], discount_type="pct", tiers=tiers)
+
+
+def _discount(n):
+    rows = [{"variation_id": "v1", "discount_pct": 5}]
+    return sp.ProductDiscountSpec(kind="product_discount", name=n, item_id="1", variations=rows)
+
+
+def _title(n):
+    return sp.TitleSpec(kind="title", item_id="1", title=n)
+
+
+@pytest.mark.parametrize(
+    ("make", "limit", "what"),
+    [
+        (_add_on, 25, "Tên Deal Sốc"),
+        (_gift, 25, "Tên Deal Sốc"),
+        (_combo, 25, "Tên Combo Khuyến Mãi"),
+        (_discount, 150, "Tên chương trình khuyến mãi"),
+        (_title, 120, "Tên sản phẩm"),
+    ],
+)
+def test_a_card_name_over_its_forms_limit_is_refused_in_vietnamese(make, limit, what):
+    make("x" * limit)  # at the limit: accepted
+    with pytest.raises(ValidationError) as exc:
+        make("x" * (limit + 1))
+    assert f"{what} tối đa {limit} ký tự." in str(exc.value)
+
+
+async def test_the_fill_refuses_an_over_limit_name_naming_the_limit():
+    combo = _card("bundle_deal", None, {"name": "c" * 26, "tiers": [{"qty": 2, "value": 5}]})
+    job = await _one(combo)
+    assert job["status"] == "failed" and job["error"] == "Tên Combo Khuyến Mãi tối đa 25 ký tự"
+    discount = await _one(_card("product_discount", {"name": "d" * 151}, {"discount_pct": 10}))
+    assert discount["error"] == "Tên chương trình khuyến mãi tối đa 150 ký tự"
+    title = _card("title")
+    title["execution_sheet"] = {
+        "changes": [{"change_kind": "title", "expected": {"title": "t" * 121}}]
+    }
+    assert (await _one(title))["error"] == "Tên sản phẩm tối đa 120 ký tự"
+    deal = await _one(
+        _card(
+            "add_on",
+            {"name": "n" * 26, "main_item_id": "1", "addons": [{"item_id": "2", "pct": 1}]},
+        )
+    )
+    assert deal["error"] == "Tên Deal Sốc tối đa 25 ký tự"

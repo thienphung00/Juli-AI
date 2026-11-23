@@ -19,6 +19,7 @@ The serving rule lives in ``fill_queue._servable_card_jobs``. No migration: the 
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime
 from typing import Any
@@ -218,6 +219,12 @@ def _end_spec(
     }
 
 
+def price_key(variation_id: str) -> str:
+    """The Connector's report key of a variation's price (``price_`` + its letters and digits,
+    the same rule as ``priceKey`` in the Connector's fillers.ts)."""
+    return "price_" + re.sub(r"[^a-z0-9]", "", variation_id.lower())[:30]
+
+
 def _old_prices(payload: dict[str, Any], seen: dict[str, Any]) -> list[dict[str, Any]]:
     """F2: each variation's price before the fill: what the Connector read on the page before it
     wrote (``price:<variation id>``), else the catalogue's price kept in the job."""
@@ -225,7 +232,7 @@ def _old_prices(payload: dict[str, Any], seen: dict[str, Any]) -> list[dict[str,
     out: list[dict[str, Any]] = []
     for v in payload.get("variations") or []:
         vid = str(v.get("variation_id") or "")
-        digits = "".join(ch for ch in str(seen.get(f"price:{vid}") or "") if ch.isdigit())
+        digits = "".join(ch for ch in str(seen.get(price_key(vid)) or "") if ch.isdigit())
         price = int(digits) if digits else (kept.get(vid) or {}).get("price")
         if not price:
             return []

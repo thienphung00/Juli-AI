@@ -101,6 +101,12 @@ MAX_COMBO_NAME = 25
 MAX_COMBO_TIERS = 5
 MAX_COMBO_QTY = 9999
 MAX_PURCHASE_LIMIT = 999_999_999
+#: decision #13 (23/11): each Shopee form's own name limit, said in Vietnamese with the limit
+COMBO_NAME_TOO_LONG = "Tên Combo Khuyến Mãi tối đa 25 ký tự"
+TEXT_TOO_LONG = {
+    "title": "Tên sản phẩm tối đa {} ký tự",
+    "description_first_line": "Dòng đầu mô tả tối đa {} ký tự",
+}
 COMBO_LEGACY_ERROR = "Combo kiểu cũ — tạo lại theo mức ưu đãi của Shopee"
 _COMBO_TYPES = ("pct", "amount", "special_price")
 _TEXT_FIELDS = {
@@ -307,10 +313,12 @@ def _combo_payload(
     if limit is not None and not 1 <= limit <= MAX_PURCHASE_LIMIT:
         return None
     name = str(inputs.get("name") or "").strip() or f"{code} V{version}"
+    if len(name) > MAX_COMBO_NAME:
+        return None
     starts, ends = _combo_window(inputs, now)
     payload: dict[str, Any] = {
         "open_path": COMBO_OPEN_PATH,
-        "name": name[:MAX_COMBO_NAME],
+        "name": name,
         "starts_at": starts,
         "ends_at": ends,
         "discount_type": parsed[0],
@@ -368,7 +376,8 @@ ERR_FLASH_BAD_SLOT = "Khung giờ không có trên Shopee"
 ERR_FLASH_DAY = "Ngày Flash Sale ngoài 7 ngày Shopee cho đặt"
 ERR_FLASH_PCT = "Mức giảm Flash Sale phải từ 5% đến 90%"
 ERR_FLASH_STOCK = "SL khuyến mãi phải từ 1 đến 1000"
-ERR_DEAL_NAME = "Tên Deal Sốc quá 25 ký tự"
+ERR_DEAL_NAME = "Tên Deal Sốc tối đa 25 ký tự"
+ERR_PROGRAMME_NAME = "Tên chương trình khuyến mãi tối đa 150 ký tự"
 ERR_DEAL_ADDONS = "Thiếu sản phẩm chính hoặc sản phẩm mua kèm"
 ERR_GIFT_SPEND = "Thiếu mức «Mua ₫X» của quà tặng"
 ERR_GIFT_UNSOLD = "Quà không bán: Shopee cần quà là sản phẩm của shop"
@@ -590,7 +599,9 @@ def product_discount_payload(
     window = programme_window(spec, inputs, now)
     if window is None:
         return {}, ERR_WINDOW
-    name = _programme_name(spec, inputs, code, version)[:MAX_PROGRAMME_NAME]
+    name = _programme_name(spec, inputs, code, version)
+    if len(name) > MAX_PROGRAMME_NAME:
+        return {}, ERR_PROGRAMME_NAME
     payload: dict[str, Any] = {
         "open_path": DISCOUNT_OPEN_PATH,
         "name": name,
@@ -960,7 +971,11 @@ async def build_jobs(
         for item_ids in items:
             if not item_ids:
                 continue
-            ok = bool(value) and "\n" not in value and len(value) <= int(str(spec["max_chars"]))
+            limit = int(str(spec["max_chars"]))
+            ok = bool(value) and "\n" not in value and len(value) <= limit
+            # decision #13: an over-limit text is refused naming Shopee's limit
+            too_long = len(value) > limit
+            text_error = TEXT_TOO_LONG[kind].format(limit) if too_long else "text_not_fillable"
             field = {k: spec[k] for k in ("key", "label", "mode", "max_chars")}
             job(
                 {"item_id": item_ids[0]},
@@ -969,7 +984,7 @@ async def build_jobs(
                     "open_path": f"/portal/product/{item_ids[0]}",
                     "fields": [{**field, "value": value}],
                 },
-                None if ok else "text_not_fillable",
+                None if ok else text_error,
             )
     elif kind == "voucher":
         groups = [_ids(t.get("product_ids") or [t.get("item_id")]) for t in given]
@@ -1022,7 +1037,9 @@ async def build_jobs(
         cids = list(dict.fromkeys(cids or scope_items))[:MAX_PRODUCTS]
         key = "combo:" + ",".join(cids)[:60]
         payload = _combo_payload(card, base_inputs, p.code, version, now, cids)
-        job({"product_ids": cids}, key, payload or {}, None if payload else "combo_incomplete")
+        named = str(base_inputs.get("name") or "").strip()
+        combo_error = COMBO_NAME_TOO_LONG if len(named) > MAX_COMBO_NAME else "combo_incomplete"
+        job({"product_ids": cids}, key, payload or {}, None if payload else combo_error)
     elif kind == "affiliate_commission":
         ids: list[str] = []
         for t in given:
