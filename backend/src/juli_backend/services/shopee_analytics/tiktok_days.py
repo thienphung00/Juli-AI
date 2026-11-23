@@ -66,6 +66,8 @@ SUM_SOURCES: Mapping[str, Channel] = {
 }
 #: decision #7: shown beside the others, in no sum
 SHOP_TAB_SOURCE = "trang_shop"
+#: the residual source row (``chenh_lech_nguon``): the scope's total minus the sources
+RESIDUAL_SOURCE = "chenh_lech_nguon"
 ZERO = Decimal(0)
 
 
@@ -320,7 +322,13 @@ def _scope_sources(
         item_id=item_id,
         ads=None,
     )
-    tab = channels.get(SHOP_TAB_SOURCE) if channels else None
+    if not channels:
+        # W3.1 (decision #28 Q2): a scope without the A-34 blocks has no source breakdown. The
+        # four sources and Tab cửa hàng are NOT written (their đơn / GMV columns are NOT NULL, so a
+        # 0 would be read as a count); the whole scope sits in the residual, so sources + gap =
+        # the total. Readers show an absent source as "—" (``source_breakdown_missing``).
+        return [r for r in rows if r["source"] == RESIDUAL_SOURCE]
+    tab = channels.get(SHOP_TAB_SOURCE)
     return [_shop_tab(r, tab) if r["source"] == SHOP_TAB_SOURCE else r for r in rows]
 
 
@@ -479,6 +487,7 @@ __all__ = [
     "THROUGH_KEY",
     "AnalyticsDay",
     "ProductDay",
+    "RESIDUAL_SOURCE",
     "analytics_days",
     "covers",
     "flow_table",
