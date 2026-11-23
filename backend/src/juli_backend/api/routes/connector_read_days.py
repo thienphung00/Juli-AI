@@ -1,7 +1,9 @@
 """``GET /v1/connector/shopee/read-days``: the days the Connector still has to read (F4.2).
 
 Same ingest-token auth as the Connector's other calls (the token names exactly one shop);
-read-only. See ``services.ingest.read_days``.
+read-only. See ``services.ingest.read_days``. C5e: each hole day handed out is claimed for the
+asking token, so two computers of one shop do not both read it
+(``services.ingest.read_day_claims``).
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.ingest import PLATFORM_SHOPEE
 from juli_backend.services import ingest as ingest_service
-from juli_backend.services.ingest import read_days
+from juli_backend.services.ingest import read_day_claims, read_days
 
 router = APIRouter(prefix="/connector/shopee", tags=["ingest"])
 
@@ -29,4 +31,7 @@ async def get_read_days(
     if principal.platform != PLATFORM_SHOPEE:
         raise HTTPException(status_code=403, detail={"code": "platform_not_allowed"})
     async with with_shop_scope(session, principal.shop_id):
-        return await read_days.read_days(session, principal.shop_id, principal.platform)
+        answer = await read_days.read_days(session, principal.shop_id, principal.platform)
+    return await read_day_claims.claim_holes(
+        answer, shop_id=principal.shop_id, token_id=principal.token_id
+    )
