@@ -80,6 +80,7 @@ async def shopee_overview(
                 **window_args(period, month, start, end, as_of),
             ),
             shop.platform,
+            "overview",
         )
     except REFUSALS as exc:
         raise refusal(exc, shop.platform) from None
@@ -108,7 +109,7 @@ async def shopee_matrix(
             **window_args(period, month, start, end, as_of),
         )
         body = await reco.attach_card_refs(session, shop_id, "matrix", body, audience="seller")
-        return stamped(body, shop.platform)
+        return stamped(body, shop.platform, "matrix")
     except REFUSALS as exc:
         raise refusal(exc, shop.platform) from None
 
@@ -132,7 +133,7 @@ async def shopee_critical(
             **window_args(period, month, start, end, as_of),
         )
         body = await reco.attach_card_refs(session, shop_id, "critical", body, audience="seller")
-        return stamped(body, shop.platform)
+        return stamped(body, shop.platform, "critical")
     except REFUSALS as exc:
         raise refusal(exc, shop.platform) from None
 
@@ -166,7 +167,7 @@ async def shopee_ranking(
             **window_args(period, month, start, end, as_of),
         )
         body = await reco.attach_card_refs(session, shop_id, "ranking", body, audience="seller")
-        return stamped(body, shop.platform)
+        return stamped(body, shop.platform, "ranking")
     except REFUSALS as exc:
         raise refusal(exc, shop.platform) from None
 
@@ -185,7 +186,7 @@ async def shopee_product(
             session, shop_id, item_id, period=period, as_of=as_of, platform=shop.platform
         )
         body = await reco.attach_card_refs(session, shop_id, "product", body, audience="seller")
-        return stamped(body, shop.platform)
+        return stamped(body, shop.platform, "product")
     except REFUSALS as exc:
         raise refusal(exc, shop.platform) from None
 
@@ -223,7 +224,8 @@ async def shopee_kols(
             limit=limit,
             **window_args(period, month, start, end, as_of),
         )
-        return await reco.attach_kol_cards(session, shop_id, body, audience="seller")
+        body = await reco.attach_kol_cards(session, shop_id, body, audience="seller")
+        return stamped(body, shop.platform, "kols")
     except REFUSALS as exc:
         raise refusal(exc, shop.platform) from None
 
@@ -245,8 +247,12 @@ async def shopee_kols_compare(
     """Phân tích › KOL › So sánh (P100)."""
     shop_id = shop.id
     try:
-        return await queries.kol_compare(
-            session, shop_id, group=group, **window_args(period, month, start, end, as_of)
+        return stamped(
+            await queries.kol_compare(
+                session, shop_id, group=group, **window_args(period, month, start, end, as_of)
+            ),
+            shop.platform,
+            "kols_compare",
         )
     except REFUSALS as exc:
         raise refusal(exc, shop.platform) from None
@@ -269,7 +275,8 @@ async def shopee_product_kols(
         body = await queries.kol_product_tab(
             session, shop_id, item_id, **window_args(period, month, start, end, as_of)
         )
-        return await reco.attach_kol_cards(session, shop_id, body, audience="seller")
+        body = await reco.attach_kol_cards(session, shop_id, body, audience="seller")
+        return stamped(body, shop.platform, "product_kols")
     except REFUSALS as exc:
         raise refusal(exc, shop.platform) from None
 
@@ -297,6 +304,7 @@ async def shopee_channel_split(
                 **window_args(period, month, start, end, as_of),
             ),
             shop.platform,
+            "channel_split",
         )
     except REFUSALS as exc:
         raise refusal(exc, shop.platform) from None
@@ -314,11 +322,15 @@ async def shopee_channel_split_products(
 ) -> dict[str, Any]:
     shop_id = shop.id
     try:
-        return await channel_split.channel_split_products(
-            session,
-            shop_id,
-            platform=shop.platform,
-            **window_args(period, month, start, end, as_of),
+        return stamped(
+            await channel_split.channel_split_products(
+                session,
+                shop_id,
+                platform=shop.platform,
+                **window_args(period, month, start, end, as_of),
+            ),
+            shop.platform,
+            "channel_split_products",
         )
     except REFUSALS as exc:
         raise refusal(exc, shop.platform) from None
@@ -355,6 +367,7 @@ async def shopee_metric_view(
                 **window_args(period, month, start, end, as_of),
             ),
             shop.platform,
+            "metric_view",
         )
     except REFUSALS as exc:
         raise refusal(exc, shop.platform) from None
@@ -373,8 +386,12 @@ async def shopee_kol_section(
     """P100 Phân tích: Tiếp thị liên kết theo KOL, with the previous period."""
     shop_id = shop.id
     try:
-        return await metric_view.kol_section(
-            session, shop_id, audience="seller", **window_args(period, month, start, end, as_of)
+        return stamped(
+            await metric_view.kol_section(
+                session, shop_id, audience="seller", **window_args(period, month, start, end, as_of)
+            ),
+            shop.platform,
+            "kol_section",
         )
     except REFUSALS as exc:
         raise refusal(exc, shop.platform) from None

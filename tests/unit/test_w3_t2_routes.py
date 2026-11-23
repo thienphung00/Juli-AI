@@ -253,19 +253,13 @@ async def test_a_dependency_opens_a_tiktok_shop_on_the_widened_gate() -> None:
     assert await dep(tiktok) is tiktok
 
 
-def test_stamped_sets_the_platform_key_and_the_ads_reason_only() -> None:
-    body = {
-        "platform": "shopee",
-        "label": "Shopee shirt",
-        "rows": [{"name": "Áo Shopee"}],
-        "ads": {"spend": 0, "gmv_placed": 0, "basis": {"key": "placed"}},
-    }
+def test_stamped_sets_the_platform_key_and_leaves_names_alone() -> None:
+    body = {"platform": "shopee", "label": "Shopee shirt", "rows": [{"name": "Áo Shopee"}]}
     assert common.stamped(body, "shopee") is body and body["label"] == "Shopee shirt"
     got = common.stamped(body, "tiktok")
     assert got["platform"] == "tiktok"
     assert got["label"] == "Shopee shirt" and got["rows"][0]["name"] == "Áo Shopee"
-    assert got["ads"]["spend"] is None and got["ads"]["basis"] == {"key": "placed"}
-    assert got["unavailable"]["ads"] == REASON_ADS_SCOPE_MISSING
+    assert "unavailable" not in got  # no kind: nothing is gated
 
 
 def test_builders_take_the_platform_name_from_the_registry() -> None:
@@ -278,24 +272,42 @@ def test_builders_take_the_platform_name_from_the_registry() -> None:
     assert "Shopee" not in fmt.ads_basis_note("tiktok")
 
 
-def test_tiktok_profit_and_margins_are_none_with_the_reason_until_ads_are_known() -> None:
+def test_ads_gate_nulls_the_listed_paths_only_and_names_the_reason() -> None:
+    from juli_backend.services.shopee_analytics import ads_gate
+
     body = {
-        "platform": "shopee",
-        "shop_metrics": {"gmv": 5, "profit": 100, "margin_pct": 12.5},
-        "shop_profit": {
-            "profit": 100,
-            "bridge": {"ads_charged": 7, "product_profit": 9, "ads_total": 3},
-        },
-        "products": [{"gmv": 5, "margin": 0.3, "profit": 4}],
-        "kpis": {"gmv": 5, "profit": 1, "cost_ads": 2, "roi": 1.5},
+        "shop_metrics": {"gmv": 5, "profit": 100, "margin_pct": 12.5, "name": "margin"},
+        "shop_profit": {"profit": 100, "bridge": {"ads_charged": 7, "product_profit": 9}},
+        "profit": {"contribution_before_ads": 4, "orders": 3},
+        "ads": {"spend": 0, "gmv_placed": 0, "basis": {"key": "placed"}},
+        "targets": {"margin_pct": 60},
     }
-    got = common.stamped(body, "tiktok")
-    assert got["shop_metrics"] == {"gmv": 5, "profit": None, "margin_pct": None}
-    assert got["shop_profit"]["profit"] is None
-    assert got["shop_profit"]["bridge"] == {
-        "ads_charged": None, "product_profit": None, "ads_total": None,
-    }  # fmt: skip
-    assert got["products"] == [{"gmv": 5, "margin": None, "profit": None}]
-    assert got["kpis"] == {"gmv": 5, "profit": None, "cost_ads": None, "roi": None}
+    got = common.stamped(body, "tiktok", "overview")
+    assert got["shop_metrics"] == {"gmv": 5, "profit": None, "margin_pct": None, "name": "margin"}
+    assert got["shop_profit"]["profit"] is None and got["shop_profit"]["bridge"] == {
+        "ads_charged": None,
+        "product_profit": None,
+    }
+    assert got["profit"] == {"contribution_before_ads": None, "orders": 3}
+    assert got["ads"]["spend"] is None and got["ads"]["basis"] == {"key": "placed"}
+    assert got["targets"] == {"margin_pct": 60}  # a target is a setting, not a figure
     for key in ("ads", "profit", "margin"):
         assert got["unavailable"][key] == REASON_ADS_SCOPE_MISSING
+    assert ads_gate.ads_unknown("shopee") is None
+
+
+def test_shopee_payloads_are_returned_untouched_by_the_gate() -> None:
+    body = {"shop_metrics": {"profit": 100, "margin_pct": 12.5}, "ads": {"spend": 7}}
+    assert common.stamped(body, "shopee", "overview") is body
+    assert body == {"shop_metrics": {"profit": 100, "margin_pct": 12.5}, "ads": {"spend": 7}}
+
+
+def test_an_unknown_traffic_source_is_left_out_of_the_total_not_an_error() -> None:
+    from dataclasses import replace
+
+    base = base_from_rows(_rows(), "shop")
+    odd = replace(base.sources[0], source="made_up_source")
+    mixed = replace(base, sources=(*base.sources, odd))
+    total = channel_split.total_base(mixed, "tiktok")
+    assert "made_up_source" not in {str(s.source) for s in total.sources}
+    assert total.total("gmv") == TOTAL[3]

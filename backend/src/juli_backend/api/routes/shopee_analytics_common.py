@@ -46,87 +46,17 @@ NO_DATA_BY_PLATFORM: dict[str, dict[str, str]] = {
 }
 
 
-_ADS_FIGURES = (
-    "spend",
-    "gmv_placed",
-    "direct_gmv_placed",
-    "orders_placed",
-    "roas",
-    "roas_broad",
-    "roas_direct",
-    "spend_per_day",
-)
-
-
-#: W3-Q5: without ads spend there is no profit or margin (never a before-ads figure, never 0)
-_PROFIT_FIGURES = frozenset(
-    {
-        "profit",
-        "margin",
-        "margin_pct",
-        "product_profit",
-        "ads_charged",
-        "ads_total",
-        "ads_unattributed",
-        "ads_no_order_days",
-        "ad_spend",
-        "ads_spend",
-        "ads_roas_placed",
-        "cost_total",
-        "cost_ads",
-        "roi",
-    }
-)
-_METRIC_CELLS = ("now", "prev", "change", "impact")
-
-
-def _null_profit(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {
-            k: None if k in _PROFIT_FIGURES and not isinstance(v, (dict, list)) else _null_profit(v)
-            for k, v in value.items()
-        }
-    if isinstance(value, list):
-        return [_null_profit(v) for v in value]
-    return value
-
-
-def _null_margin_view(body: dict[str, Any]) -> None:
-    """A metric-view of ``margin``: every cell is None."""
-    for block in [body.get("total"), *body.get("channels", []), *body.get("products", [])]:
-        if isinstance(block, dict):
-            for key in _METRIC_CELLS:
-                if key in block:
-                    block[key] = None
-
-
-def stamped(body: dict[str, Any], platform: str) -> dict[str, Any]:
-    """The page builders write the platform's name where they build text (``platform`` argument);
-    this sets the ``platform`` key and, for a platform without ads figures, the ads reason
-    (null, never 0). A Shopee payload is returned as it is."""
-    from juli_backend.services.metrics.registry import Platform, source_reason
+def stamped(body: dict[str, Any], platform: str, kind: str | None = None) -> dict[str, Any]:
+    """Sets the ``platform`` key of a page payload for a non-Shopee shop (the builders write the
+    platform's name themselves) and, given the payload ``kind``, applies ``ads_gate`` (profit needs
+    ads). A Shopee payload is returned as it is."""
+    from juli_backend.services.shopee_analytics import ads_gate
 
     if platform == "shopee":
         return body
     if "platform" in body:
         body["platform"] = platform
-    reason = source_reason(Platform(platform), "ads")
-    if reason is not None:
-        gaps = {"ads": reason, "profit": reason, "margin": reason}
-        body["unavailable"] = {**body.get("unavailable", {}), **gaps}
-        body.update(_null_profit({k: v for k, v in body.items() if k != "unavailable"}))
-        if body.get("metric") == "margin":
-            _null_margin_view(body)
-        blocks = [
-            body.get("ads"),
-            *(p.get("ads") for p in body.get("products", []) if isinstance(p, dict)),
-        ]
-        for ads in blocks:
-            if isinstance(ads, dict):
-                for key in _ADS_FIGURES:
-                    if key in ads:
-                        ads[key] = None
-    return body
+    return body if kind is None else ads_gate.apply(body, kind, platform)
 
 
 def refusal(exc: Exception, platform: str = "shopee") -> HTTPException:

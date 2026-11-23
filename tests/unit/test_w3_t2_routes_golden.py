@@ -218,16 +218,79 @@ async def test_a_product_name_containing_shopee_survives_unchanged(session):
     assert "Áo Shopee Edition" in text
 
 
-async def test_profit_and_margins_are_none_with_the_reason_on_tiktok(client):
+#: the profit / margin / contribution / ROI / ad-cost family the sweep looks for (W3-Q5)
+SWEEP_FIELDS = frozenset(
+    {
+        "profit", "profit_vnd", "profit_on_covered_vnd", "profit_before", "profit_after",
+        "profit_per_order", "profit_after_samples", "profit_after_cost", "net_profit",
+        "product_profit", "contribution", "contribution_before_ads", "margin", "margin_pct",
+        "price_margin_pct", "final_margin_pct", "known_cost_gmv_share_pct", "break_even_roas",
+        "roi", "roi_incl_samples", "roas", "roas_broad", "roas_direct", "ads_roas_placed",
+        "ad_spend", "ads_charged", "ads_total", "ads_unattributed", "ads_no_order_days",
+        "other_marketing", "other_marketing_costs", "cost_ads", "cost_total", "spend",
+        "spend_per_day", "gmv_placed", "direct_gmv_placed", "orders_placed", "ads_pct",
+        "extra_spend",
+    }
+)  # fmt: skip
+SWEEP_ROUTES = (
+    *ROUTES,
+    "metric-view?metric=margin",
+    "metric-view?metric=gmv",
+    "ranking?xep_theo=profit_per_day",
+    "ranking?xep_theo=bien",
+)
+
+
+def _numbers(node, path, found):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            _numbers(value, f"{path}.{key}", found)
+    elif isinstance(node, list):
+        for item in node:
+            _numbers(item, f"{path}[]", found)
+    elif isinstance(node, (int, float)) and not isinstance(node, bool):
+        last = path.rsplit(".", 1)[-1]
+        if last in SWEEP_FIELDS and ".targets." not in path + ".":
+            found.append((path, node))
+
+
+@pytest.mark.parametrize("route", SWEEP_ROUTES)
+async def test_no_profit_margin_roi_or_ad_cost_number_anywhere_on_tiktok(client, route):
+    path, _, query = route.partition("?")
+    extra = dict(q.split("=") for q in query.split("&") if q)
+    response = await client.get(f"{DEMO}/{path}", params={**PARAMS, **extra})
+    assert response.status_code == 200, (route, response.text[:200])
+    found: list = []
+    _numbers(response.json(), path, found)
+    assert found == [], found[:8]
+
+
+async def test_the_profit_ranking_is_refused_with_the_reason_on_tiktok(client):
+    body = (await client.get(f"{DEMO}/ranking", params={**PARAMS, "xep_theo": "bien"})).json()
+    assert body["supported"] is False and body["reason"] == "ads_scope_missing"
+
+
+async def test_the_unavailable_map_names_the_reason_on_tiktok(client):
     overview = (await client.get(f"{DEMO}/overview", params=PARAMS)).json()
-    assert overview["shop_metrics"]["profit"] is None
-    assert overview["shop_metrics"]["margin_pct"] is None
-    assert overview["shop_profit"]["profit"] is None
-    assert overview["shop_profit"]["bridge"]["ads_charged"] is None
-    assert overview["unavailable"]["profit"] == "ads_scope_missing"
+    for key in ("ads", "profit", "margin"):
+        assert overview["unavailable"][key] == "ads_scope_missing"
     split = (await client.get(f"{DEMO}/channel-split", params=PARAMS)).json()
-    assert split["kpis"]["profit"] is None and split["unavailable"]["margin"] == "ads_scope_missing"
-    margin = (await client.get(f"{DEMO}/metric-view", params={**PARAMS, "metric": "margin"})).json()
-    assert margin["total"]["now"] is None
-    assert all(c["now"] is None for c in margin["channels"])
-    assert all(p["now"] is None for p in margin.get("products", []))
+    assert split["unavailable"]["margin"] == "ads_scope_missing"
+
+
+async def test_a_shopee_shop_keeps_its_profit_margin_and_ad_figures(session):
+    seeded = await seed_shopee_shop(session, rules=True)
+    app = build_app(session)
+    authenticate(app, user=seeded.user, shop=seeded.shop)
+    async with client_for(app) as c:
+        overview = (await c.get(f"{DEMO}/overview", params=PARAMS)).json()
+        matrix = (await c.get(f"{DEMO}/matrix", params=PARAMS)).json()
+        split = (await c.get(f"{DEMO}/channel-split", params=PARAMS)).json()
+    app.dependency_overrides.clear()
+    assert overview["shop_profit"]["profit"] is not None
+    assert overview["shop_profit"]["margin_pct"] is not None
+    assert overview["profit"]["contribution_before_ads"] is not None
+    assert overview["ads"]["spend"] is not None
+    assert matrix["products"][0]["profit"]["break_even_roas"] is not None
+    assert split["kpis"]["profit"] is not None and split["kpis"]["roi"] is not None
+    assert "unavailable" not in overview and "unavailable" not in split

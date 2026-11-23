@@ -16,7 +16,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.repositories import PlatformItemSnapshotsRepo
-from juli_backend.services.shopee_analytics import kol, loaders, service, stored
+from juli_backend.services.shopee_analytics import ads_gate, kol, loaders, service, stored
 from juli_backend.services.shopee_analytics import kol_compare as kol_compare_mod
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.critical import build_critical
@@ -272,6 +272,18 @@ async def ranking(
     as_of: date | None = None,
     platform: str = "shopee",
 ) -> dict[str, Any]:
+    reason = ads_gate.ads_unknown(platform)
+    if reason is not None and xep_theo in ads_gate.PROFIT_RANKINGS:
+        # W3-Q5: a profit ranking needs ads spend: refused, not ranked on a before-ads figure
+        return {
+            "platform": platform,
+            "kind": kind,
+            "source": source,
+            "sub": sub,
+            "supported": False,
+            "reason": reason,
+            "message": "Chưa có chi phí quảng cáo nên chưa xếp hạng được theo lợi nhuận.",
+        }
     _, now, before = await _views(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )

@@ -50,6 +50,7 @@ Rules (the owner's, ORY 11/10-09/11 as the sanity shape):
 
 from __future__ import annotations
 
+import logging
 import statistics
 import uuid
 from collections.abc import Mapping, Sequence
@@ -84,6 +85,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
 from juli_backend.services.shopee_profit import shop_profit
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 
+LOG = logging.getLogger(__name__)
 SHOP_PLUS_KIND = "ads_shop"
 CARD, SHOP_PAGE, LIVE, VIDEO, AFFILIATE = (
     "the_san_pham_khac",
@@ -246,11 +248,20 @@ def overlay_cells(
 
 def total_base(base: FunnelBase, platform: str = "shopee") -> FunnelBase:
     """The base whose sums are the shop (or product) total: on TikTok without the sources the
-    registry keeps out of it (Tab cửa hàng overlaps the others, decision #7). Shopee: ``base``."""
+    registry keeps out of it (Tab cửa hàng overlaps the others, decision #7). Shopee: ``base``.
+    A source the registry does not know is left out of the total and logged, never an error."""
     if platform == "shopee":
         return base
     plat = Platform(platform)
-    return replace(base, sources=tuple(s for s in base.sources if counts_in_total(plat, s.source)))
+
+    def counts(source: str) -> bool:
+        try:
+            return counts_in_total(plat, source)
+        except KeyError:
+            LOG.warning("unknown traffic source %r left out of the %s total", source, platform)
+            return False
+
+    return replace(base, sources=tuple(s for s in base.sources if counts(str(s.source))))
 
 
 def with_reasons(rows: list[dict[str, Any]], platform: str) -> list[dict[str, Any]]:
