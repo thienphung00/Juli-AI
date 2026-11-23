@@ -293,3 +293,67 @@ def test_the_metric_upsert_compiles_one_guarded_path_on_postgres():
     assert f"END = excluded.source_rank AND ({capture})) THEN coalesce(" in update
     assert "ELSE coalesce(platform_daily_metrics.gmv, excluded.gmv) END" in update
     assert "THEN excluded.source ELSE platform_daily_metrics.source END" in update
+
+
+# ------------------------------------------------------------ C1: a placeholder item is unknown
+
+
+async def _catalogue(session, shop_id) -> None:
+    from juli_backend.models.platform_data import PlatformItem
+
+    session.add(
+        PlatformItem(
+            id=uuid.uuid4(),
+            shop_id=shop_id,
+            platform="shopee",
+            item_id="9001",
+            variation_id="9002",
+            seller_sku="G1",
+            source="file",
+            source_rank=2,
+            source_version="t",
+            mapper_version=1,
+            captured_at=datetime(2026, 10, 29),
+            updated_at=datetime(2026, 10, 29),
+            first_seen_on=date(2026, 10, 1),
+            last_seen_on=date(2026, 10, 28),
+            extra={},
+        )
+    )
+    await session.flush()
+
+
+async def test_a_re_read_with_the_item_replaces_an_unknown_line(session):
+    _, shop = await make_tenant(session)
+    await _catalogue(session, shop.id)
+    await _write(session, shop.id, "extension", 3, T1, sku=None)
+    assert (await _line(session)).item_id == "sku:unknown"
+    await _write(session, shop.id, "extension", 3, T2)
+    line = await _line(session)
+    assert (line.item_id, line.variation_id, line.source_version) == (
+        "9001",
+        "9002",
+        "extension-40",
+    )
+
+
+async def test_a_lower_rank_file_fills_the_unknown_item_and_the_provenance_stays(session):
+    _, shop = await make_tenant(session)
+    await _catalogue(session, shop.id)
+    await _write(session, shop.id, "extension", 3, T1, sku=None)
+    await _write(session, shop.id, "file", 2, T2, deal_price=Decimal(70_000))
+    line = await _line(session)
+    assert (line.item_id, line.variation_id) == ("9001", "9002")
+    assert line.deal_price == Decimal(90_000)  # the Connector's value stays
+    assert (line.source, line.source_rank, line.source_version) == ("extension", 3, "extension-20")
+
+
+async def test_a_placeholder_never_replaces_a_known_item(session):
+    _, shop = await make_tenant(session)
+    await _catalogue(session, shop.id)
+    await _write(session, shop.id, "file", 2, T1)
+    await _write(session, shop.id, "extension", 3, T2, sku=None, deal_price=Decimal(80_000))
+    line = await _line(session)
+    assert (line.item_id, line.variation_id) == ("9001", "9002")
+    assert line.deal_price == Decimal(80_000)  # the higher rank still wins the rest
+    assert line.source == "extension"

@@ -24,6 +24,11 @@ from juli_backend.models.ingest import (
     IngestRawPayload,
     PlatformDailyMetric,
 )
+from juli_backend.models.shopee_profit import ShopeeOrderLine
+from juli_backend.services.ingest.writers import UNRESOLVED_PREFIX
+
+#: The order line the list page gave with no item and no SKU (``writers._line_item``).
+UNKNOWN_ITEM = f"{UNRESOLVED_PREFIX}unknown"
 
 WINDOW_DAYS = 30
 PLATFORM_UTC_OFFSET = timedelta(hours=7)
@@ -146,6 +151,22 @@ async def covered_days(
         .distinct()
     )
     covered["flash_sale"] = {d for (d,) in flash}
+    if extension_only:
+        # C1: a day the Connector read only from the order list, with lines that name no item
+        # (``sku:unknown``), is read again (the order reader then opens each order's detail).
+        unknown = await session.execute(
+            select(ShopeeOrderLine.day)
+            .where(
+                ShopeeOrderLine.shop_id == shop_id,
+                ShopeeOrderLine.platform == platform,
+                ShopeeOrderLine.source == SOURCE_EXTENSION,
+                ShopeeOrderLine.item_id == UNKNOWN_ITEM,
+                ShopeeOrderLine.day >= first,
+                ShopeeOrderLine.day <= last,
+            )
+            .distinct()
+        )
+        covered.setdefault("order_lines", set()).difference_update(d for (d,) in unknown)
     return covered
 
 

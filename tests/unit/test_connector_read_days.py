@@ -195,3 +195,25 @@ async def test_the_seller_status_carries_held_and_reading_days_per_daily_dataset
     assert entries["shop_overview"]["reading_through"] is None
     assert entries["order_income"]["held_through"] == "2026-10-31"
     assert entries["order_income"]["reading_through"] == "2026-10-19"
+
+
+async def test_a_day_with_lines_that_name_no_item_is_read_again(session, monkeypatch):
+    """C1: the triggered re-read of ``sku:unknown`` lines -- the day goes back on the hole list
+    until a read names the items (the order reader then opens each order's detail)."""
+    from tests.unit.test_ingest_composed_precedence import T1, T2, _catalogue, _write
+
+    monkeypatch.setattr(read_days, "vietnam_today", lambda now=None: TODAY)
+    _, shop = await _shopee_tenant(session)
+    await _catalogue(session, shop.id)
+    session.add(_post(shop.id, "order_lines", date(2026, 10, 20), date(2026, 11, 18)))
+    await session.flush()
+    at = datetime(2026, 11, 10, 3, 0)
+    await _write(session, shop.id, "extension", 3, T1, sku=None, ordered_at=at)
+    covered = await read_days.covered_days(session, shop.id, "shopee", TODAY)
+    missing = read_days.missing_by_dataset(covered, TODAY)
+    assert missing["order_lines"] == {"missing": ["2026-11-10"]}
+    held = await read_days.covered_days(session, shop.id, "shopee", TODAY, extension_only=False)
+    assert date(2026, 11, 10) in held["order_lines"]  # still held, only read again
+    await _write(session, shop.id, "extension", 3, T2, ordered_at=at)  # the detail read
+    covered = await read_days.covered_days(session, shop.id, "shopee", TODAY)
+    assert "order_lines" not in read_days.missing_by_dataset(covered, TODAY)
