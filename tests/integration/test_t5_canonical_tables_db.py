@@ -1,12 +1,15 @@
-"""T5, migration 134 on real Postgres: the canonical fact tables, their compat views and times.
+"""T5, migrations 134 + 136 on real Postgres: the canonical fact tables, their times, and the
+compat views 134 created and 136 dropped.
 
-- T1: the seven new names are tables; the seven old names are views over them;
+- T1 / 136 M-1: the seven new names are tables; the seven old names are gone at head (136);
 - T3: no constraint, index or policy of the seven tables still carries a ``shopee_`` name;
 - T4: RLS stays on, the policies still compare with ``app_current_shop_id()``, ``juli_app`` keeps
-  the same verbs (stock_history SELECT, INSERT; the others SELECT, INSERT, UPDATE), on the table
-  and on its view; two tenants on ``order_lines``;
-- T5: the views are ``security_invoker``: tenant A neither reads B's rows nor writes one for B
+  the same verbs (stock_history SELECT, INSERT; the others SELECT, INSERT, UPDATE); two tenants
+  on ``order_lines``;
+- 136 M-2 / T5: a downgrade below 136 recreates the views as 134 did: ``security_invoker``, the
+  table's columns, the table's verbs; tenant A neither reads B's rows nor writes one for B
   through ``shopee_order_lines``, and an insert through the view lands in ``order_lines``;
+  upgrading to 136 again drops exactly the views and leaves the tables (same oid, same rows);
 - T6 / T10: the time columns are ``timestamptz``; ``stock_history`` has its (shop_id, read_at)
   index;
 - last, T6 + T11: rows seeded at 133 (naive Vietnam-local order times, naive UTC read times, an
@@ -36,22 +39,23 @@ from tests.support.postgres import requires_postgres
 pytestmark = [requires_postgres, pytest.mark.migration_heavy]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MIGRATION = (
-    REPO_ROOT / "backend/src/juli_backend/database/migrations/versions/134_canonical_tables.py"
-)
+VERSIONS = REPO_ROOT / "backend/src/juli_backend/database/migrations/versions"
+MIGRATION = VERSIONS / "134_canonical_tables.py"
+MIGRATION_136 = VERSIONS / "136_drop_t5_compat_views.py"
 VERBS = ("SELECT", "INSERT", "UPDATE", "DELETE")
 NOW = datetime(2026, 11, 18, 3, 0)
 
 
-def _module():
-    spec = importlib.util.spec_from_file_location("m134_db", MIGRATION)
+def _module(path: Path, name: str):
+    spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
 
 
-M = _module()
+M = _module(MIGRATION, "m134_db")
+M136 = _module(MIGRATION_136, "m136_db")
 
 
 def _verbs(conn, relation: str) -> set[str]:
@@ -96,10 +100,11 @@ def _line(conn, relation: str, shop_id: uuid.UUID, ref: str) -> None:
     )
 
 
-def test_new_names_are_tables_and_old_names_are_views(owner_engine):
+def test_new_names_are_tables_and_old_names_are_gone_at_head(owner_engine):
     with owner_engine.connect() as conn:
         kinds = {(old, new): (_relkind(conn, old), _relkind(conn, new)) for old, new, _ in M.TABLES}
-    assert kinds == {pair: ("v", "r") for pair in kinds}
+    assert len(kinds) == 7
+    assert kinds == {pair: (None, "r") for pair in kinds}
 
 
 def test_no_constraint_index_or_policy_keeps_the_old_name(owner_engine):
@@ -124,7 +129,7 @@ def test_no_constraint_index_or_policy_keeps_the_old_name(owner_engine):
     assert [name for name in found if "shopee_" in name] == []
 
 
-def test_rls_policies_and_verbs_are_unchanged_on_tables_and_views(owner_engine):
+def test_rls_policies_and_verbs_are_unchanged_on_the_tables(owner_engine):
     with owner_engine.connect() as conn:
         for old, new, verbs in M.TABLES:
             expected = {v.strip() for v in verbs.split(",")}
@@ -134,7 +139,6 @@ def test_rls_policies_and_verbs_are_unchanged_on_tables_and_views(owner_engine):
             ).scalar()
             assert on is True, new
             assert _verbs(conn, new) == expected, new
-            assert _verbs(conn, old) == expected, old
             policies = conn.execute(
                 text(
                     "SELECT cmd, coalesce(qual, '') || ' ' || coalesce(with_check, '') "
@@ -146,39 +150,17 @@ def test_rls_policies_and_verbs_are_unchanged_on_tables_and_views(owner_engine):
             assert all("app_current_shop_id()" in clause for _, clause in policies), policies
 
 
-def test_views_are_security_invoker_on_postgres_15_or_later(owner_engine):
-    with owner_engine.connect() as conn:
-        version = int(conn.execute(text("SHOW server_version_num")).scalar())
-        options = {
-            old: conn.execute(
-                text("SELECT reloptions FROM pg_class WHERE oid = CAST(:t AS regclass)"),
-                {"t": f"public.{old}"},
-            ).scalar()
-            for old, _new, _verbs_ in M.TABLES
-        }
-    assert version >= 150000
-    assert all("security_invoker=true" in (o or []) for o in options.values()), options
-
-
-def test_a_tenant_sees_and_writes_only_its_own_lines_through_table_and_view(
-    owner_engine, two_tenants
-):
+def test_a_tenant_sees_and_writes_only_its_own_lines(owner_engine, two_tenants):
     a, b = two_tenants
     with owner_engine.begin() as conn:
         _line(conn, "order_lines", a.shop_id, "a" * 32)
         _line(conn, "order_lines", b.shop_id, "b" * 32)
     with owner_engine.connect() as conn:
         _scope(conn, a.shop_id)
-        for relation in ("order_lines", "shopee_order_lines"):
-            shops = set(conn.execute(text(f"SELECT shop_id FROM public.{relation}")).scalars())
-            assert shops == {a.shop_id}, relation
-        _line(conn, "shopee_order_lines", a.shop_id, "c" * 32)  # through the view
-        landed = conn.execute(
-            text("SELECT count(*) FROM public.order_lines WHERE order_ref = :r"), {"r": "c" * 32}
-        ).scalar()
-        assert landed == 1
+        shops = set(conn.execute(text("SELECT shop_id FROM public.order_lines")).scalars())
+        assert shops == {a.shop_id}
         with pytest.raises(DBAPIError):
-            _line(conn, "shopee_order_lines", b.shop_id, "d" * 32)
+            _line(conn, "order_lines", b.shop_id, "d" * 32)
         conn.rollback()
         conn.execute(text("RESET ROLE"))
 
@@ -206,6 +188,7 @@ def test_times_are_timestamptz_and_stock_history_has_the_read_index(owner_engine
 
 
 # =========================================================================== conversion, down, up
+# (the tests below walk the chain; they run last in the module, zy before zz)
 
 
 def _cfg():
@@ -350,6 +333,87 @@ def _restored(conn, shop_id: uuid.UUID) -> dict:
     }
 
 
+def _columns(conn, relation: str) -> list[str]:
+    return list(
+        conn.execute(
+            text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = :t ORDER BY ordinal_position"
+            ),
+            {"t": relation},
+        ).scalars()
+    )
+
+
+def _tables_state(conn) -> dict[str, tuple[int, int]]:
+    """(oid, row count) of each of the seven tables: 136 must leave both unchanged."""
+    return {
+        new: (
+            conn.execute(text("SELECT CAST(:t AS regclass)::oid"), {"t": f"public.{new}"}).scalar(),
+            conn.execute(text(f"SELECT count(*) FROM public.{new}")).scalar(),  # nosec B608
+        )
+        for _old, new, _v in M.TABLES
+    }
+
+
+def test_zy_136_downgrade_recreates_the_134_views_and_upgrade_drops_only_them(
+    owner_engine, two_tenants
+):
+    """head -> below 136 (views back, exactly as 134 made them) -> 136 (views gone, tables
+    untouched) -> head."""
+    from alembic import command
+
+    a, b = two_tenants
+    cfg = _cfg()
+    with owner_engine.begin() as conn:
+        _line(conn, "order_lines", a.shop_id, "e" * 32)
+        _line(conn, "order_lines", b.shop_id, "f" * 32)
+    command.downgrade(cfg, M136.down_revision)
+    try:
+        with owner_engine.connect() as conn:
+            version = int(conn.execute(text("SHOW server_version_num")).scalar())
+            assert version >= 150000
+            for old, new, verbs in M.TABLES:
+                assert _relkind(conn, old) == "v", old
+                options = conn.execute(
+                    text("SELECT reloptions FROM pg_class WHERE oid = CAST(:t AS regclass)"),
+                    {"t": f"public.{old}"},
+                ).scalar()
+                assert "security_invoker=true" in (options or []), (old, options)
+                assert _columns(conn, old) == _columns(conn, new), old  # SELECT * of the table
+                assert _verbs(conn, old) == {v.strip() for v in verbs.split(",")}, old
+            # security_invoker: the invoker's RLS applies through the view
+            _scope(conn, a.shop_id)
+            shops = set(
+                conn.execute(text("SELECT shop_id FROM public.shopee_order_lines")).scalars()
+            )
+            assert shops == {a.shop_id}
+            _line(conn, "shopee_order_lines", a.shop_id, "c" * 32)  # through the view
+            landed = conn.execute(
+                text("SELECT count(*) FROM public.order_lines WHERE order_ref = :r"),
+                {"r": "c" * 32},
+            ).scalar()
+            assert landed == 1
+            with pytest.raises(DBAPIError):
+                _line(conn, "shopee_order_lines", b.shop_id, "d" * 32)
+            conn.rollback()
+            conn.execute(text("RESET ROLE"))
+            before = _tables_state(conn)
+            conn.rollback()
+
+        command.upgrade(cfg, M136.revision)
+        with owner_engine.connect() as conn:
+            assert {old: _relkind(conn, old) for old, _n, _v in M.TABLES} == {
+                old: None for old, _n, _v in M.TABLES
+            }
+            assert _tables_state(conn) == before
+            for _old, new, verbs in M.TABLES:
+                assert _relkind(conn, new) == "r", new
+                assert _verbs(conn, new) == {v.strip() for v in verbs.split(",")}, new
+    finally:
+        command.upgrade(cfg, "head")
+
+
 def test_zz_rows_convert_up_and_back_down(owner_engine, two_tenants):
     """Last in the module: rows at 135 (the 133 shape of the seven tables) -> 134 (converted)
     -> 135 (restored) -> head."""
@@ -394,4 +458,4 @@ def test_zz_rows_convert_up_and_back_down(owner_engine, two_tenants):
     finally:
         command.upgrade(cfg, "head")
     with owner_engine.connect() as conn:
-        assert _relkind(conn, "order_lines") == "r" and _relkind(conn, "shopee_order_lines") == "v"
+        assert _relkind(conn, "order_lines") == "r" and _relkind(conn, "shopee_order_lines") is None

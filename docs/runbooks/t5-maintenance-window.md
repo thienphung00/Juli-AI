@@ -1,4 +1,15 @@
-# T5 maintenance window: migration 134 (canonical tables)
+# T5 maintenance windows: migration 134 (canonical tables) and 136 (compat views dropped)
+
+Two windows, one section each. **Migration 134 is applied** (historical section below, kept as
+the record of how it ran). **Migration 136** (`136_drop_t5_compat_views`) is the next one: see
+"Migration 136" at the end.
+
+> **Historical, do not re-run.** The 134 steps 4 and 6 query the old `shopee_*` names (step 4
+> counts through them; step 6 expects them to be views, `v`). Migration 136 drops those views, so
+> on a database at 136 or later these queries fail with `relation does not exist`. The counts
+> and checks for the 136 window use the canonical names only.
+
+## Migration 134 (historical)
 
 Owner decision 2026-11-18. Migration `134_canonical_tables` renames the seven Shopee fact tables,
 renames columns, converts the time columns to `timestamptz` and fills data. The additive-only gate
@@ -12,7 +23,7 @@ code uses old column names and naive order times, and `day` is NOT NULL. A code 
 it forward with a new commit and a new tag. The migration's downgrade exists for tests and a
 supervised emergency, never as part of a rollback.
 
-## Before the window
+### Before the window
 
 - Prod is at `135_connector_multi_computer`: batch 1118e (PR #2328, Connector on several
   computers) is deployed and its additive migration 135 applied. 134 revises 135 (chain
@@ -24,7 +35,7 @@ supervised emergency, never as part of a rollback.
 - No other session holds a deploy (`fasttrack/state.py check`).
 - The pre-migrate dump of `safe-alembic-upgrade.sh` costs about 210 MB of Supabase egress.
 
-## Steps (VPS, as root)
+### Steps (VPS, as root)
 
 1. Pause the workers. They write the canonical tables (metrics rebuild, stock alert).
 
@@ -61,7 +72,7 @@ supervised emergency, never as part of a rollback.
    `133_fleet_draws_real_shops` means 1118e is not deployed (deploy it first, then restart the
    window from step 1); anything else means the chain moved and the batch needs a re-chain.
 
-4. Count the rows before.
+4. Count the rows before. (Historical: run at 135 only; the old names are gone from 136 on.)
 
    ```bash
    psql "$DATABASE_DIRECT_URL" -At -c "SELECT 'order_lines', count(*) FROM public.shopee_order_lines UNION ALL SELECT 'order_settlements', count(*) FROM public.shopee_order_income UNION ALL SELECT 'affiliate_lines', count(*) FROM public.shopee_affiliate_lines UNION ALL SELECT 'shop_metrics_daily', count(*) FROM public.shopee_shop_metrics_daily UNION ALL SELECT 'product_metrics_daily', count(*) FROM public.shopee_product_metrics_daily UNION ALL SELECT 'source_metrics_daily', count(*) FROM public.shopee_source_metrics_daily UNION ALL SELECT 'stock_history', count(*) FROM public.shopee_stock_history" | tee /root/t5-counts-before.txt
@@ -77,7 +88,8 @@ supervised emergency, never as part of a rollback.
    It must end with `safe-alembic-upgrade complete`. It runs the new migration code with the
    current release's interpreter; the T5 batch adds no Python dependency.
 
-6. Check that the head is 134 and the rows are all there.
+6. Check that the head is 134 and the rows are all there. (Historical: the `relkind` query
+   expects the old names as views, true only between 134 and 136.)
 
    ```bash
    PYTHONPATH=/root/Juli-AI-v2/infra/scripts:/root/Juli-AI-v2/backend/src /root/releases/current/.venv/bin/python /root/Juli-AI-v2/infra/scripts/safe_alembic_helpers.py current-revision
@@ -107,7 +119,7 @@ supervised emergency, never as part of a rollback.
    one real shop, compare dashboard GMV, đơn, AOV, ads, profit and both margins with a read-only
    query on the new tables, and check they equal the values from before the window.
 
-## The old API during the window (between step 5 and the deploy)
+### The old API during the window (between step 5 and the deploy)
 
 The old code keeps serving. After 134 it reaches the canonical tables only through the
 `security_invoker` views under the old names. Those views show the NEW column names and aware
@@ -123,8 +135,124 @@ times, so on the Shopee screens and ingest endpoints that touch the seven tables
 
 Keep the gap between step 5 and step 7 short: tag right after step 6.
 
-## If step 5 fails
+### If step 5 fails
 
 `safe-alembic-upgrade.sh` stops before or inside the migration's single transaction, so the
 database stays at 135. Restart the workers (step 8 without the tag), leave the clone where it is,
 and report the output. Do not tag.
+
+## Migration 136: drop the seven compat views
+
+Owner decision 2026-11-20 (decision #34). `136_drop_t5_compat_views` runs `DROP VIEW IF EXISTS`
+on the seven views 134 left under the old names (`shopee_order_lines`, `shopee_order_income`,
+`shopee_affiliate_lines`, `shopee_shop_metrics_daily`, `shopee_product_metrics_daily`,
+`shopee_source_metrics_daily`, `shopee_stock_history`). It touches no table, row, policy or grant.
+The additive gate refuses `DROP VIEW` by design, so 136 runs in a window like 134: the owner
+applies it on the VPS, then tags with nothing pending.
+
+The drop is `RESTRICT` (no `CASCADE`) with a 10 s `lock_timeout`: if anything outside the repo
+(a saved query, a BI view) depends on a view, or a query holds a lock on one, the migration fails
+and the database stays at 138. No code that is deployed reads the old names (audit 2026-11-19), so
+the app keeps working during the window. Forward fix only, as for 134: the downgrade recreates
+the views, but it is for tests and emergencies, not part of a rollback.
+
+### Before the window
+
+- Prod is at `138_juli_agent_spend` (134, 137 and 138 applied).
+- The batch that carries 136 is merged into `fasttrack/optimize-product`, and
+  `fasttrack/gate_status.py` prints VALID for its merge sha (the GitHub gate ran
+  `tests/integration/test_t5_canonical_tables_db.py`, including the 136 down / up test).
+- The owner's read-only dependents check on prod found nothing that depends on the seven views.
+- No other session holds a deploy (`fasttrack/state.py check`).
+- The pre-migrate dump of `safe-alembic-upgrade.sh` costs about 210 MB of Supabase egress.
+
+### Steps (VPS, as root)
+
+1. Pause the workers.
+
+   ```bash
+   systemctl stop juli-celery-beat.service juli-celery-worker.service
+   systemctl is-active juli-celery-beat.service juli-celery-worker.service
+   ```
+
+   Expect `inactive` twice.
+
+2. Put the canonical clone on the merged code.
+
+   ```bash
+   git -C /root/Juli-AI-v2 fetch origin fasttrack/optimize-product
+   git -C /root/Juli-AI-v2 checkout --detach FETCH_HEAD
+   git -C /root/Juli-AI-v2 log -1 --format='%H %s'
+   ls /root/Juli-AI-v2/backend/src/juli_backend/database/migrations/versions/136_drop_t5_compat_views.py
+   ```
+
+   The sha printed must be the one `gate_status.py` called VALID.
+
+3. Load the environment and check that the current revision is 138 and the code's head is 136.
+
+   ```bash
+   set -a; . /etc/juli/api.env; set +a
+   PYTHONPATH=/root/Juli-AI-v2/infra/scripts:/root/Juli-AI-v2/backend/src /root/releases/current/.venv/bin/python /root/Juli-AI-v2/infra/scripts/safe_alembic_helpers.py current-revision
+   PYTHONPATH=/root/Juli-AI-v2/infra/scripts:/root/Juli-AI-v2/backend/src /root/releases/current/.venv/bin/python /root/Juli-AI-v2/infra/scripts/safe_alembic_helpers.py head-revision --alembic-ini /root/Juli-AI-v2/alembic.ini
+   ```
+
+   Expect `138_juli_agent_spend`, then `136_drop_t5_compat_views`. Stop if either differs: the
+   chain moved and the batch needs a re-chain.
+
+4. Before: count the rows of the seven tables and check that the seven views are there.
+
+   ```bash
+   psql "$DATABASE_DIRECT_URL" -At -c "SELECT 'order_lines', count(*) FROM public.order_lines UNION ALL SELECT 'order_settlements', count(*) FROM public.order_settlements UNION ALL SELECT 'affiliate_lines', count(*) FROM public.affiliate_lines UNION ALL SELECT 'shop_metrics_daily', count(*) FROM public.shop_metrics_daily UNION ALL SELECT 'product_metrics_daily', count(*) FROM public.product_metrics_daily UNION ALL SELECT 'source_metrics_daily', count(*) FROM public.source_metrics_daily UNION ALL SELECT 'stock_history', count(*) FROM public.stock_history" | tee /root/t5-136-counts-before.txt
+   psql "$DATABASE_DIRECT_URL" -At -c "SELECT relkind, count(*) FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relname IN ('shopee_order_lines', 'shopee_order_income', 'shopee_affiliate_lines', 'shopee_shop_metrics_daily', 'shopee_product_metrics_daily', 'shopee_source_metrics_daily', 'shopee_stock_history') GROUP BY relkind"
+   ```
+
+   Expect seven count rows, then `v|7`.
+
+5. Upgrade. This takes the pre-migrate dump, applies 136 in one transaction (well under a second)
+   and compares the row counts.
+
+   ```bash
+   RELEASE_DIR=/root/Juli-AI-v2 VENV_PYTHON=/root/releases/current/.venv/bin/python ALEMBIC_BIN=/root/releases/current/.venv/bin/alembic PYTHONPATH=/root/Juli-AI-v2/backend/src API_ENV_FILE=/etc/juli/api.env /root/Juli-AI-v2/infra/scripts/safe-alembic-upgrade.sh
+   ```
+
+   It must end with `safe-alembic-upgrade complete`.
+
+6. After: the head is 136, the views are gone, the tables and their row counts are unchanged.
+
+   ```bash
+   PYTHONPATH=/root/Juli-AI-v2/infra/scripts:/root/Juli-AI-v2/backend/src /root/releases/current/.venv/bin/python /root/Juli-AI-v2/infra/scripts/safe_alembic_helpers.py current-revision
+   psql "$DATABASE_DIRECT_URL" -At -c "SELECT count(*) FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relname IN ('shopee_order_lines', 'shopee_order_income', 'shopee_affiliate_lines', 'shopee_shop_metrics_daily', 'shopee_product_metrics_daily', 'shopee_source_metrics_daily', 'shopee_stock_history')"
+   psql "$DATABASE_DIRECT_URL" -At -c "SELECT relkind, count(*) FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relname IN ('order_lines', 'order_settlements', 'affiliate_lines', 'shop_metrics_daily', 'product_metrics_daily', 'source_metrics_daily', 'stock_history') GROUP BY relkind"
+   psql "$DATABASE_DIRECT_URL" -At -c "SELECT 'order_lines', count(*) FROM public.order_lines UNION ALL SELECT 'order_settlements', count(*) FROM public.order_settlements UNION ALL SELECT 'affiliate_lines', count(*) FROM public.affiliate_lines UNION ALL SELECT 'shop_metrics_daily', count(*) FROM public.shop_metrics_daily UNION ALL SELECT 'product_metrics_daily', count(*) FROM public.product_metrics_daily UNION ALL SELECT 'source_metrics_daily', count(*) FROM public.source_metrics_daily UNION ALL SELECT 'stock_history', count(*) FROM public.stock_history" | tee /root/t5-136-counts-after.txt
+   diff /root/t5-136-counts-before.txt /root/t5-136-counts-after.txt && echo "row counts equal"
+   ```
+
+   Expect `136_drop_t5_compat_views`, then `0` (no old name left), then `r|7`, then "row counts
+   equal". The workers are paused, but the Connector can still post: a count that is higher
+   after is new data and fine; a count that is lower is a stop (report it, do not tag).
+
+7. Tag the sha from step 2, from the owner's Mac, with the `deploy` skill's tag step (it prints
+   the exact `fasttrack/bin/tag-deploy.sh` command for the batch worktree). Watch the run with
+   `fasttrack/bin/deploy_watch.py`. In the deploy log the additive gate must report
+   `pending revisions inspected: (none)` and ACCEPTED.
+
+8. Unpause the workers once the deploy is green, and check the app.
+
+   ```bash
+   systemctl start juli-celery-worker.service juli-celery-beat.service
+   systemctl is-active juli-celery-worker.service juli-celery-beat.service
+   curl -sS http://127.0.0.1:8000/health
+   curl -sS https://api.app-juli.com/health
+   ```
+
+   Expect `active` twice and two healthy responses. Then run the LIVE check: on the sample shop
+   and one real shop, the dashboard GMV, đơn, AOV, ads, profit and both margins against a
+   read-only query on the canonical tables, same window. They must equal the values from before
+   the window (136 changes no data).
+
+### If step 5 fails
+
+The migration runs in one transaction, so the database stays at 138 with the views in place.
+`DependentObjectsStillExist` names the object that depends on a view: report it and do not
+remove it without the owner. `LockNotAvailable` means a query held a lock past 10 s: re-run step
+5. In both cases restart the workers (step 8 without the tag) and do not tag.

@@ -296,9 +296,8 @@ class TestTheMigrationMatchesTheModel:
 
         parents = {down for down in revisions.values() if down}
         heads = sorted(rev for rev in revisions if rev not in parents)
-        # The one constant this pair carries, and the only one it can: a head
-        # is a name, and naming it is what makes "exactly one" checkable. Each
-        # new `versions/` revision moves it forward by one line. #1706 moved it
+        # History: until 136 this pinned the head by name, and each new
+        # `versions/` revision moved it forward by one line. #1706 moved it
         # from `071_sync_state_last_outcome` to `073_waiting_external`; fast
         # track P1-B added `074_shop_ingestion_state` and P1-A
         # `075_analytics_breakdown` on top of it; P7-A
@@ -328,8 +327,15 @@ class TestTheMigrationMatchesTheModel:
         # forecast grill F6 `133_fleet_draws_real_shops` (on W2a 132);
         # Connector R7 `135_connector_multi_computer` (on 133); T5 `134_canonical_tables` (on 135).
         # Juli tab `137_juli_agent_chat` (on 134).
-        # Juli tab spend 138_juli_agent_spend (on 137).
-        assert heads == ["138_juli_agent_spend"], heads
+        # Juli tab spend 138_juli_agent_spend (on 137); T5 compat views dropped
+        # `136_drop_t5_compat_views` (on 138). Since 136 the head is no longer named
+        # here: exactly one head, and 136 is on the chain walked down from it.
+        assert len(heads) == 1, heads
+        chain, rev = set(), heads[0]
+        while rev:
+            chain.add(rev)
+            rev = revisions[rev]
+        assert "136_drop_t5_compat_views" in chain, sorted(chain)
 
     def test_every_model_column_is_added_by_the_migration(self):
         """The two lists must agree, or SQLite-backed tests pass over a schema
