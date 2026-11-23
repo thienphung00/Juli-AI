@@ -1768,7 +1768,8 @@ def _affiliate_without_orders(
     env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any]
 ) -> Evaluation:
     """S5 (Q8): a commission change on a product with no orders in the window, on the prior of
-    ``no_order_prior`` (the shop's median orders +5 %). Nothing is measured on the product yet, so
+    ``no_order_prior`` (5 % of the shop's median orders, over a base of 0).
+    Nothing is measured on the product yet, so
     there is no floor check and no five numbers; the figures are the prior's."""
     from juli_backend.services.shopee_recommendations.no_order_prior import order_prior
     from juli_backend.services.shopee_recommendations.prediction import size_scale
@@ -1783,19 +1784,21 @@ def _affiliate_without_orders(
     if cand.extra.get("current_commission_pct") is not None:
         cur = D(cand.extra["current_commission_pct"])
     window = Decimal(env.window_days)
-    gmv = prior.orders * prior.aov
-    comm_before = gmv * (cur / 100 if cur is not None else ZERO)
+    gmv = prior.orders * prior.aov  # the GAIN in GMV over the window (the base is 0 orders)
+    comm_before = ZERO  # no order today, so no commission today
     comm_after = gmv * new_rate
+    gain_profit = gmv * prior.profit_per_gmv if prior.profit_per_gmv is not None else ZERO
     sample = D(inputs.get("sample_cost") or 0)
     days = Decimal(config.DAYS_PER_MONTH)
     change = new_rate * 100 - (cur if cur is not None else ZERO)
     profit = ProfitModel(
         effect_days=config.DAYS_PER_MONTH,
-        base_gmv_per_day=gmv / window,
-        base_orders_per_day=prior.orders / window,
+        base_gmv_per_day=ZERO,
+        base_orders_per_day=ZERO,
+        certain_dgmv_per_day=gmv / window,
         aov=prior.aov,
         profit_per_gmv=prior.profit_per_gmv,
-        extra_cost_per_day=(comm_after - comm_before) / window + sample / days,
+        extra_cost_per_day=(comm_after - gain_profit) / window + sample / days,
         dchi_per_day=(comm_after - comm_before) / window + sample / days,
         base_label="gmv_lien_ket",
         lift_scale=size_scale(float(change), config.COMMISSION_REF_POINTS),

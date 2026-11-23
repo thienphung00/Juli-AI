@@ -581,7 +581,9 @@ async def test_s5_a_creator_card_on_a_product_with_no_orders_is_estimated_on_the
     assert ev.refusal is None
 
 
-async def test_s5_a_creator_card_on_a_product_with_no_orders_uses_baseline_times_105(shop, session):
+async def test_s5_a_creator_card_on_a_product_with_no_orders_gains_five_percent_of_the_baseline(
+    shop, session
+):
     from dataclasses import replace as _replace
 
     from juli_backend.services.shopee_recommendations.no_order_prior import order_prior

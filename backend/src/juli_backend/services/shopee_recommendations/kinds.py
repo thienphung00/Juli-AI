@@ -116,6 +116,13 @@ VOUCHER_SCOPE_LABELS: dict[str, str] = {
     "product": "Voucher sản phẩm",
 }
 VOUCHER_KINDS: tuple[str, ...] = ("min_spend_voucher", "review_voucher")
+VOUCHER_NAME = "Mã Giảm Giá"
+#: kind -> the minimum-spend part of its name; the card title reads
+#: "Mã Giảm Giá · <scope> · <part>", e.g. "Mã Giảm Giá · Voucher sản phẩm · không đơn tối thiểu".
+VOUCHER_MIN_PARTS: dict[str, str] = {
+    "min_spend_voucher": "đơn tối thiểu",
+    "review_voucher": "không đơn tối thiểu",
+}
 
 
 def voucher_scope_label(scope: str | None) -> str:
@@ -244,7 +251,7 @@ KINDS: dict[str, KindSpec] = {
     "min_spend_voucher": KindSpec(
         "min_spend_voucher",
         "voucher",
-        "Mã Giảm Giá",
+        "Mã Giảm Giá · đơn tối thiểu",
         "voucher",
         "shop",
         "aov",
@@ -263,7 +270,7 @@ KINDS: dict[str, KindSpec] = {
     "review_voucher": KindSpec(
         "review_voucher",
         "voucher",
-        "Mã Giảm Giá",
+        "Mã Giảm Giá · không đơn tối thiểu",
         "voucher",
         "shop",
         "ctor",

@@ -1,8 +1,9 @@
 """S5 (Q8): the prior of an affiliate / KOC card on a product with no orders in the window.
 
 With no order of its own a product has nothing to scale a commission change from. The card is
-estimated on a prior instead (owner 23/11: the prior is +5 % orders): ``baseline_orders`` x
-(1 + ``config.NO_ORDER_UPLIFT``), per-order economics from the shop as a whole.
+estimated on a prior instead (owner 23/11: uplift only): the card's gain is
+``config.NO_ORDER_UPLIFT`` (5 %) of ``baseline_orders``, over a base of 0 orders; the baseline
+volume itself is never claimed. Per-order economics come from the shop as a whole.
 
 ``baseline_orders`` is the ONE place the baseline comes from; swap it to change the source.
 """
@@ -20,7 +21,7 @@ from juli_backend.services.shopee_recommendations.env import RecoEnv
 
 @dataclass(frozen=True)
 class OrderPrior:
-    orders: Decimal  # expected orders over the window: baseline x (1 + uplift)
+    orders: Decimal  # the card's GAIN in orders over the window: baseline x uplift (base is 0)
     baseline: Decimal
     uplift: Decimal
     aov: Decimal  # the shop's order value per order
@@ -31,7 +32,7 @@ class OrderPrior:
             "basis": "shop_median_orders_per_product",
             "baseline_orders": float(self.baseline),
             "uplift": float(self.uplift),
-            "orders": float(self.orders),
+            "gain_orders": float(self.orders),
         }
 
 
@@ -57,7 +58,7 @@ def order_prior(env: RecoEnv, item: str) -> OrderPrior | None:
     contribution = sum((pb.contribution or ZERO for _, pb in pairs), ZERO)
     uplift = Decimal(str(config.NO_ORDER_UPLIFT))
     return OrderPrior(
-        orders=baseline * (1 + uplift),
+        orders=baseline * uplift,
         baseline=baseline,
         uplift=uplift,
         aov=aov,

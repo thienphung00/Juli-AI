@@ -326,7 +326,7 @@ def with_prior_product(env: RecoEnv, pool: KolPool, item: str) -> KolPool:
     stat = ProductStat(
         item_id=item,
         name=env.name(item),
-        orders=int(prior.orders),
+        orders=0,
         aff_orders=0,
         basis="all",
         units_per_order=Decimal(1),
@@ -344,8 +344,9 @@ def with_prior_product(env: RecoEnv, pool: KolPool, item: str) -> KolPool:
 
 
 def with_prior_orders(env: RecoEnv, f: Forecast, item: str) -> Forecast:
-    """S5 (owner 23/11): a product with no history is estimated at ``no_order_prior``'s orders
-    (baseline x 1.05, per 30 days) whatever the creator model says; the model's low / high spread
+    """S5 (owner 23/11, uplift only): a product with no history gains ``no_order_prior``'s orders
+    (5 % of the baseline, per 30 days; the base is 0) whatever the creator model
+    says; the model's low / high spread
     around its own middle is kept."""
     from juli_backend.services.shopee_recommendations.no_order_prior import order_prior
 
