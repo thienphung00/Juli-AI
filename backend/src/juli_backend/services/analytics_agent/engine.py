@@ -488,7 +488,10 @@ async def _answer(
     await out.emit(present.status("checking_data"))
     kw = _window_args(intent, dec)
     entity = routing.entity_kind(intent)
-    prod_money = bool(item_id and dec.get("metric") in ("profit", "margin", "ads_spend", "roas"))
+    prod_money = bool(
+        item_id
+        and dec.get("metric") in ("profit", "margin", "ads_spend", "roas", "roas_break_even")
+    )
     if entity or prod_money:  # Q17: the entity's own rows, or "Juli chưa có số liệu này"
         names = await data.item_names([item_id]) if item_id else {}
         answers = await entities.run_entity(

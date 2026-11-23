@@ -364,7 +364,10 @@ class ServiceData:
         vốn come from the metric registry."""
         from decimal import Decimal
 
-        from juli_backend.services.metrics.compute import evaluate
+        from juli_backend.services.analytics_agent.registry_reads import (
+            roas_break_even,
+            roas_direct,
+        )
         from juli_backend.services.shopee_recommendations.evaluate import campaign_profile
 
         out: list[dict[str, Any]] = []
@@ -380,20 +383,14 @@ class ServiceData:
                         continue
                     direct = prof["direct_per_day"] * days
                     before_ads = prof["profit_before_ads_per_day"] * days
-                    comp = {
-                        "ads_gmv_direct": direct,
-                        "cost_ads": c.spend,
-                        "net_revenue_known": direct,
-                        "contribution": before_ads,
-                    }
                     out.append(
                         {
                             "key": c.key,
                             "name": c.name or c.key,
                             "spend": c.spend,
                             "gmv": direct,
-                            "roas": evaluate("roas_direct", comp).value,
-                            "break_even": evaluate("roas_break_even", comp).value,
+                            "roas": roas_direct(direct, c.spend),
+                            "break_even": roas_break_even(direct, before_ads),
                             "profit_after_ads": before_ads - c.spend,
                         }
                     )

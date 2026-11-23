@@ -31,7 +31,7 @@ def it(**kw: Any) -> dict[str, Any]:
 
 
 # (question, parser intent, jev answers, expected subset of the classify row)
-ROWS: list[tuple[str, dict[str, Any], dict[str, Any], dict[str, Any]]] = [
+ROWS: list[tuple[str, Any, dict[str, Any], Any]] = [
     (
         "Tôi muốn lập voucher cho ngày 24 và 25/11.",
         it(
@@ -133,13 +133,19 @@ ROWS: list[tuple[str, dict[str, Any], dict[str, Any], dict[str, Any]]] = [
     ),
     (
         "Sản phẩm nào giảm mạnh nhất tuần trước và vì sao?",
-        it(
-            question_type="status",
-            metric_phrase="products with the biggest decline in revenue",
-            time_phrase="last week",
-        ),
+        [  # the parser splits "what" and "why" into two intents (prompt rule)
+            it(
+                question_type="status",
+                metric_phrase="products with the biggest decline in revenue",
+                time_phrase="last week",
+            ),
+            it(question_type="why_changed", metric_phrase="revenue", time_phrase="last week"),
+        ],
         ans(mode=ch("lookup"), lookup=ch("top_products")),
-        {"outcome": "go", "lookup": "top_decliners", "window": "last_full_week_vs_week_before"},
+        [
+            {"outcome": "go", "lookup": "top_decliners", "window": "last_full_week_vs_week_before"},
+            {"outcome": "go", "window": "last_full_week_vs_week_before"},
+        ],
     ),
     (
         "Tuần sau shop nên làm gì?",
@@ -155,6 +161,7 @@ ROWS: list[tuple[str, dict[str, Any], dict[str, Any], dict[str, Any]]] = [
             card_type="flash_sale",
             product_phrase="túi vải đay",
             from_date="2026-11-28",
+            start_hour=21,
             amount=15,
             amount_unit="pct",
         ),
@@ -176,7 +183,7 @@ ROWS: list[tuple[str, dict[str, Any], dict[str, Any], dict[str, Any]]] = [
             raw_text="ROAS hoà vốn của shop là bao nhiêu?",
         ),
         ans(fits=nl(0.58), mode=ch("lookup")),
-        {"outcome": "go", "entity": "campaign"},
+        {"outcome": "go", "entity": None, "metric": "roas_break_even", "mode": "lookup"},
     ),
     (
         "Phí cố định của Shopee tính thế nào?",
@@ -242,12 +249,15 @@ def test_the_twenty_questions_are_all_here() -> None:
 
 @pytest.mark.parametrize("row", ROWS, ids=[r[0][:40] for r in ROWS])
 async def test_classify_routes_each_question(
-    row: tuple[str, dict[str, Any], dict[str, Any], dict[str, Any]],
+    row: tuple[str, Any, dict[str, Any], Any],
 ) -> None:
     text, parsed, jev_answers, expected = row
-    llm = FakeLLM({"restated_vi": f"Đang tìm hiểu: {text}", "intents": [parsed]})
+    parsed_list = parsed if isinstance(parsed, list) else [parsed]
+    llm = FakeLLM({"restated_vi": f"Đang tìm hiểu: {text}", "intents": parsed_list})
     out = await routing.classify(text, TODAY, llm, FakeJev(jev_answers))
-    got = out["intents"][0]
-    for k, v in expected.items():
-        assert got[k] == v, (text, k, got)
-    assert got["outcome"] != "needs_choice", (text, got)  # the picker never fires on these
+    wanted = expected if isinstance(expected, list) else [expected]
+    assert len(out["intents"]) == len(wanted), out
+    for got, exp in zip(out["intents"], wanted, strict=True):
+        for k, v in exp.items():
+            assert got[k] == v, (text, k, got)
+        assert got["outcome"] != "needs_choice", (text, got)  # the picker never fires on these

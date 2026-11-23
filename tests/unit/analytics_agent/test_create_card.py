@@ -15,6 +15,7 @@ from tests.unit.analytics_agent.fakes import (
     engine_card,
     shop_rows,
 )
+from tests.unit.analytics_agent.test_cards import ch
 from tests.unit.analytics_agent.test_engine import SHOP, L, full
 from tests.unit.analytics_agent.test_routing import intent
 
@@ -214,3 +215,64 @@ async def test_nothing_fits_offers_the_closest_action_and_logs_the_unmet_request
     log = next(r for r in res.routing if r.get("step") == "unmet_request")
     assert len(log["text_hash"]) == 16 and log["restated"] and "raw_text" not in log["parsed"]
     assert not sink.of("data_answer")  # never a number
+
+
+def test_flash_sale_slots_and_builder_limits() -> None:
+    today = date(2026, 11, 23)
+    ok = create_card.slots_of(
+        {"card_type": "flash_sale", "from_date": "2026-11-28", "start_hour": 21}
+    )
+    assert create_card.validate(ok, today) == []
+    bad = create_card.slots_of(
+        {"card_type": "flash_sale", "from_date": "2026-11-28", "start_hour": 20}
+    )
+    assert any("Khung giờ" in p for p in create_card.validate(bad, today))
+    assert create_card.missing(create_card.slots_of({"card_type": "flash_sale"}))[:3] == [
+        "from_date",
+        "start_hour",
+        "quantity",
+    ] or "start_hour" in create_card.missing(create_card.slots_of({"card_type": "flash_sale"}))
+    from juli_backend.services.shopee_builder import specs as sp
+
+    assert (
+        create_card.name_limit("voucher")
+        == sp.VoucherSpec.model_fields["label"].metadata[0].max_length
+    )
+    assert create_card.name_limit("combo") == sp.MAX_COMBO_NAME
+    assert create_card.max_days("voucher") == sp.MAX_VOUCHER_DAYS
+
+
+async def test_shop_roas_break_even_is_the_registry_metric_over_the_overview() -> None:
+    data = FakeData(
+        shop_rows(date(2026, 9, 1), YDAY, gmv=1000.0, orders=3.0),
+        overview=lambda a, b: {
+            "shop_profit": {"net_revenue": 10000, "contribution_before_ads": 2500}
+        },
+    )
+    llm = FakeLLM(
+        {
+            "restated_vi": "ROAS hoà vốn của shop",
+            "intents": [intent(question_type="status", metric_phrase="break-even ROAS")],
+        }
+    )
+    sink = ListSink()
+    await run(
+        AskRequest(
+            shop_id=SHOP, platform="shopee", as_of=YDAY, text="ROAS hoà vốn của shop là bao nhiêu?"
+        ),
+        llm=llm,
+        jev=FakeJev(lambda s, q: full(mode=ch("lookup"), fits={"type": "noul", "noul": 0.58})),
+        sink=sink,
+        labels=L,
+        data=data,
+        card_engine=_engine(),
+    )
+    da = sink.of("data_answer")[0]
+    assert da["title_vi"] == "ROAS hoà vốn" and da["value"] == "4,00"  # 10.000 / 2.500
+
+
+def test_registry_reads_give_real_numbers_not_none() -> None:
+    from juli_backend.services.analytics_agent.registry_reads import roas_break_even, roas_direct
+
+    assert roas_break_even(10000, 2500) == 4.0 and roas_break_even(10000, 0) is None
+    assert roas_direct(900, 300) == 3.0 and roas_direct(None, 3) is None

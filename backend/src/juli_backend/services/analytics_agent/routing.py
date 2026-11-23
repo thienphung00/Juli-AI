@@ -98,6 +98,7 @@ METRIC_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
     (re.compile(rx, re.I), m)
     for rx, m in (
         (r"chi phí quảng cáo|ad(s|vertising)?\s*(spend|cost)|tiền quảng cáo", "ads_spend"),
+        (r"roas hoà vốn|roas hòa vốn|break-?even roas", "roas_break_even"),
         (r"roas", "roas"),
         (r"biên|margin", "margin"),
         (r"lợi nhuận|profit", "profit"),
@@ -117,7 +118,11 @@ DECLINE_WORDS = re.compile(
 LIST_LOOKUPS = ("top_products", "top_decliners")
 METRIC_CHAIN = {m: c for c, m in CHAIN_METRIC.items()}
 METRIC_CHAIN.update(
-    roas="ads_change", ads_spend="ads_change", margin="profit_change", aov="gmv_change"
+    roas="ads_change",
+    roas_break_even="ads_change",
+    ads_spend="ads_change",
+    margin="profit_change",
+    aov="gmv_change",
 )
 
 # An entity the seller names (Q17): the answer must be filtered to it or refused, never a shop
@@ -137,11 +142,9 @@ ENTITY_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
     )
 )
 _AD_WORDS = re.compile(
-    r"quảng cáo|\bqc\b|dvht|dịch vụ hiển thị|\bads?\b|advertis|roas hoà vốn|roas hòa vốn|"
-    r"break-?even",
+    r"quảng cáo|\bqc\b|dvht|dịch vụ hiển thị|\bads?\b|advertis",
     re.I,
 )
-_BREAK_EVEN = re.compile(r"roas hoà vốn|roas hòa vốn|break-?even roas", re.I)
 _CAMPAIGN = re.compile(r"campaign|chiến dịch", re.I)
 
 
@@ -171,8 +174,6 @@ def entity_kind(intent: dict[str, Any]) -> str | None:
             return k
     if _CAMPAIGN.search(blob) and _AD_WORDS.search(blob):  # a campaign means an ad campaign
         return "campaign"
-    if _BREAK_EVEN.search(blob):  # ROAS hoà vốn: Juli reads it per campaign
-        return "campaign"
     return None
 
 
@@ -180,6 +181,7 @@ CREATE_SLOTS = (
     "card_type",
     "from_date",
     "to_date",
+    "start_hour",
     "amount",
     "amount_unit",
     "min_spend",
@@ -254,8 +256,7 @@ INTENT_TOOL: dict[str, Any] = {
                         },
                         "source_phrase": {"type": ["string", "null"]},
                         "card_type": {
-                            "type": ["string", "null"],
-                            "enum": [*CARD_TYPES, None],
+                            "anyOf": [{"type": "string", "enum": [*CARD_TYPES]}, {"type": "null"}],
                             "description": "the kind of card the seller wants created",
                         },
                         "from_date": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
@@ -264,7 +265,13 @@ INTENT_TOOL: dict[str, Any] = {
                             "type": ["number", "null"],
                             "description": "the discount value the seller said (đ or %)",
                         },
-                        "amount_unit": {"type": ["string", "null"], "enum": ["vnd", "pct", None]},
+                        "amount_unit": {
+                            "anyOf": [{"type": "string", "enum": ["vnd", "pct"]}, {"type": "null"}]
+                        },
+                        "start_hour": {
+                            "type": ["integer", "null"],
+                            "description": "hour of day a flash sale slot starts, 0-23",
+                        },
                         "min_spend": {"type": ["integer", "null"], "description": "đ, 0 = none"},
                         "quantity": {"type": ["integer", "null"]},
                         "name": {
@@ -291,7 +298,10 @@ PARSE_SYSTEM = (
     "Do not invent ids. Dates only when the seller states them. Questions not about the shop's own "
     "sales/traffic data (competitors, tax, forecasts) get question_type 'other'. A question asking "
     "what the shop should do next week is question_type 'plan' (only that, not how-to "
-    "questions). A request to create or change something (voucher, discount, combo, deal, gift, "
+    "questions). A question about ONE product's profit, margin, revenue or orders is question_type "
+    "'status' with product_phrase, never 'other'. A question that asks both what and why (for "
+    "example the products that fell most, and why) is two intents: the 'status' ranking, then a "
+    "'why_changed'. A request to create or change something (voucher, discount, combo, deal, gift, "
     "flash sale, price, product name / title, cover, variation set) is question_type "
     "'create_card': fill card_type and "
     "only the slots the seller said (dates as YYYY-MM-DD in the year of today, amount with "

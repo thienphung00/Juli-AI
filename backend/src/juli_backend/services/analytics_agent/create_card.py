@@ -31,6 +31,7 @@ SLOT_KEYS = (
     "card_type",
     "from_date",
     "to_date",
+    "start_hour",
     "product_phrase",
     "amount",
     "amount_unit",
@@ -45,7 +46,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     "combo": ("name", "from_date", "to_date", "amount", "product"),
     "add_on": ("name", "from_date", "to_date", "product"),
     "gift": ("name", "from_date", "to_date", "product", "quantity"),
-    "flash_sale": ("product", "from_date", "quantity"),
+    "flash_sale": ("product", "from_date", "start_hour", "quantity"),
     "price": ("amount", "product"),
     "variation_set": ("product",),
     "title": ("product",),
@@ -61,21 +62,36 @@ SLOT_VI = {
     "name": "tên",
     "product": "sản phẩm",
     "quantity": "số lượng",
+    "start_hour": "khung giờ",
 }
-#: Shopee form limits (builder `specs`: MAX_COMBO_NAME 25, MAX_PROGRAMME_NAME 150, a title 120,
-#: a voucher name 60 = `_Base.label`)
-NAME_LIMIT = {
-    "combo": 25,
-    "add_on": 25,
-    "gift": 25,
-    "product_discount": 150,
-    "voucher": 60,
-    "title": 120,
-}
-MAX_DAYS = {"voucher": 90, "product_discount": 180}
 FLASH_AHEAD_DAYS = 7
-#: Flash Sale of the shop runs on fixed slots (hour of day it starts)
-FLASH_SLOT_HOURS = (0, 9, 12, 15, 18, 21)
+#: Flash Sale of the shop: the fixed khung giờ (start hour, end hour) captured from Seller Centre.
+#: TODO: Track F owns this constant in `shopee_builder/specs.py`; use theirs at merge.
+FLASH_SLOTS = ((0, 2), (2, 9), (9, 12), (12, 15), (15, 17), (17, 19), (19, 21), (21, 24))
+
+
+def name_limit(card_type: str) -> int | None:
+    """Shopee form name limits, read from the builder's own specs (never a second number)."""
+    from juli_backend.services.shopee_builder import specs as sp
+
+    if card_type == "voucher":
+        meta = sp.VoucherSpec.model_fields["label"].metadata
+        return next((m.max_length for m in meta if hasattr(m, "max_length")), None)
+    return {
+        "combo": sp.MAX_COMBO_NAME,
+        "add_on": sp.MAX_COMBO_NAME,
+        "gift": sp.MAX_COMBO_NAME,
+        "product_discount": sp.MAX_PROGRAMME_NAME,
+        "title": sp.MAX_TITLE_CHARS,
+    }.get(card_type)
+
+
+def max_days(card_type: str) -> int | None:
+    from juli_backend.services.shopee_builder import specs as sp
+
+    return {"voucher": sp.MAX_VOUCHER_DAYS, "product_discount": sp.MAX_DISCOUNT_DAYS}.get(card_type)
+
+
 VOUCHER_LABEL_MIN = "Mã Giảm Giá · đơn tối thiểu"
 VOUCHER_LABEL_NO_MIN = "Mã Giảm Giá · không đơn tối thiểu"
 
@@ -85,6 +101,7 @@ class Slots:
     card_type: str | None = None
     from_date: date | None = None
     to_date: date | None = None
+    start_hour: int | None = None
     product_phrase: str | None = None
     amount: float | None = None
     amount_unit: str | None = None  # vnd | pct
@@ -111,6 +128,7 @@ def slots_of(intent: dict[str, Any]) -> Slots:
         card_type=ct if ct in CARD_TYPES else None,
         from_date=_date(intent.get("from_date")),
         to_date=_date(intent.get("to_date")),
+        start_hour=None if intent.get("start_hour") is None else int(intent["start_hour"]),
         product_phrase=(intent.get("product_phrase") or None),
         amount=None if intent.get("amount") is None else float(intent["amount"]),
         amount_unit=intent.get("amount_unit")
@@ -131,7 +149,7 @@ def fill(intent: dict[str, Any], answer: str) -> dict[str, Any]:
         k, _, v = part.partition("=")
         if k == "unit":
             out["amount_unit"] = v
-        elif k in ("amount", "min_spend", "quantity"):
+        elif k in ("amount", "min_spend", "quantity", "start_hour"):
             out[k] = float(v) if k == "amount" else int(float(v))
         elif k in ("from_date", "to_date", "name", "item_id", "item_name", "card_type"):
             out[k] = v
@@ -158,16 +176,19 @@ def validate(s: Slots, today: date) -> list[str]:
         p.append("Ngày bắt đầu không được ở quá khứ.")
     if s.from_date and s.to_date and s.to_date < s.from_date:
         p.append("Ngày kết thúc phải sau ngày bắt đầu.")
-    limit = MAX_DAYS.get(ct)
+    limit = max_days(ct)
     if limit and s.from_date and s.to_date and (s.to_date - s.from_date).days + 1 > limit:
         p.append(f"Thời gian chạy tối đa {limit} ngày.")
-    lim = NAME_LIMIT.get(ct)
+    lim = name_limit(ct)
     if lim and s.name and len(s.name) > lim:
         p.append(f"Tên tối đa {lim} ký tự (đang {len(s.name)}).")
     if s.amount is not None and s.amount_unit == "pct" and not 0 < s.amount <= 90:
         p.append("Mức giảm phần trăm phải lớn hơn 0 và tối đa 90%.")
     if s.amount is not None and s.amount_unit == "vnd" and s.min_spend and s.amount >= s.min_spend:
         p.append("Mức giảm phải nhỏ hơn đơn tối thiểu.")
+    if ct == "flash_sale" and s.start_hour is not None:
+        if s.start_hour not in {a for a, _ in FLASH_SLOTS}:
+            p.append("Khung giờ Flash Sale phải là một trong: " + slots_vi() + ".")
     if ct == "flash_sale" and s.from_date:
         if not today < s.from_date <= today + timedelta(days=FLASH_AHEAD_DAYS):
             p.append(
@@ -175,6 +196,10 @@ def validate(s: Slots, today: date) -> list[str]:
                 "theo khung giờ cố định."
             )
     return p
+
+
+def slots_vi() -> str:
+    return ", ".join(f"{a:02d}–{b:02d}h" for a, b in FLASH_SLOTS)
 
 
 def window_vi(s: Slots) -> str | None:
@@ -215,6 +240,11 @@ def suggestions(
                 "value": f"amount={v:g};unit={unit};min_spend={ms}",
             }
         )
+    if "start_hour" in miss:
+        out += [
+            {"label_vi": f"{a:02d}:00–{b:02d}:00", "value": f"start_hour={a}"}
+            for a, b in FLASH_SLOTS
+        ]
     if "min_spend" in miss and "amount" not in miss:
         out.append({"label_vi": "Không đơn tối thiểu", "value": "min_spend=0"})
     return out

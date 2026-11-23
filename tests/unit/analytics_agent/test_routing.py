@@ -85,6 +85,28 @@ async def test_parse_failure_retries_once_then_none() -> None:
     assert out is None and llm.parse_calls == 2
 
 
+def _walk(node: Any, path: str = "") -> list[str]:
+    bad: list[str] = []
+    if isinstance(node, dict):
+        if "enum" in node and isinstance(node.get("type"), list):
+            bad.append(path)  # the API rejects a nullable enum written as type [..., "null"]
+        for k, v in node.items():
+            bad += _walk(v, f"{path}/{k}")
+    elif isinstance(node, list):
+        for i, v in enumerate(node):
+            bad += _walk(v, f"{path}[{i}]")
+    return bad
+
+
+def test_intent_schema_has_no_enum_beside_a_list_type() -> None:
+    """HTTP 400 "Enum value ... does not match declared type": a nullable enum is
+    {"anyOf": [{"type": "string", "enum": [...]}, {"type": "null"}]}."""
+    assert _walk(routing.INTENT_TOOL["input_schema"]) == []
+    props = routing.INTENT_TOOL["input_schema"]["properties"]["intents"]["items"]["properties"]
+    for name in ("card_type", "amount_unit"):
+        assert {"type": "null"} in props[name]["anyOf"]
+
+
 def test_strict_tool_schema() -> None:
     assert routing.INTENT_TOOL["strict"] is True
     assert routing.INTENT_TOOL["input_schema"]["additionalProperties"] is False

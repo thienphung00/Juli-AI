@@ -180,6 +180,10 @@ async def run_lookup(
 async def _total(
     data: DataPort, metric: str, w: Any, rows: list[dict[str, Any]]
 ) -> tuple[float | None, float | None]:
+    if metric == "roas_break_even":  # the registry's metric over the overview's shop components
+        o1 = (await data.overview(*w.cur)).get("shop_profit") or {}
+        o0 = ((await data.overview(*w.prev)).get("shop_profit") or {}) if w.prev else {}
+        return _break_even(o1), (_break_even(o0) if w.prev else None)
     if metric in MONEY_METRICS:
         o1 = await data.overview(*w.cur)
         o0 = await data.overview(*w.prev) if w.prev else {}
@@ -201,3 +205,11 @@ async def _total(
 
 def default_metric(chain: str | None) -> str:
     return CHAIN_METRIC.get(chain or "", "gmv")
+
+
+def _break_even(shop_profit: dict[str, Any]) -> float | None:
+    from juli_backend.services.analytics_agent.registry_reads import roas_break_even
+
+    return roas_break_even(
+        shop_profit.get("net_revenue"), shop_profit.get("contribution_before_ads")
+    )

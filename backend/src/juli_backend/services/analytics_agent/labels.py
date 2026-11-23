@@ -30,6 +30,7 @@ METRICS_VI = {
     "margin": "Biên lợi nhuận",
     "ads_spend": "Chi phí quảng cáo",
     "roas": "ROAS",
+    "roas_break_even": "ROAS hoà vốn",
     "product_profit": "Lợi nhuận sản phẩm",
     "ads_no_order_days": "Quảng cáo ngày không có đơn",
     "other_marketing": "Marketing khác",
