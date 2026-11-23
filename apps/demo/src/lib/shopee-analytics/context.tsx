@@ -20,8 +20,8 @@ export interface ShopeeHost {
   /** Stable id of the API's shop, part of every request key. */
   readonly shopKey: string;
   readonly shopName?: string;
-  /** The shop's marketplace; picks the label table. Absent = Shopee. */
-  readonly platform?: NavPlatform;
+  /** The shop's marketplace; picks the label table. Required: a host never defaults to a marketplace. */
+  readonly platform: NavPlatform;
   /** Juli Ops: reading only (no copy-to-seller actions). */
   readonly readOnly?: boolean;
   /** P91: the shop's recommendation cards, for the product page's "Đề xuất" tab; absent = the tab is not shown. */
@@ -46,7 +46,7 @@ export function useShopee(): ShopeeHost {
   return host;
 }
 
-/** The marketplace the screens label for (the platform label table); Shopee unless the host says otherwise. */
-export function useHostPlatform(): NavPlatform {
-  return useContext(Ctx)?.platform ?? "shopee";
+/** The marketplace of the enclosing host, or null outside a host (labels then stay neutral). */
+export function useHostPlatform(): NavPlatform | null {
+  return useContext(Ctx)?.platform ?? null;
 }

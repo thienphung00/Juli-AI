@@ -63,26 +63,14 @@ export function probeShopPlatform(token: string, shopId: string, fetchImpl?: typ
   return read;
 }
 
-/** Test hook: a shop whose platform the test already knows (no `shops/me` read). */
-export function seedShopPlatform(shopId: string, platform: NavPlatform): void {
-  known.set(shopId, platform);
-}
-
-/** Test hook: forget what was learned. */
-export function resetShopPlatformCache(): void {
-  known.clear();
-  inflight.clear();
-}
-
 export type PlatformPhase = "none" | "loading" | "ready" | "error";
 
-export interface ShopPlatformState {
-  /** The platform when `phase` is "ready" (or "none": no shop, so TikTok's landing); null while loading or failed. */
-  readonly platform: NavPlatform | null;
-  readonly phase: PlatformPhase;
-  /** After "error": ask again from the start. */
-  readonly retry: () => void;
-}
+/** `platform` is non-null exactly when it is known (ready) or there is no shop (none); unknown is never TikTok. */
+export type ShopPlatformState =
+  | { readonly phase: "none"; readonly platform: NavPlatform; readonly retry: () => void }
+  | { readonly phase: "ready"; readonly platform: NavPlatform; readonly retry: () => void }
+  | { readonly phase: "loading"; readonly platform: null; readonly retry: () => void }
+  | { readonly phase: "error"; readonly platform: null; readonly retry: () => void };
 
 /**
  * The acting shop's platform as a phase: `none` without a shop (anonymous, no-shop: TikTok's landing screens),

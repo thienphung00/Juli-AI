@@ -72,8 +72,6 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   const { feedback, resetMockState } = useDemoState();
   const { state, reload } = useShopReport();
   const platformState = useShopPlatformState(state);
-  // Only read once the platform is known: the guards below keep an unknown platform off every screen.
-  const platform = platformState.platform ?? "tiktok";
   const juliEnabled = useJuliEnabled(state);
   const reviewer = useReviewer();
   const entry = useLandingEntry();
@@ -162,7 +160,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   }
 
   // The marketplace of an acting shop could not be read: never guess (a Shopee shop must not render as TikTok).
-  if ("shop" in state && platformState.phase === "error") {
+  if (platformState.phase === "error") {
     return (
       <div className="app-shell">
         <div className="qv-empty" data-testid="platform-error" role="alert">
@@ -182,16 +180,20 @@ function DemoShellContent({ children }: { children: ReactNode }) {
     );
   }
 
-  // The marketplace of an acting shop is still being asked: neutral state, never the TikTok chrome.
-  if (state.status === "loading" || ("shop" in state && platformState.phase === "loading")) {
-    return (
-      <div className="app-shell">
-        <p className="text-muted" role="status">
-          Đang tải…
-        </p>
-      </div>
-    );
-  }
+  // The marketplace of an acting shop is still being asked (or the shell is still resolving who the shop is):
+  // neutral state, never any marketplace's chrome.
+  const neutral = (
+    <div className="app-shell">
+      <p className="text-muted" role="status">
+        Đang tải…
+      </p>
+    </div>
+  );
+  if (platformState.phase === "loading") return neutral;
+  if (state.status === "loading") return neutral;
+
+  // Narrowed: only "none" (no shop) and "ready" reach here, so the platform is known.
+  const platform = platformState.platform;
 
   return (
     <div className="app-shell">

@@ -108,7 +108,7 @@ describe("Sản phẩm: the Đề xuất tab on the product page", () => {
   const list: CardList = { platform: "shopee", xep_theo: "diem", queue: "product", cards, counts: { family: {}, section: {}, total: cards.length } };
   const open = (qs: string, reco = fakeReco({ list })) =>
     render(
-      <ShopeeHostProvider host={{ api: fakeApi({ product: product() }), reco, links: sellerLinks, shopKey: "shop-1", shopName: "Shop gia dụng" }}>
+      <ShopeeHostProvider host={{ api: fakeApi({ product: product() }), reco, links: sellerLinks, platform: "shopee", shopKey: "shop-1", shopName: "Shop gia dụng" }}>
         <ProductPageView id="BEP-S5" params={new URLSearchParams(qs)} />
       </ShopeeHostProvider>,
     );
@@ -125,7 +125,7 @@ describe("Sản phẩm: the Đề xuất tab on the product page", () => {
 
   it("without a recommendation API there is no such tab", async () => {
     render(
-      <ShopeeHostProvider host={{ api: fakeApi({ product: product() }), links: sellerLinks, shopKey: "shop-1" }}>
+      <ShopeeHostProvider host={{ api: fakeApi({ product: product() }), links: sellerLinks, platform: "shopee", shopKey: "shop-1" }}>
         <ProductPageView id="BEP-S5" params={new URLSearchParams("tab=ng")} />
       </ShopeeHostProvider>,
     );

@@ -50,7 +50,7 @@ function withCompare(): KolApi & { readonly groups: KolCompareGroup[] } {
 }
 
 function host(kol: KolApi | undefined): ShopeeHost {
-  return { api: fakeApi({ product: product(), critical: critical() }), kol, links: sellerLinks, shopKey: "shop-1", shopName: "Shop mẫu" };
+  return { api: fakeApi({ product: product(), critical: critical() }), kol, links: sellerLinks, platform: "shopee", shopKey: "shop-1", shopName: "Shop mẫu" };
 }
 
 describe("Phân tích › KOL › So sánh (P100)", () => {

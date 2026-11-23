@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { seedShopPlatform } from "../lib/shopee-analytics/platform";
+import { seedShopPlatform } from "../lib/shopee-analytics/__tests__/platform-test-helpers";
 import { resolve } from "node:path";
 
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -23,7 +23,7 @@ import { AUTH_SESSION_STORAGE_KEY } from "../lib/supabase-auth";
 
 // W3 U-4: these tests exercise the ADR-108 TikTok screens, which stay behind the one switch.
 process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS = "1";
-seedShopPlatform("shop-1", "tiktok");
+await seedShopPlatform("shop-1", "tiktok");
 
 /**
  * P13 (owner, 2026-10-10): a signed-in seller with no TikTok Shop connected

@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 
 import { METRIC_NAME, METRIC_ORDER, shift, type MetricKey, type ValueMode } from "../../lib/metrics";
 import { channelLabel } from "../../lib/platform-labels";
-import { useHostPlatform, useShopee } from "../../lib/shopee-analytics/context";
+import { useShopee } from "../../lib/shopee-analytics/context";
 import {
   type SortKey,
   impactText,
@@ -98,7 +98,7 @@ export function PhanTichPageView({ params }: { readonly params: URLSearchParams 
 
 /** "CTR ▼ 12 % · Thẻ sản phẩm · 3 sản phẩm kéo xuống": the number first. */
 function Head({ sel, view }: { readonly sel: MetricKey; readonly view: MetricView }) {
-  const platform = useHostPlatform();
+  const { platform } = useShopee();
   const s = shift(view.total.change);
   const worst = [...view.channels].filter((c) => typeof c.impact === "number" && c.impact < 0).sort((a, b) => (a.impact ?? 0) - (b.impact ?? 0))[0];
   const down = view.products.filter((p) => typeof p.impact === "number" && p.impact < 0).length;
@@ -150,7 +150,7 @@ function Cta({ row, metric, product, channel, state }: { readonly state: WindowS
 }
 
 function ByChannel({ view, sel, mode, href, state }: { readonly state: WindowState; readonly view: MetricView; readonly sel: ReturnType<typeof readMetricParams>; readonly mode: ValueMode; readonly href: (patch: Record<string, string | null>) => string }) {
-  const platform = useHostPlatform();
+  const { platform } = useShopee();
   const m = sel.metric;
   const days = view.days;
   return (

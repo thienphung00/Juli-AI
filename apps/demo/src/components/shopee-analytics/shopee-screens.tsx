@@ -43,7 +43,7 @@ export function ShopeeScreenSwitch({ screen, params, productId }: { readonly scr
 export function ScreenTabs({ active }: { readonly active: ShopeeScreen }) {
   const { links, platform } = useShopee();
   return (
-    <nav aria-label={`Màn hình ${PLATFORM_NAME_TABLE[platform ?? "shopee"]}`} className="sa-seg sa-seg--round sa-tabs" data-testid="sa-screen-tabs">
+    <nav aria-label={`Màn hình ${PLATFORM_NAME_TABLE[platform]}`} className="sa-seg sa-seg--round sa-tabs" data-testid="sa-screen-tabs">
       {SCREEN_TABS.map(([k, label]) => (
         <Link aria-current={active === k ? "page" : undefined} className={`sa-seg__item ${active === k ? "sa-seg__item--on" : ""}`} href={links.screen(k, new URLSearchParams())} key={k}>
           {label}

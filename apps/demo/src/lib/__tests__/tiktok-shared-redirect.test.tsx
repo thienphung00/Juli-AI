@@ -2,7 +2,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ShopReportState } from "../shop-report/shop-report-context";
-import { resetShopPlatformCache } from "../shopee-analytics/platform";
 import { tiktokLegacyScreens } from "../tiktok-screens";
 import { useTiktokSharedRedirect } from "../use-tiktok-shared-redirect";
 
@@ -21,7 +20,6 @@ const shop = (id: string): ShopReportState => ({ status: "loading", token: "t", 
 
 beforeEach(() => {
   replace.mockReset();
-  resetShopPlatformCache();
   window.history.replaceState(null, "", "/");
   delete process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS;
 });

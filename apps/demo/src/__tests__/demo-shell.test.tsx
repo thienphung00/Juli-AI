@@ -122,14 +122,14 @@ describe("App shell — rail, header, slot", () => {
   it("renders the rail nav, the shop header and the page in the main slot", async () => {
     render(<DemoShell>Nội dung trang</DemoShell>);
 
-    expect(screen.getByRole("navigation", { name: "Điều hướng chính" })).toBeInTheDocument();
+    expect(await screen.findByRole("navigation", { name: "Điều hướng chính" })).toBeInTheDocument();
     expect(screen.getByTestId("shop-header")).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveTextContent("Nội dung trang");
   });
 
   it("anonymous: names the sample shop, flags it as Dữ liệu mẫu, and shows its update time — not 'Juli đang chạy'", async () => {
     render(<DemoShell>Nội dung</DemoShell>);
-    const header = screen.getByTestId("shop-header");
+    const header = await screen.findByTestId("shop-header");
 
     await waitFor(() => expect(header).toHaveTextContent("Cửa hàng Mẫu Hoa Mai"));
     expect(header).toHaveTextContent("Dữ liệu mẫu");
@@ -156,7 +156,7 @@ describe("App shell — rail, header, slot", () => {
     });
 
     render(<DemoShell>Nội dung</DemoShell>);
-    const header = screen.getByTestId("shop-header");
+    const header = await screen.findByTestId("shop-header");
 
     await waitFor(() => expect(header).toHaveTextContent("Juli đang chạy · cập nhật 02:00"));
     expect(header).toHaveTextContent("Shop Thật");
@@ -168,7 +168,7 @@ describe("App shell — rail, header, slot", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 404 }));
 
     render(<DemoShell>Nội dung</DemoShell>);
-    const header = screen.getByTestId("shop-header");
+    const header = await screen.findByTestId("shop-header");
 
     await waitFor(() => expect(header).toHaveTextContent("Shop Thật"));
     expect(header).not.toHaveTextContent("cập nhật");
@@ -176,7 +176,7 @@ describe("App shell — rail, header, slot", () => {
 
   it("has no five-stage stepper in the global header (ADR-109 decision 8)", async () => {
     render(<DemoShell>Nội dung</DemoShell>);
-    const header = screen.getByTestId("shop-header");
+    const header = await screen.findByTestId("shop-header");
     await waitFor(() => expect(header).toHaveTextContent("Cửa hàng Mẫu Hoa Mai"));
 
     for (const stage of ["Đề xuất", "Duyệt", "Thực thi", "Đo lường"]) {
@@ -283,7 +283,7 @@ describe("Shop-avatar menu", () => {
       </DemoShell>,
     );
 
-    await user.click(screen.getByRole("button", { name: "Thay đổi dữ liệu mẫu" }));
+    await user.click(await screen.findByRole("button", { name: "Thay đổi dữ liệu mẫu" }));
     expect(screen.getByTestId("mutable-state")).toHaveTextContent("inventory-turnover");
 
     await openShopMenu(user);
@@ -313,7 +313,7 @@ describe("Shell stylesheet", () => {
 });
 
 describe("No run-focus framing (P53): the legacy run route is gone, every page gets the full shell", () => {
-  it("keeps the shop header and the nav on every destination and on the retired run path", () => {
+  it("keeps the shop header and the nav on every destination and on the retired run path", async () => {
     for (const pathname of [
       "/decisions/in-progress/00000000-0000-0000-0000-00000000b453",
       "/decisions",
@@ -323,8 +323,8 @@ describe("No run-focus framing (P53): the legacy run route is gone, every page g
       vi.mocked(usePathname).mockReturnValue(pathname);
       const { container, unmount } = render(<DemoShell>Nội dung</DemoShell>);
 
-      expect(container.querySelector(".shop-header"), `header missing on ${pathname}`).not.toBeNull();
-      expect(container.querySelector(".app-nav"), `nav missing on ${pathname}`).not.toBeNull();
+      await waitFor(() => expect(container.querySelector(".shop-header"), `header missing on ${pathname}`).not.toBeNull());
+      await waitFor(() => expect(container.querySelector(".app-nav"), `nav missing on ${pathname}`).not.toBeNull());
       unmount();
     }
   });
@@ -384,9 +384,9 @@ describe("Signed-out auth screen renders WITHOUT the shell (P34-F, D44.5)", () =
     await waitFor(() => expect(shellParts(container).nav).not.toBeNull());
   });
 
-  it("other pages keep the shell while signed out", () => {
+  it("other pages keep the shell while signed out", async () => {
     vi.mocked(usePathname).mockReturnValue("/decisions");
     const { container } = render(<DemoShell>Quyết định</DemoShell>);
-    expect(shellParts(container).nav).not.toBeNull();
+    await waitFor(() => expect(shellParts(container).nav).not.toBeNull());
   });
 });

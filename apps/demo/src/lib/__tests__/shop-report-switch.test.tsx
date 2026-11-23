@@ -3,9 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { sampleEnvelope } from "../phan-tich/sample-data";
 import { ShopReportProvider, useShopReport } from "../shop-report/shop-report-context";
-import { resetShopPlatformCache } from "../shopee-analytics/platform";
 import { ACTIVE_SHOP_STORAGE_KEY } from "../shop-session";
 import { AUTH_SESSION_STORAGE_KEY } from "../supabase-auth";
+
+let shopN = 0; // each test is its own shop: the platform answer is cached per shop id
 
 function Status() {
   return <span data-testid="status">{useShopReport().state.status}</span>;
@@ -19,16 +20,17 @@ function stubPlatform(platform: unknown) {
 }
 
 beforeEach(() => {
-  resetShopPlatformCache();
+  shopN += 1;
   delete process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS;
   window.sessionStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({ accessToken: "token-1", tokenType: "bearer" }));
-  window.sessionStorage.setItem(ACTIVE_SHOP_STORAGE_KEY, JSON.stringify({ id: "sw-1", name: "Shop" }));
+  window.sessionStorage.setItem(ACTIVE_SHOP_STORAGE_KEY, JSON.stringify({ id: `sw-${shopN}`, name: "Shop" }));
 });
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   delete process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS;
   window.sessionStorage.clear();
+  window.localStorage.clear(); // the active shop is mirrored there
 });
 
 describe("W3 · the shell's report read for a TikTok shop", () => {

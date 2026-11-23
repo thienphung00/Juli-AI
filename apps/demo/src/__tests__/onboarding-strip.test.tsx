@@ -1,5 +1,5 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { seedShopPlatform } from "../lib/shopee-analytics/platform";
+import { seedShopPlatform } from "../lib/shopee-analytics/__tests__/platform-test-helpers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "../app/page";
@@ -21,7 +21,7 @@ import { AUTH_SESSION_STORAGE_KEY } from "../lib/supabase-auth";
 
 // W3 U-4: these tests exercise the ADR-108 TikTok screens, which stay behind the one switch.
 process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS = "1";
-seedShopPlatform("shop-1", "tiktok");
+await seedShopPlatform("shop-1", "tiktok");
 
 /**
  * P17 (D26, contract `fasttrack/contracts/p17-onboarding-speed.md` §2): the

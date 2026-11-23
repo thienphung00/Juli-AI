@@ -1,5 +1,5 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ShopReportState } from "../../shop-report/shop-report-context";
 import {
@@ -7,7 +7,6 @@ import {
   PLATFORM_BACKOFF_MS,
   PLATFORM_READ_TIMEOUT_MS,
   probeShopPlatform,
-  resetShopPlatformCache,
   useShopPlatformState,
 } from "../platform";
 
@@ -16,7 +15,6 @@ function respond(status: number, body: unknown): typeof fetch {
 }
 const calls = (f: typeof fetch) => (f as unknown as ReturnType<typeof vi.fn>).mock.calls as [string, RequestInit][];
 
-beforeEach(() => resetShopPlatformCache());
 afterEach(() => vi.useRealTimers());
 
 describe("which marketplace the acting shop is on (only /v1/shops/me says)", () => {

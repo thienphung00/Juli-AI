@@ -113,7 +113,7 @@ function Loaded({ id, page, params }: { readonly id: string; readonly page: Prod
   const backLabel = from === "ranking" ? "Xếp hạng" : from === "card" ? "Thẻ đề xuất" : from === "phan-tich" ? "Phân tích" : from === "san-pham" ? "Sản phẩm" : "Tổng quan";
   const banner =
     from === "ranking" && kpi
-      ? `Mở từ Xếp hạng · ${KPI_NAME[kpi] ?? kpi} × ${(sub && CHILD_NAME[sub]) || sourceName(host.platform ?? "shopee", src ?? "all") || src}${row ? ` · dòng ${row}` : ""}`
+      ? `Mở từ Xếp hạng · ${KPI_NAME[kpi] ?? kpi} × ${(sub && CHILD_NAME[sub]) || sourceName(host.platform, src ?? "all") || src}${row ? ` · dòng ${row}` : ""}`
       : null;
 
   const cards = [page.nguon.card].filter(Boolean);
@@ -125,7 +125,7 @@ function Loaded({ id, page, params }: { readonly id: string; readonly page: Prod
           ‹ {backLabel}
         </Link>
         <div className="sa-eyebrow">SẢN PHẨM</div>
-        <span className="sa-chip sa-chip--outline sa-row__end">{PLATFORM_NAME_TABLE[host.platform ?? "shopee"]}{host.shopName ? ` · ${host.shopName}` : ""}</span>
+        <span className="sa-chip sa-chip--outline sa-row__end">{PLATFORM_NAME_TABLE[host.platform]}{host.shopName ? ` · ${host.shopName}` : ""}</span>
       </header>
 
       <Hero h={h} id={id} links={links} cards={cards.length} firstCard={page.nguon.card?.id ?? null} w={w} />

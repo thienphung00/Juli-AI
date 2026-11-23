@@ -8,7 +8,7 @@ import { sellerLinks } from "../../../lib/shopee-analytics/links";
 
 export function renderWith(ui: ReactElement, api: ShopeeApi, opts: { readOnly?: boolean; links?: typeof sellerLinks; platform?: NavPlatform } = {}) {
   return render(
-    <ShopeeHostProvider host={{ api, links: opts.links ?? sellerLinks, shopKey: "shop-1", shopName: "Shop gia dụng", readOnly: opts.readOnly, platform: opts.platform }}>{ui}</ShopeeHostProvider>,
+    <ShopeeHostProvider host={{ api, links: opts.links ?? sellerLinks, shopKey: "shop-1", shopName: "Shop gia dụng", readOnly: opts.readOnly, platform: opts.platform ?? "shopee" }}>{ui}</ShopeeHostProvider>,
   );
 }
 

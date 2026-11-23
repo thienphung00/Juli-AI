@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { PLATFORM_NAME_TABLE, channelCellBlank, channelName, channelOutsideTotal, channelRowsForDisplay } from "../../lib/platform-labels";
-import { useHostPlatform, useShopee } from "../../lib/shopee-analytics/context";
+import { useShopee } from "../../lib/shopee-analytics/context";
 import { saveBlob, tongQuanFileName } from "../../lib/shopee-analytics/download";
 import { DASH, dayMonth, fmt, pc, vnCount, vnd } from "../../lib/shopee-analytics/format";
 import { readWindow, type WindowState, windowParams } from "../../lib/shopee-analytics/params";
@@ -151,7 +151,7 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
         <div className="sa-head__line">
           <h1 className="sa-h1">{host.shopName || "Shop"}</h1>
           <span className="sa-chip" data-testid="sa-platform">
-            {PLATFORM_NAME_TABLE[host.platform ?? "shopee"]}
+            {PLATFORM_NAME_TABLE[host.platform]}
           </span>
           {ready ? (
             <span className="sa-fresh" data-testid="sa-fresh">
@@ -307,8 +307,7 @@ function Tiles({ data, mode, product, state }: { readonly data: ChannelSplit; re
 }
 
 function Composition({ data, mode, product, state }: { readonly data: ChannelSplit; readonly mode: ValueMode; readonly product: string | null; readonly state: WindowState }) {
-  const { links } = useShopee();
-  const platform = useHostPlatform();
+  const { links, platform } = useShopee();
   const days = daysOf(data);
   const items = compositionOf(data);
   if (items.every((i) => i.share === null)) return null;
@@ -362,8 +361,7 @@ function cellText(c: Cell, v: number | null): string {
 }
 
 function ChannelTable({ data, mode, product, state, weakest }: { readonly data: ChannelSplit; readonly mode: ValueMode; readonly product: string | null; readonly state: WindowState; readonly weakest: WeakestMetric | null }) {
-  const { links } = useShopee();
-  const platform = useHostPlatform();
+  const { links, platform } = useShopee();
   const days = daysOf(data);
   const perDay = (c: Cell) => !RATE_CELLS.has(c) && mode === "avg";
   return (

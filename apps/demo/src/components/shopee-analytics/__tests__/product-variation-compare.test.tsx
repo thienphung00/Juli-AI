@@ -12,7 +12,7 @@ import { ProductPageView } from "../product-page";
 
 function page(qs: string, builder = fakeBuilder()) {
   render(
-    <ShopeeHostProvider host={{ api: fakeApi({ product: product() }), links: sellerLinks, shopKey: "shop-1", builder }}>
+    <ShopeeHostProvider host={{ api: fakeApi({ product: product() }), links: sellerLinks, platform: "shopee", shopKey: "shop-1", builder }}>
       <ProductPageView id="BEP-S5" params={new URLSearchParams(qs)} />
     </ShopeeHostProvider>,
   );
@@ -40,7 +40,7 @@ describe("Sản phẩm: So sánh phân loại", () => {
 
   it("is not shown while the builder API is off", async () => {
     render(
-      <ShopeeHostProvider host={{ api: fakeApi({ product: product() }), links: sellerLinks, shopKey: "shop-1" }}>
+      <ShopeeHostProvider host={{ api: fakeApi({ product: product() }), links: sellerLinks, platform: "shopee", shopKey: "shop-1" }}>
         <ProductPageView id="BEP-S5" params={new URLSearchParams("tab=ng")} />
       </ShopeeHostProvider>,
     );

@@ -112,6 +112,7 @@ export function useOpsShopeeHost(shopId: string, kind: "view-as" | "tab", shopNa
             builder: p92BuilderEnabled() ? createBuilderApi({ base: opsBuilderBase(shopId), token, fetchImpl }) : undefined,
             kol: kolEnabled() ? createKolApi({ base: opsShopeeBase(shopId), token, fetchImpl }) : undefined,
             links: kind === "view-as" ? viewAsShopeeLinks(shopId) : opsTabShopeeLinks(shopId),
+            platform: "shopee", // Ops views Shopee shops here (the tab is gated on the shop's platform)
             shopKey: `ops:${shopId}`,
             shopName,
             readOnly: true,

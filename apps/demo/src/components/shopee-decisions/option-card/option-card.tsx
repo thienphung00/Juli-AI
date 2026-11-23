@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 import { sourceFunnelName } from "../../../lib/platform-labels";
-import { useHostPlatform } from "../../../lib/shopee-analytics/context";
 import { DASH, fmt, pp, vnCount, vnd } from "../../../lib/shopee-analytics/format";
 import type { VersionDates } from "../../../lib/shopee-decisions/builder-api";
 import { roiLabel, type AdsEditFacts, type FunnelColumn, type OptionResult } from "../../../lib/shopee-decisions/option-result";
@@ -212,7 +211,6 @@ function columns(r: OptionResult): readonly { readonly name: string; readonly co
 /** "Chi tiết" (collapsed): the seven funnel metrics for before / low / likely / high, by source, notes. */
 export function OptionDetail({ result: r }: { readonly result: OptionResult }) {
   const [open, setOpen] = useState(false);
-  const platform = useHostPlatform();
   const cols = columns(r);
   const sources = Object.keys(r.detail.likely?.by_source ?? r.detail.before.by_source);
   return (
@@ -249,7 +247,7 @@ export function OptionDetail({ result: r }: { readonly result: OptionResult }) {
               <tbody>
                 {sources.map((s) => (
                   <tr key={s}>
-                    <th scope="row">{sourceFunnelName(platform, s) ?? s}</th>
+                    <th scope="row">{sourceFunnelName("shopee", s) ?? s}</th>
                     {cols.map((c) => {
                       const row = c.col?.by_source[s];
                       return (

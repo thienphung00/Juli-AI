@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PLATFORM_ATTEMPTS, PLATFORM_BACKOFF_MS, PLATFORM_READ_TIMEOUT_MS, resetShopPlatformCache } from "../../lib/shopee-analytics/platform";
+import { PLATFORM_ATTEMPTS, PLATFORM_BACKOFF_MS, PLATFORM_READ_TIMEOUT_MS } from "../../lib/shopee-analytics/platform";
 import { ShopReportProvider } from "../../lib/shop-report/shop-report-context";
 import { ACTIVE_SHOP_STORAGE_KEY } from "../../lib/shop-session";
 import { AUTH_SESSION_STORAGE_KEY } from "../../lib/supabase-auth";
@@ -19,7 +19,6 @@ function json(body: unknown, status = 200): Response {
 }
 
 beforeEach(() => {
-  resetShopPlatformCache();
   window.sessionStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({ accessToken: "token-1", tokenType: "bearer" }));
   window.sessionStorage.setItem(ACTIVE_SHOP_STORAGE_KEY, JSON.stringify({ id: "tt-shop-1", name: "Shop TikTok" }));
 });
@@ -28,6 +27,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   window.sessionStorage.clear();
+  window.localStorage.clear(); // the active shop is mirrored there
 });
 
 describe("Quyết định · a TikTok shop", () => {
@@ -47,6 +47,7 @@ describe("Quyết định · a TikTok shop", () => {
 
   it("a stalled shops/me does not render TikTok screens: neutral loading, then an error with a retry (the cause of the stuck line)", async () => {
     vi.useFakeTimers();
+    window.sessionStorage.setItem(ACTIVE_SHOP_STORAGE_KEY, JSON.stringify({ id: "tt-shop-stalled", name: "Shop TikTok" }));
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise<Response>(() => undefined));
     render(
       <ShopReportProvider loadAnalysis={vi.fn().mockResolvedValue(null)}>
