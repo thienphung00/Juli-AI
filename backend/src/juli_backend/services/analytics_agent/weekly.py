@@ -12,12 +12,17 @@ from __future__ import annotations
 
 import re
 from datetime import date, timedelta
-from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.analytics_agent import cards as cardstage
 from juli_backend.services.analytics_agent import fmt
 from juli_backend.services.analytics_agent.chains import bucket
+from juli_backend.services.analytics_agent.entities import (
+    campaign_order,
+    campaign_row,
+    campaign_verdict,
+)
+from juli_backend.services.analytics_agent.registry_reads import roas as registry_roas
 from juli_backend.services.analytics_agent.types import (
     CardEnginePort,
     DataPort,
@@ -27,10 +32,10 @@ from juli_backend.services.analytics_agent.types import (
 from juli_backend.services.analytics_agent.windows import (
     anchor_for,
     build_windows,
+    clip_to_freshness,
     is_sale_day,
     sale_days_vi,
 )
-from juli_backend.services.metrics.compute import raw_value
 
 PRESET = "last_full_week_vs_week_before"
 TOP = 5
@@ -39,7 +44,11 @@ _COVERAGE_OK = 99.5
 
 
 def _sum(rows: list[dict[str, Any]], key: str, win: tuple[date, date]) -> float | None:
-    vals = [r[key] for r in rows if win[0] <= r["day"] <= win[1] and r.get(key) is not None]
+    vals = [
+        r[key]
+        for r in rows
+        if win[0] <= r["day"] <= win[1] and r.get("complete", True) and r.get(key) is not None
+    ]
     return float(sum(vals)) if vals else None
 
 
@@ -107,6 +116,7 @@ async def run_weekly(
     if latest is None:
         return [], out
     w = build_windows(PRESET, anchor_for(PRESET, as_of, latest), sale_aware=True)
+    w = clip_to_freshness(w, latest)  # no sum past the day the footer names
     assert w.prev is not None
     last_week = w.sale_prev or w.prev  # the week before, sale or not
     events: list[dict[str, Any]] = []
@@ -116,12 +126,7 @@ async def run_weekly(
     def val(metric: str, win: tuple[date, date]) -> float | None:
         if metric == "roas":
             g, c = _sum(rows, "ads_gmv", win), _sum(rows, "ads_spend", win)
-            if g is None or not c:
-                return None
-            raw = raw_value(
-                "roas", {"ads_gmv_platform": Decimal(str(g)), "cost_ads": Decimal(str(c))}
-            )
-            return float(raw) if isinstance(raw, Decimal) else None
+            return registry_roas(g, c) if g is not None and c else None
         return _sum(rows, metric, win)
 
     table = []
@@ -150,11 +155,7 @@ async def run_weekly(
 
     # 2. ads ROAS vs ROAS hoà vốn (registry), per campaign
     camps = await data.campaign_rows(*w.cur)
-    below = [
-        c
-        for c in camps
-        if c["roas"] is not None and c["break_even"] is not None and c["roas"] < c["break_even"]
-    ]
+    below = [c for c in camps if campaign_verdict(c) == "Lỗ"]
     if camps:
         events.append(
             _section(
@@ -162,14 +163,8 @@ async def run_weekly(
                 latest,
                 "Quảng cáo: ROAS so với ROAS hoà vốn",
                 [
-                    {
-                        "label_vi": str(c["name"]),
-                        "value_vi": f"ROAS {fmt.value('roas', _f(c['roas']))} · hoà vốn "
-                        f"{fmt.value('roas', _f(c['break_even']))}",
-                        "detail_vi": ("Dưới hoà vốn · " if c in below else "")
-                        + f"chi {fmt.value('ads_spend', _f(c['spend']))}",
-                    }
-                    for c in sorted(camps, key=lambda c: float(c["profit_after_ads"]))[:TOP]
+                    campaign_row(c, "Dưới hoà vốn · " if c in below else "")
+                    for c in sorted(camps, key=campaign_order)[:TOP]
                 ],
             )
         )
@@ -312,9 +307,17 @@ async def run_weekly(
                 }
             )
             continue
-        if not card:
+        if not card or not cardstage.estimable(card, kind):
+            # no draft Juli can price: point to the open card of the same kind and target, if any
+            theirs = next((c for c, _ in match), None)
             arows.append(
-                {"label_vi": labels.kind(kind), "value_vi": "Chưa có phương án", "detail_vi": why}
+                {
+                    "label_vi": labels.kind(kind),
+                    "value_vi": f"Đã có thẻ {theirs.get('code') or ''}".strip()
+                    if theirs
+                    else "Chưa có phương án",
+                    "detail_vi": why,
+                }
             )
             continue
         ev = await cardstage.draft_event(out, data, jev, labels, kind, item, card)

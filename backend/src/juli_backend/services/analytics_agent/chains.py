@@ -150,7 +150,11 @@ class ChainResult:
 
 
 def _sum(rows: list[dict[str, Any]], key: str, a: date, b: date) -> float | None:
-    vals = [r[key] for r in rows if a <= r["day"] <= b and r.get(key) is not None]
+    vals = [
+        r[key]
+        for r in rows
+        if a <= r["day"] <= b and r.get("complete", True) and r.get(key) is not None
+    ]
     return float(sum(vals)) if vals else None
 
 

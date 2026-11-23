@@ -73,7 +73,8 @@ WRITER_SYSTEM = (
     "Bạn là Juli, viết lời giải thích ngắn cho người bán hàng Shopee bằng tiếng Việt, xưng 'bạn'. "
     "Dòng đầu tiên PHẢI là đúng dòng được đưa (bắt đầu bằng 'Đang tìm hiểu: '). Chỉ giải thích "
     "nguyên nhân dựa trên "
-    "FINDINGS; mọi con số lấy nguyên văn từ FINDINGS (đã định dạng sẵn), không tự tính. Chỉ nhắc "
+    "FINDINGS; gọi đúng đối tượng theo 'phạm_vi' (số của một sản phẩm không bao giờ gọi là của "
+    "shop); mọi con số lấy nguyên văn từ FINDINGS (đã định dạng sẵn), không tự tính. Chỉ nhắc "
     "tới các thẻ đã được "
     "chấp nhận (ACCEPTED_CARDS); không viết giá trị hay dự báo của thẻ; không đề xuất hành động "
     "nào ngoài các thẻ đó. "
@@ -195,9 +196,11 @@ def template_text(first_line: str, chain_json: dict[str, Any], labels: LabelTabl
     shares (parts moving in opposite directions can exceed 100 %)."""
     m = chain_json["metric"]
     head = chain_json["findings"][0] if chain_json["findings"] else {}
+    prod = chain_json.get("product") or {}
+    who = f" · {prod.get('name') or prod['item_id']}" if prod.get("item_id") else ""
     parts = [
         first_line,
-        f"Kỳ: {chain_json['window']['label_vi']}. {head.get('node_vi', labels.metric(m))}: "
+        f"Kỳ: {chain_json['window']['label_vi']}. {head.get('node_vi', labels.metric(m))}{who}: "
         f"{fmt.value(m, head.get('before'))} → {fmt.value(m, head.get('now'))}.",
     ]
     for f in chain_json["findings"][1:4]:
@@ -244,6 +247,7 @@ async def write_explanation(
         for f in c["findings"]
         if f["level"] in ("product", "endpoint.product")
     ]
+    names += [c["product"]["name"] for c in chains_json if (c.get("product") or {}).get("name")]
     streamed: list[str] = []
     async for d in llm.stream_text(WRITER_SYSTEM, user):
         streamed.append(d)

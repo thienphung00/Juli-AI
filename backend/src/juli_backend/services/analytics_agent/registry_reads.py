@@ -30,3 +30,14 @@ def roas_direct(ads_gmv_direct: Any, cost_ads: Any) -> float | None:
     ctx.memo["cost_ads"] = Decimal(str(cost_ads))
     v = ctx.ref("roas_direct")
     return float(v) if isinstance(v, Decimal) else None
+
+
+def roas(ads_gmv_platform: Any, cost_ads: Any) -> float | None:
+    """`roas` = ads_gmv_platform / cost_ads (registry); `cost_ads` is a derived metric there,
+    handed in as a value (the shop-level ROAS of the weekly analysis)."""
+    if ads_gmv_platform is None or cost_ads is None:
+        return None
+    ctx = _Context({"ads_gmv_platform": Decimal(str(ads_gmv_platform))}, None, {})
+    ctx.memo["cost_ads"] = Decimal(str(cost_ads))
+    v = ctx.ref("roas")
+    return float(v) if isinstance(v, Decimal) else None
