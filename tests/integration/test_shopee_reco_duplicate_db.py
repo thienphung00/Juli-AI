@@ -95,3 +95,74 @@ async def test_s6_every_card_kind_can_be_withdrawn_one_by_one(shopee_tenants):
             await reco.withdraw(session, a.shop_id, card_id, now=NOW, reason_code="not_fit")
         rows = {p.id: p.status for p, _ in await store.list_cards(session, a.shop_id)}
         assert {rows[i] for i in made.values()} == {"withdrawn"}, kinds
+
+
+async def test_a_replacement_is_never_its_own_twin_but_is_a_twin_of_another_open_card(
+    shopee_tenants,
+):
+    """Replacement / revision path (stale.py): the card being replaced is excluded."""
+    a, _ = shopee_tenants
+    async with juli_app_session() as session, with_shop_scope(session, a.shop_id):
+        first = await _make(session, a.shop_id, a.user_id)
+        card = _card()
+        mine = [
+            r for r, _ in await store.list_cards(session, a.shop_id) if r.code == first["code"]
+        ][0]
+        assert await store.find_open_duplicate(session, a.shop_id, card, exclude_id=mine.id) is None
+        other = await _make(session, a.shop_id, a.user_id, budget=150_000)
+        twin_card = _card(150_000)
+        found = await store.find_open_duplicate(session, a.shop_id, twin_card, exclude_id=mine.id)
+        assert found is not None and found.code == other["code"]
+
+
+async def test_s6_every_card_kind_can_be_removed_from_the_draft_plan_one_by_one(shopee_tenants):
+    """Q7, Kế hoạch: ``plans.remove_card`` of each non-mega kind leaves the plan with the card
+    back at its prior status and its row removed."""
+    import uuid as _uuid
+
+    from sqlalchemy import select
+
+    from juli_backend.models.shop_proposals import ShopProposal
+    from juli_backend.models.shopee_plans import ShopRecoPlan, ShopRecoPlanCard
+    from juli_backend.services.shopee_recommendations import plans
+    from juli_backend.services.shopee_recommendations.kinds import KINDS, spec
+
+    a, _ = shopee_tenants
+    kinds = [k for k in KINDS if spec(k).family != "mega_sale"]
+    async with juli_app_session() as session, with_shop_scope(session, a.shop_id):
+        plan = ShopRecoPlan(
+            id=_uuid.uuid4(), shop_id=a.shop_id, status="draft", product_windows={},
+            created_by={}, created_at=NOW, updated_at=NOW,
+        )  # fmt: skip
+        session.add(plan)
+        await session.flush()
+        ids: dict[str, _uuid.UUID] = {}
+        for n, kind in enumerate(kinds):
+            card = stub_card(f"7{n:04d}", kind, spec(kind).family)
+            card["change"]["after"] = {"marker": kind}
+            cid = await store.save_card(
+                session, a.shop_id, card, cycle="2026-11", position=n + 1, now=NOW
+            )
+            p = await session.get(ShopProposal, cid)
+            p.status = "planned"
+            p.lever_plan_id = plan.id
+            session.add(
+                ShopRecoPlanCard(
+                    id=_uuid.uuid4(), shop_id=a.shop_id, plan_id=plan.id, proposal_id=cid,
+                    chosen_version=1, inputs={}, prior_status="sent", position=n,
+                    added_by={}, added_at=NOW,
+                )
+            )  # fmt: skip
+            ids[kind] = cid
+        await session.flush()
+        for kind, cid in ids.items():
+            try:
+                await plans.remove_card(
+                    session, a.shop_id, cid, actor=manual.Actor("seller", a.user_id), now=NOW
+                )
+            except manual.ProposalError as exc:  # the plan read-back needs shop numbers
+                assert exc.code == manual.ERROR_NO_DATA, (kind, exc.code)
+        rows = (await session.scalars(select(ShopRecoPlanCard))).all()
+        assert all(r.removed_at is not None for r in rows), kinds
+        got = {(await session.get(ShopProposal, c)).status for c in ids.values()}
+        assert got == {"sent"}, kinds

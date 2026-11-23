@@ -15,7 +15,7 @@ import re
 import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -152,6 +152,46 @@ def learn_service_rate(
     rate = sum((f for _, f in charged), Decimal(0)) / sum((p for p, _ in charged), Decimal(0))
     rate = rate.quantize(Decimal("0.0001"))
     return rate if Decimal(0) < rate < 1 else None
+
+
+SERVICE_LEARN_DAYS = 90
+
+
+def _service_part(
+    service: Decimal | None, infra: Decimal | None, xtra: Decimal | None
+) -> Decimal | None:
+    if xtra is not None:
+        return xtra
+    if service is None:
+        return None
+    return max(service - (infra if infra is not None else INFRASTRUCTURE_FEE), Decimal(0))
+
+
+def learn_service_rate_recent(
+    rows: Iterable[
+        tuple[date | None, Decimal | None, Decimal | None, Decimal | None, Decimal | None]
+    ],
+) -> Decimal | None:
+    """F4: :func:`learn_service_rate` over the income rows ``(paid day, price, Phí Dịch Vụ, infra,
+    Xtra)`` since the shop's first row that carries the fee, or the newest 90 days, whichever is
+    shorter, so rows from before it joined the programme never dilute the rate."""
+    dated = [r for r in rows if r[0] is not None]
+    if not dated:
+        return None
+    newest = max(r[0] for r in dated if r[0] is not None)
+    carrying = [
+        r[0]
+        for r in dated
+        if r[0] is not None and (_service_part(r[2], r[3], r[4]) or Decimal(0)) > 0
+    ]
+    if not carrying:
+        return None
+    start = max(min(carrying), newest - timedelta(days=SERVICE_LEARN_DAYS))
+    return learn_service_rate(
+        (price, service, infra, xtra)
+        for day, price, service, infra, xtra in dated
+        if day is not None and day >= start
+    )
 
 
 def with_service_fee(schedule: FeeSchedule, rate: Decimal | None) -> FeeSchedule:

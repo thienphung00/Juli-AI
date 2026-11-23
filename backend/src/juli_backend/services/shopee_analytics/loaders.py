@@ -166,13 +166,14 @@ class ShopContext:
         return out
 
 
-SERVICE_RATE_ROWS = 500
+SERVICE_RATE_ROWS = 3000
 
 
 async def _service_rate(session: AsyncSession, shop_id: uuid.UUID) -> Decimal | None:
     """F4: the shop's phí dịch vụ rate from its newest income rows (never hard-coded per shop)."""
     stmt = (
         select(
+            ShopeeOrderIncome.paid_on,
             ShopeeOrderIncome.product_price,
             ShopeeOrderIncome.fee_service,
             ShopeeOrderIncome.fee_infra,
@@ -182,7 +183,9 @@ async def _service_rate(session: AsyncSession, shop_id: uuid.UUID) -> Decimal | 
         .order_by(ShopeeOrderIncome.paid_on.desc().nulls_last())
         .limit(SERVICE_RATE_ROWS)
     )
-    return fee_table.learn_service_rate(tuple(r) for r in (await session.execute(stmt)).all())
+    return fee_table.learn_service_rate_recent(
+        tuple(r) for r in (await session.execute(stmt)).all()
+    )
 
 
 async def load_context(session: AsyncSession, shop_id: uuid.UUID) -> ShopContext:

@@ -192,6 +192,11 @@ async def rerun_stale(
             await proposals.withdraw(session, p, now=now)
             continue
         new["rank"] = card.get("rank")
+        if await store.find_open_duplicate(session, shop_id, new, exclude_id=p.id) is not None:
+            # S4: the refreshed card would twin ANOTHER open card (never itself): it closes
+            counts["dropped"] += 1
+            await proposals.withdraw(session, p, now=now)
+            continue
         if p.status == STATUS_DRAFT:
             await proposals.withdraw(session, p, now=now)
             await store.save_card(

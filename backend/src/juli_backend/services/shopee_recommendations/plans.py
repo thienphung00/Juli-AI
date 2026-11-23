@@ -111,9 +111,9 @@ class PlanBreachNotAcknowledged(ProposalError):
     """The plan (or the card being added) breaks a floor or the spend cap and the request did not
     acknowledge it. Never a disabled button: the caller shows the warning and asks again."""
 
-    def __init__(self, breaches: list[dict[str, Any]], what: str = "the plan") -> None:
+    def __init__(self, breaches: list[dict[str, Any]], what: str = "Kế hoạch") -> None:
         super().__init__(
-            ERROR_BREACH, 422, f"{what} breaks a floor price or the spend cap; acknowledge it"
+            ERROR_BREACH, 422, f"{what} vượt giá sàn hoặc mức chi tối đa: cần xác nhận để tiếp tục."
         )
         self.breaches = breaches
 
@@ -477,7 +477,7 @@ async def get_plan(
         cut = []
     elif plan.status == PLAN_DRAFT:
         if env is None:
-            raise ProposalError(service.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
+            raise ProposalError(service.ERROR_NO_DATA, 409, "Shop chưa có số liệu Shopee.")
         base_block = plan_base.live_block(env, today)
         base = None
         agg, _ = await _aggregate(
@@ -732,7 +732,7 @@ async def _add_row(
         restored_inputs = dict(restored.inputs or {})
     vlist = versions.versions_of({**payload, "code": p.code})
     if not 1 <= chosen_version <= len(vlist):
-        raise ProposalError("reco_version_unknown", 422, f"the card has {len(vlist)} version(s)")
+        raise ProposalError("reco_version_unknown", 422, f"Thẻ có {len(vlist)} phương án.")
     if vlist[chosen_version - 1].get("status") == versions.STATUS_REFUSED:
         raise ProposalError("reco_version_unavailable", 422, "Phương án này chưa tính được.")
     plan = await _ensure_draft(session, shop_id, actor, now)
@@ -742,7 +742,7 @@ async def _add_row(
     others = await _same_field(session, shop_id, current, p, payload)
     env = await _env_for(session, shop_id, plan, now)
     if env is None:
-        raise ProposalError(service.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
+        raise ProposalError(service.ERROR_NO_DATA, 409, "Shop chưa có số liệu Shopee.")
     entry = Entry(
         str(p.id), p.code, {**payload, "code": p.code}, chosen_version, dict(restored_inputs)
     )
@@ -751,7 +751,7 @@ async def _add_row(
         raise ProposalError(service.ERROR_BAD_INPUT, 422, "Phương án này chưa tính được.")
     breaches = manual.breaches_of(ev.card)
     if breaches and not acknowledge_breaches:
-        raise PlanBreachNotAcknowledged(breaches, "this card")
+        raise PlanBreachNotAcknowledged(breaches, "Thẻ này")
     acknowledged = {"by": actor.json(), "at": now.isoformat(), "breaches": breaches}
     new_row = ShopRecoPlanCard(
         id=uuid.uuid4(),
@@ -868,7 +868,7 @@ async def refresh_base(
     plan = await _require_draft(session, shop_id)
     env = await load_env(session, shop_id, now=now)
     if env is None:
-        raise ProposalError(service.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
+        raise ProposalError(service.ERROR_NO_DATA, 409, "Shop chưa có số liệu Shopee.")
     plan.as_of = env.as_of
     plan.updated_at = now
     await plan_base.write(session, shop_id, plan.id, env, actor.json(), now)
@@ -969,7 +969,7 @@ async def switch_version(
     payload = await store.card_payload(session, shop_id, p.id) or {}
     vlist = versions.versions_of({**payload, "code": p.code})
     if not 1 <= version <= len(vlist):
-        raise ProposalError("reco_version_unknown", 422, f"the card has {len(vlist)} version(s)")
+        raise ProposalError("reco_version_unknown", 422, f"Thẻ có {len(vlist)} phương án.")
     if vlist[version - 1].get("status") == versions.STATUS_REFUSED:
         raise ProposalError("reco_version_unavailable", 422, "Phương án này chưa tính được.")
     before = row.chosen_version
@@ -1018,7 +1018,7 @@ async def whatif(
     merged = {**(row.inputs or {}), **inputs}
     env = await _env_for(session, shop_id, plan, now)
     if env is None:
-        raise ProposalError(service.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
+        raise ProposalError(service.ERROR_NO_DATA, 409, "Shop chưa có số liệu Shopee.")
     entry = Entry(str(p.id), p.code, {**payload, "code": p.code}, int(row.chosen_version), merged)
     ev = evaluate_entry(env, entry, now=now)
     if ev is None:
@@ -1122,13 +1122,13 @@ async def confirm(
     plan = await _require_draft(session, shop_id)
     rows = await _rows(session, shop_id, plan.id)
     if not rows:
-        raise ProposalError(ERROR_EMPTY, 422, "the plan has no card")
+        raise ProposalError(ERROR_EMPTY, 422, "Kế hoạch chưa có thẻ nào.")
     when = planned_date or now.date()
     if when < now.date():
         raise ProposalError(ERROR_DATE, 422, "the planned date is in the past")
     env = await _env_for(session, shop_id, plan, now)
     if env is None:
-        raise ProposalError(service.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
+        raise ProposalError(service.ERROR_NO_DATA, 409, "Shop chưa có số liệu Shopee.")
     base = None  # P99b: live on the newest data, never the frozen snapshot
     group_rows = await plan_groups.active_groups(session, shop_id, plan.id)
     by_group = await plan_groups.members_by_group(session, shop_id, plan.id)
@@ -1429,9 +1429,7 @@ async def run_together(
         row, p, payload = seen[card_id]
         vlist = versions.versions_of({**payload, "code": p.code})
         if not 1 <= version <= len(vlist):
-            raise ProposalError(
-                "reco_version_unknown", 422, f"the card has {len(vlist)} version(s)"
-            )
+            raise ProposalError("reco_version_unknown", 422, f"Thẻ có {len(vlist)} phương án.")
         if vlist[version - 1].get("status") == versions.STATUS_REFUSED:
             raise ProposalError("reco_version_unavailable", 422, "Phương án này chưa tính được.")
         placements.append(plan_groups.Placement(row, p, payload, version))

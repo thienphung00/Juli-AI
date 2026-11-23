@@ -114,3 +114,27 @@ def test_an_order_with_an_income_row_keeps_the_files_real_fees():
     income = IncomeOrder(order_ref=f"{1:032x}", fee_fixed=D(1_000), fee_service=D(2_000))
     pb = _pairs(D("0.055"), {income.order_ref: income})[0][1]
     assert pb.fee_source == "income" and pb.fees_total == D(3_000)
+
+
+def test_rows_from_before_the_shop_joined_do_not_dilute_the_rate():
+    from datetime import date, timedelta
+
+    first = date(2026, 10, 1)
+    old = [(first + timedelta(days=i), D(100_000), D(3_000), None, None) for i in range(60)]
+    joined = first + timedelta(days=60)
+    new = [(joined + timedelta(days=i), D(100_000), D(8_500), None, None) for i in range(20)]
+    # all rows together are diluted to under half carrying: not enrolled
+    assert fee_table.learn_service_rate((p, s, i, x) for _, p, s, i, x in [*old, *new]) is None
+    assert fee_table.learn_service_rate_recent([*old, *new]) == D("0.0550")
+
+
+def test_only_the_newest_90_days_count():
+    from datetime import date, timedelta
+
+    start = date(2026, 6, 1)
+    stale = [
+        (start + timedelta(days=i), D(100_000), D(13_000), None, None) for i in range(30)
+    ]  # 10 %
+    fresh_start = date(2026, 9, 1)
+    fresh = [(fresh_start + timedelta(days=i), D(100_000), D(8_500), None, None) for i in range(80)]
+    assert fee_table.learn_service_rate_recent([*stale, *fresh]) == D("0.0550")

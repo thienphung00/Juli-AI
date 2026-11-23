@@ -80,6 +80,11 @@ LOCKING_STATUSES = (
 OPEN_STATUSES = (STATUS_DRAFT, *LOCKING_STATUSES)
 
 
+#: Origins of a card made by an outside-Juli import: each row is a change on its own date, so
+#: imported cards never count as duplicates of one another (S4 / import rule).
+IMPORT_ORIGINS = ("external", "import")
+
+
 def _change_key(change_after: Mapping[str, Any] | None) -> str:
     """The changed field and its target value, without the card's own inputs (dates, notes)."""
     after = {k: v for k, v in dict(change_after or {}).items() if k != "inputs"}
@@ -87,7 +92,12 @@ def _change_key(change_after: Mapping[str, Any] | None) -> str:
 
 
 async def find_open_duplicate(
-    session: AsyncSession, shop_id: uuid.UUID, card: Mapping[str, Any]
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    card: Mapping[str, Any],
+    *,
+    skip_origins: Sequence[str] = (),
+    exclude_id: uuid.UUID | None = None,
 ) -> ShopProposal | None:
     """S4: the shop's open card with the same kind, the same target (item / campaign / shop), the
     same changed field and the same target value as ``card``, else None. Same for every origin."""
@@ -104,10 +114,16 @@ async def find_open_duplicate(
             ActionCard.subject_id == subject_id,
         )
     )
+    if exclude_id is not None:  # a replacement is not a twin of the card it replaces
+        stmt = stmt.where(ShopProposal.id != exclude_id)
     want = _change_key(fields["change_after"])
-    for p in (await session.scalars(stmt.order_by(ShopProposal.created_at))).all():
-        if _change_key(p.change_after) == want:
-            return p
+    rows = (await session.execute(stmt.add_columns(ActionCard.metadata_json))).all()
+    for p, meta in sorted(rows, key=lambda r: r[0].created_at):
+        if _change_key(p.change_after) != want:
+            continue
+        if skip_origins and json.loads(meta or "{}").get("origin") in skip_origins:
+            continue
+        return p
     return None
 
 

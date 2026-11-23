@@ -113,7 +113,7 @@ async def _facts(
 ) -> er.Facts:
     env = await load_env(session, shop_id, now=now)
     if env is None:
-        raise ProposalError(ERROR_NO_DATA, 409, "shop has no Shopee numbers")
+        raise ProposalError(ERROR_NO_DATA, 409, "Shop chưa có số liệu Shopee.")
     campaigns = [
         er.Campaign(c.key, c.name, tuple(c.products), float(c.spend))
         for c in env.view.ads.campaigns
@@ -461,6 +461,17 @@ async def commit_import(
                     got = await _create(
                         session, shop.id, plan, rp.row, user_id=user_id, now=now, plan_key=plan_key
                     )
+            except manual.DuplicateCard as dup:  # an open card already holds this change: "Đã có"
+                counts["exists"] += 1
+                cards.append(
+                    {
+                        **base,
+                        "action": "exists",
+                        "reason": "exists",
+                        "existing_code": dup.existing_code,
+                    }
+                )
+                continue
             except (ProposalError, SpecRefused, ValidationError, builder.NoShopeeData) as exc:
                 counts["refused"] += 1
                 message = getattr(exc, "detail", None) or type(exc).__name__

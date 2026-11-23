@@ -282,7 +282,7 @@ async def generate_cards(
     now = _naive(now)
     env = env or await load_env(session, shop_id, as_of=as_of, now=now)
     if env is None:
-        raise ProposalError(ERROR_NO_DATA, 409, "shop has no Shopee numbers")
+        raise ProposalError(ERROR_NO_DATA, 409, "Shop chưa có số liệu Shopee.")
     cands, _critical = await build_candidates(session, shop_id, env)
     report = GenerationReport(as_of=env.as_of)
     built: list[tuple[Candidate, dict[str, Any]]] = []
@@ -707,7 +707,7 @@ async def list_cards(
     if xep_theo not in XEP_THEO:
         raise ProposalError(ERROR_BAD_INPUT, 422, f"xep_theo must be one of {list(XEP_THEO)}")
     if queue not in ("top", "all"):
-        raise ProposalError(ERROR_BAD_INPUT, 422, "queue must be top or all")
+        raise ProposalError(ERROR_BAD_INPUT, 422, 'Hàng đợi chỉ nhận "top" hoặc "all".')
     rows = await store.list_cards(session, shop_id)
     states = await verification_states(session, shop_id, [p.id for p, _ in rows])
     measuring = await product_queue.measuring(
@@ -890,7 +890,7 @@ async def recompute(
     as_of = date.fromisoformat(card["as_of"])
     env = await load_env(session, shop_id, as_of=as_of, now=now)
     if env is None:
-        raise ProposalError(ERROR_NO_DATA, 409, "shop has no Shopee numbers")
+        raise ProposalError(ERROR_NO_DATA, 409, "Shop chưa có số liệu Shopee.")
     new_card = recompute_card(env, card, inputs, now=now, version=version)
     if new_card is None:
         raise ProposalError(ERROR_BAD_INPUT, 422, "Các giá trị này chưa tính được.")
@@ -965,7 +965,7 @@ def recompute_card(
     vlist = versions.versions_of(card)
     number = version or 1
     if not 1 <= number <= len(vlist):
-        raise ProposalError("reco_version_unknown", 422, f"the card has {len(vlist)} version(s)")
+        raise ProposalError("reco_version_unknown", 422, f"Thẻ có {len(vlist)} phương án.")
     cand = candidate_of_card(card)
     cand.inputs = _merge_inputs(vlist[number - 1].get("inputs") or cand.inputs, inputs)
     row_targets = vlist[number - 1].get(multi.KEY)
@@ -1274,9 +1274,7 @@ async def _decide(
             picked = [chosen_version]
         for version in picked:
             if not 1 <= version <= len(vlist):
-                raise ProposalError(
-                    "reco_version_unknown", 422, f"the card has {len(vlist)} version(s)"
-                )
+                raise ProposalError("reco_version_unknown", 422, f"Thẻ có {len(vlist)} phương án.")
             if vlist[version - 1].get("status") == versions.STATUS_REFUSED:
                 raise ProposalError(
                     "reco_version_unavailable",
@@ -1473,7 +1471,9 @@ async def _decide(
             "approval_id": str(approval.id),
             "reason_code": dcode,
         }
-    raise ProposalError(ERROR_BAD_INPUT, 422, "decision must be approve, request_change or dismiss")
+    raise ProposalError(
+        ERROR_BAD_INPUT, 422, "Quyết định phải là approve, request_change hoặc dismiss."
+    )
 
 
 async def expire_old(
