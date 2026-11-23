@@ -1,5 +1,6 @@
 "use client";
 
+import { PLATFORM_NAME_TABLE, sourceName } from "../../lib/platform-labels";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -11,7 +12,6 @@ import {
   CHILD_NAME,
   KPI_NAME,
   PRODUCT_TABS,
-  SOURCE_NAME,
   productPeriod,
 } from "../../lib/shopee-analytics/params";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
@@ -113,7 +113,7 @@ function Loaded({ id, page, params }: { readonly id: string; readonly page: Prod
   const backLabel = from === "ranking" ? "Xếp hạng" : from === "card" ? "Thẻ đề xuất" : from === "phan-tich" ? "Phân tích" : from === "san-pham" ? "Sản phẩm" : "Tổng quan";
   const banner =
     from === "ranking" && kpi
-      ? `Mở từ Xếp hạng · ${KPI_NAME[kpi] ?? kpi} × ${(sub && CHILD_NAME[sub]) || SOURCE_NAME[src ?? "all"] || src}${row ? ` · dòng ${row}` : ""}`
+      ? `Mở từ Xếp hạng · ${KPI_NAME[kpi] ?? kpi} × ${(sub && CHILD_NAME[sub]) || sourceName(host.platform, src ?? "all") || src}${row ? ` · dòng ${row}` : ""}`
       : null;
 
   const cards = [page.nguon.card].filter(Boolean);
@@ -125,7 +125,7 @@ function Loaded({ id, page, params }: { readonly id: string; readonly page: Prod
           ‹ {backLabel}
         </Link>
         <div className="sa-eyebrow">SẢN PHẨM</div>
-        <span className="sa-chip sa-chip--outline sa-row__end">Shopee{host.shopName ? ` · ${host.shopName}` : ""}</span>
+        <span className="sa-chip sa-chip--outline sa-row__end">{PLATFORM_NAME_TABLE[host.platform]}{host.shopName ? ` · ${host.shopName}` : ""}</span>
       </header>
 
       <Hero h={h} id={id} links={links} cards={cards.length} firstCard={page.nguon.card?.id ?? null} w={w} />

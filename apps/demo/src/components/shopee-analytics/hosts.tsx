@@ -5,6 +5,7 @@ import { Suspense, useMemo } from "react";
 
 import { readAuthSession } from "../../lib/supabase-auth";
 import { useShopReport } from "../../lib/shop-report/shop-report-context";
+import { useShopPlatformState } from "../../lib/shopee-analytics/platform";
 import { DEMO_SHOPEE_BASE, createShopeeApi, opsExportsBase, opsShopeeBase } from "../../lib/shopee-analytics/client";
 import { ShopeeHostProvider, type ShopeeHost } from "../../lib/shopee-analytics/context";
 import { DEMO_BUILDER_BASE, createBuilderApi, opsBuilderBase, p92BuilderEnabled } from "../../lib/shopee-decisions/builder-api";
@@ -34,11 +35,12 @@ export function useQueryParams(): URLSearchParams {
 
 function SellerHost({ children }: { readonly children: (host: ShopeeHost) => React.ReactNode }) {
   const { state } = useShopReport();
+  const platform = useShopPlatformState(state).platform;
   const token = "token" in state ? state.token : null;
   const shop = "shop" in state ? state.shop : null;
   const host = useMemo<ShopeeHost | null>(
     () =>
-      token && shop
+      token && shop && platform
         ? {
             api: createShopeeApi({ base: DEMO_SHOPEE_BASE, token, shopId: shop.id }),
             reco: createRecoApi({ base: DEMO_RECO_BASE, token, shopId: shop.id }),
@@ -48,11 +50,12 @@ function SellerHost({ children }: { readonly children: (host: ShopeeHost) => Rea
             links: sellerLinks,
             shopKey: shop.id,
             shopName: shop.name,
+            platform,
           }
         : null,
-    [token, shop],
+    [token, shop, platform],
   );
-  if (state.status === "resolving") return <p className="sa-loading">Đang tải…</p>;
+  if (state.status === "resolving" || (shop && !platform)) return <p className="sa-loading">Đang tải…</p>;
   if (!host) {
     return (
       <div className="sa-page">
@@ -109,6 +112,7 @@ export function useOpsShopeeHost(shopId: string, kind: "view-as" | "tab", shopNa
             builder: p92BuilderEnabled() ? createBuilderApi({ base: opsBuilderBase(shopId), token, fetchImpl }) : undefined,
             kol: kolEnabled() ? createKolApi({ base: opsShopeeBase(shopId), token, fetchImpl }) : undefined,
             links: kind === "view-as" ? viewAsShopeeLinks(shopId) : opsTabShopeeLinks(shopId),
+            platform: "shopee", // Ops views Shopee shops here (the tab is gated on the shop's platform)
             shopKey: `ops:${shopId}`,
             shopName,
             readOnly: true,

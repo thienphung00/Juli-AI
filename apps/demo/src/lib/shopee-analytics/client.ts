@@ -87,7 +87,7 @@ export type ApiRefusal = "not-shopee" | "no-data" | "not-materialized" | "not-fo
 export function refusalOf(error: unknown): ApiRefusal {
   if (!(error instanceof ShopeeApiError)) return "failed";
   if (error.code === "not_a_shopee_shop") return "not-shopee";
-  if (error.code === "no_shopee_data") return "no-data";
+  if (error.code === "no_shopee_data" || error.code === "no_tiktok_data") return "no-data";
   if (error.code === "rows_not_materialized") return "not-materialized";
   if (error.code === "product_not_found" || error.status === 404) return "not-found";
   if (error.status === 422) return "invalid";

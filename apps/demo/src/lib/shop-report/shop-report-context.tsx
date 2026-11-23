@@ -13,6 +13,7 @@ import {
 import { fetchShopAnalysis } from "../shop-analysis/api-client";
 import type { ShopAnalysisEnvelope } from "../shop-analysis/types";
 import { probeShopPlatform } from "../shopee-analytics/platform";
+import { tiktokLegacyScreens } from "../tiktok-screens";
 import { readActiveShop } from "../shop-session";
 import { ensureFreshSession } from "../auth-refresh";
 
@@ -90,7 +91,8 @@ export function ShopReportProvider({
     // server render and the first client render agree.
     const timer = window.setTimeout(async () => {
       // P64: an expired access token is refreshed before the first /v1 read.
-      const session = await ensureFreshSession();
+      // A refresh that throws must not leave the shell "resolving" for good: it is treated as signed out.
+      const session = await ensureFreshSession().catch(() => null);
       if (cancelled) return;
       if (!session) {
         setState({ status: "anonymous", envelope: null });
@@ -115,18 +117,24 @@ export function ShopReportProvider({
       const shop: ActingShop = { id: active.id, name: active.name };
       setState({ status: "loading", token, shop });
       // Ask which marketplace this is BEFORE any TikTok-only read: a Shopee shop never calls
-      // /v1/demo/analysis (it has no such report: "empty", as the 404 used to say) and the shell
-      // knows the platform (cached here) by the time it leaves "loading".
-      probeShopPlatform(token, shop.id)
-        .catch(() => null)
-        .then((platform) => (platform === "shopee" ? null : loadAnalysis({ token, shopId: shop.id })))
-        .then((envelope) => {
+      // /v1/demo/analysis (it has no such report: "empty"). A TikTok shop reads it only while the ADR-108
+      // screens are on (`tiktokLegacyScreens`); the shared Tổng quan / Phân tích need no report, so the
+      // shell never waits for it (W3). An unknown platform is an error the shell offers to retry, never a guess.
+      const legacy = tiktokLegacyScreens(new URLSearchParams(window.location.search));
+      const read = async (): Promise<"unknown" | ShopAnalysisEnvelope | null> => {
+        const platform = await probeShopPlatform(token, shop.id).catch(() => null);
+        if (platform === null) return "unknown";
+        if (platform === "shopee" || !legacy) return null;
+        return loadAnalysis({ token, shopId: shop.id });
+      };
+      read()
+        .then((result) => {
           if (cancelled) return;
-          setState(
-            envelope
-              ? { status: "ready", token, shop, envelope }
-              : { status: "empty", token, shop },
-          );
+          if (result === "unknown") {
+            setState({ status: "error", token, shop });
+            return;
+          }
+          setState(result ? { status: "ready", token, shop, envelope: result } : { status: "empty", token, shop });
         })
         .catch(() => {
           if (!cancelled) setState({ status: "error", token, shop });

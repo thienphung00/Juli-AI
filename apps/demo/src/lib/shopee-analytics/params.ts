@@ -1,3 +1,4 @@
+import { OFFER_NAME_TABLE, sourceName } from "../platform-labels";
 import type { PeriodKind, WindowQuery } from "./client";
 
 /**
@@ -23,14 +24,15 @@ export const KPIS: readonly (readonly [string, string])[] = [
 ];
 export const KPI_NAME: Readonly<Record<string, string>> = Object.fromEntries(KPIS);
 
-/** Source chips: [url key, label, group]. */
+/** Source chips: [url key, label, group]. The names come from the platform label table (Shopee here). */
+const nm = (key: string) => sourceName("shopee", key);
 export const SOURCES: readonly (readonly [string, string, "g" | "ad" | "p"])[] = [
-  ["all", "Tất cả", "g"],
-  ["the_san_pham", "Thẻ sản phẩm", "g"],
-  ["trang_shop", "Trang shop", "g"],
-  ["live", "Live", "g"],
-  ["video", "Video", "g"],
-  ["lien_ket", "Tiếp thị liên kết", "g"],
+  ["all", nm("all"), "g"],
+  ["the_san_pham", nm("the_san_pham"), "g"],
+  ["trang_shop", nm("trang_shop"), "g"],
+  ["live", nm("live"), "g"],
+  ["video", nm("video"), "g"],
+  ["lien_ket", nm("lien_ket"), "g"],
   ["ads", "DVHT (trong đó)", "ad"],
   ["none", "Không ưu đãi", "p"],
   ["voucher", "Voucher", "p"],
@@ -38,17 +40,14 @@ export const SOURCES: readonly (readonly [string, string, "g" | "ad" | "p"])[] =
   ["combo", "Combo", "p"],
 ];
 export const SOURCE_NAME: Readonly<Record<string, string>> = {
-  all: "Tất cả",
-  the_san_pham: "Thẻ sản phẩm",
-  trang_shop: "Trang shop",
-  live: "Live",
-  video: "Video",
-  lien_ket: "Tiếp thị liên kết",
-  ads: "Dịch vụ hiển thị",
-  none: "Không ưu đãi",
-  voucher: "Voucher",
-  promo: "Khuyến mãi",
-  combo: "Combo",
+  all: nm("all"),
+  the_san_pham: nm("the_san_pham"),
+  trang_shop: nm("trang_shop"),
+  live: nm("live"),
+  video: nm("video"),
+  lien_ket: nm("lien_ket"),
+  ads: nm("ads"),
+  ...OFFER_NAME_TABLE,
 };
 
 /** Thẻ sản phẩm children: artboard key ↔ API key. */

@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 
 import { useShopReport } from "../lib/shop-report/shop-report-context";
+import { useTiktokSharedRedirect } from "../lib/use-tiktok-shared-redirect";
 import { onboardingReportReady, type OnboardingStatus } from "../lib/onboarding/api-client";
 import { NoShopSampleStrip } from "./app-shell/no-shop-sample-strip";
 import { ShopOnboardingStrip } from "./onboarding/onboarding-strip";
@@ -25,6 +26,8 @@ import { SignedInPhanTich } from "./phan-tich/signed-in-phan-tich";
  */
 export function AnalysisPageClient() {
   const { state, reload } = useShopReport();
+  // W3: a TikTok shop's Phân tích is the shared /phan-tich; this ADR-108 screen stays behind one switch (decision #8).
+  const leaving = useTiktokSharedRedirect(state, "/phan-tich");
   const searchParams = useSearchParams();
   const router = useRouter();
   const query = {
@@ -47,6 +50,9 @@ export function AnalysisPageClient() {
       <ShopOnboardingStrip onStatus={onOnboardingStatus} shopId={state.shop.id} token={state.token} />
     ) : null;
 
+  if (leaving) {
+    return <p className="text-muted">Đang tải phân tích…</p>;
+  }
   if (state.status === "anonymous") {
     return <SamplePhanTich onNavigate={onNavigate} query={query} />;
   }

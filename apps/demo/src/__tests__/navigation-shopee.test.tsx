@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { AppNavigation } from "../components/app-shell/app-navigation";
 import {
   APP_DESTINATIONS,
+  TIKTOK_DESTINATIONS,
   SAMPLE_SHOP_DESTINATION_KEYS,
   SHOPEE_DESTINATIONS,
   SHOPEE_DESTINATIONS_WITH_JULI,
@@ -64,7 +65,8 @@ describe("navigation for a Shopee shop", () => {
     expect(within(nav).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Tổng quan", "Phân tích", "Quyết định"]);
     expect(screen.queryByTestId("nav-locked-juli")).toBeNull();
     expect(within(nav).getByRole("list")).not.toHaveClass("app-nav__list--many");
-    expect(destinationsFor("tiktok")).toBe(APP_DESTINATIONS);
+    expect(destinationsFor("tiktok")).toBe(TIKTOK_DESTINATIONS);
+    expect(destinationsFor("tiktok", { tiktokLegacy: true })).toBe(APP_DESTINATIONS);
     expect(destinationsFor("shopee")).toBe(SHOPEE_DESTINATIONS);
   });
 });

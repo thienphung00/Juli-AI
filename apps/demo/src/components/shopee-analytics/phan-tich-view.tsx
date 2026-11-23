@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { METRIC_NAME, METRIC_ORDER, shift, type MetricKey, type ValueMode } from "../../lib/metrics";
+import { channelLabel } from "../../lib/platform-labels";
 import { useShopee } from "../../lib/shopee-analytics/context";
 import {
-  CHANNEL_LABEL,
   type SortKey,
   impactText,
   readMetricParams,
@@ -98,11 +98,12 @@ export function PhanTichPageView({ params }: { readonly params: URLSearchParams 
 
 /** "CTR ▼ 12 % · Thẻ sản phẩm · 3 sản phẩm kéo xuống": the number first. */
 function Head({ sel, view }: { readonly sel: MetricKey; readonly view: MetricView }) {
+  const { platform } = useShopee();
   const s = shift(view.total.change);
   const worst = [...view.channels].filter((c) => typeof c.impact === "number" && c.impact < 0).sort((a, b) => (a.impact ?? 0) - (b.impact ?? 0))[0];
   const down = view.products.filter((p) => typeof p.impact === "number" && p.impact < 0).length;
   const parts = [`${METRIC_NAME[sel]}${s ? ` ${s.text}` : ""}`];
-  if (worst) parts.push(CHANNEL_LABEL[worst.key] ?? worst.key);
+  if (worst) parts.push(channelLabel(platform, worst.key) ?? worst.key);
   if (down > 0) parts.push(`${down} sản phẩm kéo xuống`);
   return <PageHead eyebrow={`PHÂN TÍCH · ${view.days} NGÀY · SO VỚI ${view.days} NGÀY TRƯỚC`} title={parts.join(" · ")} />;
 }
@@ -149,6 +150,7 @@ function Cta({ row, metric, product, channel, state }: { readonly state: WindowS
 }
 
 function ByChannel({ view, sel, mode, href, state }: { readonly state: WindowState; readonly view: MetricView; readonly sel: ReturnType<typeof readMetricParams>; readonly mode: ValueMode; readonly href: (patch: Record<string, string | null>) => string }) {
+  const { platform } = useShopee();
   const m = sel.metric;
   const days = view.days;
   return (
@@ -168,7 +170,7 @@ function ByChannel({ view, sel, mode, href, state }: { readonly state: WindowSta
       {view.channels.map((r) => (
         <div className={`jp-grid jp-grid--ch${sel.channel === r.key ? " jp-grid--on" : ""}`} data-testid={`pt-channel-${r.key}`} key={r.key}>
           <Link className="jp-name" href={href({ channel: sel.channel === r.key ? null : r.key })}>
-            {CHANNEL_LABEL[r.key] ?? r.key}
+            {channelLabel(platform, r.key) ?? r.key}
             {r.ad_base ? <span className="jp-tag">Báo cáo DVHT</span> : null}
           </Link>
           <b>{valueText(m, r.now, days, mode)}</b>

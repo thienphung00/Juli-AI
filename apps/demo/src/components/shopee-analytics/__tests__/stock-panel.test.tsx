@@ -45,7 +45,7 @@ function fakeStock(list: StockList): StockApi & { calls: [string, boolean][] } {
 
 function renderPanel(productId: string | null, keys: readonly string[], stock?: StockApi) {
   return render(
-    <ShopeeHostProvider host={{ api: fakeApi(), links: sellerLinks, shopKey: "shop-1", shopName: "Shop", stock }}>
+    <ShopeeHostProvider host={{ api: fakeApi(), links: sellerLinks, platform: "shopee", shopKey: "shop-1", shopName: "Shop", stock }}>
       <StockPanel keys={keys} productId={productId} />
     </ShopeeHostProvider>,
   );
@@ -53,7 +53,7 @@ function renderPanel(productId: string | null, keys: readonly string[], stock?: 
 
 function renderTq(q: string, stock?: StockApi) {
   return render(
-    <ShopeeHostProvider host={{ api: fakeApi(), links: sellerLinks, shopKey: "shop-1", shopName: "Shop", stock }}>
+    <ShopeeHostProvider host={{ api: fakeApi(), links: sellerLinks, platform: "shopee", shopKey: "shop-1", shopName: "Shop", stock }}>
       <TongQuanView params={params(q)} />
     </ShopeeHostProvider>,
   );

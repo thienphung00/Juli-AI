@@ -60,6 +60,8 @@ describe("Shopee read API client", () => {
     expect(notShopee).toBeInstanceOf(ShopeeApiError);
     expect(refusalOf(notShopee)).toBe("not-shopee");
     expect(refusalOf(await api({ detail: { code: "no_shopee_data", message: "x" } }, 409).overview({ period: "30d" }).catch((e: unknown) => e))).toBe("no-data");
+    // W3: a TikTok shop with no rows yet is the same refusal (409 no_tiktok_data).
+    expect(refusalOf(await api({ detail: { code: "no_tiktok_data", message: "x" } }, 409).overview({ period: "30d" }).catch((e: unknown) => e))).toBe("no-data");
     expect(refusalOf(await api({ detail: { code: "product_not_found", message: "x" } }, 404).product("X", "30d").catch((e: unknown) => e))).toBe("not-found");
     expect(refusalOf(await api({ detail: { code: "invalid_period", message: "x" } }, 422).overview({ period: "30d" }).catch((e: unknown) => e))).toBe("invalid");
     expect(refusalOf(await api({}, 500).overview({ period: "30d" }).catch((e: unknown) => e))).toBe("failed");

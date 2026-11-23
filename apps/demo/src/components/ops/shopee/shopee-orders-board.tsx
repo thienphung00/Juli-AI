@@ -1,5 +1,6 @@
 "use client";
 
+import { TERM_LABEL_TABLE } from "../../../lib/platform-labels";
 import { useEffect, useState, type CSSProperties } from "react";
 
 import { fmtDate } from "../../../lib/ops/format";
@@ -29,7 +30,7 @@ export const ORDER_LEVER_LABEL: Record<OrderLeverKey, string> = {
   flash_sale: "Flash sale",
   voucher: "Voucher",
   combo: "Combo",
-  affiliate: "Tiếp thị liên kết",
+  affiliate: TERM_LABEL_TABLE.shopee.affiliate,
 };
 
 const PERIODS: readonly [OrdersPeriod, string][] = [

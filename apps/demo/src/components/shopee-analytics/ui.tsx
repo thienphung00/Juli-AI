@@ -1,5 +1,8 @@
 "use client";
 
+import type { NavPlatform } from "../../lib/app-navigation";
+import { PLATFORM_NAME_TABLE } from "../../lib/platform-labels";
+import { useHostPlatform } from "../../lib/shopee-analytics/context";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -151,15 +154,7 @@ export function PillLink({ href, active, children, label }: { readonly href: str
 
 const SAMPLE_NO_DATA = { title: "Shop chưa có dữ liệu Shopee", body: "Số liệu sẽ hiện ở đây khi có dữ liệu." } as const;
 
-const REFUSAL_COPY: Record<ApiRefusal, { title: string; body: string }> = {
-  "not-shopee": {
-    title: "Shop này không phải shop Shopee",
-    body: "Màn hình này dành cho shop Shopee. Shop TikTok dùng Trang chủ và Phân tích như trước.",
-  },
-  "no-data": {
-    title: "Shop chưa có dữ liệu Shopee",
-    body: "Khi Juli Connector hoặc tệp báo cáo đầu tiên được tải lên, số liệu sẽ hiện ở đây.",
-  },
+const SHARED_REFUSAL_COPY: Record<Exclude<ApiRefusal, "not-shopee" | "no-data">, { title: string; body: string }> = {
   "not-found": {
     title: "Không tìm thấy sản phẩm này",
     body: "Mã sản phẩm không có trong dữ liệu của shop. Quay lại danh sách Sản phẩm để chọn lại.",
@@ -177,6 +172,26 @@ const REFUSAL_COPY: Record<ApiRefusal, { title: string; body: string }> = {
     body: "Đã có lỗi khi đọc số liệu. Thử tải lại trang; nếu vẫn lỗi, báo cho đội Juli.",
   },
 };
+
+/**
+ * The copy of a refusal, by platform. The platform's own name appears only for the platform that has it:
+ * a TikTok screen never says Shopee, whatever the refusal code; outside a host (platform null) the copy is neutral.
+ */
+export function refusalCopy(platform: NavPlatform | null, refusal: ApiRefusal, sample = false): { title: string; body: string } {
+  if (refusal === "not-shopee") {
+    return platform === "shopee"
+      ? { title: "Shop này không phải shop Shopee", body: "Màn hình này dành cho shop Shopee. Shop TikTok dùng Trang chủ và Phân tích như trước." }
+      : { title: "Chưa có số liệu cho shop này", body: "Thử tải lại trang; nếu vẫn lỗi, báo cho đội Juli." };
+  }
+  if (refusal === "no-data") {
+    if (platform === "tiktok") return { title: `Shop chưa có dữ liệu ${PLATFORM_NAME_TABLE.tiktok}`, body: SAMPLE_NO_DATA.body };
+    if (platform === null) return { title: "Shop chưa có dữ liệu", body: SAMPLE_NO_DATA.body };
+    return sample
+      ? SAMPLE_NO_DATA
+      : { title: "Shop chưa có dữ liệu Shopee", body: "Khi Juli Connector hoặc tệp báo cáo đầu tiên được tải lên, số liệu sẽ hiện ở đây." };
+  }
+  return SHARED_REFUSAL_COPY[refusal];
+}
 
 /**
  * P99b: HTTP 409 `rows_not_materialized`. The message, the window and the missing days; no figures, and
@@ -200,6 +215,7 @@ export function NotMaterializedNotice({ error, testId = "sa-not-materialized" }:
 /** The state of a resource that is not ready, or `null` when it is. */
 export function ResourceState<T>({ resource, children }: { readonly resource: Resource<T>; readonly children: (data: T) => ReactNode }) {
   const sample = useSampleShopReviewer();
+  const platform = useHostPlatform();
   if (resource.status === "loading") {
     return (
       <p className="sa-loading" role="status">
@@ -210,7 +226,7 @@ export function ResourceState<T>({ resource, children }: { readonly resource: Re
   if (resource.status === "refused") {
     if (resource.refusal === "not-materialized" && notMaterializedOf(resource.error)) return <NotMaterializedNotice error={resource.error} />;
     // P100 S2-D4: the reviewer's sample shop has no Juli Connector, so its copy never names it.
-    const copy = sample && resource.refusal === "no-data" ? SAMPLE_NO_DATA : REFUSAL_COPY[resource.refusal];
+    const copy = refusalCopy(platform, resource.refusal, sample);
     return (
       <section className="sa-card" data-testid={`sa-refusal-${resource.refusal}`} role="alert">
         <h2 className="sa-h2">{copy.title}</h2>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useShopReport } from "../lib/shop-report/shop-report-context";
+import { useTiktokSharedRedirect } from "../lib/use-tiktok-shared-redirect";
 import { DemoLanding } from "./demo-landing";
 import { SignedInHome } from "./home/signed-in-home";
 
@@ -12,8 +13,10 @@ import { SignedInHome } from "./home/signed-in-home";
  */
 export function HomePageClient() {
   const { state } = useShopReport();
+  // W3: a TikTok shop's Tổng quan is the shared /tong-quan; this ADR-108 Home stays behind one switch (decision #8).
+  const leaving = useTiktokSharedRedirect(state, "/tong-quan");
 
-  if (state.status === "resolving") {
+  if (state.status === "resolving" || leaving) {
     return <p className="text-muted">Đang tải…</p>;
   }
 
