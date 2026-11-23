@@ -43,6 +43,8 @@ export const MAX_LISTING_IMAGES = 9;
 export const MAX_CAMPAIGNS = 30;
 /** Shopee's programme forms (P100 wave 2, brief C), mirrored by `specs.py`. */
 export const MAX_PROGRAMME_NAME = 150;
+/** Mua Kèm Deal Sốc / Mua Để Nhận Quà: the form's name box takes 25 (owner decision #13, = specs.MAX_DEAL_NAME). */
+export const MAX_DEAL_NAME = 25;
 export const MAX_DISCOUNT_DAYS = 180;
 export const MAX_ADDONS = 5;
 export const MAX_ADDON_LIMIT = 100;
@@ -420,7 +422,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       const c = f.combo;
       if (c.items.length === 0) return no("Chọn ít nhất một sản phẩm cho combo.");
       if (c.items.length > MAX_TARGETS) return no(`Combo có tối đa ${MAX_TARGETS} sản phẩm.`);
-      if ([...c.name.trim()].length > MAX_COMBO_NAME) return no(`Tên combo tối đa ${MAX_COMBO_NAME} ký tự.`);
+      if ([...c.name.trim()].length > MAX_COMBO_NAME) return no(`Tên Combo Khuyến Mãi tối đa ${MAX_COMBO_NAME} ký tự.`);
       const tiers: { qty: number; value: number }[] = [];
       for (const [i, t] of c.tiers.entries()) {
         const qty = num(orDefault(t.qty, comboTierDefault(i, "qty", c.dtype)));
@@ -448,7 +450,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
     case "deal_soc": {
       const d = f.deal_soc;
       const name = d.name.trim();
-      if ([...name].length > MAX_PROGRAMME_NAME) return no(`Tên chương trình tối đa ${MAX_PROGRAMME_NAME} ký tự.`);
+      if ([...name].length > MAX_DEAL_NAME) return no(`Tên Deal Sốc tối đa ${MAX_DEAL_NAME} ký tự.`);
       const win = windowHours(d);
       const dates = win.problem ?? dateProblem(d.start, d.end, null);
       if (dates) return no(dates);
@@ -491,7 +493,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
     case "product_discount": {
       const d = f.product_discount;
       const name = d.name.trim();
-      if ([...name].length > MAX_PROGRAMME_NAME) return no(`Tên chương trình tối đa ${MAX_PROGRAMME_NAME} ký tự.`);
+      if ([...name].length > MAX_PROGRAMME_NAME) return no(`Tên chương trình khuyến mãi tối đa ${MAX_PROGRAMME_NAME} ký tự.`);
       const win = windowHours(d, MAX_DISCOUNT_DAYS);
       const promo = intIn(d.promoQty, 1, 10_000_000, "Số lượng sản phẩm khuyến mãi từ 1 trở lên (để trống = Không giới hạn).");
       const buyer = intIn(d.perBuyer, 1, 100, "Giới hạn đặt hàng từ 1 đến 100.");

@@ -23,3 +23,15 @@ describe("Flash Sale · Giới hạn đặt hàng", () => {
     for (const bad of ["0", "1001", "2.5", "abc"]) expect(buildVersion("price_flash", flash(bad), ctx).problem).toMatch(/Giới hạn đặt hàng/);
   });
 });
+
+describe("name limits per Shopee form (owner decision #13), worded like the server", () => {
+  const deal = (name: string, type: "add_on" | "gift" = "add_on"): Forms => ({ ...f, deal_soc: { ...f.deal_soc, type, name } });
+  it("Deal Sốc 25, Combo 25, Chương Trình Của Shop 150", () => {
+    expect(buildVersion("deal_soc", deal("x".repeat(26)), ctx).problem).toBe("Tên Deal Sốc tối đa 25 ký tự.");
+    expect(buildVersion("deal_soc", deal("x".repeat(26), "gift"), ctx).problem).toBe("Tên Deal Sốc tối đa 25 ký tự.");
+    expect(buildVersion("deal_soc", deal("x".repeat(25)), ctx).problem).not.toMatch(/Tên Deal Sốc/);
+    expect(buildVersion("combo", { ...f, combo: { ...f.combo, items: ["a", "b"], name: "x".repeat(26) } }, ctx).problem).toBe("Tên Combo Khuyến Mãi tối đa 25 ký tự.");
+    expect(buildVersion("product_discount", { ...f, product_discount: { ...f.product_discount, name: "x".repeat(151) } }, ctx).problem).toBe("Tên chương trình khuyến mãi tối đa 150 ký tự.");
+    expect(buildVersion("product_discount", { ...f, product_discount: { ...f.product_discount, name: "x".repeat(150) } }, ctx).problem).not.toMatch(/Tên chương trình/);
+  });
+});
