@@ -510,6 +510,7 @@ export function PriceFlashPanel({ form, set, ctx }: P<"price_flash">) {
           <NumIn label="Số lượng (suất)" onChange={(units) => set({ units })} placeholder={FORM_DEFAULTS.flashUnits} value={form.units} />
           <NumIn label="Số giờ của khung" onChange={(slotHours) => set({ slotHours })} placeholder={FORM_DEFAULTS.flashHours} value={form.slotHours} />
           <TextIn label="Khung giờ bắt đầu" onChange={(slotStart) => set({ slotStart })} type="datetime-local" value={form.slotStart} />
+          <NumIn label="Giới hạn đặt hàng" onChange={(purchaseLimit) => set({ purchaseLimit })} placeholder="Không hạn mức" value={form.purchaseLimit ?? ""} />
         </div>
       ) : null}
     </div>
