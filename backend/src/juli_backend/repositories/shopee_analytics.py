@@ -28,6 +28,7 @@ from juli_backend.models.platform_data import (
 from juli_backend.models.run_changes import ShopRule
 from juli_backend.models.shop_keywords import ShopKeywordSeed
 from juli_backend.models.shopee_profit import (
+    PLATFORMS,
     AdCampaignPurpose,
     PlatformFeeFormula,
     PlatformItemSnapshot,
@@ -37,6 +38,10 @@ from juli_backend.models.shopee_profit import (
 from juli_backend.repositories._base import SessionRepo, ShopScopedRepo
 
 PLATFORM_SHOPEE = "shopee"
+#: P101 W3: the canonical order facts (``order_lines`` / ``order_settlements``) are read for
+#: every platform: a shop is one platform, so for a Shopee shop this is the rows it always read,
+#: and a TikTok shop's canonical lines and settlements feed the same profit engine.
+CANONICAL_PLATFORMS = PLATFORMS
 
 
 class ShopeeOrderLinesRepo(ShopScopedRepo[ShopeeOrderLine]):
@@ -47,7 +52,7 @@ class ShopeeOrderLinesRepo(ShopScopedRepo[ShopeeOrderLine]):
         return await self._all(
             self._scoped(
                 shop_id,
-                ShopeeOrderLine.platform == PLATFORM_SHOPEE,
+                ShopeeOrderLine.platform.in_(CANONICAL_PLATFORMS),
                 ShopeeOrderLine.day >= start,
                 ShopeeOrderLine.day <= end,
             ).order_by(
@@ -56,9 +61,9 @@ class ShopeeOrderLinesRepo(ShopScopedRepo[ShopeeOrderLine]):
         )
 
     async def day_bounds(self, shop_id: uuid.UUID) -> tuple[date, date] | None:
-        stmt = self._scoped(shop_id, ShopeeOrderLine.platform == PLATFORM_SHOPEE).with_only_columns(
-            func.min(ShopeeOrderLine.day), func.max(ShopeeOrderLine.day)
-        )
+        stmt = self._scoped(
+            shop_id, ShopeeOrderLine.platform.in_(CANONICAL_PLATFORMS)
+        ).with_only_columns(func.min(ShopeeOrderLine.day), func.max(ShopeeOrderLine.day))
         first, last = (await self._session.execute(stmt)).one()
         if first is None:
             return None
@@ -83,7 +88,7 @@ class ShopeeOrderLinesRepo(ShopScopedRepo[ShopeeOrderLine]):
         """Calendar (GMT+7) days in the window that have at least one order line."""
         stmt = self._scoped(
             shop_id,
-            ShopeeOrderLine.platform == PLATFORM_SHOPEE,
+            ShopeeOrderLine.platform.in_(CANONICAL_PLATFORMS),
             ShopeeOrderLine.day >= start,
             ShopeeOrderLine.day <= end,
         ).with_only_columns(ShopeeOrderLine.day.distinct())
@@ -106,7 +111,7 @@ class ShopeeOrderIncomeRepo(ShopScopedRepo[ShopeeOrderIncome]):
                 await self._all(
                     self._scoped(
                         shop_id,
-                        ShopeeOrderIncome.platform == PLATFORM_SHOPEE,
+                        ShopeeOrderIncome.platform.in_(CANONICAL_PLATFORMS),
                         ShopeeOrderIncome.order_ref.in_(part),
                     )
                 )
@@ -117,7 +122,7 @@ class ShopeeOrderIncomeRepo(ShopScopedRepo[ShopeeOrderIncome]):
         """Income rows whose order was placed on a day in ``[start, end]``."""
         stmt = self._scoped(
             shop_id,
-            ShopeeOrderIncome.platform == PLATFORM_SHOPEE,
+            ShopeeOrderIncome.platform.in_(CANONICAL_PLATFORMS),
             ShopeeOrderIncome.ordered_on >= start,
             ShopeeOrderIncome.ordered_on <= end,
         ).with_only_columns(func.count())

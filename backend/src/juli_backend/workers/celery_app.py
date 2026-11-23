@@ -259,6 +259,14 @@ celery_app.conf.update(
             "task": "juli_backend.tiktok_canonical_reconcile",
             "schedule": crontab(hour=21, minute=39),
         },
+        # P101 W3: rebuild every TikTok shop's layer-4 rows (shop / product / source per day)
+        # over its last 90 data days -- TikTok revises its analytics and the A-34 blocks re-read
+        # fills older days. 22:09 UTC = 05:09 UTC+7, after the canonical reconcile; minute 9 is
+        # not a multiple of 5 and no daily slot above uses it. Default queue.
+        "tiktok-layer4-rebuild": {
+            "task": "juli_backend.tiktok_layer4_rebuild",
+            "schedule": crontab(hour=22, minute=9),
+        },
         "businesses-backfill": {
             "task": "juli_backend.businesses_backfill",
             "schedule": crontab(minute="6-59/10"),

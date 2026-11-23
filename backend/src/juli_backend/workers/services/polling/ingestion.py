@@ -104,6 +104,7 @@ from juli_backend.services.ingest import (
     CanonicalApplyResult,
     RefetchQueue,
     TikTokCanonicalSync,
+    record_touched_days,
 )
 from juli_backend.services.ingestion import HandoffFn
 from juli_backend.services.onboarding import history_days_available, max_lookback_days
@@ -116,6 +117,7 @@ from juli_backend.services.tiktok import (
 from juli_backend.workers.services.polling.analytics_range import (
     AnalyticsRangeResult,
     probe_latest_available_date,
+    reread_product_blocks,
     sync_analytics_range,
     utc_today,
 )
@@ -1084,6 +1086,8 @@ async def run_shop_cycle(
         except Exception:
             await _save_partial(run, outcomes)
             raise
+        # P101 W3: the layer-4 rows of the days the analytics pass landed. Never fails the cycle.
+        await refresh_analytics_layer4(run, result.analytics)
 
         await _record_cycle(
             run.sync_state_repo, shop_id, sync_state=run.sync_state, outcomes=outcomes
@@ -1113,6 +1117,89 @@ async def run_shop_cycle(
             # D11: scoring once a day, after the analytics pass.
             result.cards = await _score(run, score_fn, phase="daily")
         return result
+
+
+async def refresh_analytics_layer4(
+    run: _ShopRun, analytics: AnalyticsRangeResult | None
+) -> frozenset[date]:
+    """P101 W3: rebuild the layer-4 rows of the days the analytics pass just landed (no vendor
+    call; the hook never raises). Returns those days."""
+    if analytics is None or not analytics.days_with_rows:
+        return frozenset()
+    days = frozenset(date.fromisoformat(d) for d in analytics.days_with_rows)
+    await record_touched_days(run.session, run.shop_id, days, dataset="analytics")
+    return days
+
+
+async def run_blocks_reread(
+    *,
+    session: AsyncSession,
+    config: FujiwaPollConfig,
+    shop_id: uuid.UUID,
+    rate_limiter: RateLimiter,
+    handoff_fn: HandoffFn,
+    resolve_credential: ResolveCredentialFn | None = None,
+    factory: ProductionReadClientFactory | None = None,
+    create_resources: CreateResourcesFn | None = None,
+    sync_state_repo: TikTokSyncStateRepo | None = None,
+    sleep: SleepFn = asyncio.sleep,
+    now: datetime | None = None,
+    concurrency: int | None = None,
+    max_windows: int = 3,
+) -> frozenset[date]:
+    """P101 W3 (owner W3-Q4 = D): the one automatic 90-day re-read of the A-34 channel blocks,
+    run by the nightly layer-4 beat under the shop's cycle lock (so the 15-minute cycle's call
+    budget is untouched). Walks up to ``max_windows`` windows newest first; the cursor
+    (``tiktok_sync_state`` endpoint ``shop_product_blocks_reread``) is saved, so an interrupted
+    walk resumes the next night and a finished one makes no call at all. Then the layer-4 rows
+    of the re-read days are rebuilt. Returns those days. Never raises past the scoped run."""
+    deadline = _CycleDeadline()
+    today = utc_today(now)
+    days: set[date] = set()
+    async with _scoped_shop_run(
+        session=session,
+        config=config,
+        shop_id=shop_id,
+        resolve_credential=resolve_credential,
+        factory=factory,
+        create_resources=create_resources,
+        sync_state_repo=sync_state_repo,
+    ) as run:
+        for _ in range(max_windows):
+            try:
+                reread = await _within_cycle_budget(
+                    lambda: reread_product_blocks(
+                        resource=run.resources.analytics,
+                        rate_limiter=rate_limiter,
+                        handoff_fn=handoff_fn,
+                        app_id=run.app_id,
+                        shop_id=run.shop_key,
+                        sync_state=run.sync_state,
+                        today=today,
+                        sleep=sleep,
+                        deadline=deadline,
+                        concurrency=concurrency,
+                    ),
+                    deadline=deadline,
+                    stage="analytics_blocks",
+                )
+            except Exception as exc:
+                logger.warning(
+                    "analytics_blocks_reread_failed",
+                    extra={"shop_id": str(shop_id), "error": error_label(exc)},
+                )
+                break
+            if reread is None:
+                break
+            if reread.rows:
+                days.update(reread.days)
+            if not reread.complete:
+                break
+        await run.sync_state_repo.save(shop_id, run.sync_state)
+        if days:
+            await record_touched_days(session, shop_id, frozenset(days), dataset="analytics")
+        await session.commit()
+    return frozenset(days)
 
 
 async def _daily_analytics(
@@ -1309,6 +1396,8 @@ __all__ = [
     "history_max_lookback_days",
     "log_transition",
     "max_stored_analytics_day",
+    "refresh_analytics_layer4",
+    "run_blocks_reread",
     "run_bootstrap_fast_phase",
     "run_history_chunks",
     "run_shop_cycle",

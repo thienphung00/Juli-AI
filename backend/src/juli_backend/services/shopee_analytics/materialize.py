@@ -38,6 +38,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import PlatformDailyMetric
+from juli_backend.models.models import Shop
 from juli_backend.models.shopee_metrics import (
     FUNNEL_SOURCES,
     RESIDUAL_ITEM,
@@ -53,6 +54,8 @@ from juli_backend.services.shopee_analytics import (
     period_spread,
     rules_view,
     service,
+    stored,
+    tiktok_days,
 )
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.metrics import (
@@ -86,6 +89,11 @@ DAILY_DATASETS = ("shop_overview", "traffic_overview", "shop_traffic")
 ADS_SOURCE = "the_san_pham_khac"
 #: product x source rows only from the per-day item traffic reader (a period file is not a day)
 ITEM_TRAFFIC_DAILY = "item_traffic_sources"
+#: P101 W3: the platforms whose days are materialized (TikTok's from its canonical order lines
+#: and A-34 analytics, :mod:`tiktok_days`). Data, not a platform check.
+MATERIALIZED_PLATFORMS = stored.MATERIALIZED_PLATFORMS
+#: the nightly rebuild's reach (TikTok revises its analytics; the re-read fills old days)
+NIGHTLY_DAYS = 90
 
 
 def _insert(session: AsyncSession) -> Any:
@@ -559,7 +567,14 @@ async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable
     if not wanted:
         return 0
     ctx0 = await loaders.load_context(session, shop_id)
+    shop = await session.get(Shop, shop_id)
+    settlement_only = shop is not None and shop.platform in tiktok_days.SETTLEMENT_ONLY_PLATFORMS
+    if settlement_only:  # P101 W3 (M-5): a TikTok order's fees are its settlement's, never Shopee's
+        ctx0 = replace(ctx0, formula_rows=[])
     series: dict[period_spread.Period, dict[date, ShopDay]] = {}  # one read per period
+    # P101 W3: a shop's daily analytics (none for a Shopee shop: nothing below changes for it)
+    analytics = await tiktok_days.load_days(session, shop_id, wanted)
+    analytics_known = await tiktok_days.analytics_days(session, shop_id)
     for day in wanted:
         ctx = replace(ctx0, rules=ctx0.rules.for_month(f"{day:%Y-%m}"))
         view = await service.load_view(session, shop_id, ctx, Window(day, day))
@@ -576,6 +591,10 @@ async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable
             await _ads_day(session, shop_id, day),
             period_spread.for_view(view, day, shop_days),
         )
+        rows = _with_analytics(rows, analytics, analytics_known, shop_id, day)
+        if settlement_only:
+            rows = tiktok_days.settled_profit_only(rows, tiktok_days.unsettled_items(view))
+            rows = tiktok_days.without_ads_profit(rows)  # owner W3-Q5 = a
         have = set(
             (
                 await session.execute(
@@ -611,6 +630,24 @@ async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable
         await _upsert_sources(session, shop_id, day, rows.sources)
     await session.flush()
     return len(wanted)
+
+
+def _with_analytics(
+    rows: DayRows,
+    analytics: Mapping[date, tiktok_days.AnalyticsDay],
+    known: list[date],
+    shop_id: uuid.UUID,
+    day: date,
+) -> DayRows:
+    """P101 W3: the day's analytics over its order-line rows when they cover it; else the day
+    says up to which day they do. A shop with no analytics rows is returned unchanged."""
+    found = analytics.get(day)
+    if found is not None and tiktok_days.covers(found, rows.shop["line_orders"]):
+        return tiktok_days.overlay(rows, found, shop_id=shop_id, day=day)
+    if not known:
+        return rows
+    before = [d for d in known if d < day]
+    return tiktok_days.mark_through(rows, before[-1] if before else None)
 
 
 async def _upsert_sources(
@@ -673,6 +710,29 @@ async def rebuild_outdated(session: AsyncSession, shop_id: uuid.UUID, *, limit: 
         return 0
 
 
+async def rebuild_recent(
+    session: AsyncSession, shop_id: uuid.UUID, *, today: date, days: int = NIGHTLY_DAYS
+) -> int:
+    """P101 W3 nightly: rebuild every data day of the last ``days`` days (TikTok revises its
+    analytics for days already stored, and the A-34 re-read fills older days with the channel
+    blocks). Automatic, no manual step. Never raises: a failed rebuild is logged and retried the
+    next night. Returns the days rebuilt."""
+    first = today - timedelta(days=days)
+    wanted = [d for d in await data_days(session, shop_id) if first <= d <= today]
+    if not wanted:
+        return 0
+    try:
+        async with session.begin_nested():
+            return await rebuild_days(session, shop_id, wanted)
+    except (SQLAlchemyError, RuntimeError, ArithmeticError, LookupError, TypeError, ValueError):
+        logger.warning(
+            "shop_metrics_nightly_rebuild_failed",
+            extra={"shop_id": str(shop_id), "days": len(wanted)},
+            exc_info=True,
+        )
+        return 0
+
+
 def days_between(start: date, end: date) -> list[date]:
     return [start + timedelta(days=i) for i in range((end - start).days + 1)]
 
@@ -688,7 +748,11 @@ async def after_ingest(
 ) -> None:
     """The hook the ingest gateway calls after a (non-duplicate) write: rebuild the affected
     days. Never raises into the ingest: a failed rebuild is logged and the backfill repairs it."""
-    if platform != "shopee" or dataset in IGNORED_DATASETS or dataset.endswith("_period"):
+    if (
+        platform not in MATERIALIZED_PLATFORMS
+        or dataset in IGNORED_DATASETS
+        or dataset.endswith("_period")
+    ):
         return
     days = days_between(start, end)[-HOOK_MAX_DAYS:]
     try:
@@ -724,12 +788,13 @@ async def data_days(session: AsyncSession, shop_id: uuid.UUID) -> list[date]:
         select(PlatformDailyMetric.day)
         .where(
             PlatformDailyMetric.shop_id == shop_id,
-            PlatformDailyMetric.platform == "shopee",
+            PlatformDailyMetric.platform.in_(MATERIALIZED_PLATFORMS),
             PlatformDailyMetric.dataset.in_(DAILY_DATASETS),
         )
         .distinct()
     )
     out.update(daily.scalars().all())
+    out.update(await tiktok_days.analytics_days(session, shop_id))  # P101 W3 (TikTok only)
     return sorted(out)
 
 
@@ -826,6 +891,7 @@ async def backfill_shop(
 
 
 __all__ = [
+    "MATERIALIZED_PLATFORMS",
     "PROFIT_RULE_KEYS",
     "AdsDay",
     "RuleRebuild",
@@ -835,6 +901,7 @@ __all__ = [
     "backfill_shop",
     "day_rows",
     "rebuild_days",
+    "rebuild_recent",
     "source_rows",
     "split_sources",
 ]

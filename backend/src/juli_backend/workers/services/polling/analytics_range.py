@@ -926,8 +926,177 @@ def utc_today(now: datetime | None = None) -> date:
     return current.astimezone(UTC).date()
 
 
+# -- W3: the one 90-day re-read of the A-34 channel blocks ------------------------------
+
+#: W3 (owner W3-Q4 = D): how far back the A-34 channel blocks are re-read once per shop.
+BLOCKS_REREAD_DAYS = 90
+#: ``tiktok_sync_state`` cursor (endpoint ``shop_product_blocks_reread``): the ordinal of the
+#: oldest day re-read so far. Absent = never started; at or before ``today - 90`` = done.
+BLOCKS_REREAD_STATE_KEY = "shop_product_blocks_reread_through"
+
+
+@dataclass
+class BlocksReread:
+    """One window of the re-read: the days whose product rows were handed off."""
+
+    start: date
+    end_exclusive: date
+    days: list[date]
+    complete: bool
+    list_calls: int = 0
+    detail_calls: int = 0
+    rows: int = 0
+
+
+async def reread_product_blocks(
+    *,
+    resource: Any,
+    rate_limiter: RateLimiter,
+    handoff_fn: HandoffFn,
+    app_id: str,
+    shop_id: str,
+    sync_state: dict[str, Any],
+    today: date,
+    sleep: SleepFn = asyncio.sleep,
+    deadline: DeadlineLike | None = None,
+    concurrency: int | None = None,
+    window_days: int | None = None,
+    synced_at: int | None = None,
+) -> BlocksReread | None:
+    """Re-read one window (newest first) of the shop's last :data:`BLOCKS_REREAD_DAYS` days so
+    every stored product-day carries the A-34 channel blocks; ``None`` once the walk is done.
+
+    The days before W3 hold the A-34 list row's totals only (multi-day windows never kept the
+    list row at all). Per window: one A-34 list call per day (the blocks are per day) and one
+    A-33 detail call per product for the window; each day's list row is merged into that day's
+    detail row, so the stored A-33 content types are written back with the blocks, never
+    wiped. A product whose detail call fails is handed off not at all and the window is
+    incomplete: the cursor in ``sync_state`` moves only when every call answered."""
+    floor = today - timedelta(days=BLOCKS_REREAD_DAYS)
+    marker = sync_state.get(BLOCKS_REREAD_STATE_KEY)
+    end = date.fromordinal(int(marker)) if marker else today
+    if end <= floor:
+        return None
+    start = max(end - timedelta(days=window_days or max_range_days()), floor)
+    stamp = synced_at if synced_at is not None else int(time.time())
+    counters = _Counters()
+    pool = concurrency or detail_concurrency()
+    days = [day for day, _ in iter_windows(start, end, 1)]
+    lists: dict[str, dict[str, dict[str, Any]]] = {}
+    listed: dict[str, dict[str, Any]] = {}
+    failed = False
+    handed = 0
+
+    with _StepRun("analytics_blocks", shop_id, backfill=True, handoff_fn=handoff_fn) as step:
+        handoff = step.handoff
+        for day in days:
+            start_ge, end_lt = _window_strings(day, day + timedelta(days=1))
+            products, error, refused = await _list_call(
+                partial(
+                    resource.list_product_performance_all,
+                    start_date_ge=start_ge,
+                    end_date_lt=end_lt,
+                ),
+                endpoint=ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
+                label="product_list_blocks",
+                rate_limiter=rate_limiter,
+                app_id=app_id,
+                shop_id=shop_id,
+                sleep=sleep,
+                wait_on_rate_limit=True,
+                deadline=deadline,
+                counters=counters,
+            )
+            if error is not None or refused or not isinstance(products, list):
+                failed = True
+                break
+            for item in products:
+                if not isinstance(item, dict):
+                    continue
+                row = expand_analytics_product_list_item(
+                    item, start_date=start_ge, end_date=end_lt, synced_at=stamp
+                )
+                if row is None:
+                    continue
+                pid = str(row["product_id"])
+                lists.setdefault(pid, {})[start_ge] = row
+                listed.setdefault(pid, {**item, "id": pid})
+
+        detail_failed = False
+        if not failed and listed:
+            range_ge, range_lt = _window_strings(start, end)
+
+            async def on_product(product_id: str, item: dict[str, Any], response: Any) -> None:
+                nonlocal detail_failed, handed
+                if not isinstance(response, dict):
+                    detail_failed = True
+                    return
+                rows = _daily_only(
+                    expand_analytics_product_detail(
+                        response, synced_at=stamp, product_id=product_id
+                    ),
+                    counters,
+                    source="product_detail_blocks",
+                )
+                covered = {str(r.get("start_date"))[:10] for r in rows}
+                for day_key, list_row in sorted(lists.get(product_id, {}).items()):
+                    if day_key in covered:
+                        rows = _merge_product_list_row(rows, list_row)
+                    else:
+                        rows.append(list_row)  # no A-33 row that day: nothing to wipe
+                handed += len(rows)
+                await _handoff_analytics_rows(handoff, shop_id, rows)
+
+            await _detail_fan_out(
+                list(listed.values()),
+                kind="product",
+                path_for=analytics_shop_product_performance_path,
+                call=_by_id(resource.get_product_performance, "product_id", range_ge, range_lt),
+                on_result=on_product,
+                rate_limiter=rate_limiter,
+                app_id=app_id,
+                shop_id=shop_id,
+                sleep=sleep,
+                wait_on_rate_limit=True,
+                deadline=deadline,
+                concurrency=pool,
+                counters=counters,
+            )
+        step.fetched = step.handoff.offered
+        step._report()
+
+    complete = not (failed or detail_failed or counters.rate_limited)
+    if complete:
+        sync_state[BLOCKS_REREAD_STATE_KEY] = start.toordinal()
+    logger.info(
+        "analytics_blocks_reread",
+        extra={
+            "shop_id": shop_id,
+            "start_date_ge": start.isoformat(),
+            "end_date_lt": end.isoformat(),
+            "list_calls": counters.list_calls,
+            "detail_calls": counters.detail_calls,
+            "rows": handed,
+            "complete": complete,
+        },
+    )
+    return BlocksReread(
+        start=start,
+        end_exclusive=end,
+        days=days,
+        complete=complete,
+        list_calls=counters.list_calls,
+        detail_calls=counters.detail_calls,
+        rows=handed,
+    )
+
+
 __all__ = [
+    "BLOCKS_REREAD_DAYS",
+    "BLOCKS_REREAD_STATE_KEY",
     "AnalyticsRangeResult",
+    "BlocksReread",
+    "reread_product_blocks",
     "DETAIL_CONCURRENCY_ENV",
     "MAX_RANGE_DAYS_ENV",
     "acquire_or_wait",
