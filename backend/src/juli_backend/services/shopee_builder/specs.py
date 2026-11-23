@@ -103,6 +103,8 @@ class VoucherSpec(_Base):
 #: P100 wave 2: Shopee's programme forms (Chương Trình Của Shop, Deal Sốc) take a name, a start and
 #: an end with hour precision; the limits below are the ones Seller Centre showed (brief C)
 MAX_PROGRAMME_NAME = 150
+#: batch-1123-a F5: the Deal Sốc form (Mua Kèm Deal Sốc / Mua Để Nhận Quà) takes at most 25
+MAX_DEAL_NAME = 25
 MAX_DISCOUNT_DAYS = 180
 MIN_PROGRAMME_HOURS = 1
 MAX_ADDON_LIMIT = 100
@@ -295,7 +297,7 @@ class AddOnSpec(_Base):
     product, 1-5 add-ons, no name or dates) still loads: every new field is optional."""
 
     kind: Literal["add_on"]
-    name: str | None = Field(default=None, max_length=MAX_PROGRAMME_NAME)
+    name: str | None = Field(default=None, max_length=MAX_DEAL_NAME)
     main_item_id: ItemId
     addons: list[AddOn] = Field(min_length=1, max_length=MAX_ADDONS)
     #: "Giới hạn sản phẩm mua kèm": the most add-ons a buyer can take with the main product
@@ -356,7 +358,7 @@ class GiftSpec(_Base):
     products. Older cards (no name or dates) still load."""
 
     kind: Literal["gift"]
-    name: str | None = Field(default=None, max_length=MAX_PROGRAMME_NAME)
+    name: str | None = Field(default=None, max_length=MAX_DEAL_NAME)
     gift: GiftItem
     trigger: GiftTrigger
     start: date | None = None
@@ -461,6 +463,10 @@ class PriceSpec(_Base):
         return self
 
 
+#: a flash sale sells at most 1 000 units per variation (capture 01), so no buyer can order more
+MAX_FLASH_PURCHASE_LIMIT = 1000
+
+
 class FlashSaleSpec(_Base):
     """A shop flash-sale slot: price, stock and slot time."""
 
@@ -470,6 +476,8 @@ class FlashSaleSpec(_Base):
     units: Annotated[int, Field(ge=1, le=1_000_000)]
     slot_start: str | None = Field(default=None, max_length=40)
     slot_hours: Annotated[int, Field(ge=1, le=72)] = 2
+    #: batch-1123-a F4: "Giới hạn đặt hàng" per buyer (None = Shopee's "Không hạn mức")
+    purchase_limit: Annotated[int, Field(ge=1, le=MAX_FLASH_PURCHASE_LIMIT)] | None = None
 
     @model_validator(mode="after")
     def _check(self) -> FlashSaleSpec:

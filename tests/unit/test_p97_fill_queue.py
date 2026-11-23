@@ -121,12 +121,14 @@ async def test_a_second_approval_call_does_not_duplicate_the_jobs(session, shop)
     assert len(again) == 1 and len(await _jobs(session, seeded)) == 1
 
 
-async def test_ads_and_affiliate_cards_queue_their_pages_and_discounts_queue_nothing(session, shop):
+async def test_ads_affiliate_and_discount_cards_queue_their_pages(session, shop):
     seeded, ids = shop
     for card_id in ids[1:]:
         await _approve(session, seeded, card_id)
     jobs = {j.kind: j for j in await _jobs(session, seeded)}
-    assert set(jobs) == {"ads_edit", "affiliate_commission"}
+    # batch-1123-a F3: a Chương Trình Của Shop card is filled too (one % for every variation)
+    assert set(jobs) == {"ads_edit", "affiliate_commission", "product_discount"}
+    assert jobs["product_discount"].payload["all_pct"] == 15
     ads = jobs["ads_edit"].payload
     assert (
         ads["open_path"] == "/portal/marketing/pas/product/manual-mpd/160675212"

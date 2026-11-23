@@ -87,6 +87,14 @@ _KIND_OF = {
     "affiliate_commission": "affiliate_commission",
     "bundle_deal": "combo",
     "combo_multi": "combo",
+    # batch-1123-a F (owner decision #5, 23/11)
+    "price": "price",
+    "product_discount": "product_discount",
+    "flash_sale": "flash_sale",
+    "add_on": "add_on",
+    "gift": "gift",
+    "cover_image": "cover_image",
+    "variation_restructure": "variation_set",
 }
 COMBO_OPEN_PATH = "/portal/marketing/bundle/new"
 MAX_COMBO_NAME = 25
@@ -314,6 +322,511 @@ def _combo_payload(
     return payload
 
 
+# ------------------------------------------------- batch-1123-a F: price, programmes, product page
+#
+# Giá (``price``), Chương Trình Của Shop (``product_discount``), Flash Sale Của Shop
+# (``flash_sale``), Mua Kèm Deal Sốc / Mua Để Nhận Quà (``add_on`` / ``gift``, one Shopee form),
+# Ảnh bìa (``cover_image``) and Phân loại hàng (``variation_set``, the card's
+# ``variation_restructure``). The builder's spec of the approved version (its ``spec``) is read
+# first, the card's inputs second. Anything Shopee would refuse is a failed job with a Vietnamese
+# reason (at most 64 characters, the column), never a guessed value.
+
+DISCOUNT_OPEN_PATH = "/portal/marketing/discount/create"
+FLASH_SALE_OPEN_PATH = "/portal/marketing/shop-flash-sale/create"
+DEAL_OPEN_PATH = "/portal/marketing/add-on-deal/create"
+DISCOUNT_LIST_PATH = "/portal/marketing/list/discount"
+FLASH_SALE_LIST_PATH = "/portal/marketing/shop-flash-sale/list"
+MAX_PROGRAMME_NAME = 150
+#: Shopee's Deal Sốc name box has maxlength 25 (capture 03, 23/11)
+MAX_DEAL_NAME = 25
+MAX_DEAL_ADDON_LIMIT = 100
+MAX_GIFT_QTY = 49
+MAX_VARIATIONS = 40
+#: Flash Sale Của Shop: Shopee's fixed daily slots (capture 01): start hour -> the picker's label
+FLASH_SLOTS = {
+    0: "00:00:00 - 02:00:00",
+    2: "02:00:00 - 09:00:00",
+    9: "09:00:00 - 12:00:00",
+    12: "12:00:00 - 15:00:00",
+    15: "15:00:00 - 17:00:00",
+    17: "17:00:00 - 19:00:00",
+    19: "19:00:00 - 21:00:00",
+    21: "21:00:00 - 00:00:00",
+}
+FLASH_SLOT_HOURS = {0: 2, 2: 7, 9: 3, 12: 3, 15: 2, 17: 2, 19: 2, 21: 3}
+#: about a week ahead: on 23/11 the picker offered 24-30/11
+FLASH_MAX_DAYS_AHEAD = 7
+FLASH_MAX_STOCK = 1000
+FLASH_MIN_PCT, FLASH_MAX_PCT = 5, 90
+
+ERR_PRICE = "Thiếu giá mới của phân loại"
+ERR_NO_VARIATION = "Sản phẩm không có phân loại: sửa giá bằng tay"
+ERR_DISCOUNT = "Thiếu mức giảm của phân loại"
+ERR_WINDOW = "Kết thúc phải sau bắt đầu ít nhất 1 giờ"
+ERR_FLASH_NO_SLOT = "Chưa chọn khung giờ Flash Sale"
+ERR_FLASH_BAD_SLOT = "Khung giờ không có trên Shopee"
+ERR_FLASH_DAY = "Ngày Flash Sale ngoài 7 ngày Shopee cho đặt"
+ERR_FLASH_PCT = "Mức giảm Flash Sale phải từ 5% đến 90%"
+ERR_FLASH_STOCK = "SL khuyến mãi phải từ 1 đến 1000"
+ERR_DEAL_NAME = "Tên Deal Sốc quá 25 ký tự"
+ERR_DEAL_ADDONS = "Thiếu sản phẩm chính hoặc sản phẩm mua kèm"
+ERR_GIFT_SPEND = "Thiếu mức «Mua ₫X» của quà tặng"
+ERR_GIFT_UNSOLD = "Quà không bán: Shopee cần quà là sản phẩm của shop"
+ERR_COVER = "Thiếu ảnh bìa hiện tại để hoàn tác"
+ERR_OPTIONS = "Thiếu phân loại mới (tên, giá)"
+
+#: what reads the object back after the save (F9): only the voucher and combo lists today; the
+#: others are ``unsupported`` so Juli shows "Chưa thấy" rather than a match nobody read
+READBACK_OF_KIND = {
+    "title": "item_catalog",
+    "description_first_line": "item_catalog",
+    "voucher": "voucher_list",
+    "combo": "combo_list",
+    "affiliate_commission": "item_catalog",
+}
+READBACK_UNSUPPORTED = "unsupported"
+#: F5: the Connector's check key that turns ✓ once step 1 of a Deal Sốc was saved by the person
+DEAL_STEP1_KEY = "step1_saved"
+DEAL_ABANDONED = "Chương trình trống trên Shopee — cần Kết thúc"
+DEAL_ABANDON_AFTER = timedelta(hours=24)
+
+
+def readback_of(kind: str) -> str:
+    return READBACK_OF_KIND.get(kind, READBACK_UNSUPPORTED)
+
+
+def _spec_of(card: dict[str, Any], version: int) -> dict[str, Any]:
+    """The builder spec of the approved version (``{}`` for an engine card)."""
+    vlist = card.get("versions") or []
+    if 1 <= version <= len(vlist) and isinstance(vlist[version - 1], dict):
+        spec = vlist[version - 1].get("spec")
+        if isinstance(spec, dict):
+            return dict(spec)
+    spec = card.get("spec")
+    return dict(spec) if isinstance(spec, dict) else {}
+
+
+def _extra_of(card: dict[str, Any], version: int) -> dict[str, Any]:
+    vlist = card.get("versions") or []
+    out = dict(card.get("candidate_extra") or {})
+    if 1 <= version <= len(vlist) and isinstance(vlist[version - 1], dict):
+        out.update(vlist[version - 1].get("extra") or {})
+    return out
+
+
+def _local_now(now: datetime) -> datetime:
+    return (now if now.tzinfo is None else now.astimezone(UTC).replace(tzinfo=None)) + ICT
+
+
+def programme_window(
+    spec: dict[str, Any], inputs: dict[str, Any], now: datetime
+) -> tuple[str, str] | None:
+    """Start / end of a programme form (``HH:mm DD-MM-YYYY``, GMT+7): the spec's days and hours
+    (no hour: 00:00 / 23:59); a start in the past moves to the earliest Shopee takes. ``None``
+    when the end is not at least an hour after the start (Shopee's rule)."""
+    floor_start, default_end = voucher_window(now, config.VOUCHER_DAYS)
+    earliest = datetime.strptime(floor_start, "%H:%M %d-%m-%Y")
+    start_day = _chosen_day(spec.get("start") or inputs.get("start"))
+    end_day = _chosen_day(spec.get("end") or inputs.get("end"))
+    if start_day is None or end_day is None:
+        return floor_start, default_end
+    sh, eh = spec.get("start_hour"), spec.get("end_hour")
+    start = datetime(
+        start_day.year, start_day.month, start_day.day, int(sh) if sh is not None else 0
+    )
+    end = (
+        datetime(end_day.year, end_day.month, end_day.day, int(eh))
+        if eh is not None
+        else datetime(end_day.year, end_day.month, end_day.day, 23, 59)
+    )
+    start = max(start, earliest)
+    if end - start < timedelta(hours=1):
+        return None
+    return _shopee_time(start), _shopee_time(end)
+
+
+async def catalog_variations(
+    session: AsyncSession | None, shop_id: uuid.UUID, item_id: str
+) -> dict[str, dict[str, Any]]:
+    """variation id -> ``{name, selling, listed}`` of one item from the newest catalogue and
+    snapshot reads (the price fill's names and the undo's old prices). Empty without a session."""
+    if session is None:
+        return {}
+    from juli_backend.models.platform_data import PlatformItem
+    from juli_backend.repositories import PlatformItemSnapshotsRepo
+
+    out: dict[str, dict[str, Any]] = {}
+    for row in await session.scalars(
+        select(PlatformItem).where(PlatformItem.shop_id == shop_id, PlatformItem.item_id == item_id)
+    ):
+        if row.variation_id:
+            out.setdefault(row.variation_id, {})["name"] = row.variation_name
+    for snap in await PlatformItemSnapshotsRepo(session).latest_per_item(shop_id, [item_id]):
+        if not snap.variation_id:
+            continue
+        own = out.setdefault(snap.variation_id, {})
+        own["selling"] = _num(_int_or_none(snap.current_price))
+        own["listed"] = _num(_int_or_none(snap.list_price))
+    return out
+
+
+def _int_or_none(value: Any) -> int | None:
+    try:
+        return None if value is None else int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _unique_names(catalog: dict[str, dict[str, Any]]) -> dict[str, str]:
+    """variation id -> its name, only for names no other variation of the item has (F2: a name
+    that is not unique would let one variation take another's price)."""
+    names = [str(v.get("name") or "").strip() for v in catalog.values()]
+    return {
+        vid: str(v.get("name")).strip()
+        for vid, v in catalog.items()
+        if str(v.get("name") or "").strip() and names.count(str(v.get("name")).strip()) == 1
+    }
+
+
+def _variation_rows(spec: dict[str, Any], inputs: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = spec.get("variations")
+    if not isinstance(rows, list) or not rows:
+        rows = inputs.get("variations")
+    return [r for r in rows or [] if isinstance(r, dict)][:MAX_VARIATIONS]
+
+
+def price_payload(
+    item_id: str, spec: dict[str, Any], inputs: dict[str, Any], catalog: dict[str, dict[str, Any]]
+) -> tuple[dict[str, Any], str | None]:
+    """F2: one new price per variation (the builder's ``PriceSpec``), each from that variation's
+    own price; ``old_prices`` (the catalogue's) is what Hoàn tác puts back."""
+    from juli_backend.services.shopee_builder.variations import quote_variation_price
+
+    names = _unique_names(catalog)
+    variations: list[dict[str, Any]] = []
+    old: list[dict[str, Any]] = []
+    rows = _variation_rows(spec, inputs)
+    for row in rows:
+        vid = str(row.get("variation_id") or "")
+        if not vid:
+            return {}, ERR_NO_VARIATION
+        own = catalog.get(vid) or {}
+        pct = _num(row.get("new_price_pct"))
+        change = _num(row.get("change_pct"))
+        if change is None and pct is not None:
+            change = float(pct) - 100
+        price = quote_variation_price(
+            _int_or_none(own.get("selling")),
+            _int_or_none(own.get("listed")),
+            change_pct=change,
+            final_price=_int_or_none(row.get("final_price")),
+        )
+        if not price or price <= 0:
+            return {}, ERR_PRICE
+        variations.append(
+            {
+                "variation_id": vid,
+                "price": int(price),
+                **({"name": names[vid]} if vid in names else {}),
+            }
+        )
+        if own.get("selling"):
+            old.append(
+                {
+                    "variation_id": vid,
+                    "price": int(own["selling"]),
+                    **({"name": names[vid]} if vid in names else {}),
+                }
+            )
+    if not variations:
+        return {}, ERR_PRICE
+    return {
+        "open_path": f"/portal/product/{item_id}",
+        "item_id": item_id,
+        "variations": variations,
+        "old_prices": old,
+    }, None
+
+
+def _discount_rows(
+    rows: list[dict[str, Any]], names: dict[str, str]
+) -> list[dict[str, Any]] | None:
+    """Per variation Giá sau giảm (``final_price``) OR %GIẢM (``discount_pct``), never both."""
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        vid = str(row.get("variation_id") or "")
+        final, pct = _int_or_none(row.get("final_price")), _num(row.get("discount_pct"))
+        if not vid or (final is None) == (pct is None):
+            return None
+        value = {"final_price": final} if final is not None else {"discount_pct": pct}
+        if (final is not None and final <= 0) or (pct is not None and not 0 < pct <= 90):
+            return None
+        out.append({"variation_id": vid, **value, **({"name": names[vid]} if vid in names else {})})
+    return out
+
+
+def _programme_name(spec: dict[str, Any], inputs: dict[str, Any], code: str, version: int) -> str:
+    return str(spec.get("name") or inputs.get("name") or "").strip() or f"{code} V{version}"
+
+
+def product_discount_payload(
+    spec: dict[str, Any], inputs: dict[str, Any], code: str, version: int, now: datetime,
+    product_ids: list[str], catalog: dict[str, dict[str, Any]],
+) -> tuple[dict[str, Any], str | None]:  # fmt: skip
+    """F3: Chương Trình Của Shop. A one-product card names its variations' Giá sau giảm / %; a
+    many-target (or engine) card one % for every variation of each product (``all_pct``)."""
+    window = programme_window(spec, inputs, now)
+    if window is None:
+        return {}, ERR_WINDOW
+    name = _programme_name(spec, inputs, code, version)[:MAX_PROGRAMME_NAME]
+    payload: dict[str, Any] = {
+        "open_path": DISCOUNT_OPEN_PATH,
+        "name": name,
+        "starts_at": window[0],
+        "ends_at": window[1],
+        "product_ids": product_ids,
+        "variations": [],
+    }
+    rows = _variation_rows(spec, inputs)
+    if rows and len(product_ids) == 1:
+        found = _discount_rows(rows, _unique_names(catalog))
+        if not found:
+            return {}, ERR_DISCOUNT
+        payload["variations"] = found
+    else:
+        pct = _num(
+            spec.get("discount_pct")
+            if spec.get("discount_pct") is not None
+            else inputs.get("discount_pct")
+        )
+        if pct is None or not 0 < pct <= 90:
+            return {}, ERR_DISCOUNT
+        payload["all_pct"] = pct
+    for key in ("promo_qty", "per_buyer_limit"):
+        value = _int_or_none(spec.get(key) if spec.get(key) is not None else inputs.get(key))
+        if value is not None and value > 0:
+            payload[key] = value
+    return payload, None
+
+
+def flash_slot(raw: Any, now: datetime) -> tuple[dict[str, Any] | None, str | None]:
+    """F4: ``slot_start`` ("YYYY-MM-DDTHH:mm", GMT+7) -> ``{day, label, starts}``: the fixed
+    Shopee slot that starts at that hour, on a day Shopee lets the shop book (tomorrow .. a week
+    ahead). Never a stored slot id: the Connector picks by day + label."""
+    if not raw:
+        return None, ERR_FLASH_NO_SLOT
+    try:
+        moment = datetime.fromisoformat(str(raw).strip().replace(" ", "T")[:16])
+    except ValueError:
+        return None, ERR_FLASH_BAD_SLOT
+    if moment.tzinfo is not None:
+        moment = moment.astimezone(UTC).replace(tzinfo=None) + ICT
+    if moment.minute != 0 or moment.hour not in FLASH_SLOTS:
+        return None, ERR_FLASH_BAD_SLOT
+    today = _local_now(now).date()
+    ahead = (moment.date() - today).days
+    if not 1 <= ahead <= FLASH_MAX_DAYS_AHEAD:
+        return None, ERR_FLASH_DAY
+    return {
+        "day": moment.date().isoformat(),
+        "label": FLASH_SLOTS[moment.hour],
+        "starts_at": _shopee_time(moment),
+        "hours": FLASH_SLOT_HOURS[moment.hour],
+    }, None
+
+
+def flash_sale_payload(
+    item_id: str, spec: dict[str, Any], inputs: dict[str, Any], now: datetime,
+    catalog: dict[str, dict[str, Any]],
+) -> tuple[dict[str, Any], str | None]:  # fmt: skip
+    slot, error = flash_slot(spec.get("slot_start") or inputs.get("slot_start"), now)
+    if slot is None:
+        return {}, error
+    rows = _discount_rows(_variation_rows(spec, inputs), _unique_names(catalog))
+    if not rows:
+        return {}, ERR_DISCOUNT
+    if any(
+        r.get("discount_pct") is not None
+        and not FLASH_MIN_PCT <= r["discount_pct"] <= FLASH_MAX_PCT
+        for r in rows
+    ):
+        return {}, ERR_FLASH_PCT
+    units = _int_or_none(
+        spec.get("units") if spec.get("units") is not None else inputs.get("units")
+    )
+    if units is None or not 1 <= units <= FLASH_MAX_STOCK * max(len(rows), 1):
+        return {}, ERR_FLASH_STOCK
+    payload: dict[str, Any] = {
+        "open_path": FLASH_SALE_OPEN_PATH,
+        "item_id": item_id,
+        "product_ids": [item_id],
+        "slot": slot,
+        "variations": rows,
+        "units": units,
+    }
+    # SL sản phẩm khuyến mãi is per variation on Shopee: one variation takes the card's units;
+    # several are split by the person (a guided step), never invented here
+    if len(rows) == 1:
+        if units > FLASH_MAX_STOCK:
+            return {}, ERR_FLASH_STOCK
+        rows[0]["stock"] = units
+    limit = _int_or_none(spec.get("purchase_limit"))
+    if limit is not None and limit > 0:
+        payload["purchase_limit"] = limit
+    return payload, None
+
+
+def deal_payload(
+    kind: str, spec: dict[str, Any], inputs: dict[str, Any], code: str, version: int,
+    now: datetime, card: dict[str, Any],
+) -> tuple[dict[str, Any], str | None]:  # fmt: skip
+    """F5: step 1 of the Deal Sốc form (the only part fillable before the person's Lưu): the
+    type card, Tên (at most 25), dates, and Giới hạn sản phẩm mua kèm or "Mua ₫X để nhận N"; then
+    the products the person picks in steps 2-3."""
+    name = _programme_name(spec, inputs, code, version)
+    if len(name) > MAX_DEAL_NAME:
+        return {}, ERR_DEAL_NAME
+    window = programme_window(spec, inputs, now)
+    if window is None:
+        return {}, ERR_WINDOW
+    payload: dict[str, Any] = {
+        "open_path": DEAL_OPEN_PATH,
+        "deal_type": kind,
+        "name": name,
+        "starts_at": window[0],
+        "ends_at": window[1],
+    }
+    if kind == "add_on":
+        main = (
+            _ids([spec.get("main_item_id")])
+            or _ids((card.get("scope") or {}).get("product_ids"))[:1]
+        )
+        addons = spec.get("addons") or inputs.get("addons") or []
+        addon_ids = _ids([a.get("item_id") for a in addons if isinstance(a, dict)])
+        if not main or not addon_ids:
+            return {}, ERR_DEAL_ADDONS
+        payload["main_product_ids"] = main
+        payload["addon_product_ids"] = [i for i in addon_ids if i not in main]
+        # step 3 (capture 03, edit mode): per add-on Giá Mua Kèm OR %, and its Giới hạn đặt hàng
+        rows = [_addon_row(a) for a in addons if isinstance(a, dict) and a.get("item_id")]
+        if any(r is None for r in rows):
+            return {}, ERR_DEAL_ADDONS
+        payload["addons"] = rows
+        limit = _int_or_none(spec.get("addon_limit"))
+        if limit is not None:
+            if not 1 <= limit <= MAX_DEAL_ADDON_LIMIT:
+                return {}, ERR_DEAL_ADDONS
+            payload["addon_limit"] = limit
+        return payload, None
+    gift = spec.get("gift") or inputs.get("gift") or {}
+    trigger = spec.get("trigger") or inputs.get("trigger") or {}
+    gift_ids = _ids([gift.get("item_id")]) if isinstance(gift, dict) else []
+    if not gift_ids:
+        return {}, ERR_GIFT_UNSOLD
+    amount = _int_or_none(trigger.get("amount")) if isinstance(trigger, dict) else None
+    if amount is None or amount <= 0:
+        return {}, ERR_GIFT_SPEND
+    qty = _int_or_none(gift.get("qty")) or 1
+    if not 1 <= qty <= MAX_GIFT_QTY:
+        return {}, ERR_DEAL_ADDONS
+    payload.update({"min_spend": amount, "gift_qty": qty, "gift_product_ids": gift_ids})
+    main = _ids([trigger.get("item_id")]) if isinstance(trigger, dict) else []
+    if main:
+        payload["main_product_ids"] = main
+    return payload, None
+
+
+def _addon_row(a: dict[str, Any]) -> dict[str, Any] | None:
+    """One add-on of the card: its Giá Mua Kèm (whole đồng) OR % off, and the per-order limit."""
+    price, pct = _int_or_none(a.get("price")), _num(a.get("pct"))
+    if (price is None) == (pct is None) or (price is not None and price <= 0):
+        return None
+    if pct is not None and not 0 <= pct <= 90:
+        return None
+    raw_limit = a.get("limit_per_order") if a.get("limit_per_order") is not None else a.get("limit")
+    limit = _int_or_none(raw_limit)
+    row: dict[str, Any] = {"item_id": str(a["item_id"])}
+    row.update({"price": price} if price is not None else {"pct": pct})
+    if limit is not None and limit > 0:
+        row["limit"] = limit
+    return row
+
+
+_HTTPS = re.compile(r"^https://\S+$")
+
+
+def cover_payload(
+    item_id: str, extra: dict[str, Any], card: dict[str, Any] | None = None
+) -> tuple[dict[str, Any], str | None]:
+    """F6: the new cover goes onto the image grid's file box (the Connector fetches it from
+    ``new_cover_url`` when the card has one, else the person downloads it from the Juli card);
+    dragging it first stays the person's. The old cover's address rides along for Hoàn tác."""
+    old = str(extra.get("cover_url") or "")
+    if not _HTTPS.match(old):
+        return {}, ERR_COVER
+    payload = {"open_path": f"/portal/product/{item_id}", "item_id": item_id, "old_cover_url": old}
+    sheet = (card or {}).get("execution_sheet") or {}
+    urls = [str(d.get("url") or "") for d in sheet.get("downloads") or [] if isinstance(d, dict)]
+    new = next((u for u in urls if _HTTPS.match(u)), None)
+    if new:
+        payload["new_cover_url"] = new
+    return payload, None
+
+
+def variation_set_payload(
+    item_id: str, inputs: dict[str, Any], extra: dict[str, Any]
+) -> tuple[dict[str, Any], str | None]:
+    """F7: the new options (name, Giá, Kho hàng, SKU); the card's current variations are kept for
+    Hoàn tác (delete the added options, put the old prices back)."""
+    options: list[dict[str, Any]] = []
+    for row in inputs.get("variations") or []:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("name") or "").strip()
+        price = _int_or_none(row.get("price"))
+        if not name or len(name) > 100 or price is None or price <= 0:
+            return {}, ERR_OPTIONS
+        option: dict[str, Any] = {"name": name, "price": price}
+        if row.get("sku"):
+            option["sku"] = str(row["sku"])[:100]
+        stock = _int_or_none(row.get("stock"))
+        if stock is not None and stock >= 0:
+            option["stock"] = stock
+        options.append(option)
+    if not options or len(options) > 12:
+        return {}, ERR_OPTIONS
+    old = [
+        {k: v.get(k) for k in ("name", "price", "sku", "stock") if v.get(k) is not None}
+        for v in extra.get("current_variations") or []
+        if isinstance(v, dict)
+    ]
+    return {
+        "open_path": f"/portal/product/{item_id}",
+        "item_id": item_id,
+        "options": options,
+        "old_variations": old,
+    }, None
+
+
+def deal_step1_saved(j: ShopeeFillJob) -> bool:
+    """The Connector saw step 1 of the Deal Sốc saved (its check ``step1_saved`` is ✓)."""
+    return j.kind in ("add_on", "gift") and any(
+        isinstance(c, dict) and c.get("key") == DEAL_STEP1_KEY and c.get("ok") is True
+        for c in (j.payload or {}).get("fill_check") or []
+    )
+
+
+def deal_abandoned(j: ShopeeFillJob, now: datetime | None = None) -> bool:
+    """F5: step 1 was saved (an empty programme now exists on Shopee) and the job never reached
+    the final save: it failed, was cancelled, or has not moved for a day."""
+    if not deal_step1_saved(j) or j.status in (STATUS_SAVED, STATUS_CAPTURED):
+        return False
+    if j.status in (STATUS_FAILED, STATUS_CANCELLED):
+        return True
+    moment = _naive_now(now)
+    return j.updated_at is not None and moment - j.updated_at > DEAL_ABANDON_AFTER
+
+
 async def campaign_id_of(
     session: AsyncSession, shop_id: uuid.UUID, campaign_key: str | None
 ) -> tuple[str | None, str | None]:
@@ -392,7 +905,7 @@ def _card_targets(card: dict[str, Any], kind: str) -> list[dict[str, Any]]:
         return [{"campaign_key": str(r["id"])} for r in rows]
     ids = [str(r["id"]) for r in rows]
     mode = (card.get("fill") or {}).get("mode")
-    if mode == "bulk" or kind in ("voucher", "affiliate_commission", "combo"):
+    if mode == "bulk" or kind in ("voucher", "affiliate_commission", "combo", "product_discount"):
         return [{"product_ids": ids}]
     return [{"item_id": i} for i in ids]
 
@@ -517,7 +1030,79 @@ async def build_jobs(
             else {},
             error,
         )
+    elif kind in _PROMO_KINDS:
+        await _promo_jobs(
+            session, shop_id, p.code, card, version, now, kind, given, scope_items, job
+        )
     return jobs
+
+
+_PROMO_KINDS = (
+    "price",
+    "product_discount",
+    "flash_sale",
+    "add_on",
+    "gift",
+    "cover_image",
+    "variation_set",
+)
+
+
+async def _promo_jobs(
+    session: AsyncSession | None,
+    shop_id: uuid.UUID,
+    code: str,
+    card: dict[str, Any],
+    version: int,
+    now: datetime,
+    kind: str,
+    given: list[dict[str, Any]],
+    scope_items: list[str],
+    job: Any,
+) -> None:
+    """batch-1123-a F: the jobs of the price / programme / product-page kinds (one per page)."""
+    spec = _spec_of(card, version)
+    inputs = dict(card.get("inputs") or {})
+    extra = _extra_of(card, version)
+    ids: list[str] = []
+    for t in given:
+        ids += _ids(t.get("product_ids") or [t.get("item_id")])
+    ids = list(dict.fromkeys(ids or _ids([spec.get("item_id")]) or scope_items))[:MAX_PRODUCTS]
+    if kind in ("add_on", "gift"):
+        payload, error = deal_payload(kind, spec, inputs, code, version, now, card)
+        key = (
+            f"{kind}:"
+            + ",".join(payload.get("main_product_ids") or payload.get("gift_product_ids") or ids)[
+                :60
+            ]
+        )
+        job({"product_ids": ids}, key, payload, error)
+        return
+    if kind == "product_discount":
+        catalog = await catalog_variations(session, shop_id, ids[0]) if len(ids) == 1 else {}
+        payload, error = product_discount_payload(spec, inputs, code, version, now, ids, catalog)
+        job(
+            {"product_ids": ids},
+            "product_discount:" + ",".join(ids)[:60],
+            payload,
+            error if ids else ERR_DISCOUNT,
+        )
+        return
+    for item in ids[:1] if kind == "flash_sale" else ids:
+        target = {"item_id": item}
+        if kind == "price":
+            payload, error = price_payload(
+                item, spec, inputs, await catalog_variations(session, shop_id, item)
+            )
+        elif kind == "flash_sale":
+            payload, error = flash_sale_payload(
+                item, spec, inputs, now, await catalog_variations(session, shop_id, item)
+            )
+        elif kind == "cover_image":
+            payload, error = cover_payload(item, extra, card)
+        else:
+            payload, error = variation_set_payload(item, inputs, extra)
+        job(target, f"{kind}:{item}", payload, error)
 
 
 async def _card_for(
@@ -653,6 +1238,10 @@ def job_json(j: ShopeeFillJob, code: str | None = None, title: str | None = None
         "before_values": (j.payload or {}).get("before_values") or {},
         "period_ok": (j.payload or {}).get("period_ok"),
         "fill_check": (j.payload or {}).get("fill_check") or [],
+        # batch-1123-a F9: which reader confirms the save ("unsupported": Juli shows Chưa thấy)
+        "readback": readback_of(j.kind),
+        # F5: an empty Deal Sốc left on Shopee after step 1 was saved
+        "notice": DEAL_ABANDONED if deal_abandoned(j) else None,
     }
 
 
