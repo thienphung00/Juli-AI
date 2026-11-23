@@ -206,6 +206,7 @@ class GenerationReport:
     top: list[dict[str, Any]] = field(default_factory=list)
     card_ids: list[str] = field(default_factory=list)
     skipped_refusals: Counter[str] = field(default_factory=Counter)
+    skipped_duplicates: int = 0
 
     def json(self) -> dict[str, Any]:
         return {
@@ -218,6 +219,7 @@ class GenerationReport:
             "top": self.top,
             "mega": self.mega,
             "refusals": dict(self.skipped_refusals),
+            "duplicates": self.skipped_duplicates,
         }
 
 
@@ -365,6 +367,9 @@ async def generate_cards(
         card["product_queue"] = r.product_queue
         report.by_family[card["family"]] += 1
         report.by_kind[card["change_kind"]] += 1
+        if persist and await store.find_open_duplicate(session, shop_id, card) is not None:
+            report.skipped_duplicates += 1  # S4: the same change is already open
+            continue
         if persist:
             cid = await store.save_card(
                 session,

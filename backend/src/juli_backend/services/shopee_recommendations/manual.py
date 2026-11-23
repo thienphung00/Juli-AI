@@ -53,6 +53,7 @@ MIN_VARIANTS, MAX_VARIANTS = 2, 4
 
 ERROR_BAD_VARIANT = "reco_manual_invalid"
 ERROR_BREACH = "reco_breach_not_acknowledged"
+ERROR_DUPLICATE = "reco_card_duplicate"
 ERROR_NO_DATA = "reco_no_data"
 
 #: change kinds a person may build by hand (the mega sale is a campaign of other cards)
@@ -459,6 +460,13 @@ def _brief(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def duplicate_message(code: str | None) -> str:
+    return (
+        f"Thẻ này trùng với thẻ {code or '(chưa có mã)'} đang mở: "
+        "cùng loại, cùng đối tượng và cùng thay đổi."
+    )
+
+
 async def create_manual(
     session: Any,
     shop_id: uuid.UUID,
@@ -512,6 +520,9 @@ async def create_manual(
             "at": now.isoformat(),
             "breaches": breaches,
         }
+    twin = await store.find_open_duplicate(session, shop_id, card)
+    if twin is not None:  # S4: the same change is already open, whatever its origin
+        raise ProposalError(ERROR_DUPLICATE, 409, duplicate_message(twin.code))
     order = [chosen, *[i for i in range(len(variants)) if i != chosen]]
     card["origin"] = origin
     card["created_by"] = actor.json()

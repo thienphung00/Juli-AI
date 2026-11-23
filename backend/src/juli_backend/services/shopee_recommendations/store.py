@@ -75,6 +75,42 @@ LOCKING_STATUSES = (
 )
 
 
+#: Statuses of a card that is still open for a new copy of it (S4): Đề xuất, Kế hoạch and Thực hiện;
+#: a finished card, one in Đo lường, or one withdrawn / rejected / superseded never blocks.
+OPEN_STATUSES = (STATUS_DRAFT, *LOCKING_STATUSES)
+
+
+def _change_key(change_after: Mapping[str, Any] | None) -> str:
+    """The changed field and its target value, without the card's own inputs (dates, notes)."""
+    after = {k: v for k, v in dict(change_after or {}).items() if k != "inputs"}
+    return json.dumps(after, sort_keys=True, default=str)
+
+
+async def find_open_duplicate(
+    session: AsyncSession, shop_id: uuid.UUID, card: Mapping[str, Any]
+) -> ShopProposal | None:
+    """S4: the shop's open card with the same kind, the same target (item / campaign / shop), the
+    same changed field and the same target value as ``card``, else None. Same for every origin."""
+    fields = proposal_fields(dict(card), "")
+    _, subject_id = _subject(card, uuid.uuid4())
+    stmt = (
+        select(ShopProposal)
+        .join(ActionCard, ActionCard.id == ShopProposal.id)
+        .where(
+            ShopProposal.shop_id == shop_id,
+            ShopProposal.kind == fields["kind"],
+            ShopProposal.subject_type == fields["subject_type"],
+            ShopProposal.status.in_(OPEN_STATUSES),
+            ActionCard.subject_id == subject_id,
+        )
+    )
+    want = _change_key(fields["change_after"])
+    for p in (await session.scalars(stmt.order_by(ShopProposal.created_at))).all():
+        if _change_key(p.change_after) == want:
+            return p
+    return None
+
+
 def workflow_key(card: Mapping[str, Any], card_id: uuid.UUID) -> str:
     return f"{WORKFLOW_PREFIX}:{card['change_kind']}:{card_id.hex[:12]}"[:64]
 
