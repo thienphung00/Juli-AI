@@ -28,7 +28,10 @@ FEE_SERVICE = "phi_dich_vu"
 FEE_PAYMENT = "phi_xu_ly_giao_dich"
 FEE_PISHIP = "phi_dich_vu_piship"
 FEE_NTTD = "phi_nttd"
-FEE_CODES = (FEE_FIXED, FEE_SERVICE, FEE_PAYMENT, FEE_PISHIP, FEE_NTTD)
+#: ``fee_nttd`` (E80, "Phí DVHT Nạp Tiền Tự Động") is ads spend paid from order revenue, not a
+#: platform fee: it is NOT in ``FEE_CODES``; ``ads_days.add_income_topup`` puts it into the
+#: ads spend.
+FEE_CODES = (FEE_FIXED, FEE_SERVICE, FEE_PAYMENT, FEE_PISHIP)
 #: The order amounts that are costs on top of the fees, in the order they are shown.
 COST_NET_SHIPPING = "van_chuyen_rong"
 COST_RETURN_SHIPPING = "van_chuyen_tra_hang"

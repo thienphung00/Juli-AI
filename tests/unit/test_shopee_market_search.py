@@ -183,3 +183,22 @@ def test_percentiles_interpolate():
     assert median([10, 20, 30, 40]) == 25
     assert percentile([10, 20, 30, 40, 50], 0.25) == 20
     assert percentile([7], 0.9) == 7
+
+
+async def test_an_older_read_uploaded_later_does_not_replace_the_days_summary(session):
+    """C5d: two computers read the same keyword the same day; the newest capture wins."""
+    shop = await _shop(session)
+    await _seed(session, shop)
+    newer = {**_body([_card(1, 1000), _card(2, 3000)]), "captured_at": "2026-10-30T09:00:00+07:00"}
+    older = {**_body([_card(1, 9000)]), "captured_at": "2026-10-30T08:00:00+07:00"}
+    await _ingest(session, shop, "market_search", newer)
+    await _ingest(session, shop, "market_search", older)
+    summary = (await session.execute(select(MarketKeywordSnapshot))).scalar_one()
+    await session.refresh(summary)
+    assert summary.n_cards == 2
+    assert summary.median_price_page1 == Decimal("2000")
+    newest = {**_body([_card(1, 5000)]), "captured_at": "2026-10-30T09:30:00+07:00"}
+    await _ingest(session, shop, "market_search", newest)
+    await session.refresh(summary)
+    assert summary.n_cards == 1
+    assert summary.median_price_page1 == Decimal("5000")

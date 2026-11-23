@@ -1108,6 +1108,24 @@ async def run_learning(
 # ----------------------------------------------------------- natural-experiment backfill
 
 
+#: A voucher whose minimum spend was never read is its own bucket, outside both voucher types.
+VOUCHER_UNKNOWN_MINIMUM = "voucher_unknown_minimum"
+NOT_ENOUGH_DATA = "chua_du_du_lieu"
+
+
+def voucher_kind_of(min_spend: object) -> tuple[str, str] | None:
+    """``(kind, metric)`` of a read voucher from its minimum spend: a minimum above 0 is a
+    ``min_spend_voucher`` (AOV), an explicit 0 a ``review_voucher`` (CTOR); a missing or unreadable
+    minimum is None = chưa đủ dữ liệu (never 0)."""
+    if not isinstance(min_spend, int | float | str | Decimal) or isinstance(min_spend, bool):
+        return None
+    try:
+        value = float(min_spend)
+    except ValueError:
+        return None
+    return ("min_spend_voucher", "aov") if value > 0 else ("review_voucher", "ctor")
+
+
 @dataclass
 class BackfillReport:
     candidates: dict[str, int] = field(default_factory=dict)
@@ -1288,8 +1306,14 @@ async def backfill_natural(
         seen.add(key)
         extra = p.extra or {}
         d = p.starts_at.date()
-        min_spend = float(extra.get("min_spend") or 0)
-        kind, metric = ("min_spend_voucher", "aov") if min_spend > 0 else ("review_voucher", "ctor")
+        classed = voucher_kind_of(extra.get("min_spend"))
+        if (
+            classed is None
+        ):  # the minimum was never read: "chưa đủ dữ liệu", never "không tối thiểu"
+            report.bump(report.candidates, VOUCHER_UNKNOWN_MINIMUM)
+            report.skip(VOUCHER_UNKNOWN_MINIMUM, NOT_ENOUGH_DATA)
+            continue
+        kind, metric = classed
         if extra.get("created_by_shopee"):
             report.bump(report.candidates, kind)
             report.skip(kind, "created_by_shopee_not_a_seller_change")

@@ -1626,7 +1626,7 @@ def eval_affiliate(
         return _refuse("no_item")
     lines = env.lines_for([item])
     if not lines:
-        return _refuse("no_order_lines")
+        return _affiliate_without_orders(env, cand, inputs)
     new_rate = D(inputs["commission_pct"]) / 100
     cur = current_commission_pct(env, item)
     if cand.extra.get("current_commission_pct") is not None:  # E50: the page's own rate wins
@@ -1761,6 +1761,71 @@ def eval_affiliate(
         spend_check=_spend_check(env, profit.dchi_per_day),
         floor_unknown_skus=_unknown_floors(env, [item]),
         notes=[] if cur is not None else ["Chưa biết hoa hồng hiện tại của sản phẩm này."],
+    )
+
+
+def _affiliate_without_orders(
+    env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any]
+) -> Evaluation:
+    """S5 (Q8): a commission change on a product with no orders in the window, on the prior of
+    ``no_order_prior`` (5 % of the shop's median orders, over a base of 0).
+    Nothing is measured on the product yet, so
+    there is no floor check and no five numbers; the figures are the prior's."""
+    from juli_backend.services.shopee_recommendations.no_order_prior import order_prior
+    from juli_backend.services.shopee_recommendations.prediction import size_scale
+
+    item = cand.item
+    assert item is not None
+    prior = order_prior(env, item)
+    if prior is None:
+        return _refuse("no_order_lines")
+    new_rate = D(inputs["commission_pct"]) / 100
+    cur = current_commission_pct(env, item)
+    if cand.extra.get("current_commission_pct") is not None:
+        cur = D(cand.extra["current_commission_pct"])
+    window = Decimal(env.window_days)
+    gmv = prior.orders * prior.aov  # the GAIN in GMV over the window (the base is 0 orders)
+    comm_before = ZERO  # no order today, so no commission today
+    comm_after = gmv * new_rate
+    gain_profit = gmv * prior.profit_per_gmv if prior.profit_per_gmv is not None else ZERO
+    sample = D(inputs.get("sample_cost") or 0)
+    days = Decimal(config.DAYS_PER_MONTH)
+    change = new_rate * 100 - (cur if cur is not None else ZERO)
+    profit = ProfitModel(
+        effect_days=config.DAYS_PER_MONTH,
+        base_gmv_per_day=ZERO,
+        base_orders_per_day=ZERO,
+        certain_dgmv_per_day=gmv / window,
+        aov=prior.aov,
+        profit_per_gmv=prior.profit_per_gmv,
+        extra_cost_per_day=(comm_after - gain_profit) / window + sample / days,
+        dchi_per_day=(comm_after - comm_before) / window + sample / days,
+        base_label="gmv_lien_ket",
+        lift_scale=size_scale(float(change), config.COMMISSION_REF_POINTS),
+    )
+    certain: dict[str, Any] = {
+        "kind": "affiliate",
+        "commission_pct_before": None if cur is None else num(round(cur, 2)),
+        "commission_pct_after": num(new_rate * 100),
+        "commission_cost_before": num(comm_before),
+        "commission_cost_after": num(comm_after),
+        "commission_per_affiliate_order_after": num(prior.aov * new_rate),
+        "affiliate_orders": 0,
+        "skus": [],
+        "margin_after_pct": None,
+        "order_prior": prior.json(),
+    }
+    return Evaluation(
+        certain=certain,
+        five=None,
+        breaches=[],
+        profit=profit,
+        before={"commission_pct": None if cur is None else num(round(cur, 2))},
+        after={"commission_pct": num(new_rate * 100)},
+        target={"item_id": item},
+        spend_check=_spend_check(env, profit.dchi_per_day),
+        floor_unknown_skus=_unknown_floors(env, [item]),
+        notes=[],
     )
 
 

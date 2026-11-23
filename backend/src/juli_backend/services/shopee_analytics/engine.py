@@ -38,6 +38,7 @@ from juli_backend.services.shopee_analytics.fee_table import (
     RateChoice,
     choose_fixed_fee_rate,
     seed_schedule,
+    with_service_fee,
 )
 from juli_backend.services.shopee_analytics.rules_view import ProfitRules
 from juli_backend.services.shopee_profit.fees import FeeSchedule
@@ -377,6 +378,8 @@ class FeeContext:
     default_schedule: FeeSchedule = field(
         default_factory=lambda: seed_schedule(DEFAULT_FIXED_FEE_RATE)
     )
+    #: F4: the shop's learned phí dịch vụ rate, already in every schedule (None = not enrolled)
+    service_rate: Decimal | None = None
 
     def schedule(self, item_id: str) -> FeeSchedule:
         return self.schedule_by_item.get(item_id, self.default_schedule)
@@ -391,14 +394,18 @@ def build_fee_context(
     item_ids: Sequence[str],
     catalog: Catalog,
     db_schedules: Mapping[str, FeeSchedule] | None = None,
+    service_rate: Decimal | None = None,
 ) -> FeeContext:
-    ctx = FeeContext()
+    """``service_rate``: the shop's learned phí dịch vụ rate (None = not enrolled)."""
+    ctx = FeeContext(service_rate=service_rate)
+    ctx.default_schedule = with_service_fee(ctx.default_schedule, service_rate)
     for item_id in dict.fromkeys(item_ids):
         info = catalog.items.get(item_id)
         choice = choose_fixed_fee_rate(info.category_path if info else None, catalog.name(item_id))
         ctx.rate_by_item[item_id] = choice
         db = (db_schedules or {}).get(item_id)
-        ctx.schedule_by_item[item_id] = db if db is not None else seed_schedule(choice.rate)
+        base = db if db is not None else seed_schedule(choice.rate)
+        ctx.schedule_by_item[item_id] = with_service_fee(base, service_rate)
     return ctx
 
 

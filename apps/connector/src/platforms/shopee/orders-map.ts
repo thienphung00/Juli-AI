@@ -491,10 +491,14 @@ const INCOME_LABELS: [RegExp, string][] = [
   [/^phi van chuyen.*(nguoi mua tra|nguoi mua)/, "ship_buyer_paid"],
   [/^phi van chuyen.*(tro gia|shopee tro)/, "ship_shopee_subsidy"],
   [/^phi van chuyen.*(thuc te|uoc tinh)/, "ship_actual_cost"],
-  [/^phi hoa hong lien ket|^hoa hong tiep thi/, "affiliate_commission"],
+  [/^phi hoa hong lien ket|^hoa hong tiep thi|^phi hoa hong tiep thi/, "affiliate_commission"],
   [/^ma giam gia cua shop/, "seller_voucher_borne"],
   [/^so tien cuoi cung/, "payout"],
+  // 0.3.32 (C3, the order page's own "Doanh thu" block, captured 2026-11-23): its final amount
+  [/^doanh thu don hang$/, "payout"],
 ];
+/** The income answer's final amount, under the income call's label or the order page's (0.3.32). */
+const FINAL_AMOUNT = /^(so tien cuoi cung|doanh thu don hang)$/;
 /** A cost is stored as a positive amount the seller bore; these are signed as sent. */
 const SIGNED = new Set(["payout", "product_price"]);
 
@@ -535,7 +539,7 @@ export function incomeReadIds(responses: ReaderResponse[]): Set<string> {
   const out = new Set<string>();
   for (const r of responses) {
     if (r.endpoint !== "order_income_components" || !r.orderId || classify(r.status, r.body) !== "ok") continue;
-    if (pairs(payloadOf(r.body)).some((p) => /^so tien cuoi cung/.test(plain(p.label)))) out.add(r.orderId);
+    if (pairs(payloadOf(r.body)).some((p) => FINAL_AMOUNT.test(plain(p.label)))) out.add(r.orderId);
   }
   return out;
 }
@@ -548,7 +552,7 @@ export function mapOrderIncome(responses: ReaderResponse[], capturedAt: number):
   // One scale for the whole job, read from the sizes of the product prices and payouts.
   const sample = answers.flatMap((r) =>
     pairs(payloadOf(r.body))
-      .filter((p) => /^(gia san pham|so tien cuoi cung)$/.test(plain(p.label)))
+      .filter((p) => /^(gia san pham|so tien cuoi cung|doanh thu don hang)$/.test(plain(p.label)))
       .map((p) => ({ v: Math.abs(p.amount) })),
   );
   const divisor = scaleFromMagnitude(sample, ["v"]) ?? 1;
@@ -579,4 +583,143 @@ export function mapOrderIncome(responses: ReaderResponse[], capturedAt: number):
     // One order without a final amount is skipped; drift only when none of the answers had one.
     drift: rows.length === 0 && drift.missing.length > 0 ? drift : null,
   };
+}
+
+
+// -- the order page (0.3.32, C1 + C3, captured 2026-11-23) ----------------------------------------
+
+/** One product line as the order page shows it: "Phân loại", "SKU phân loại" and the line total. */
+export interface PageItem {
+  variationName?: string;
+  sku?: string;
+  lineTotal?: number;
+  /** The line's quantity as the page shows it. */
+  qty?: number;
+}
+
+const hasSku = (item: Record<string, unknown>): boolean =>
+  [item.item_sku, item.sku, item.model_sku, item.variation_sku].some((v) => typeof v === "string" && v.trim() !== "");
+
+/**
+ * Orders whose get_one_order answer has a line that names no SKU (a combo's parent line: posted as
+ * `sku:unknown`): the order page shows each line's "SKU phân loại", so these are read there. `body`
+ * is the trimmed answer (no buyer data), kept to re-post the lines with the page's SKUs.
+ */
+export function skuLessOrders(responses: ReaderResponse[]): { id: string; sn?: string; body: unknown }[] {
+  const out: { id: string; sn?: string; body: unknown }[] = [];
+  for (const response of responses) {
+    if (response.endpoint !== "order_detail" || classify(response.status, response.body) !== "ok") continue;
+    const order = payloadOf(response.body);
+    if (!isRecord(order)) continue;
+    const items = Array.isArray(order.items) ? order.items.filter(isRecord) : [];
+    if (items.length === 0 || linesOf(order).every(hasSku)) continue;
+    const sn = idOf(order.order_sn);
+    const id = idOf(order.order_id);
+    if (!id) continue;
+    out.push({ id, ...(sn && sn !== id ? { sn } : {}), body: response.body });
+  }
+  return out;
+}
+
+/**
+ * Whole cents per line for one money field: the parent's total (unit x quantity) split by `shares`,
+ * each line's total a multiple of its own quantity (so its unit price stays whole cents), the cents
+ * left over placed on lines whose quantity divides them. Null when the totals cannot add up exactly.
+ */
+function splitCents(totalCents: number, shares: number[], qtys: number[]): number[] | null {
+  const out = shares.map((share, i) => Math.floor((totalCents * share) / (qtys[i] as number)) * (qtys[i] as number));
+  let left = totalCents - out.reduce((a, b) => a + b, 0);
+  const order = qtys.map((q, i) => i).sort((a, b) => (qtys[a] as number) - (qtys[b] as number));
+  for (const i of order) {
+    const q = qtys[i] as number;
+    const chunks = Math.floor(left / q);
+    out[i] = (out[i] as number) + chunks * q;
+    left -= chunks * q;
+  }
+  return left === 0 ? out : null;
+}
+
+/**
+ * A combo parent split into the page's lines: each line takes the page line's quantity, and every
+ * money field (a unit price) is split so that Σ(unit x qty) over the lines equals the parent's
+ * unit x qty exactly; the shares follow the page line totals (equal when one is missing). Null
+ * when a page line shows no quantity or the money cannot add up exactly.
+ */
+function splitCombo(parent: Record<string, unknown>, page: readonly PageItem[]): Record<string, unknown>[] | null {
+  const qtys = page.map((p) => p.qty);
+  if (!qtys.every((q): q is number => q !== undefined && Number.isInteger(q) && q > 0)) return null;
+  const parentQty = num(parent.amount ?? parent.quantity ?? parent.qty) ?? 1;
+  const totals = page.map((p) => p.lineTotal);
+  const sum = totals.reduce<number>((a, t) => a + (t ?? 0), 0);
+  const byTotal = totals.every((t) => t !== undefined && t > 0) && sum > 0;
+  const shares = page.map((p) => (byTotal ? (p.lineTotal as number) / sum : 1 / page.length));
+  const lines: Record<string, unknown>[] = page.map((_, i) => {
+    const line: Record<string, unknown> = { ...parent, amount: qtys[i] };
+    delete line.quantity;
+    delete line.qty;
+    delete line.sub_items;
+    return line;
+  });
+  for (const field of MONEY_FIELDS) {
+    const unit = num(parent[field]);
+    if (unit === undefined) continue;
+    const cents = splitCents(Math.round(unit * parentQty * 100), shares, qtys);
+    if (!cents) return null;
+    cents.forEach((c, i) => {
+      (lines[i] as Record<string, unknown>)[field] = c / 100 / (qtys[i] as number);
+    });
+  }
+  return lines;
+}
+
+/**
+ * The trimmed get_one_order answer with the order page's SKUs on the lines that had none, or null
+ * when the page's lines cannot be matched:
+ * - as many page lines as order lines: each SKU-less line takes the page line at its place;
+ * - one order line (a combo's parent) and several page lines: the parent becomes one line per page
+ *   line with the page line's quantity, its money split exactly (`splitCombo`).
+ */
+export function withPageSkus(body: unknown, page: readonly PageItem[]): unknown | null {
+  if (!isRecord(body)) return null;
+  const order = payloadOf(body);
+  if (!isRecord(order) || page.length === 0) return null;
+  const items = Array.isArray(order.items) ? order.items.filter(isRecord) : [];
+  const named = (item: Record<string, unknown>, at: PageItem): Record<string, unknown> => {
+    const out: Record<string, unknown> = { ...item };
+    delete out.sub_items;
+    if (at.sku) out.model_sku = at.sku;
+    if (at.variationName) out.model_name = at.variationName;
+    return out;
+  };
+  let fixed: Record<string, unknown>[] | null = null;
+  if (items.length === page.length) {
+    fixed = items.map((item, i) => (hasSku(item) ? item : named(item, page[i] as PageItem)));
+  } else if (items.length === 1 && page.length > 1 && !hasSku(items[0] as Record<string, unknown>)) {
+    const lines = splitCombo(items[0] as Record<string, unknown>, page);
+    fixed = lines ? lines.map((line, i) => named(line, page[i] as PageItem)) : null;
+  }
+  if (!fixed || !fixed.every(hasSku)) return null;
+  return { ...body, data: { ...order, items: fixed } };
+}
+
+
+/** 0.3.32: the SKU a line is posted with when its order page could not name it after 3 reads. */
+export const UNRESOLVED_SKU = "unresolved_item";
+/** Order page reads after which a SKU-less line is posted as UNRESOLVED_SKU and no longer read. */
+export const PAGE_FIX_MAX_FAILS = 3;
+
+/** The stored answer with UNRESOLVED_SKU on every line that names no SKU (null when none lacks one). */
+export function withUnresolvedSkus(body: unknown): unknown | null {
+  if (!isRecord(body)) return null;
+  const order = payloadOf(body);
+  if (!isRecord(order)) return null;
+  const items = Array.isArray(order.items) ? order.items.filter(isRecord) : [];
+  if (items.every(hasSku)) return null;
+  const marked = items.map((item) => {
+    if (hasSku(item)) return item;
+    const out: Record<string, unknown> = { ...item, model_sku: UNRESOLVED_SKU };
+    delete out.sub_items;
+    return out;
+  });
+  return { ...body, data: { ...order, items: marked } };
 }

@@ -43,6 +43,8 @@ export const MAX_LISTING_IMAGES = 9;
 export const MAX_CAMPAIGNS = 30;
 /** Shopee's programme forms (P100 wave 2, brief C), mirrored by `specs.py`. */
 export const MAX_PROGRAMME_NAME = 150;
+/** Mua Kèm Deal Sốc / Mua Để Nhận Quà: the form's name box takes 25 (owner decision #13, = specs.MAX_DEAL_NAME). */
+export const MAX_DEAL_NAME = 25;
 export const MAX_DISCOUNT_DAYS = 180;
 export const MAX_ADDONS = 5;
 export const MAX_ADDON_LIMIT = 100;
@@ -52,15 +54,15 @@ export const MAX_GIFT_QTY = 49;
 /** The 12 strategies, each with the driver metric(s) it is measured by (B-3, artboard `kinds`). */
 export const KINDS_92: readonly { readonly key: Kind92; readonly name: string; readonly drivers: string }[] = [
   { key: "voucher", name: "Voucher", drivers: "AOV · CTOR" },
-  { key: "combo", name: "Combo khuyến mãi", drivers: "AOV · CTOR" },
+  { key: "combo", name: "Combo Khuyến Mãi", drivers: "AOV · CTOR" },
   { key: "deal_soc", name: "Deal Sốc", drivers: "AOV · CTOR · đơn" },
   { key: "product_discount", name: "Chương Trình Của Shop", drivers: "CTOR · đơn" },
   { key: "price_flash", name: "Giá bán + Flash sale", drivers: "CTOR · đơn" },
-  { key: "variation_set", name: "Phân loại / set", drivers: "AOV · CTOR" },
+  { key: "variation_set", name: "Phân loại hàng", drivers: "AOV · CTOR" },
   { key: "ads", name: "Dịch vụ hiển thị", drivers: "chi · GMV · ROAS" },
-  { key: "title", name: "Tiêu đề", drivers: "lượt xem · CTR" },
+  { key: "title", name: "Tên sản phẩm", drivers: "lượt xem · CTR" },
   { key: "cover_image", name: "Ảnh bìa", drivers: "CTR" },
-  { key: "description_first_line", name: "Mô tả", drivers: "CTOR" },
+  { key: "description_first_line", name: "Mô tả sản phẩm", drivers: "CTOR" },
   { key: "affiliate", name: "Affiliate / KOL", drivers: "đơn affiliate" },
   { key: "price_display", name: "Hiển thị giá + listing", drivers: "CTR · CTOR · lượt xem" },
 ];
@@ -70,18 +72,18 @@ export const kindName92 = (k: string): string => KINDS_92.find((x) => x.key === 
 /** The kind the server knows for a form kind (some forms hold two). */
 export const SERVER_KIND_NAMES: Readonly<Record<string, string>> = {
   voucher: "Voucher",
-  combo: "Combo khuyến mãi",
+  combo: "Combo Khuyến Mãi",
   listing_combo: "Listing combo mới",
-  add_on: "Deal Sốc · Mua Kèm Deal Sốc",
-  gift: "Deal Sốc · Mua Để Nhận Quà",
+  add_on: "Mua Kèm Deal Sốc",
+  gift: "Mua Để Nhận Quà",
   product_discount: "Chương Trình Của Shop",
-  price: "Giá bán",
-  flash_sale: "Flash sale",
-  variation_set: "Phân loại / set",
+  price: "Giá",
+  flash_sale: "Flash Sale Của Shop",
+  variation_set: "Phân loại hàng",
   ads: "Dịch vụ hiển thị",
-  title: "Tiêu đề",
+  title: "Tên sản phẩm",
   cover_image: "Ảnh bìa",
-  description_first_line: "Mô tả",
+  description_first_line: "Mô tả sản phẩm",
   affiliate: "Affiliate / KOL",
   price_display: "Hiển thị giá",
   listing_hide: "Ẩn listing",
@@ -178,7 +180,7 @@ export interface Forms {
   /** `multi`: one % for every product in `targets` (Shopee's bulk discount, P97 D85.13). */
   /** Chương Trình Của Shop: Tên chương trình khuyến mãi, Thời gian khuyến mãi (hours), Số lượng sản phẩm khuyến mãi (empty = Không giới hạn), Giới hạn đặt hàng. */
   readonly product_discount: { mode: "pct" | "final_price"; rows: readonly VarValue[]; name: string; start: string; end: string; startHour: string; endHour: string; promoQty: string; perBuyer: string; multi: boolean; targets: readonly string[]; pct: string };
-  readonly price_flash: { what: "price" | "flash_sale"; mode: "pct" | "final_price"; rows: readonly VarValue[]; units: string; slotStart: string; slotHours: string };
+  readonly price_flash: { what: "price" | "flash_sale"; mode: "pct" | "final_price"; rows: readonly VarValue[]; units: string; slotStart: string; slotHours: string; purchaseLimit?: string };
   readonly variation_set: { rows: readonly NewVariation[] };
   /** Shopee's edit form (P97 D85.17): budget (≥ ₫100.000 or unlimited), ROAS (system / custom), products, dates; `campaignKeys` = many campaigns. */
   readonly ads: { lever: "budget" | "roas" | "add_product" | "remove_product"; campaignKey: string; campaignKeys: readonly string[]; dailyBudget: string; unlimited: boolean; roasMode: "system" | "custom"; roasTarget: string; itemId: string; start: string; end: string };
@@ -420,7 +422,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       const c = f.combo;
       if (c.items.length === 0) return no("Chọn ít nhất một sản phẩm cho combo.");
       if (c.items.length > MAX_TARGETS) return no(`Combo có tối đa ${MAX_TARGETS} sản phẩm.`);
-      if ([...c.name.trim()].length > MAX_COMBO_NAME) return no(`Tên combo tối đa ${MAX_COMBO_NAME} ký tự.`);
+      if ([...c.name.trim()].length > MAX_COMBO_NAME) return no(`Tên Combo Khuyến Mãi tối đa ${MAX_COMBO_NAME} ký tự.`);
       const tiers: { qty: number; value: number }[] = [];
       for (const [i, t] of c.tiers.entries()) {
         const qty = num(orDefault(t.qty, comboTierDefault(i, "qty", c.dtype)));
@@ -448,7 +450,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
     case "deal_soc": {
       const d = f.deal_soc;
       const name = d.name.trim();
-      if ([...name].length > MAX_PROGRAMME_NAME) return no(`Tên chương trình tối đa ${MAX_PROGRAMME_NAME} ký tự.`);
+      if ([...name].length > MAX_DEAL_NAME) return no(`Tên Deal Sốc tối đa ${MAX_DEAL_NAME} ký tự.`);
       const win = windowHours(d);
       const dates = win.problem ?? dateProblem(d.start, d.end, null);
       if (dates) return no(dates);
@@ -491,7 +493,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
     case "product_discount": {
       const d = f.product_discount;
       const name = d.name.trim();
-      if ([...name].length > MAX_PROGRAMME_NAME) return no(`Tên chương trình tối đa ${MAX_PROGRAMME_NAME} ký tự.`);
+      if ([...name].length > MAX_PROGRAMME_NAME) return no(`Tên chương trình khuyến mãi tối đa ${MAX_PROGRAMME_NAME} ký tự.`);
       const win = windowHours(d, MAX_DISCOUNT_DAYS);
       const promo = intIn(d.promoQty, 1, 10_000_000, "Số lượng sản phẩm khuyến mãi từ 1 trở lên (để trống = Không giới hạn).");
       const buyer = intIn(d.perBuyer, 1, 100, "Giới hạn đặt hàng từ 1 đến 100.");
@@ -531,7 +533,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
           out.push({ ...vid(r.variationId), [p.mode === "pct" ? "change_pct" : "final_price"]: n });
         }
         if (out.length === 0) return no("Nhập giá mới cho ít nhất một phân loại.");
-        return { problem: null, version: { kind: "price", label: "Đổi giá niêm yết", item_id: id, variations: out } };
+        return { problem: null, version: { kind: "price", label: "Giá", item_id: id, variations: out } };
       }
       const { rows, problem } = varRows(p.rows, p.mode, "discount_pct", ctx.variations);
       if (problem) return no(problem);
@@ -540,7 +542,11 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       if (!Number.isInteger(units)) return no("Số lượng (suất): nhập số nguyên.");
       const hours = intIn(orDefault(p.slotHours, FORM_DEFAULTS.flashHours), 1, 72, "Số giờ của khung: từ 1 đến 72.");
       if (hours.problem) return no(hours.problem);
-      return { problem: null, version: { kind: "flash_sale", label: "Flash sale", item_id: id, variations: rows, units, ...(p.slotStart ? { slot_start: p.slotStart } : {}), slot_hours: hours.n ?? 2 } };
+      // batch-1123-a F4: Giới hạn đặt hàng (empty = Shopee's "Không hạn mức")
+      const limitText = (p.purchaseLimit ?? "").trim();
+      const limit = intIn(limitText, 1, 1000, "Giới hạn đặt hàng: từ 1 đến 1000.");
+      if (limit.problem || (limitText !== "" && limit.n === null)) return no(limit.problem ?? "Giới hạn đặt hàng: từ 1 đến 1000.");
+      return { problem: null, version: { kind: "flash_sale", label: "Flash Sale Của Shop", item_id: id, variations: rows, units, ...(p.slotStart ? { slot_start: p.slotStart } : {}), slot_hours: hours.n ?? 2, ...(limit.n !== null ? { purchase_limit: limit.n } : {}) } };
     }
     case "variation_set": {
       const out: Record<string, unknown>[] = [];
@@ -886,7 +892,7 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
           const at = (d: string, h: number | null) => (d ? `${h !== null ? `${String(h).padStart(2, "0")}:00 ` : ""}${dayText(d)}` : "…");
           add("dates", "Thời gian chạy Combo", `${at(s_(v["start"]), sh)}–${at(s_(v["end"]), eh)}`);
         } else dates();
-        return { type: "Combo khuyến mãi", facts };
+        return { type: "Combo Khuyến Mãi", facts };
       }
       // a combo saved as a fixed basket (before P97): kept readable
       const items = Array.isArray(v["items"]) ? (v["items"] as Record<string, unknown>[]) : [];
@@ -955,6 +961,7 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
         add("units", "Số lượng (suất)", fmt(n_(v["units"])));
         add("hours", "Số giờ của khung", fmt(n_(v["slot_hours"])));
         if (s_(v["slot_start"])) add("slot", "Khung giờ bắt đầu", s_(v["slot_start"]).replace("T", " "));
+        if (n_(v["purchase_limit"]) !== null) add("purchase_limit", "Giới hạn đặt hàng", fmt(n_(v["purchase_limit"])));
       }
       if (kind === "product_discount") {
         if (s_(v["name"])) add("name", "Tên chương trình khuyến mãi", s_(v["name"]));
@@ -971,7 +978,7 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
         const pack = n_(r["pack_count"]);
         add(`n:${s_(r["name"])}`, s_(r["name"]), `${vnd(n_(r["price"]))}${pack !== null ? ` · ${fmt(pack)} cái` : ""}`);
       }
-      return { type: "Phân loại / set", facts };
+      return { type: "Phân loại hàng", facts };
     }
     case "ads": {
       const lever = s_(v["lever"]);
@@ -992,10 +999,10 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
     }
     case "title":
       add("text", "Tiêu đề", s_(v["title"]));
-      return { type: "Tiêu đề", facts };
+      return { type: "Tên sản phẩm", facts };
     case "description_first_line":
       add("text", "Dòng đầu mô tả", s_(v["first_line"]));
-      return { type: "Mô tả", facts };
+      return { type: "Mô tả sản phẩm", facts };
     case "cover_image": {
       const b = v["banner"] as BannerSpec | undefined;
       if (b && Array.isArray(b.banners)) {

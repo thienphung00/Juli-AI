@@ -93,8 +93,8 @@ AD_TYPE_LABELS = {
 PROMO_LABELS = {
     "all": "Tất cả",
     "discount": "Khuyến mãi",
-    "bundle": "Combo khuyến mãi",
-    "add_on_deal": "Mua kèm deal sốc",
+    "bundle": "Combo Khuyến Mãi",
+    "add_on_deal": "Mua Kèm Deal Sốc",
     "flash_sale": "Flash Sale",
     "voucher": "Voucher",
 }

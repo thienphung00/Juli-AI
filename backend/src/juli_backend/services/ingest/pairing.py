@@ -35,6 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.ingest import IngestPairingCode, IngestToken
 from juli_backend.models.models import Shop
+from juli_backend.services.ingest import min_version
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,9 @@ class IngestPrincipal:
     platform_shop_id: str | None
     expires_at: datetime
     created_at: datetime
+    #: The token was paired by a Juli Connector (``min_version.made_by_connector``), not made for
+    #: a loader script: a request on it must name its Connector version (C5a).
+    from_connector: bool = False
 
     @property
     def rotate_after(self) -> datetime:
@@ -471,6 +475,7 @@ async def resolve_token(session: AsyncSession, token: str, now: datetime) -> Ing
             platform_shop_id=row.platform_shop_id,
             expires_at=row.expires_at,
             created_at=row.created_at,
+            from_connector=min_version.made_by_connector(row.install_id, row.client_label),
         )
 
 

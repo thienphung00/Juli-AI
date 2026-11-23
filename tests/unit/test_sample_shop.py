@@ -964,8 +964,14 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             cd = _own_delta(c, combo_done.result)
             # F2 base (14-day window) + F7 floor on the AOV lever (1,1 % basket lift on the
             # 23,9 tr base) moved the middle-profit draw again: 475_055 / 1,65 (was 450_153 / 3,7)
-            assert cd["gmv"] == pytest.approx(475_055, rel=0.02)
-            assert round(cd["orders"]) == 2  # 1,65 rounded: orders are whole from 1 up
+            # Batch 1123-a (phí dịch vụ learned per shop): the generator's Phí Dịch Vụ is 7,9 % of
+            # the paid value; the learned service part is that minus the 3.000đ hạ tầng the formula
+            # already charges = 5,86 % (was 7,9 %, which charged hạ tầng twice). A cheaper fee
+            # changes each draw's profit, so a different draw is the middle one, exactly as in
+            # the 437bea66 note above (350_716 vs 669_480 for a service fee on / off): 341_945 and
+            # 2,79 orders here. Only the choice of draw moved, not the combo's reach or take-up.
+            assert cd["gmv"] == pytest.approx(341_945, rel=0.02)
+            assert round(cd["orders"]) == 3  # 2,79 rounded (was 1,65: the middle draw moved, above)
             assert cd["profit"] < 0
             ctx = await builder.build_context(session, report.shop_id, [set2], as_of=END, now=NOW)
             base = integrate.base_for(ctx.env, [nrc], "")
@@ -978,7 +984,9 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             set_done, _ = integrate.evaluate(ctx, set2)
             sd = _own_delta(s, set_done.result)
             # F2: the base is the adaptive window's level (was 791_214 on the fixed 30 days)
-            assert sd["gmv"] == pytest.approx(859_189, rel=0.02)
+            assert sd["gmv"] == pytest.approx(
+                808_002, rel=0.02
+            )  # was 859_189 at a 7,9 % service fee (middle draw)
             assert s["cost"]["total"] > 0 and sd["profit"] < 0
 
 

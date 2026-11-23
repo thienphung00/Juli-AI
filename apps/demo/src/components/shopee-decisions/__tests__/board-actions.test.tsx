@@ -77,7 +77,7 @@ describe("Thực hiện · Nhập thẻ đã làm ngoài Juli", () => {
     fireEvent.change(screen.getByTestId("sd-board-file"), { target: { files: [xlsx()] } });
     const row = await screen.findByTestId("sd-board-row-2");
     expect(row).toHaveTextContent("NG-01");
-    expect(row).toHaveTextContent("Tiêu đề");
+    expect(row).toHaveTextContent("Tên sản phẩm");
     expect(row).toHaveTextContent("Đã làm");
     expect(row).toHaveTextContent("01/11");
     expect(screen.getByTestId("sd-board-skip-3")).toHaveTextContent("Bỏ qua: Không có sản phẩm");

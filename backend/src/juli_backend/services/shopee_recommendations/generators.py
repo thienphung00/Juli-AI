@@ -214,7 +214,8 @@ def gen_review_voucher(env: RecoEnv, crit: dict[str, Any] | None, item: str) -> 
 
 def gen_voucher_cap(env: RecoEnv, crit: dict[str, Any] | None, item: str) -> list[Candidate]:
     """Margin under target: lower the value of the shop's live fixed-value voucher by 20 %."""
-    live = [v for v in env.vouchers if v.value and v.value > 0]
+    # a voucher whose minimum spend was never read is "chưa đủ dữ liệu": no card, never a guess of 0
+    live = [v for v in env.vouchers if v.value and v.value > 0 and v.min_spend is not None]
     if not live:
         return []
     v = max(live, key=lambda x: x.value or ZERO)
@@ -223,7 +224,7 @@ def gen_voucher_cap(env: RecoEnv, crit: dict[str, Any] | None, item: str) -> lis
     )
     base = {
         "value": int(v.value or 0),
-        "min_spend": int(v.min_spend or 0),
+        "min_spend": int(v.min_spend or 0),  # known here: unknown minimums are filtered above
         "max_value": None if v.max_value is None else int(v.max_value),
         "quantity": v.usage_limit,
         "voucher_id": v.voucher_id,

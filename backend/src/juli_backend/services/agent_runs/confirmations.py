@@ -227,7 +227,7 @@ async def decide_confirmation(
     else:
         raise ConfirmationRejected(
             ERROR_INVALID_DECISION,
-            f"decision must be 'approve' or 'decline', got {decision!r}.",
+            f"Quyết định phải là 'approve' hoặc 'decline', nhận được {decision!r}.",
         )
 
     new_status = "approved" if approved else "declined"

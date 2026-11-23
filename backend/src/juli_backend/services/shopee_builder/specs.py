@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from juli_backend.services.shopee_builder.banner import BannerSpec
 from juli_backend.services.shopee_recommendations import config
@@ -55,6 +55,18 @@ REMOVED_BUILDER_KINDS = ("listing_combo", "listing_hide", "listing_relist")
 ItemId = Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[^\s:]+$")]
 VariationId = Annotated[str, Field(max_length=64, pattern=r"^[^\s:]*$")]
 Money = Annotated[int, Field(ge=0, le=MAX_MONEY)]
+
+
+def name_limit(limit: int, what: str) -> AfterValidator:
+    """batch-1123-a (owner decision #13): each Shopee form's own name limit, refused in Vietnamese
+    naming the limit (Deal Sốc / Combo 25, Chương Trình Của Shop 150, product name 120)."""
+
+    def check(value: str | None) -> str | None:
+        if value is not None and len(value) > limit:
+            raise ValueError(f"{what} tối đa {limit} ký tự.")
+        return value
+
+    return AfterValidator(check)
 
 
 class _Base(BaseModel):
@@ -103,6 +115,8 @@ class VoucherSpec(_Base):
 #: P100 wave 2: Shopee's programme forms (Chương Trình Của Shop, Deal Sốc) take a name, a start and
 #: an end with hour precision; the limits below are the ones Seller Centre showed (brief C)
 MAX_PROGRAMME_NAME = 150
+#: batch-1123-a F5: the Deal Sốc form (Mua Kèm Deal Sốc / Mua Để Nhận Quà) takes at most 25
+MAX_DEAL_NAME = 25
 MAX_DISCOUNT_DAYS = 180
 MIN_PROGRAMME_HOURS = 1
 MAX_ADDON_LIMIT = 100
@@ -180,7 +194,7 @@ class ComboSpec(_Base):
     own kinds."""
 
     kind: Literal["combo"]
-    name: str | None = Field(default=None, max_length=MAX_COMBO_NAME)
+    name: Annotated[str | None, name_limit(MAX_COMBO_NAME, "Tên Combo Khuyến Mãi")] = None
     item_ids: list[ItemId] = Field(min_length=1, max_length=MAX_COMBO_PRODUCTS)
     discount_type: Literal["pct", "amount", "special_price"]
     tiers: list[ComboTier] = Field(min_length=1, max_length=MAX_COMBO_TIERS)
@@ -257,7 +271,7 @@ class ListingComboSpec(_Base):
     starts with no history or ranking and takes demand from the singles it contains."""
 
     kind: Literal["listing_combo"]
-    title: str = Field(min_length=1, max_length=MAX_TITLE_CHARS)
+    title: Annotated[str, Field(min_length=1), name_limit(MAX_TITLE_CHARS, "Tên sản phẩm")]
     image_refs: list[Annotated[str, Field(min_length=1, max_length=200)]] = Field(
         default_factory=list, max_length=MAX_LISTING_IMAGES
     )
@@ -295,7 +309,7 @@ class AddOnSpec(_Base):
     product, 1-5 add-ons, no name or dates) still loads: every new field is optional."""
 
     kind: Literal["add_on"]
-    name: str | None = Field(default=None, max_length=MAX_PROGRAMME_NAME)
+    name: Annotated[str | None, name_limit(MAX_DEAL_NAME, "Tên Deal Sốc")] = None
     main_item_id: ItemId
     addons: list[AddOn] = Field(min_length=1, max_length=MAX_ADDONS)
     #: "Giới hạn sản phẩm mua kèm": the most add-ons a buyer can take with the main product
@@ -356,7 +370,7 @@ class GiftSpec(_Base):
     products. Older cards (no name or dates) still load."""
 
     kind: Literal["gift"]
-    name: str | None = Field(default=None, max_length=MAX_PROGRAMME_NAME)
+    name: Annotated[str | None, name_limit(MAX_DEAL_NAME, "Tên Deal Sốc")] = None
     gift: GiftItem
     trigger: GiftTrigger
     start: date | None = None
@@ -401,7 +415,9 @@ class ProductDiscountSpec(_Base):
     the list (Shopee's bulk discount): one card, a total and a row per target."""
 
     kind: Literal["product_discount"]
-    name: str | None = Field(default=None, max_length=MAX_PROGRAMME_NAME)
+    name: Annotated[str | None, name_limit(MAX_PROGRAMME_NAME, "Tên chương trình khuyến mãi")] = (
+        None
+    )
     item_id: ItemId | None = None
     targets: list[ItemId] = Field(default_factory=list, max_length=MAX_TARGETS)
     discount_pct: Annotated[float, Field(gt=0, le=90)] | None = None
@@ -461,6 +477,10 @@ class PriceSpec(_Base):
         return self
 
 
+#: a flash sale sells at most 1 000 units per variation (capture 01), so no buyer can order more
+MAX_FLASH_PURCHASE_LIMIT = 1000
+
+
 class FlashSaleSpec(_Base):
     """A shop flash-sale slot: price, stock and slot time."""
 
@@ -470,6 +490,8 @@ class FlashSaleSpec(_Base):
     units: Annotated[int, Field(ge=1, le=1_000_000)]
     slot_start: str | None = Field(default=None, max_length=40)
     slot_hours: Annotated[int, Field(ge=1, le=72)] = 2
+    #: batch-1123-a F4: "Giới hạn đặt hàng" per buyer (None = Shopee's "Không hạn mức")
+    purchase_limit: Annotated[int, Field(ge=1, le=MAX_FLASH_PURCHASE_LIMIT)] | None = None
 
     @model_validator(mode="after")
     def _check(self) -> FlashSaleSpec:
@@ -556,7 +578,7 @@ class AdsSpec(_Base):
 class TitleSpec(_Base):
     kind: Literal["title"]
     item_id: ItemId
-    title: str = Field(min_length=1, max_length=MAX_TITLE_CHARS)
+    title: Annotated[str, Field(min_length=1), name_limit(MAX_TITLE_CHARS, "Tên sản phẩm")]
     keywords: list[str] = Field(default_factory=list, max_length=MAX_KEYWORDS)
 
 

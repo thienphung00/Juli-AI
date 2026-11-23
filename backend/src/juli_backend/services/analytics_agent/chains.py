@@ -19,7 +19,12 @@ from typing import Any
 from juli_backend.services.analytics_agent import mathx
 from juli_backend.services.analytics_agent.labels import SHOPEE_SOURCES
 from juli_backend.services.analytics_agent.types import DataPort, LabelTable
-from juli_backend.services.analytics_agent.windows import Windows, build_windows, campaign_days
+from juli_backend.services.analytics_agent.windows import (
+    Windows,
+    anchor_for,
+    build_windows,
+    campaign_days,
+)
 from juli_backend.services.metrics.compute import raw_value
 
 EXPLAINED_SHARE = 0.70
@@ -239,7 +244,7 @@ async def run_chain(
         "item_name": names.get(item_id) if item_id else None,
     }
     if latest is None:
-        w = build_windows(preset, as_of)
+        w = build_windows(preset, as_of, sale_aware=True)
         return ChainResult(
             chain,
             metric,
@@ -250,8 +255,8 @@ async def run_chain(
             item_id=res_kw["item_id"],
             item_name=res_kw["item_name"],
         )
-    anchor = min(as_of, latest)
-    w = build_windows(preset, anchor, explicit=explicit, named_month=named_month)
+    anchor = anchor_for(preset, as_of, latest)
+    w = build_windows(preset, anchor, explicit=explicit, named_month=named_month, sale_aware=True)
     steps = [f"step0: latest complete day {latest}; window {w.label()} ({w.preset})"]
     if preset == "yesterday_vs_same_weekday" and latest < as_of:
         return ChainResult(
@@ -1023,7 +1028,7 @@ async def _cost_chain(
         if l1.get(k) is not None and l0.get(k) is not None:
             line_d[k] = float(l1[k]) - float(l0[k])
     for k, d in sorted(line_d.items(), key=lambda kv: -abs(kv[1])):
-        if d_cost and abs(d / d_cost) >= FOLLOW_SHARE:
+        if d_cost and d * d_cost > 0 and abs(d / d_cost) >= FOLLOW_SHARE:  # same direction only
             findings.append(
                 Finding(
                     "line",
@@ -1070,7 +1075,7 @@ async def _cost_chain(
                 pd[k] = (q1, q0)
         pn = await data.item_names(list(pd))
         for k, (q1, q0) in sorted(pd.items(), key=lambda kv: -abs(kv[1][0] - kv[1][1])):
-            if d_cost and abs((q1 - q0) / d_cost) >= FOLLOW_SHARE:
+            if d_cost and (q1 - q0) * d_cost > 0 and abs((q1 - q0) / d_cost) >= FOLLOW_SHARE:
                 findings.append(
                     Finding(
                         "product",

@@ -62,6 +62,8 @@ GIFT_REF_SHARE = 0.05
 ADDON_REF_PCT = 10.0
 SET_REF_PCT = 10.0
 COMMISSION_REF_POINTS = 5.0
+#: S5 (Q8): orders a product with none of its own is estimated at, over the shop's median (+5 %)
+NO_ORDER_UPLIFT = 0.05
 #: P96: a change runs its own days up to this many (cost and gain over the same days).
 MAX_EFFECT_DAYS = 90
 

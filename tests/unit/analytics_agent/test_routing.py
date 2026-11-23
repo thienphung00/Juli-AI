@@ -9,15 +9,15 @@ from juli_backend.services.analytics_agent import routing
 from juli_backend.services.analytics_agent.labels import shopee_labels
 from tests.unit.analytics_agent.fakes import FakeData, FakeJev, FakeLLM
 
-TODAY = date(2026, 10, 26)
+TODAY = date(2026, 11, 9)
 
 
 def intent(**kw: Any) -> dict[str, Any]:
     base = {
         "question_type": "why_changed",
-        "metric_phrase": "orders",
+        "metric_phrase": "that number",
         "claimed_direction": "down",
-        "time_phrase": "this week",
+        "time_phrase": "recently",
         "explicit_from": None,
         "explicit_to": None,
         "named_month": None,
@@ -83,6 +83,67 @@ async def test_parse_failure_retries_once_then_none() -> None:
     llm = FakeLLM(None)
     out, _ = await routing.parse_intents(llm, "q", TODAY)
     assert out is None and llm.parse_calls == 2
+
+
+def _walk(node: Any, path: str = "") -> list[str]:
+    bad: list[str] = []
+    if isinstance(node, dict):
+        if "enum" in node and isinstance(node.get("type"), list):
+            bad.append(path)  # the API rejects a nullable enum written as type [..., "null"]
+        for k, v in node.items():
+            bad += _walk(v, f"{path}/{k}")
+    elif isinstance(node, list):
+        for i, v in enumerate(node):
+            bad += _walk(v, f"{path}[{i}]")
+    return bad
+
+
+def _unions(node: Any) -> int:
+    n = 0
+    if isinstance(node, dict):
+        props = node.get("properties")
+        if isinstance(props, dict):
+            n += sum(
+                1
+                for p in props.values()
+                if isinstance(p, dict) and (isinstance(p.get("type"), list) or "anyOf" in p)
+            )
+        for v in node.values():
+            n += _unions(v)
+    elif isinstance(node, list):
+        n += sum(_unions(v) for v in node)
+    return n
+
+
+def test_intent_schema_has_no_enum_beside_a_list_type_and_few_unions() -> None:
+    """HTTP 400 "Enum value ... does not match declared type" and "too many parameters with union
+    types (limit 16)": the create-card slots live in one `card` object with plain types."""
+    schema = routing.INTENT_TOOL["input_schema"]
+    assert _walk(schema) == []
+    assert _unions(schema) <= 12
+    card = schema["properties"]["intents"]["items"]["properties"]["card"]
+    assert (
+        set(card["required"]) == set(card["properties"])
+        and "card" in (schema["properties"]["intents"]["items"]["required"])
+    )
+
+
+def test_card_object_sentinels_become_none_slots() -> None:
+    it = routing.flatten_card(
+        {
+            "question_type": "create_card",
+            "card": {
+                **routing.CARD_SLOT_EMPTY,
+                "card_type": "voucher",
+                "from_date": "2026-11-24",
+                "min_spend": 0,
+            },
+        }
+    )
+    assert it["card_type"] == "voucher" and it["from_date"] == "2026-11-24"
+    assert it["min_spend"] == 0  # "no minimum" is an answer, not "not said"
+    assert it["amount"] is None and it["amount_unit"] is None and it["name"] is None
+    assert "card" not in it
 
 
 def test_strict_tool_schema() -> None:
@@ -167,7 +228,7 @@ def test_lookup_rules_vague_asks_metric_and_top_products_needs_none() -> None:
     )
     assert vague["outcome"] == "needs_choice" and vague["remaining"][0][0] == "metric"
     top = routing.decide(
-        intent(),
+        intent(),  # the direction no longer decides a ranking: the typed slot does
         ans(
             mode=ch("lookup"),
             lookup=ch("top_products"),
@@ -191,9 +252,9 @@ def test_needs_choice_event_has_real_dates_and_resume_runs_in_code() -> None:
     dec = routing.decide(
         intent(), ans(window=ch("last_7d_vs_prev_7d", 0.55, "last_30d_vs_prev_30d"))
     )
-    ev = routing.needs_choice_event(dec, intent(), shopee_labels(), date(2026, 10, 25))
+    ev = routing.needs_choice_event(dec, intent(), shopee_labels(), date(2026, 11, 8))
     assert (
-        ev["item"] == "window" and ev["options"][0]["label_vi"] == "19/10–25/10 so với 12/10–18/10"
+        ev["item"] == "window" and ev["options"][0]["label_vi"] == "02/11–08/11 so với 26/10–01/11"
     )
     assert ev["question_vi"]
     dec2 = routing.resume(ev["pending"], {"item": "window", "value": "last_30d_vs_prev_30d"})
@@ -213,11 +274,11 @@ def test_max_two_clarifying_turns_then_go() -> None:
             scope=ch("product", 0.5, "shop"),
         ),
     )
-    ev = routing.needs_choice_event(dec, intent(), shopee_labels(), date(2026, 10, 25))
+    ev = routing.needs_choice_event(dec, intent(), shopee_labels(), date(2026, 11, 8))
     d1 = routing.resume(ev["pending"], {"item": "chain", "value": "gmv_change"})
     assert d1["outcome"] == "needs_choice"
     ev2 = routing.needs_choice_event(
-        d1, intent(), shopee_labels(), date(2026, 10, 25), turns=d1["turns"]
+        d1, intent(), shopee_labels(), date(2026, 11, 8), turns=d1["turns"]
     )
     assert (
         routing.resume(ev2["pending"], {"item": "window", "value": "last_7d_vs_prev_7d"})["outcome"]

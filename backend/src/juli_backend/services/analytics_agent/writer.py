@@ -191,7 +191,8 @@ def sanitise(
 
 
 def template_text(first_line: str, chain_json: dict[str, Any], labels: LabelTable) -> str:
-    """Code-rendered fallback: metric-formatted values, no LLM."""
+    """Code-rendered fallback: metric-formatted values and the change of each part, no LLM, no
+    shares (parts moving in opposite directions can exceed 100 %)."""
     m = chain_json["metric"]
     head = chain_json["findings"][0] if chain_json["findings"] else {}
     parts = [
@@ -200,11 +201,10 @@ def template_text(first_line: str, chain_json: dict[str, Any], labels: LabelTabl
         f"{fmt.value(m, head.get('before'))} → {fmt.value(m, head.get('now'))}.",
     ]
     for f in chain_json["findings"][1:4]:
-        if f.get("contribution_pct") is not None:
-            parts.append(
-                f"- {f['node_vi']}: {fmt.decimal(abs(f['contribution_pct']), 0)}% mức thay đổi"
-            )
-    parts.append(f"Kết luận: {STOP_VI.get(chain_json['stop_reason'], chain_json['stop_reason'])}.")
+        if f.get("contribution_pct") is None or f.get("now") is None or f.get("before") is None:
+            continue
+        fm = facts._metric_of(f, m)
+        parts.append(f"- {f['node_vi']}: {fmt.value(fm, f['before'])} → {fmt.value(fm, f['now'])}")
     return "\n".join(parts)
 
 

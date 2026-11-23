@@ -487,3 +487,50 @@ describe("U2 / mobile contract (static)", () => {
     }
   });
 });
+
+describe("Track J ranked rows (campaigns, vouchers, weekly sections)", () => {
+  it("shows each row's detail line and the sale days of the compared windows", () => {
+    pair([
+      { type: "restated", data: { text_vi: "hiệu quả từng chiến dịch" } },
+      {
+        type: "data_answer",
+        data: {
+          kind: "top_products",
+          title_vi: "Hiệu quả từng chiến dịch",
+          window_vi: "16/11–22/11 so với 02/11–08/11",
+          fresh_vi: "Số liệu đến hết 21/11",
+          sale_vi: "Ngày sale: 11/11, 15/11",
+          rows: [{ label_vi: "CDN/01", value_vi: "ROAS 2,25 · hoà vốn 3,00", detail_vi: "Dưới hoà vốn · chi 400đ" }],
+        } as never,
+      },
+      { type: "done", data: { stop_reasons: ["data_answer"] } },
+    ]);
+    expect(screen.getByText("CDN/01")).toBeInTheDocument();
+    expect(screen.getByText("Dưới hoà vốn · chi 400đ")).toBeInTheDocument();
+    expect(screen.getByText("ROAS 2,25 · hoà vốn 3,00")).toBeInTheDocument();
+    expect(screen.getByText("Ngày sale: 11/11, 15/11")).toBeInTheDocument();
+    expect(screen.getByText("Số liệu đến hết 21/11")).toBeInTheDocument();
+  });
+  it("a card whose versions are all not estimable shows 'Chưa đủ dữ liệu' and preselects none", () => {
+    pair([
+      { type: "restated", data: { text_vi: "tăng ngân sách" } },
+      {
+        type: "card",
+        data: {
+          draft_ref: "d_1",
+          kind: "ads_budget",
+          kind_vi: "Ngân sách quảng cáo",
+          title_vi: "Tăng ngân sách",
+          recommendation_vi: "Chưa đủ dữ liệu để gợi ý một phương án.",
+          versions: [
+            { label_vi: "Nhẹ", recommended: false, estimable: false, gmv_p50: null, profit_p50: null },
+            { label_vi: "Vừa", recommended: false, estimable: false, gmv_p50: null, profit_p50: null },
+          ],
+        } as never,
+      },
+      { type: "done", data: { stop_reasons: [] } },
+    ]);
+    expect(screen.getAllByText("Chưa đủ dữ liệu").length).toBeGreaterThan(0);
+    expect(document.querySelector('[aria-label="Gợi ý"]')).toBeNull();
+  });
+});

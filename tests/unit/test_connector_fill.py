@@ -67,7 +67,7 @@ async def _token(session, shop) -> dict[str, str]:
     )  # fmt: skip
     await session.commit()
     assert pairing.token_hash(issued.token)
-    return {"Authorization": f"Bearer {issued.token}"}
+    return {"Authorization": f"Bearer {issued.token}", "X-Connector-Version": "0.3.31"}
 
 
 @pytest.fixture

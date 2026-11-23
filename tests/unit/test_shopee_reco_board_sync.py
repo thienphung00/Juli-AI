@@ -667,3 +667,37 @@ def test_an_ads_off_row_becomes_a_remove_product_card():
         "cgroup1",
     )
     assert "roas_target" not in spec
+
+
+# ------------------------------------------------------------------- import vs duplicate (S4)
+
+
+def _same_title_rows(refs):
+    return [
+        _r(n, ref, "Tiêu đề sản phẩm", 1001, "Sửa tên sản phẩm",
+           "Trước: Găng tay\nSau: Găng Tay Tự Hủy Sinh Học – Hộp 100",
+           datetime(2026, 10, 3 + n), PROPOSED, 7)
+        for n, ref in enumerate(refs, start=1)
+    ]  # fmt: skip
+
+
+async def test_three_same_target_rows_make_three_cards_and_a_reimport_is_all_da_co(session, shop):
+    data = _xlsx(_same_title_rows(["T-1", "T-2", "T-3"]))
+    first = await _commit(session, shop, data)
+    assert (first.created, first.refused, first.exists) == (3, 0, 0)
+    again = await _commit(session, shop, data)
+    assert (again.created, again.refused, again.exists) == (0, 0, 3)
+
+
+async def test_a_row_that_repeats_an_open_card_is_da_co_and_the_import_goes_on(session, shop):
+    first = await _commit(session, shop, _xlsx(_same_title_rows(["T-1"])))
+    card_id = uuid.UUID(first.cards[0]["card_id"])
+    code = first.cards[0]["code"]
+    # the open card is the seller's own now (not an imported one)
+    await store.set_meta(session, shop.shop_id, card_id, {"origin": "manual"})
+    rows = [*_same_title_rows(["T-2"]), ROWS[1]]  # a duplicate and a different row (VC-P1)
+    result = await _commit(session, shop, _xlsx(rows))
+    by_ref = {c["ref"]: c for c in result.cards}
+    assert by_ref["T-2"]["action"] == "exists" and by_ref["T-2"]["existing_code"] == code
+    assert by_ref["VC-P1"]["action"] == "created"
+    assert (result.created, result.refused, result.exists) == (1, 0, 1)

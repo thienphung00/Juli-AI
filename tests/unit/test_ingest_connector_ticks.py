@@ -97,6 +97,10 @@ async def test_a_tick_is_recorded_in_the_ops_audit_log_and_keeps_the_version(ses
         "day": "2026-11-14",
         "occurred_at": "2026-11-14T03:00:00+00:00",
         "outcomes": TICK["outcomes"],
+        "readers": {  # C2: one status per reader of the run
+            "orders": {"status": "error", "reason": "partial:page_cap"},
+            "products": {"status": "ok", "reason": None},
+        },
         "source_version": "0.3.19",
     }
     state = await session.get(ShopeeConnectorState, shop.id)

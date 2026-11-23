@@ -237,5 +237,5 @@ def merge(view: PeriodView, ctx: ShopContext, lines: list[AffiliateLine]) -> Per
         view,
         lines=merged,
         costs=resolve_costs(merged, ctx.rules),
-        fees=build_fee_context(item_ids, ctx.catalog, ctx.db_schedules(item_ids)),
+        fees=build_fee_context(item_ids, ctx.catalog, ctx.db_schedules(item_ids), ctx.service_rate),
     )

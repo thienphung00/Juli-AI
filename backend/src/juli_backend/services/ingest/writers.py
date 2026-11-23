@@ -35,7 +35,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import and_, case, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import SOURCE_RANK
@@ -107,7 +107,7 @@ def _ranked_set(stmt: Any, table: Any, columns: Iterable[str]) -> dict[str, Any]
     rank replaces with its non-null values, an equal rank with a newer capture too, a lower rank
     (a file under the Connector) only fills NULL columns; the provenance follows the winner. The
     line tables keep no capture time: both sides compare their raw payloads'."""
-    return ranked_set(
+    out = ranked_set(
         table,
         stmt.excluded,
         columns,
@@ -115,6 +115,30 @@ def _ranked_set(stmt: Any, table: Any, columns: Iterable[str]) -> dict[str, Any]
         stored_captured=payload_captured_at(table),
         incoming_captured=excluded_payload_captured_at(),
     )
+    return _fill_unresolved_item(stmt, table, out)
+
+
+def _fill_unresolved_item(stmt: Any, table: Any, out: dict[str, Any]) -> dict[str, Any]:
+    """C1: a stored placeholder item (``sku:<label>``, ``sku:unknown`` when the list row had no
+    item) counts as unknown, like a NULL: any post that names a real item fills it, whatever its
+    rank (the variation follows the item), and a placeholder never replaces a real item. The
+    rest of the row keeps source precedence."""
+    if "item_id" not in out:
+        return out
+    stored_unresolved = table.c.item_id.startswith(UNRESOLVED_PREFIX)
+    incoming_unresolved = stmt.excluded.item_id.startswith(UNRESOLVED_PREFIX)
+    fill = and_(stored_unresolved, ~incoming_unresolved)
+    keep = and_(~stored_unresolved, incoming_unresolved)
+    out["item_id"] = case(
+        (fill, stmt.excluded.item_id), (keep, table.c.item_id), else_=out["item_id"]
+    )
+    if "variation_id" in out:
+        out["variation_id"] = case(
+            (fill, stmt.excluded.variation_id),
+            (keep, table.c.variation_id),
+            else_=out["variation_id"],
+        )
+    return out
 
 
 def _ranked_where(stmt: Any, table: Any) -> Any:
@@ -252,6 +276,13 @@ async def write_order_lines(
                 "raw_payload_id": provenance["raw_payload_id"],
                 "updated_at": provenance["updated_at"],
             }
+        )
+    unresolved = sum(1 for v in values if v["item_id"] == f"{UNRESOLVED_PREFIX}unresolved_item")
+    if unresolved:
+        # Connector 0.3.32: the order page could not name these lines after 3 reads
+        logger.info(
+            "order_line_unresolved_item",
+            extra={"shop_id": str(shop_id), "lines": unresolved},
         )
     await upsert_line_values(session, values)
 

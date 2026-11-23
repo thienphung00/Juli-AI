@@ -12,6 +12,7 @@ import {
   HELD_DATASETS,
   MAX_ROWS_PER_POST,
   type ReaderDataset,
+  POST_EMPTY_DATASETS,
 } from "../config";
 import { GatewayClient, GatewayError, ingestBody, type TokenInfo } from "../ingest/client";
 import { type Captured, mapCapturedAll, type Mapped } from "../map";
@@ -194,7 +195,12 @@ export class Connector {
       }
       return "drift";
     }
-    if (mapped.rows.length === 0) return mapped.answeredEmpty ? "empty" : "ignored";
+    if (mapped.rows.length === 0) {
+      // 0.3.32: a real zero day of these datasets is posted with 0 rows so Juli counts the day as read
+      if (!(mapped.answeredEmpty && POST_EMPTY_DATASETS.has(mapped.dataset))) return mapped.answeredEmpty ? "empty" : "ignored";
+      const sent = await this.postChunk(mapped, capturedAt, token);
+      return sent === "posted" ? "empty" : sent;
+    }
     // A raw Shopee order id never leaves the browser: such a row must have been hashed first.
     if (mapped.rows.some((row) => RAW_ORDER_ID in row)) return "rejected";
 

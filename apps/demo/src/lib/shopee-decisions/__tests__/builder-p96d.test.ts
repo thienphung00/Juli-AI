@@ -44,7 +44,7 @@ describe("P96d · each version names its type and inputs", () => {
       ]),
     );
     expect(versionFacts({ kind: "flash_sale", item_id: "p1", variations: [{ variation_id: "v1", discount_pct: 20 }], units: 50, slot_hours: 2 }, names)).toMatchObject({
-      type: "Flash sale",
+      type: "Flash Sale Của Shop",
       facts: expect.arrayContaining([
         { key: "v:v1", label: "Giảm · 18 x 28 cm (220g)", value: "20%" },
         { key: "units", label: "Số lượng (suất)", value: "50" },
@@ -52,7 +52,7 @@ describe("P96d · each version names its type and inputs", () => {
       ]),
     });
     expect(versionFacts({ kind: "gift", gift: { unit_cost: 10000, qty: 1, label: "Túi vải" }, trigger: { type: "min_spend", amount: 150000 } }, names)).toMatchObject({
-      type: "Deal Sốc · Mua Để Nhận Quà",
+      type: "Mua Để Nhận Quà",
       facts: expect.arrayContaining([{ key: "gift", label: "Quà", value: "Túi vải × 1" }, { key: "trigger", label: "Điều kiện nhận quà", value: "Mua 150.000đ để nhận 1 quà tặng" }]),
     });
     // a combo saved as a fixed basket (before P97) stays readable and is named as such
@@ -65,7 +65,7 @@ describe("P96d · each version names its type and inputs", () => {
       ]),
     );
     expect(versionFacts({ kind: "combo", name: "Mua 2 giảm 5", item_ids: ["p1", "p2"], discount_type: "pct", tiers: [{ qty: 2, value: 5 }, { qty: 3, value: 8 }], purchase_limit: 3 }, names)).toMatchObject({
-      type: "Combo khuyến mãi",
+      type: "Combo Khuyến Mãi",
       facts: expect.arrayContaining([
         { key: "name", label: "Tên combo", value: "Mua 2 giảm 5" },
         { key: "tier:2", label: "Mua 2 sản phẩm", value: "giảm 5%" },

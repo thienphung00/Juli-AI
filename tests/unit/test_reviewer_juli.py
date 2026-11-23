@@ -298,11 +298,12 @@ async def test_send_on_the_sandbox_pin_is_the_tu_tao_card_path(session, engine, 
     assert r.status_code == 200, r.text
     assert r.json()["card_code"].startswith("JC-")
     sent = await _rows(session, reviewer_id=reviewer_id)
-    # the same send, done directly as Tự tạo "Chọn" does it
+    # the same kind of send, done directly as Tự tạo "Chọn" does it (11 %: the same 10 % change as
+    # the card just sent would be refused as a duplicate, S4)
     await manual.create_manual(
         session,
         sandbox.shop_id,
-        [{"change_kind": "product_discount", "items": ["1001"], "inputs": {"discount_pct": 10}}],
+        [{"change_kind": "product_discount", "items": ["1001"], "inputs": {"discount_pct": 11}}],
         0,
         False,
         manual.Actor("seller", reviewer_id),
