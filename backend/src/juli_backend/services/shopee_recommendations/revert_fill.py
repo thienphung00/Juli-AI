@@ -266,11 +266,13 @@ def _promo_revert_spec(
         }
     if j.kind == "product_discount":
         name = str(payload.get("name") or "")
-        return _end_spec(j, KIND_DISCOUNT_END, fill_queue.DISCOUNT_LIST_PATH, {"name": name}, name)
+        return _end_spec(
+            j, KIND_DISCOUNT_END, fill_queue.DISCOUNT_LIST_OPEN_PATH, {"name": name}, name
+        )
     if j.kind in ("add_on", "gift"):
         name = str(payload.get("name") or "")
         deal = {"name": name, "deal_type": j.kind}
-        return _end_spec(j, KIND_DEAL_END, fill_queue.DISCOUNT_LIST_PATH, deal, name)
+        return _end_spec(j, KIND_DEAL_END, fill_queue.DEAL_LIST_OPEN_PATH, deal, name)
     if j.kind == "flash_sale":
         slot = payload.get("slot") or {}
         body: dict[str, Any] = (
@@ -613,7 +615,13 @@ async def revert_state(
             if not await _confirmed(session, shop_id, j, readbacks):
                 ready = False
                 break
-    return {"jobs": [job_json(j) for j in reverts], "ready": ready}
+    # D5: ready on the Connector's own save signal only (no reader) is said apart from a read-back
+    saved = [j for j in live if j.kind in NO_READER_REVERTS]
+    return {
+        "jobs": [job_json(j) for j in reverts],
+        "ready": ready,
+        "confirmed_by": ("saved_on_shopee" if saved else "readback") if ready else None,
+    }
 
 
 async def _confirmed(

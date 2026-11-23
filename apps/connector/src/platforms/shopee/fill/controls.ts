@@ -136,6 +136,8 @@ export function textBoxesIn(row: Element): HTMLInputElement[] {
  * runner reads it again later. True when it reads back equal right now.
  */
 export function writeBox(env: Env, box: HTMLInputElement, value: string): boolean {
+  // a greyed (locked) box is never written (batch-1123-a D6)
+  if (box.disabled || box.readOnly) return false;
   const key = env.log?.keyOf(env);
   if (env.log && key) {
     env.log.captureBefore(key, box.value);

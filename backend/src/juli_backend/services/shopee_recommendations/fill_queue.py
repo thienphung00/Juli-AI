@@ -343,6 +343,10 @@ DISCOUNT_OPEN_PATH = "/portal/marketing/discount/create"
 FLASH_SALE_OPEN_PATH = "/portal/marketing/shop-flash-sale/create"
 DEAL_OPEN_PATH = "/portal/marketing/add-on-deal/create"
 DISCOUNT_LIST_PATH = "/portal/marketing/list/discount"
+#: D2 (capture 23/11): the Deal Sốc rows live on the discount list's addondeal tab; the Chương
+#: Trình Của Shop tab's own discountType is not captured yet (E108), so its undo opens "all"
+DEAL_LIST_OPEN_PATH = DISCOUNT_LIST_PATH + "?discountType=addondeal&status=all&page=1"
+DISCOUNT_LIST_OPEN_PATH = DISCOUNT_LIST_PATH + "?discountType=all&status=all&page=1"
 FLASH_SALE_LIST_PATH = "/portal/marketing/shop-flash-sale/list"
 MAX_PROGRAMME_NAME = 150
 #: Shopee's Deal Sốc name box has maxlength 25 (capture 03, 23/11)
@@ -409,6 +413,18 @@ def promotion_locked(field_checks: list[dict[str, Any]] | None) -> bool:
     return any(
         isinstance(c, dict) and c.get("key") == PROMOTION_LOCK_KEY and c.get("ok") is False
         for c in field_checks or []
+    )
+
+
+#: D5: what a save confirmed only by the Connector's own signal says (never "Khớp")
+SAVED_NOT_READ = "Đã lưu trên Shopee · chưa đọc lại"
+_SAVED_ONLY_KINDS = ("combo_end", "discount_end", "flash_sale_end", "deal_end")
+
+
+def saved_only(j: ShopeeFillJob) -> bool:
+    """No reader confirms this job's save: an end of a list row, or a kind without a read-back."""
+    return j.kind in _SAVED_ONLY_KINDS or (
+        j.kind != "readback" and readback_of(j.kind) == READBACK_UNSUPPORTED
     )
 
 
@@ -1271,6 +1287,10 @@ def job_json(j: ShopeeFillJob, code: str | None = None, title: str | None = None
         "readback": readback_of(j.kind),
         # F5: an empty Deal Sốc left on Shopee after step 1 was saved
         "notice": DEAL_ABANDONED if deal_abandoned(j) else None,
+        # D5: a save no reader confirms is never a read-back match
+        "status_note": SAVED_NOT_READ
+        if j.status in (STATUS_SAVED, STATUS_CAPTURED) and saved_only(j)
+        else None,
     }
 
 

@@ -313,7 +313,7 @@ def test_programme_undos_end_the_row_by_id_else_by_what_the_list_shows():
     assert deal["kind"] == "deal_end" and deal["error"] is None
     assert deal["payload"] == {
         "mode": "revert",
-        "open_path": "/portal/marketing/list/discount",
+        "open_path": "/portal/marketing/list/discount?discountType=addondeal&status=all&page=1",
         "name": "Mua kèm",
         "deal_type": "add_on",
         "id": "555",
@@ -536,3 +536,17 @@ async def test_the_fill_refuses_an_over_limit_name_naming_the_limit():
         )
     )
     assert deal["error"] == "Tên Deal Sốc tối đa 25 ký tự"
+
+
+# ----------------------------------------- D5: a save no reader confirms is never "Khớp"
+
+
+def test_a_save_no_reader_confirms_says_saved_not_read_back():
+    for kind in ("deal_end", "discount_end", "flash_sale_end", "combo_end", "price", "flash_sale"):
+        assert fill_queue.job_json(_row(kind, {}))["status_note"] == fill_queue.SAVED_NOT_READ
+    assert fill_queue.SAVED_NOT_READ == "Đã lưu trên Shopee · chưa đọc lại"
+    # a voucher (read back by its list) and a job not saved yet carry no such note
+    assert fill_queue.job_json(_row("voucher", {}))["status_note"] is None
+    assert fill_queue.job_json(_row("price", {}, status=STATUS_FILLED))["status_note"] is None
+    disc = revert_fill._revert_spec(_row("product_discount", {"name": "Sale"}), {})
+    assert disc["payload"]["open_path"].endswith("?discountType=all&status=all&page=1")

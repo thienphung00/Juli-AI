@@ -20,11 +20,15 @@ const guided = (el: Element | null) => el?.getAttribute("data-juli-guide") === "
 beforeEach(() => {
   document.body.innerHTML = "";
   t = 0;
+  // 23/11/2026 10:00 GMT+7: the flash slots below are 1-7 days ahead
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-23T03:00:00Z"));
   click = vi.spyOn(HTMLElement.prototype, "click");
 });
 afterEach(() => {
   expect(click).not.toHaveBeenCalled();
   click.mockRestore();
+  vi.useRealTimers();
 });
 
 // -- the jobs Juli serves -------------------------------------------------------------------
@@ -89,6 +93,13 @@ describe("the new jobs parse only as Juli builds them", () => {
     expect(parseFillJob(discountJob({ name: "x".repeat(151) }))).toBeNull(); // Chương Trình: 150
     expect(parseFillJob(flashJob({ slot: { day: "2026-11-30", label: "slot-7781", starts_at: "21:00 30-11-2026" } }))).toBeNull(); // never a slot id
     expect(parseFillJob(flashJob({ variations: [{ variation_id: "11", discount_pct: 3 }] }))).toBeNull(); // Shopee: 5-90 %
+    // D4: only Shopee's 8 slot labels, and only tomorrow .. a week ahead
+    expect(parseFillJob(flashJob({ slot: { day: "2026-11-30", label: "10:00:00 - 12:00:00", starts_at: "10:00 30-11-2026" } }))).toBeNull();
+    expect(parseFillJob(flashJob({ slot: { day: "2026-11-23", label: "21:00:00 - 00:00:00", starts_at: "21:00 23-11-2026" } }))).toBeNull();
+    expect(parseFillJob(flashJob({ slot: { day: "2026-12-01", label: "21:00:00 - 00:00:00", starts_at: "21:00 01-12-2026" } }))).toBeNull();
+    expect(parseFillJob(flashJob({ slot: { day: "2026-11-24", label: "02:00:00 - 09:00:00", starts_at: "02:00 24-11-2026" } }))).not.toBeNull();
+    // D2: the Deal Sốc undo opens the addondeal tab only
+    expect(parseFillJob(rawJob("deal_end", { mode: "revert", open_path: "/portal/marketing/list/discount?discountType=all&status=all&page=1", name: "A" }))).toBeNull();
     expect(parseFillJob(discountJob({ all_pct: 10 }))).toBeNull(); // one % for all OR per variation
     expect(parseFillJob(discountJob({ variations: [{ variation_id: "11", final_price: 9, discount_pct: 9 }] }))).toBeNull();
     expect(parseFillJob(discountJob({ open_path: "/portal/marketing/discount/create?x=1" }))).toBeNull();
@@ -222,14 +233,25 @@ describe("Phân loại hàng", () => {
     expect(variationsLocked(document)).toBe(true);
   });
 
-  it("unlocked: types the new option into the empty Nhập box, then its row's Giá / Kho hàng / SKU", async () => {
+  it("unlocked: types only the option name into the empty Nhập box; the row's Giá / Kho hàng / SKU are guided (not captured)", async () => {
     document.body.innerHTML = `<input placeholder="Nhập" value="Hộp 1"><input placeholder="Nhập" id="empty"><table><tbody id="list"></tbody></table>`;
     const e = env();
-    await fillVariationSet(e, { itemId: "1001", options: [{ name: "Set 3", price: 280000, stock: 5, sku: "S3" }], removeOptions: [], oldVariations: [] }, false);
+    const out = await fillVariationSet(e, { itemId: "1001", options: [{ name: "Set 3", price: 280000, stock: 5, sku: "S3" }], removeOptions: [], oldVariations: [] }, false);
     expect(box("#empty").value).toBe("Set 3");
-    document.getElementById("list")!.innerHTML = `<tr><td><span>Set 3</span></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr>`;
+    expect(out.steps.find((s) => s.guide)).toMatchObject({ ok: false, label: "Nhập ở dòng «Set 3» của Danh sách phân loại hàng: Giá 280.000 ₫, Kho hàng 5, SKU phân loại S3" });
+    document.getElementById("list")!.innerHTML = `<tr id="r"><td><span>Set 3</span></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr>`;
     e.log!.revealed();
-    expect(Array.from(document.querySelectorAll<HTMLInputElement>("#list input")).map((i) => i.value)).toEqual(["280000", "5", "S3"]);
+    expect(Array.from(document.querySelectorAll<HTMLInputElement>("#list input")).map((i) => i.value)).toEqual(["", "", ""]);
+    expect(guided(document.getElementById("r"))).toBe(true);
+  });
+
+  it("D6: a greyed box is never written, and the step shows ✗", async () => {
+    document.body.innerHTML = FLASH_PAGE + FLASH_ROW;
+    box(".campaign-stock input").disabled = true;
+    const job = parseFillJob(flashJob())!;
+    const out = await fillFlashSale(env(), job.payload.kind === "flash_sale" ? job.payload.flash : (null as never));
+    expect(box(".campaign-stock input").value).toBe("80");
+    expect(out.steps.find((s) => s.label.startsWith("SL sản phẩm khuyến mãi"))!.ok).toBe(false);
   });
 
   it("a price greyed by a promotion is detected before anything is written", async () => {
@@ -287,7 +309,7 @@ describe("ending a programme row", () => {
       <tr><td><span>Mua kèm tháng 12</span></td><td><span>Đang diễn ra</span></td><td><button type="button">Chỉnh sửa</button><button type="button" id="more">Thêm</button></td></tr>
       <tr><td><span>Khác</span></td><td><button type="button">Thêm</button></td></tr></tbody></table><div id="menu"></div>`;
     const e = env();
-    const job = parseFillJob(rawJob("deal_end", { mode: "revert", open_path: "/portal/marketing/list/discount", name: "Mua kèm tháng 12", deal_type: "add_on" }))!;
+    const job = parseFillJob(rawJob("deal_end", { mode: "revert", open_path: "/portal/marketing/list/discount?discountType=addondeal&status=all&page=1", name: "Mua kèm tháng 12", deal_type: "add_on" }))!;
     const out = await fillProgrammeEnd(e, job);
     expect(out.steps[0]).toMatchObject({ ok: true, label: "Dòng của Deal Sốc Mua kèm tháng 12: nút «Thêm» đã được tô hồng" });
     expect(guided(document.getElementById("more"))).toBe(true);

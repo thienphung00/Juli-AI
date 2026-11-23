@@ -35,6 +35,8 @@ export type JobKind =
   | "deal_end";
 
 /** batch-1123-a F: the end jobs of the programmes (revert only, like voucher_end / combo_end). */
+export const DEAL_LIST_QUERY = "?discountType=addondeal&status=all&page=1";
+export const DISCOUNT_LIST_QUERY = "?discountType=all&status=all&page=1";
 export const PROGRAMME_ENDS = ["discount_end", "flash_sale_end", "deal_end"] as const;
 /** The kinds a revert may be: a text, a commission or a price put back, a row's end, the product page's undo. */
 const REVERTIBLE: readonly JobKind[] = ["title", "description_first_line", "affiliate_commission", "voucher_end", "combo_end", "price", "cover_image", "variation_set", ...PROGRAMME_ENDS];
@@ -359,7 +361,9 @@ function addressOk(kind: JobKind, openPath: string, payload: JobPayload): boolea
     const item = payload.kind === "cover_image" ? payload.cover.itemId : payload.variations.itemId;
     return payload.kind === kind && !!m && m[1] === item && url.search === "";
   }
-  if (kind === "discount_end" || kind === "deal_end") return payload.kind === kind && FILL_JOB_PAGES.discount_list.test(path);
+  // D2: the Deal Sốc list is the discount list's addondeal tab; Chương Trình Của Shop opens the "all" tab (its own tab value is not captured: E-case)
+  if (kind === "deal_end") return payload.kind === kind && FILL_JOB_PAGES.discount_list.test(path) && url.search === DEAL_LIST_QUERY;
+  if (kind === "discount_end") return payload.kind === kind && FILL_JOB_PAGES.discount_list.test(path) && (url.search === DISCOUNT_LIST_QUERY || url.search === "");
   if (kind === "flash_sale_end") return payload.kind === kind && FILL_JOB_PAGES.flash_sale_list.test(path);
   if (kind === "voucher_end") return payload.kind === kind && FILL_JOB_PAGES.voucher_list.test(path);
   if (kind === "combo_end") return payload.kind === kind && FILL_JOB_PAGES.bundle_list.test(path);
@@ -418,7 +422,14 @@ export const MAX_PROGRAMME_NAME = 150;
 /** Shopee's Deal Sốc name box: maxlength 25 (capture 03). */
 export const MAX_DEAL_NAME = 25;
 export const MAX_VARIATION_ROWS = 40;
-const SLOT_LABEL = /^([01]\d|2[0-3]):00:00 - ([01]\d|2[0-3]):00:00$/;
+/** Shopee's 8 fixed Flash Sale Của Shop slots (capture 01): only these labels are picked. */
+export const FLASH_SLOT_LABELS: readonly string[] = ["00:00:00 - 02:00:00", "02:00:00 - 09:00:00", "09:00:00 - 12:00:00", "12:00:00 - 15:00:00", "15:00:00 - 17:00:00", "17:00:00 - 19:00:00", "19:00:00 - 21:00:00", "21:00:00 - 00:00:00"];
+const SLOT_LABEL = { test: (label: string) => FLASH_SLOT_LABELS.includes(label) };
+/** Days from today (GMT+7) to an ISO day; the forward fill books tomorrow .. a week ahead (capture 01). */
+export function daysAhead(day: string, now = Date.now()): number {
+  const today = new Date(now + 7 * 3_600_000).toISOString().slice(0, 10);
+  return Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+}
 const ISO_DAY = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 const HTTPS = /^https:\/\/[^\s"'<>]{1,2000}$/;
 
@@ -489,6 +500,8 @@ function flashSale(raw: Record<string, unknown>): FlashSalePayload | null {
   const startsAt = str(s.starts_at, 16);
   if (!day || !ISO_DAY.test(day) || !label || !SLOT_LABEL.test(label) || !startsAt || !DATE_FORMAT.test(startsAt)) return null;
   if (variations.some((v) => v.discountPct !== undefined && (v.discountPct < 5 || v.discountPct > 90))) return null;
+  const ahead = daysAhead(day);
+  if (ahead < 1 || ahead > 7) return null;
   const out: FlashSalePayload = { itemId, productIds, slot: { day, label, startsAt }, variations, units };
   if (raw.purchase_limit !== undefined) {
     const limit = int(raw.purchase_limit, 1, 1000);

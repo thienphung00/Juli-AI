@@ -291,7 +291,8 @@ export function imageGrid(doc: Document): { grid: HTMLElement; file: HTMLInputEl
   return { grid, file, count: grid.querySelectorAll(ITEMBOX).length };
 }
 
-/** Where a new cover's bytes come from. Fill sources never touch the network (fill-never-clicks):
+/** NEXT BATCH: needs an image source (no Juli URL for banner covers; fill sources never fetch). Kept unwired.
+ * Where a new cover's bytes come from. Fill sources never touch the network (fill-never-clicks):
  * the caller passes a source; without one the person downloads the image (a guided step). */
 export type ImageSource = (url: string) => Promise<Blob | null>;
 
@@ -379,16 +380,14 @@ function optionRow(doc: Document, name: string): HTMLElement | null {
   return inner.length === 1 ? (inner[0] as HTMLElement) : null;
 }
 
-/** Giá / Kho hàng / SKU phân loại of one option row, in the table's column order (capture 04). */
-function writeOptionRow(env: Env, row: HTMLElement, o: { name: string; price?: number; stock?: number; sku?: string }, key: string): boolean {
-  const boxes = textBoxesIn(row).filter((b) => normalizeLabel(b.value) !== normalizeLabel(o.name));
-  const values = [o.price, o.stock, o.sku];
-  let ok = true;
-  values.forEach((v, i) => {
-    if (v === undefined || !boxes[i]) return;
-    ok = writeBox(keyed(env, `${key}_${i}`), boxes[i]!, String(v)) && ok;
-  });
-  return ok;
+/** The option's row is highlighted for the person once it shows (its boxes are not captured: guided). */
+function markOptionRow(env: Env, name: string, key: string): void {
+  const mark = () => {
+    const row = optionRow(env.doc, name);
+    if (row) highlight(row);
+    return !!row;
+  };
+  if (!mark()) env.log?.later({ key, write: mark });
 }
 
 export async function fillVariationSet(env: Env, v: VariationSetPayload, revert: boolean): Promise<FillOutcome> {
@@ -403,10 +402,11 @@ export async function fillVariationSet(env: Env, v: VariationSetPayload, revert:
       env.log?.wrote({ key: fk("remove", name), el: env.doc.body, want: "đã xoá", seen: () => (gone() ? "đã xoá" : "còn"), ok: gone });
       add(`Xoá phân loại «${name}» (biểu tượng xoá cạnh ô)`, gone(), { keys: [fk("remove", name)], guide: true });
     }
+    // the option table's boxes are not captured (E102): the old prices are the person's to type
     for (const [i, o] of v.oldVariations.entries()) {
       if (o.price === undefined) continue;
-      const row = optionRow(env.doc, o.name);
-      add(`Giá cũ · ${o.name}: ${dong(o.price)}`, !!row && writeOptionRow(env, row, { name: o.name, price: o.price }, fk("old", i)), { keys: [fk("old", i, 0)] });
+      markOptionRow(env, o.name, fk("old", i));
+      say(add, `Nhập lại giá cũ ở dòng «${o.name}»: ${dong(o.price)}`);
     }
   } else {
     for (const [i, o] of v.options.entries()) {
@@ -421,14 +421,10 @@ export async function fillVariationSet(env: Env, v: VariationSetPayload, revert:
       const typedNow = i === 0 ? typeName() : false;
       if (!typedNow) env.log?.later({ key, write: typeName });
       add(`Phân loại mới: ${o.name}`, typedNow, { keys: [key] });
-      const rowKey = fk("row", i);
-      const writeRow = () => {
-        const row = optionRow(env.doc, o.name);
-        return !!row && (writeOptionRow(env, row, o, rowKey) || true);
-      };
-      if (!writeRow()) env.log?.later({ key: rowKey, write: writeRow });
-      const parts = [o.price !== undefined ? `giá ${dong(o.price)}` : "", o.stock !== undefined ? `kho ${o.stock}` : "", o.sku ? `SKU ${o.sku}` : ""].filter(Boolean).join(", ");
-      add(`${o.name}: ${parts}`, false, { keys: [`${rowKey}_0`] });
+      // the new row's Giá / Kho hàng / SKU boxes are not captured (E102): guided, exact values
+      markOptionRow(env, o.name, fk("row", i));
+      const parts = [o.price !== undefined ? `Giá ${dong(o.price)}` : "", o.stock !== undefined ? `Kho hàng ${o.stock}` : "", o.sku ? `SKU phân loại ${o.sku}` : ""].filter(Boolean).join(", ");
+      if (parts) say(add, `Nhập ở dòng «${o.name}» của Danh sách phân loại hàng: ${parts}`);
     }
   }
   return {
