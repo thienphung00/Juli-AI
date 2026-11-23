@@ -969,9 +969,9 @@ async def reread_product_blocks(
     The days before W3 hold the A-34 list row's totals only (multi-day windows never kept the
     list row at all). Per window: one A-34 list call per day (the blocks are per day) and one
     A-33 detail call per product for the window; each day's list row is merged into that day's
-    detail row, so the stored A-33 content types are written back with the blocks, never
-    wiped. A product whose detail call fails is handed off not at all and the window is
-    incomplete: the cursor in ``sync_state`` moves only when every call answered."""
+    detail row (the interval upsert also merges breakdown keys, so neither wipes the other). A
+    product whose detail call fails is handed off not at all and the window is incomplete: the
+    cursor in ``sync_state`` moves only when every call answered."""
     floor = today - timedelta(days=BLOCKS_REREAD_DAYS)
     marker = sync_state.get(BLOCKS_REREAD_STATE_KEY)
     end = date.fromordinal(int(marker)) if marker else today
@@ -1043,7 +1043,7 @@ async def reread_product_blocks(
                     if day_key in covered:
                         rows = _merge_product_list_row(rows, list_row)
                     else:
-                        rows.append(list_row)  # no A-33 row that day: nothing to wipe
+                        rows.append(list_row)  # the upsert merges its breakdown keys
                 handed += len(rows)
                 await _handoff_analytics_rows(handoff, shop_id, rows)
 

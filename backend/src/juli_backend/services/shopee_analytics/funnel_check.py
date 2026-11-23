@@ -35,7 +35,7 @@ from juli_backend.models.shopee_metrics import (
     ShopeeShopMetricsDaily,
     ShopeeSourceMetricsDaily,
 )
-from juli_backend.services.shopee_analytics import loaders
+from juli_backend.services.shopee_analytics import loaders, tiktok_days
 from juli_backend.services.shopee_analytics.compute import shop_flow_rows
 from juli_backend.services.shopee_analytics.stored import ORDER_TYPE
 from juli_backend.services.shopee_analytics.windows import Window
@@ -162,6 +162,10 @@ async def check_day(session: AsyncSession, shop_id: uuid.UUID, day: date) -> lis
     rows = list(
         (await session.execute(select(t).where(t.shop_id == shop_id, t.day == day))).scalars()
     )
+    if (shop.detail or {}).get(tiktok_days.SHOP_TAB_ORDERS_KNOWN_KEY) is False:
+        # P101 W3 (decision #7): this day's Tab cửa hàng row overlaps the other sources and is
+        # in no total, so it is not part of the sum identity
+        rows = [r for r in rows if r.source != tiktok_days.SHOP_TAB_SOURCE]
     out: list[Mismatch] = []
     shop_rows = [r for r in rows if r.item_id is None]
     if not shop_rows:

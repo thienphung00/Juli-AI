@@ -66,6 +66,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -94,7 +95,9 @@ CANONICAL_RECONCILE_TASK = "juli_backend.tiktok_canonical_reconcile"
 _CANONICAL_RECONCILE_TIMEOUT_SECONDS = 1800.0
 LAYER4_REBUILD_TASK = "juli_backend.tiktok_layer4_rebuild"
 #: P101 W3: the nightly layer-4 rebuild's outer timeout (one task walks every TikTok shop).
-_LAYER4_REBUILD_TIMEOUT_SECONDS = 1800.0
+_LAYER4_REBUILD_TIMEOUT_SECONDS = 3300.0
+#: what the walk keeps back from that timeout for the rebuilds of the shops after a re-read
+_LAYER4_REBUILD_RESERVE_SECONDS = 600.0
 
 _SHOP_UTC_OFFSET = timedelta(hours=7)
 
@@ -696,6 +699,7 @@ async def run_layer4_rebuild_fanout(
     reread_fn: Callable[..., Awaitable[Any]] | None = None,
     rebuild_fn: Callable[..., Awaitable[int]] | None = None,
     now: datetime | None = None,
+    clock: Callable[[], float] = time.monotonic,
 ) -> int:
     """Nightly (P101 W3), per pollable TikTok shop, each in its own session:
 
@@ -710,6 +714,8 @@ async def run_layer4_rebuild_fanout(
     from juli_backend.database.tenant_context import with_sticky_shop_scope
     from juli_backend.services.shopee_analytics.materialize import rebuild_recent
     from juli_backend.workers.services.polling.ingestion import (
+        BLOCKS_REREAD_BUDGET_SECONDS,
+        BLOCKS_REREAD_WINDOW_MIN_SECONDS,
         enumerate_pollable_shops,
         run_blocks_reread,
     )
@@ -721,18 +727,28 @@ async def run_layer4_rebuild_fanout(
     async with session_factory() as session:
         shops = await enumerate_shops(session)
     days = 0
+    started = clock()
     for shop in shops:
-        if collaborators is not None and lock is not None:
+        # the re-read's budget: its own cap, and never past the walk's reserve; the lock TTL is
+        # that budget plus grace, so the lock always outlives the re-read holding it
+        left = _LAYER4_REBUILD_TIMEOUT_SECONDS - _LAYER4_REBUILD_RESERVE_SECONDS
+        budget = min(BLOCKS_REREAD_BUDGET_SECONDS, left - (clock() - started))
+        if (
+            collaborators is not None
+            and lock is not None
+            and budget >= (BLOCKS_REREAD_WINDOW_MIN_SECONDS)
+        ):
 
-            async def body(shop_id: uuid.UUID = shop.shop_id) -> Any:
+            async def body(shop_id: uuid.UUID = shop.shop_id, budget: float = budget) -> Any:
                 async with session_factory() as session:
                     kwargs = await collaborators(session)
-                    return await reread(session=session, shop_id=shop_id, now=now, **kwargs)
+                    return await reread(
+                        session=session, shop_id=shop_id, now=now, budget_seconds=budget, **kwargs
+                    )
 
+            ttl = int(budget + _OUTER_TIMEOUT_GRACE_SECONDS) + _LOCK_GRACE_SECONDS
             try:
-                await _with_cycle_lock(
-                    lock, str(shop.shop_id), "cycle", int(_LAYER4_REBUILD_TIMEOUT_SECONDS), body
-                )
+                await _with_cycle_lock(lock, str(shop.shop_id), "cycle", ttl, body)
             except Exception as exc:
                 logger.error(
                     "analytics_blocks_reread_shop_failed",

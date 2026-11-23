@@ -1,31 +1,30 @@
-"""TikTok's day in layer 4 (P101 W3 t1): the A-34 analytics of a day over the order-line rows.
+"""TikTok's day in layer 4 (P101 W3 t1): the day's analytics over its order-line rows.
 
 :func:`materialize.rebuild_days` builds every day the same way for both platforms: the one-day
-view of the canonical order lines and settlements gives profit, both margin terms, the cost
-coverage and the per-product profit (the registry's definitions: delivered-only profit, the
-refund cost rule, no tax). For a shop whose analytics rows (``analytics_performance_intervals``,
-product grain, daily) cover the day, :func:`overlay` then puts TikTok's own numbers on those rows,
-as Shopee's daily shop totals stand on a Shopee day:
+view of the canonical order lines and settlements gives the profit components (delivered-only,
+the refund cost rule, no tax). For a shop whose daily analytics rows
+(``analytics_performance_intervals``) cover the day, :func:`overlay` then writes TikTok's own
+numbers on those rows:
 
-- headline GMV / đơn / units = the day's SHOP-grain analytics row (shop performance, grain
-  ``shop``; owner 19/11 Q2: the analytics shop total -- an order with two products is one đơn),
-  views / clicks = the products' A-34 totals, ``complete`` True, sources ``analytics``;
-- product rows = each product's A-34 total, with the order lines' profit and line figures;
-- source rows (decision #7) from the channel blocks kept by the poll (``A34_BLOCKS``), read
-  through ``shop_diagnosis.channels`` (the one field map): Thẻ sản phẩm, Video, LIVE (Organic)
-  and Tiếp thị liên kết (TTLK) are split over the shop / product totals with
-  :func:`materialize.split_sources` over the shop total, so the gap between the A-34 sum and the
-  shop-grain total lands in ``chenh_lech_nguon`` (as for Shopee) and the row adds up exactly;
-  Tab cửa hàng (``trang_shop``) is stored beside them with its own views / clicks / GMV and is in
-  no sum (its orders column holds 0: the column is NOT NULL; ``detail.trang_shop_orders_known``
-  is False and the registry / routes return None with ``tab_reports_no_orders``).
-  Quảng cáo stays NULL (no ads scope yet).
+- headline GMV / đơn / units = the day's shop-grain analytics row (an order with two products is
+  one đơn); views / clicks = the products' A-34 totals; ``complete`` True, sources ``analytics``;
+- product rows = each product's A-34 total, with the order lines' line figures; the residual row
+  holds the gap to the shop total;
+- source rows (decision #7) from the A-34 channel blocks the poll keeps (``A34_BLOCKS``), read
+  through ``shop_diagnosis.channels``: Thẻ sản phẩm, Video, LIVE and Tiếp thị liên kết are split
+  over the shop / product total with :func:`materialize.split_sources`, the gap in
+  ``chenh_lech_nguon``; Tab cửa hàng (``trang_shop``) is stored beside them with its own views /
+  clicks / GMV and is in no sum. Its orders column holds 0 only because the column is NOT NULL;
+  the shop row records ``detail.trang_shop_orders_known`` False and :mod:`funnel_check` leaves the
+  row out of its sum check. Ads columns stay NULL.
 
-A day without a shop-grain analytics row (TikTok publishes ~2 days late), or whose analytics
-are all zero while it has orders (a sandbox), keeps the order-line rows and records the newest
-analytics day in ``detail.analytics_through`` ("Số liệu đến dd/mm"). A shop without analytics
-rows (every Shopee shop) is never touched: :func:`load_days` returns nothing and the rows stay
-byte-identical.
+Profit (:func:`settled_profit_only`, :func:`without_ads_profit`): a delivered order without a
+settlement leaves the day's profit NULL; with no ads spend source the stored profit / margin are
+NULL with ``detail.profit_reason`` and the before-ads figures in ``detail``.
+
+A day without a shop-grain row, or whose analytics are all zero beside order lines, keeps the
+order-line rows and records the newest covered day in ``detail.analytics_through``. A shop
+without analytics rows (every Shopee shop) is never touched: :func:`load_days` returns nothing.
 """
 
 from __future__ import annotations
@@ -409,7 +408,7 @@ def overlay(rows: Any, analytics: AnalyticsDay, *, shop_id: uuid.UUID, day: date
 
 #: Platforms whose profit stands on the order's settlement alone (coordinator, M-5): their
 #: shops never read the Shopee fee formula table, and a delivered order with no settlement row
-#: has no profit yet (None, "—"), never a formula estimate. Data, not a platform check.
+#: has no profit yet (None), never a formula estimate. Data, not a platform check.
 SETTLEMENT_ONLY_PLATFORMS = frozenset({"tiktok"})
 
 

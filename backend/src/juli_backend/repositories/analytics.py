@@ -13,6 +13,7 @@ One-writer rule: both envelope repos' ``upsert`` may only be called from
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
@@ -40,9 +41,31 @@ class LivestreamsRepo(ShopScopedRepo[Livestream]):
     _lookup_attrs = ("tiktok_livestream_id",)
 
 
+#: P101 W3: the JSON columns two writers fill for one product-day -- the A-33 detail row (its
+#: content types) and the A-34 list row (``A34_TOTAL``, ``A34_BLOCKS``). A write merges its keys
+#: into them instead of replacing the column, so neither writer wipes the other's keys.
+MERGED_JSON_COLUMNS: tuple[str, ...] = ("traffic_breakdown", "sales_breakdown")
+
+
 class AnalyticsPerformanceRepo(ShopScopedRepo[AnalyticsPerformanceInterval]):
     _model = AnalyticsPerformanceInterval
     _lookup_attrs = ("snapshot_key",)
+
+    async def _apply_if_newer(
+        self,
+        existing: AnalyticsPerformanceInterval,
+        values: Mapping[str, Any],
+        *,
+        full_snapshot: bool = False,
+    ) -> AnalyticsPerformanceInterval:
+        """The newer-wins update, except that :data:`MERGED_JSON_COLUMNS` merge by key: an
+        incoming key replaces the same key, a key the incoming row does not carry is kept."""
+        merged = dict(values)
+        for column in MERGED_JSON_COLUMNS:
+            incoming, stored = values.get(column), getattr(existing, column)
+            if isinstance(incoming, dict) and isinstance(stored, dict):
+                merged[column] = {**stored, **incoming}
+        return await super()._apply_if_newer(existing, merged, full_snapshot=full_snapshot)
 
 
 class GoldKpiEnvelopesRepo(SessionRepo):

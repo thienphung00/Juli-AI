@@ -1131,6 +1131,13 @@ async def refresh_analytics_layer4(
     return days
 
 
+#: P101 W3: the re-read's own wall-clock budget, well inside its cycle-lock TTL
+#: (``shop_ingestion`` sets the TTL to this plus grace), and the least time a window may start
+#: with -- a window is one list call per day plus one detail call per product.
+BLOCKS_REREAD_BUDGET_SECONDS = 1200.0
+BLOCKS_REREAD_WINDOW_MIN_SECONDS = 300.0
+
+
 async def run_blocks_reread(
     *,
     session: AsyncSession,
@@ -1146,14 +1153,25 @@ async def run_blocks_reread(
     now: datetime | None = None,
     concurrency: int | None = None,
     max_windows: int = 3,
+    budget_seconds: float = BLOCKS_REREAD_BUDGET_SECONDS,
+    window_min_seconds: float = BLOCKS_REREAD_WINDOW_MIN_SECONDS,
+    clock: Callable[[], float] | None = None,
 ) -> frozenset[date]:
     """P101 W3 (owner W3-Q4 = D): the one automatic 90-day re-read of the A-34 channel blocks,
     run by the nightly layer-4 beat under the shop's cycle lock (so the 15-minute cycle's call
     budget is untouched). Walks up to ``max_windows`` windows newest first; the cursor
     (``tiktok_sync_state`` endpoint ``shop_product_blocks_reread``) is saved, so an interrupted
     walk resumes the next night and a finished one makes no call at all. Then the layer-4 rows
-    of the re-read days are rebuilt. Returns those days. Never raises past the scoped run."""
-    deadline = _CycleDeadline()
+    of the re-read days are rebuilt. Returns those days. Never raises past the scoped run.
+
+    It cannot outlive its lock: it runs on its own ``budget_seconds`` (below the lock TTL), starts
+    a window only with ``window_min_seconds`` left, and saves the cursor after every complete
+    window, so a stop (budget, rate limit, error) loses at most the window in flight."""
+    deadline = (
+        _CycleDeadline(budget_seconds=budget_seconds, clock=clock)
+        if clock is not None
+        else _CycleDeadline(budget_seconds=budget_seconds)
+    )
     today = utc_today(now)
     days: set[date] = set()
     async with _scoped_shop_run(
@@ -1166,6 +1184,12 @@ async def run_blocks_reread(
         sync_state_repo=sync_state_repo,
     ) as run:
         for _ in range(max_windows):
+            if deadline.remaining() < window_min_seconds:
+                logger.info(
+                    "analytics_blocks_reread_paused",
+                    extra={"shop_id": str(shop_id), "remaining_seconds": deadline.remaining()},
+                )
+                break
             try:
                 reread = await _within_cycle_budget(
                     lambda: reread_product_blocks(
@@ -1195,6 +1219,7 @@ async def run_blocks_reread(
                 days.update(reread.days)
             if not reread.complete:
                 break
+            await run.sync_state_repo.save(shop_id, run.sync_state)  # after every window
         await run.sync_state_repo.save(shop_id, run.sync_state)
         if days:
             await record_touched_days(session, shop_id, frozenset(days), dataset="analytics")
@@ -1396,6 +1421,8 @@ __all__ = [
     "history_max_lookback_days",
     "log_transition",
     "max_stored_analytics_day",
+    "BLOCKS_REREAD_BUDGET_SECONDS",
+    "BLOCKS_REREAD_WINDOW_MIN_SECONDS",
     "refresh_analytics_layer4",
     "run_blocks_reread",
     "run_bootstrap_fast_phase",
