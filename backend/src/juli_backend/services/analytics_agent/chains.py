@@ -19,7 +19,12 @@ from typing import Any
 from juli_backend.services.analytics_agent import mathx
 from juli_backend.services.analytics_agent.labels import SHOPEE_SOURCES
 from juli_backend.services.analytics_agent.types import DataPort, LabelTable
-from juli_backend.services.analytics_agent.windows import Windows, build_windows, campaign_days
+from juli_backend.services.analytics_agent.windows import (
+    Windows,
+    anchor_for,
+    build_windows,
+    campaign_days,
+)
 from juli_backend.services.metrics.compute import raw_value
 
 EXPLAINED_SHARE = 0.70
@@ -250,7 +255,7 @@ async def run_chain(
             item_id=res_kw["item_id"],
             item_name=res_kw["item_name"],
         )
-    anchor = min(as_of, latest)
+    anchor = anchor_for(preset, as_of, latest)
     w = build_windows(preset, anchor, explicit=explicit, named_month=named_month)
     steps = [f"step0: latest complete day {latest}; window {w.label()} ({w.preset})"]
     if preset == "yesterday_vs_same_weekday" and latest < as_of:

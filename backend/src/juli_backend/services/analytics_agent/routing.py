@@ -22,7 +22,11 @@ from juli_backend.services.analytics_agent.types import (
     LLMPort,
     Usage,
 )
-from juli_backend.services.analytics_agent.windows import build_windows, window_from_phrase
+from juli_backend.services.analytics_agent.windows import (
+    anchor_for,
+    build_windows,
+    window_from_phrase,
+)
 
 MAX_INTENTS = 3  # config value (J3); the rest is offered through `more`
 FITS_GO, FITS_NO = 0.7, 0.3
@@ -408,7 +412,7 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     if pn is not None:
         dec["checks"]["product_named"] = {"noul": round(pn, 4)}
     want = CHAIN_METRIC.get(dec.get("chain", ""))
-    if want and dec.get("metric") and dec["metric"] != want:
+    if want and dec.get("metric") and dec["metric"] != want and dec.get("mode") != "lookup":
         if dec["metric"] not in CHAIN_ALLOWED_METRICS.get(dec["chain"], set()):
             dec["checks"]["chain_metric_conflict"] = [dec["chain"], dec["metric"]]
             if dec["checks"]["chain"]["p_top"] >= 0.9:
@@ -454,6 +458,7 @@ QUESTION_VI = {
     "window": "Bạn muốn so sánh khoảng thời gian nào?",
     "product": "Bạn muốn nói sản phẩm nào?",
 }
+NO_FULL_DAY_VI = "Tuần này chưa có ngày nào đủ số liệu. Xem tuần trước?"
 CHAIN_VI = {
     "orders_change": "Đơn hàng",
     "ctr_change": "CTR",
@@ -471,6 +476,7 @@ def options_vi(
     labels: LabelTable,
     as_of: date,
     names: dict[str, str] | None = None,
+    latest: date | None = None,
 ) -> list[dict[str, str]]:
     out = []
     for v in values:
@@ -479,7 +485,7 @@ def options_vi(
         elif item == "metric":
             label = labels.metric(v)
         elif item == "window":
-            label = build_windows(v, as_of).label()  # real dates (U5a)
+            label = build_windows(v, anchor_for(v, as_of, latest)).label()  # real dates (U5a)
         else:
             label = (names or {}).get(v, v)
         out.append({"label_vi": label, "value": v})
@@ -493,6 +499,7 @@ def needs_choice_event(
     as_of: date,
     turns: int = 0,
     names: dict[str, str] | None = None,
+    latest: date | None = None,
 ) -> dict[str, Any]:
     """The event + the `pending` state that lets the engine resume in code (no new Jev call)."""
     item, values = dec["remaining"][0]
@@ -506,7 +513,7 @@ def needs_choice_event(
         "type": "needs_choice",
         "item": item,
         "question_vi": QUESTION_VI[item],
-        "options": options_vi(item, values, labels, as_of, names),
+        "options": options_vi(item, values, labels, as_of, names, latest),
         "pending": pending,
     }
 

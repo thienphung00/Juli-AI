@@ -17,7 +17,14 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from juli_backend.services.analytics_agent import cards as cardstage
-from juli_backend.services.analytics_agent import lookup, present, routing, writer
+from juli_backend.services.analytics_agent import (
+    entities,
+    lookup,
+    present,
+    routing,
+    windows,
+    writer,
+)
 from juli_backend.services.analytics_agent.cards_service import ServiceCardEngine
 from juli_backend.services.analytics_agent.chains import CHAIN_METRIC, ChainResult, run_chain
 from juli_backend.services.analytics_agent.data_service import ServiceData, SessionFactory
@@ -69,14 +76,10 @@ class _Out:
         await self.sink.emit(event)
 
 
-NO_ENTITY_DATA_VI = "Juli chưa có số liệu này"
-
-
-async def _anchor(data: DataPort, as_of: date) -> date:
-    """The newest complete day held, never later than `as_of`: where every window is anchored."""
+async def _latest(data: DataPort, as_of: date) -> date | None:
+    """The newest complete day held (the freshness line); calendar windows do not depend on it."""
     rows = await data.shop_daily(as_of)
-    latest = max((r["day"] for r in rows if r["complete"]), default=None)
-    return min(as_of, latest) if latest else as_of
+    return max((r["day"] for r in rows if r["complete"]), default=None)
 
 
 def _platform_has_analytics(platform: str) -> bool:
@@ -186,12 +189,8 @@ async def _run(
     # `pending` across a clarifying choice.
     pinned = (req.pending or {}).get("anchor") if req.choice else None
     if pinned:
-        label_day = date.fromisoformat(pinned)
-    elif _platform_has_analytics(req.platform):
-        label_day = await _anchor(data, as_of)
-    else:
-        label_day = as_of
-    as_of = label_day if pinned else as_of
+        as_of = date.fromisoformat(pinned)
+    latest = await _latest(data, as_of) if _platform_has_analytics(req.platform) else None
     blocks: list[tuple[dict[str, Any], dict[str, Any]]] = []  # (intent, decision)
     more: list[dict[str, Any]] = []
     if req.template and template is None:
@@ -259,9 +258,26 @@ async def _run(
         if dec["outcome"] == "unsupported":
             await _unsupported(out, result, req.platform, _other_platform(intent, req.platform))
             continue
+        if (
+            dec.get("window") == "this_week_vs_same_days_last_week"
+            and windows.this_week_empty(as_of)
+            and not (intent.get("explicit_from") and intent.get("explicit_to"))
+        ):  # Monday: no complete day this week; offer last week, never a one-day window
+            dec = {
+                **dec,
+                "outcome": "needs_choice",
+                "remaining": [("window", ["last_full_week_vs_week_before"])],
+            }
+            no_day = True
+        else:
+            no_day = False
         if dec["outcome"] == "needs_choice":
-            ev = routing.needs_choice_event(dec, intent, labels, label_day, dec.get("turns", 0))
-            ev["pending"]["anchor"] = label_day.isoformat()
+            ev = routing.needs_choice_event(
+                dec, intent, labels, as_of, dec.get("turns", 0), latest=latest
+            )
+            if no_day:
+                ev["question_vi"] = routing.NO_FULL_DAY_VI
+            ev["pending"]["anchor"] = as_of.isoformat()
             ev["pending"]["restated"] = restated
             ev["pending"]["more"] = more
             await out.emit(ev)
@@ -300,18 +316,6 @@ async def _answer(
     restated: str,
     template: Template | None,
 ) -> None:
-    entity = routing.entity_kind(intent)
-    if entity:  # Q17: no reader filters by this entity yet -> refuse, never a shop number
-        await out.emit(
-            {
-                "type": "label",
-                "stop_reason": "data_missing",
-                "text_vi": NO_ENTITY_DATA_VI,
-                "detail_vi": None,
-            }
-        )
-        result.stop_reasons.append("data_missing")
-        return
     mode = dec.get("mode", "why")
     preset = dec.get("window") or "last_7d_vs_prev_7d"
     item_id: str | None = dec.get("item_id")
@@ -357,6 +361,36 @@ async def _answer(
         return
     await out.emit(present.status("checking_data"))
     kw = _window_args(intent, dec)
+    entity = routing.entity_kind(intent)
+    prod_money = bool(item_id and dec.get("metric") in ("profit", "margin", "ads_spend", "roas"))
+    if entity or prod_money:  # Q17: the entity's own rows, or "Juli chưa có số liệu này"
+        names = await data.item_names([item_id]) if item_id else {}
+        answers = await entities.run_entity(
+            entity,
+            data,
+            intent,
+            dec.get("metric"),
+            preset,
+            as_of,
+            item_id=item_id,
+            item_name=names.get(item_id) if item_id else None,
+            **kw,
+        )
+        if not answers:
+            await out.emit(
+                {
+                    "type": "label",
+                    "stop_reason": "data_missing",
+                    "text_vi": entities.NO_DATA_VI,
+                    "detail_vi": None,
+                }
+            )
+            result.stop_reasons.append("data_missing")
+            return
+        for a in answers:
+            await out.emit(a)
+        result.stop_reasons.append("data_answer")
+        return
     if mode == "lookup":
         metric = dec.get("metric") or lookup.default_metric(dec.get("chain"))
         ans = await lookup.run_lookup(

@@ -18,7 +18,7 @@ from juli_backend.services.analytics_agent.chains import (
     metric_value,
 )
 from juli_backend.services.analytics_agent.types import DataPort, LabelTable
-from juli_backend.services.analytics_agent.windows import build_windows
+from juli_backend.services.analytics_agent.windows import anchor_for, build_windows
 
 MISSING = "thiếu dữ liệu"
 
@@ -45,7 +45,9 @@ async def run_lookup(
     latest = max((r["day"] for r in rows if r["complete"]), default=None)
     if latest is None:
         return {"stop": "data_missing"}
-    w = build_windows(preset, min(as_of, latest), explicit=explicit, named_month=named_month)
+    w = build_windows(
+        preset, anchor_for(preset, as_of, latest), explicit=explicit, named_month=named_month
+    )
     out: dict[str, Any] = {
         "type": "data_answer",
         "kind": kind,

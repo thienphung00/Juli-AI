@@ -258,3 +258,132 @@ class ServiceData:
         else:
             before = await self.cost_lines(a0, b0, item)
         return now, before
+
+    # ------------------------------------------------------------------ entities (Track J)
+
+    #: lines that count as orders: not cancelled, not refunded / returned (GLOSSARY, order statuses)
+    _COUNTED = "('confirmed','in_transit','delivered')"
+
+    async def entity_totals(
+        self, kind: str, a: date, b: date, item: str | None = None
+    ) -> dict[str, Any]:
+        """Orders, GMV (deal price x qty) and the entity's own cost over [a, b], from the
+        canonical `order_lines`: voucher = lines with a seller voucher share (cost = that share,
+        registry `offer_voucher`); affiliate = lines flagged affiliate (cost = the commission of
+        `affiliate_lines`). Optionally one product."""
+        cond = {"voucher": "shop_voucher_share > 0", "affiliate": "affiliate"}[kind]
+        row = (
+            await self._q(
+                f"""select count(distinct order_ref) as orders,
+                           coalesce(sum(deal_price * qty), 0) as gmv,
+                           coalesce(sum(shop_voucher_share), 0) as voucher_cost
+                      from order_lines
+                     where shop_id = :s and platform = 'shopee' and day between :a and :b
+                       and status in {self._COUNTED} and {cond}
+                       and (cast(:i as text) is null or item_id = cast(:i as text))""",
+                a=a,
+                b=b,
+                i=item,
+            )
+        )[0]
+        cost = row["voucher_cost"]
+        if kind == "affiliate":
+            comm = await self._q(
+                """select sum(commission) as c from affiliate_lines
+                    where shop_id = :s and platform = 'shopee' and day between :a and :b
+                      and coalesce(valid, true)
+                      and (cast(:i as text) is null or item_id = cast(:i as text))""",
+                a=a,
+                b=b,
+                i=item,
+            )
+            cost = comm[0]["c"]
+        return {"orders": row["orders"], "gmv": row["gmv"], "cost": cost}
+
+    async def voucher_rows(self, a: date, b: date) -> list[dict[str, Any]]:
+        """One row per voucher code: orders, GMV, the voucher's cost."""
+        return await self._q(
+            f"""select voucher_code as code, count(distinct order_ref) as orders,
+                       coalesce(sum(deal_price * qty), 0) as gmv,
+                       coalesce(sum(shop_voucher_share), 0) as cost
+                  from order_lines
+                 where shop_id = :s and platform = 'shopee' and day between :a and :b
+                   and status in {self._COUNTED} and shop_voucher_share > 0
+                   and voucher_code is not null
+                 group by voucher_code order by sum(deal_price * qty) desc""",
+            a=a,
+            b=b,
+        )
+
+    async def _reco_env(self, s: AsyncSession, a: date, b: date) -> Any:
+        from dataclasses import replace
+
+        from juli_backend.services.shopee_analytics import loaders, service
+        from juli_backend.services.shopee_recommendations.env import RecoEnv
+
+        window = await service.resolve(s, self.shop, period="custom", start=a, end=b)
+        if window is None:
+            return None
+        ctx = await loaders.load_context(s, self.shop)
+        ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
+        view = await service.load_view(s, self.shop, ctx, window, funnel=True, rows="soft")
+        return RecoEnv(ctx=ctx, view=view, as_of=b)
+
+    async def product_profit(self, item: str, a: date, b: date) -> dict[str, Any] | None:
+        async with self._f() as s:
+            try:
+                env = await self._reco_env(s, a, b)
+                p = None if env is None else env.product(item)
+                if p is None:
+                    return None
+                return {
+                    "profit": p.profit,
+                    "margin_pct": p.margin_pct,
+                    "coverage_pct": p.cost_coverage_pct,
+                    "gmv": p.gmv,
+                }
+            finally:
+                await s.rollback()
+
+    async def campaign_rows(self, a: date, b: date) -> list[dict[str, Any]]:
+        """Per ad campaign from the ads report (the analytics view): spend, direct GMV, profit
+        before ads read by `shopee_recommendations.evaluate.campaign_profile`; ROAS and ROAS hoà
+        vốn come from the metric registry."""
+        from decimal import Decimal
+
+        from juli_backend.services.metrics.compute import evaluate
+        from juli_backend.services.shopee_recommendations.evaluate import campaign_profile
+
+        out: list[dict[str, Any]] = []
+        async with self._f() as s:
+            try:
+                env = await self._reco_env(s, a, b)
+                if env is None:
+                    return []
+                days = Decimal(env.window_days)
+                for c in env.view.ads.campaigns:
+                    prof = campaign_profile(env, c.key)
+                    if prof is None:
+                        continue
+                    direct = prof["direct_per_day"] * days
+                    before_ads = prof["profit_before_ads_per_day"] * days
+                    comp = {
+                        "ads_gmv_direct": direct,
+                        "cost_ads": c.spend,
+                        "net_revenue_known": direct,
+                        "contribution": before_ads,
+                    }
+                    out.append(
+                        {
+                            "key": c.key,
+                            "name": c.name or c.key,
+                            "spend": c.spend,
+                            "gmv": direct,
+                            "roas": evaluate("roas_direct", comp).value,
+                            "break_even": evaluate("roas_break_even", comp).value,
+                            "profit_after_ads": before_ads - c.spend,
+                        }
+                    )
+            finally:
+                await s.rollback()
+        return out

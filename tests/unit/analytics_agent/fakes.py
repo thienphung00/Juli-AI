@@ -269,3 +269,31 @@ def engine_card() -> dict[str, Any]:
             version("Mạnh", None, None, estimable=False),
         ],
     }
+
+
+class FakeEntityData(FakeData):
+    """FakeData plus the entity readers: synthetic voucher / affiliate / campaign / product rows."""
+
+    def __init__(self, *a: Any, **kw: Any):
+        self.entity: dict[str, Any] = kw.pop("entity", {})
+        super().__init__(*a, **kw)
+
+    async def entity_totals(
+        self, kind: str, a: date, b: date, item: str | None = None
+    ) -> dict[str, Any]:
+        rows = self.entity.get(kind, [])
+        sel = [r for r in rows if a <= r["day"] <= b and (item is None or r.get("item") == item)]
+        return {
+            "orders": sum(r["orders"] for r in sel),
+            "gmv": sum(r["gmv"] for r in sel),
+            "cost": sum(r["cost"] for r in sel) if sel or kind == "voucher" else None,
+        }
+
+    async def voucher_rows(self, a: date, b: date) -> list[dict[str, Any]]:
+        return self.entity.get("voucher_codes", [])
+
+    async def campaign_rows(self, a: date, b: date) -> list[dict[str, Any]]:
+        return self.entity.get("campaigns", [])
+
+    async def product_profit(self, item: str, a: date, b: date) -> dict[str, Any] | None:
+        return self.entity.get("product_profit", {}).get((item, a))

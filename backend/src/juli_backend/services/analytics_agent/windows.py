@@ -57,6 +57,29 @@ def campaign_days(a: date, b: date) -> list[date]:
     return out
 
 
+# Calendar windows follow today (VN), not the newest data day; the freshness line names the data.
+CALENDAR_PRESETS = frozenset(
+    {
+        "last_full_week_vs_week_before",
+        "this_week_vs_same_days_last_week",
+        "last_7d_vs_prev_7d",
+    }
+)
+
+
+def anchor_for(preset: str, as_of: date, latest: date | None) -> date:
+    """as_of = the newest complete calendar day (yesterday, VN). Calendar presets keep it even
+    when the data stops earlier; the others never run past the newest complete data day."""
+    if preset in CALENDAR_PRESETS or latest is None:
+        return as_of
+    return min(as_of, latest)
+
+
+def this_week_empty(as_of: date) -> bool:
+    """Today (as_of + 1) is a Monday: this week has no complete day yet."""
+    return (as_of + timedelta(days=1)).weekday() == 0
+
+
 # One phrase -> one window (J2): the model never decides what "last week" means.
 _PHRASES: tuple[tuple[re.Pattern[str], str], ...] = (
     (
@@ -100,7 +123,8 @@ def build_windows(
             preset, (a_ - timedelta(days=6), a_), (a_ - timedelta(days=13), a_ - timedelta(days=7))
         )
     elif preset == "this_week_vs_same_days_last_week":
-        mon = a_ - timedelta(days=a_.weekday())  # a_ = the newest complete day
+        today = a_ + timedelta(days=1)
+        mon = today - timedelta(days=today.weekday())  # a_ = yesterday
         last_mon = mon - timedelta(days=7)
         w = Windows(preset, (mon, a_), (last_mon, last_mon + (a_ - mon)))
     elif preset == "last_full_week_vs_week_before":
