@@ -110,6 +110,7 @@ describe("Cài đặt › Juli Connector", () => {
     expect(screen.getByTestId("received-shop_overview")).toHaveTextContent("Nhận lúc");
     expect(screen.getByTestId("received-ads_campaign_daily")).toHaveTextContent("Tạm dừng");
     expect(screen.getByTestId("received-affiliate_order_lines")).toHaveTextContent("Chưa nhận");
+    expect(table).not.toHaveTextContent("orders_export"); // not the Connector's
   });
 
   it("C2: shows the newest day held and, while behind, only Đang đọc đến dd/mm", async () => {
@@ -118,7 +119,6 @@ describe("Cài đặt › Juli Connector", () => {
     expect(income).toHaveTextContent(new Date("2026-11-10").toLocaleDateString("vi-VN"));
     expect(income.querySelectorAll("td")[2]).toHaveTextContent(/^Đang đọc đến 03\/11$/);
     expect(screen.getByTestId("received-shop_overview")).not.toHaveTextContent("Đang đọc");
-    expect(table).not.toHaveTextContent("orders_export"); // not the Connector's
   });
 
   it("the tab exists only for a Shopee shop", () => {
