@@ -734,7 +734,7 @@ async def _add_row(
     if not 1 <= chosen_version <= len(vlist):
         raise ProposalError("reco_version_unknown", 422, f"the card has {len(vlist)} version(s)")
     if vlist[chosen_version - 1].get("status") == versions.STATUS_REFUSED:
-        raise ProposalError("reco_version_unavailable", 422, "this version cannot be evaluated")
+        raise ProposalError("reco_version_unavailable", 422, "Phương án này chưa tính được.")
     plan = await _ensure_draft(session, shop_id, actor, now)
     current = await _rows(session, shop_id, plan.id)
     if len(current) >= config.PLAN_MAX_CARDS:
@@ -748,7 +748,7 @@ async def _add_row(
     )
     ev = evaluate_entry(env, entry, now=now)
     if ev is None:
-        raise ProposalError(service.ERROR_BAD_INPUT, 422, "this version cannot be evaluated")
+        raise ProposalError(service.ERROR_BAD_INPUT, 422, "Phương án này chưa tính được.")
     breaches = manual.breaches_of(ev.card)
     if breaches and not acknowledge_breaches:
         raise PlanBreachNotAcknowledged(breaches, "this card")
@@ -971,7 +971,7 @@ async def switch_version(
     if not 1 <= version <= len(vlist):
         raise ProposalError("reco_version_unknown", 422, f"the card has {len(vlist)} version(s)")
     if vlist[version - 1].get("status") == versions.STATUS_REFUSED:
-        raise ProposalError("reco_version_unavailable", 422, "this version cannot be evaluated")
+        raise ProposalError("reco_version_unavailable", 422, "Phương án này chưa tính được.")
     before = row.chosen_version
     row.chosen_version = version
     row.inputs = {}
@@ -1022,7 +1022,7 @@ async def whatif(
     entry = Entry(str(p.id), p.code, {**payload, "code": p.code}, int(row.chosen_version), merged)
     ev = evaluate_entry(env, entry, now=now)
     if ev is None:
-        raise ProposalError(service.ERROR_BAD_INPUT, 422, "these inputs cannot be evaluated")
+        raise ProposalError(service.ERROR_BAD_INPUT, 422, "Các giá trị này chưa tính được.")
     job = result_store.Job(ev.card, wanted=[int(row.chosen_version)])
     [blocks] = await result_store.compute_many(session, shop_id, env, [job], now=now)
     vlist = versions.versions_of({**payload, "code": p.code})
@@ -1162,9 +1162,7 @@ async def confirm(
         unavailable += gagg.get("unavailable_cards") or []
         breaches += [{**b, "group": g.letter} for b in _all_breaches(gagg, gev)]
     if unavailable:
-        raise ProposalError(
-            service.ERROR_BAD_INPUT, 422, f"cards that cannot be evaluated: {unavailable}"
-        )
+        raise ProposalError(service.ERROR_BAD_INPUT, 422, f"Các thẻ chưa tính được: {unavailable}")
     if breaches and not acknowledge_breaches:
         raise PlanBreachNotAcknowledged(breaches)
     acknowledged = (
@@ -1435,7 +1433,7 @@ async def run_together(
                 "reco_version_unknown", 422, f"the card has {len(vlist)} version(s)"
             )
         if vlist[version - 1].get("status") == versions.STATUS_REFUSED:
-            raise ProposalError("reco_version_unavailable", 422, "this version cannot be evaluated")
+            raise ProposalError("reco_version_unavailable", 422, "Phương án này chưa tính được.")
         placements.append(plan_groups.Placement(row, p, payload, version))
     assert plan is not None
     for item in placements:

@@ -893,7 +893,7 @@ async def recompute(
         raise ProposalError(ERROR_NO_DATA, 409, "shop has no Shopee numbers")
     new_card = recompute_card(env, card, inputs, now=now, version=version)
     if new_card is None:
-        raise ProposalError(ERROR_BAD_INPUT, 422, "these inputs cannot be evaluated")
+        raise ProposalError(ERROR_BAD_INPUT, 422, "Các giá trị này chưa tính được.")
     # one card, one number: the moved version's engine result (what the seller sees and ranks)
     number = int(new_card.get("version") or version or 1)
     [blocks] = await result_store.compute_many(

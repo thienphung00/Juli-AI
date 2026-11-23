@@ -73,3 +73,25 @@ async def test_a_finished_card_does_not_block_and_an_existing_pair_is_left_alone
         again = await _make(session, a.shop_id, a.user_id)
         assert again["code"] != first["code"]
         assert await store.find_open_duplicate(session, a.shop_id, _card()) is not None
+
+
+async def test_s6_every_card_kind_can_be_withdrawn_one_by_one(shopee_tenants):
+    """Q7: the removal in Đề xuất is by card id (``service.withdraw``) and has no kind branch;
+    this proves it for every kind the engine knows (mega sale cards are built apart)."""
+    from juli_backend.services import shopee_recommendations as reco
+    from juli_backend.services.shopee_recommendations.kinds import KINDS, spec
+
+    a, _ = shopee_tenants
+    kinds = [k for k in KINDS if spec(k).family != "mega_sale"]
+    async with juli_app_session() as session, with_shop_scope(session, a.shop_id):
+        made: dict[str, object] = {}
+        for n, kind in enumerate(kinds):
+            card = stub_card(f"7{n:04d}", kind, spec(kind).family)
+            card["change"]["after"] = {"marker": kind}
+            made[kind] = await store.save_card(
+                session, a.shop_id, card, cycle="2026-11", position=n + 1, now=NOW
+            )
+        for kind, card_id in made.items():
+            await reco.withdraw(session, a.shop_id, card_id, now=NOW, reason_code="not_fit")
+        rows = {p.id: p.status for p, _ in await store.list_cards(session, a.shop_id)}
+        assert {rows[i] for i in made.values()} == {"withdrawn"}, kinds

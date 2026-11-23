@@ -562,3 +562,20 @@ async def test_an_excluded_listing_has_no_kol_rows_and_the_filters_forget_it(sho
     assert after["totals"]["orders"] == sum(r["orders"] for r in kept)
     tab = await queries.kol_product_tab(session, sid, "1002", as_of=AS_OF)
     assert tab["rows"] == []
+
+
+async def test_s5_a_creator_card_on_a_product_with_no_orders_is_estimated_on_the_prior(
+    shop, session
+):
+    """Q8: no orders in the window = no ProductStat; the shop's prior economics stand in."""
+    from dataclasses import replace as _replace
+
+    env = await load_env(session, shop.shop_id, as_of=AS_OF)
+    assert env is not None and env.kol is not None
+    cand = next(c for c in kol_cards.generate(env) if c.kind == "affiliate_invite")
+    new_item = "9990001"
+    assert new_item not in env.kol.products
+    moved = _replace(cand, items=(new_item,), inputs={**cand.inputs, "item_id": new_item})
+    assert kol_cards.forecast_of(env, moved, dict(moved.inputs)) is not None
+    ev = kol_cards.evaluation_of(env, moved, dict(moved.inputs))
+    assert ev.refusal is None
