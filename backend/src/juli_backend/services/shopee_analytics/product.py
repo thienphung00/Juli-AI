@@ -340,9 +340,11 @@ def product_funnel_json(view: PeriodView, product_id: str) -> dict[str, Any]:
     return out
 
 
-def kpi_block(now: PeriodView, before: PeriodView, product_id: str) -> dict[str, Any]:
-    row = product_row(now, product_id)
-    prev = product_row(before, product_id)
+def kpi_block(
+    now: PeriodView, before: PeriodView, product_id: str, platform: str = "shopee"
+) -> dict[str, Any]:
+    row = product_row(now, product_id, platform)
+    prev = product_row(before, product_id, platform)
     table = now.flows.products.get(product_id) if now.flows else None
     views = clicks = None
     if table is not None:
@@ -675,6 +677,7 @@ def build_product_page(
     history: list[Any] | None = None,
     daily: tuple[list[Any], str] | None = None,
     freshness: dict[str, Any] | None = None,
+    platform: str = "shopee",
 ) -> dict[str, Any]:
     now, before = views[selected]
     info = ctx.catalog.items.get(product_id)
@@ -689,9 +692,14 @@ def build_product_page(
             "previous": before.window.json(),
         },
         "header": header,
-        "kpi_by_period": {key: kpi_block(n, b, product_id) for key, (n, b) in views.items()},
-        "nguon": product_row(now, product_id),
-        "ads": {**ads_overlay(now, product_id), **ads_campaigns_block(now, product_id)},
+        "kpi_by_period": {
+            key: kpi_block(n, b, product_id, platform) for key, (n, b) in views.items()
+        },
+        "nguon": product_row(now, product_id, platform),
+        "ads": {
+            **ads_overlay(now, product_id, platform=platform),
+            **ads_campaigns_block(now, product_id),
+        },
         "daily": daily_block(now, product_id, *(daily or ([], "none"))),
         "freshness": freshness,
         "cost_and_floor": {

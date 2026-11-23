@@ -36,7 +36,14 @@ from juli_backend.services.shop_diagnosis.confidence import Confidence, volume_l
 from juli_backend.services.shop_diagnosis.config import ShopDiagnosisConfig
 from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.compute import PeriodView
-from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, frac, num, pct
+from juli_backend.services.shopee_analytics.fmt import (
+    ADS_BASIS,
+    ads_basis_note,
+    frac,
+    num,
+    pct,
+    platform_name,
+)
 from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN
 from juli_backend.services.shopee_analytics.matrix import margin_basis, price_block
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
@@ -570,6 +577,7 @@ def build_ranking(
     source: str = "all",
     sub: str | None = None,
     xep_theo: str = "gmv_per_day",
+    platform: str = "shopee",
 ) -> dict[str, Any]:
     head: dict[str, Any] = {
         "platform": "shopee",
@@ -587,7 +595,7 @@ def build_ranking(
         "previous": before.window.json(),
         "order_basis": {"key": "confirmed", "label": "Đơn đã xác nhận"},
         "ads_basis": ADS_BASIS if source == "ads" or kind in ("campaigns", "keywords") else None,
-        "ads_note": ADS_BASIS_NOTE
+        "ads_note": ads_basis_note(platform)
         if source == "ads" or kind in ("campaigns", "keywords")
         else None,
     }
@@ -619,8 +627,8 @@ def build_ranking(
     if source in LEVER_SOURCES and xep_theo in FUNNEL:
         return refuse(
             "not_split_by_lever",
-            "Lượt xem, CTR và CTOR không tách được theo mức ưu đãi (Shopee không ghi lượt xem "
-            "theo voucher / khuyến mãi / combo).",
+            "Lượt xem, CTR và CTOR không tách được theo mức ưu đãi "
+            f"({platform_name(platform)} không ghi lượt xem theo voucher / khuyến mãi / combo).",
         )
 
     if kind == "products" and not before.comparable_as_previous:
