@@ -40,5 +40,5 @@ async def ops_fee_backtest(
             return await fee_backtest.run(session, shop_id, as_of=as_of, days=days)
     except fee_backtest.NoShopeeData:
         raise HTTPException(
-            409, detail={"code": "reco_no_data", "message": "shop has no Shopee numbers"}
+            409, detail={"code": "reco_no_data", "message": "Shop chưa có số liệu Shopee."}
         ) from None
