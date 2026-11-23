@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any
+from typing import Any, cast
 
 from juli_backend.services.analytics_agent import AskRequest, create_card, run
 from tests.unit.analytics_agent.fakes import (
@@ -93,7 +93,7 @@ async def test_voucher_request_asks_for_the_amount_and_minimum_then_drafts() -> 
     card = sink2.of("card")[0]
     assert card["kind_vi"] == "Mã Giảm Giá · Voucher toàn Shop · đơn tối thiểu"
     assert card["window_vi"] == "24/11 00:00–25/11 23:59"
-    spec = eng.custom_calls[0]  # type: ignore[attr-defined]
+    spec = cast(Any, eng).custom_calls[0]
     assert (
         spec["kind"] == "voucher" and spec["start"] == "2026-11-24" and spec["end"] == "2026-11-25"
     )

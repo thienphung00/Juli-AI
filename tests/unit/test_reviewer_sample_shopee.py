@@ -191,6 +191,8 @@ LLM_TEMPLATES: dict[tuple[str, str], str] = {
 
 VOUCHER = {"kind": "voucher", "discount_type": "amount", "value": 5000, "min_spend": 100_000}
 TITLE = {"kind": "title", "item_id": ITEM, "title": "Găng tay tự hủy sinh học 100 chiếc"}
+#: another title for "Chạy cùng nhau": the same change as the card "Chọn" just made is refused (S4)
+GROUP_TITLE = {**TITLE, "title": "Găng tay tự hủy sinh học 200 chiếc"}
 
 
 @pytest.fixture(autouse=True)
@@ -361,10 +363,12 @@ def _body(method: str, template: str) -> dict[str, Any] | None:
     return {"item_id": ITEM, "count": 3}
 
 
+#: value 3.500 (not 3.000): the sample shop already holds an open card with the 3.000 voucher on
+#: this product, and the same change twice is refused as a duplicate (S4)
 MANUAL_VOUCHER = {
     "change_kind": "min_spend_voucher",
     "items": ["1002"],
-    "inputs": {"value": 3000, "min_spend": 90_000, "quantity": 50, "days": 14},
+    "inputs": {"value": 3500, "min_spend": 90_000, "quantity": 50, "days": 14},
 }
 
 
@@ -566,7 +570,7 @@ async def test_every_sample_write_changes_only_the_sample_shops_rows(
             "POST",
             f"{DEMO}/builder/group",
             f"{DEMO}/builder/group",
-            {"versions": [VOUCHER, TITLE], "members": [0, 1], "acknowledge_breaches": True},
+            {"versions": [VOUCHER, GROUP_TITLE], "members": [0, 1], "acknowledge_breaches": True},
         )
         # Kế hoạch
         plan_card = f"{REC}/plan/cards/{manual_id}"

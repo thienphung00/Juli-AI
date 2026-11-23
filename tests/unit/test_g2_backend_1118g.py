@@ -366,12 +366,12 @@ async def test_reconcile_queues_a_readback_for_every_pending_executed_card(sessi
 
 async def test_the_poll_stores_the_connector_version_per_computer(session, shop, ext):
     seeded, _ = shop
-    r = await ext.get(JOBS, params={"sc_open": "true"}, headers={"X-Connector-Version": "0.3.27"})
+    r = await ext.get(JOBS, params={"sc_open": "true"}, headers={"X-Connector-Version": "0.3.31"})
     assert r.status_code == 200
     rows = await session.scalars(
         select(ShopeeConnectorTokenState).where(ShopeeConnectorTokenState.shop_id == seeded.shop_id)
     )
-    assert [r.connector_version for r in rows] == ["0.3.27"]
+    assert [r.connector_version for r in rows] == ["0.3.31"]
 
 
 # ----------------------------------------------------------------------------- F2.2 / E40

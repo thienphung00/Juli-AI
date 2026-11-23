@@ -9,7 +9,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import pytest_asyncio
@@ -58,7 +58,7 @@ async def data() -> AsyncIterator[SqliteData]:
     engine = create_async_engine("sqlite+aiosqlite://")
     async with engine.begin() as conn:
         for t in (ShopeeOrderLine, ShopeeAffiliateLine):
-            await conn.run_sync(lambda c, t=t: t.__table__.create(c))  # type: ignore[attr-defined]
+            await conn.run_sync(lambda c, t=t: cast(Any, t).__table__.create(c))
     maker = async_sessionmaker(engine, expire_on_commit=False)
     async with maker() as s:
         s.add_all(

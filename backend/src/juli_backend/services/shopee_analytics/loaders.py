@@ -27,7 +27,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.ingest import PlatformDailyMetric
+from juli_backend.models.ingest import PLATFORM_SHOPEE, PlatformDailyMetric
 from juli_backend.models.shopee_profit import ShopeeOrderIncome
 from juli_backend.repositories import (
     AdCampaignPurposesReadRepo,
@@ -179,7 +179,7 @@ async def _service_rate(session: AsyncSession, shop_id: uuid.UUID) -> Decimal | 
             ShopeeOrderIncome.fee_infra,
             ShopeeOrderIncome.fee_voucher_xtra,
         )
-        .where(ShopeeOrderIncome.shop_id == shop_id, ShopeeOrderIncome.platform == "shopee")
+        .where(ShopeeOrderIncome.shop_id == shop_id, ShopeeOrderIncome.platform == PLATFORM_SHOPEE)
         .order_by(ShopeeOrderIncome.paid_on.desc().nulls_last())
         .limit(SERVICE_RATE_ROWS)
     )
@@ -715,7 +715,7 @@ async def _income_topup(
         select(ShopeeOrderIncome.paid_on, func.sum(ShopeeOrderIncome.fee_nttd))
         .where(
             ShopeeOrderIncome.shop_id == shop_id,
-            ShopeeOrderIncome.platform == "shopee",
+            ShopeeOrderIncome.platform == PLATFORM_SHOPEE,
             ShopeeOrderIncome.paid_on >= window.start,
             ShopeeOrderIncome.paid_on <= window.end,
             ShopeeOrderIncome.fee_nttd > 0,

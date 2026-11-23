@@ -32,6 +32,7 @@ from juli_backend.api.dependencies import get_active_shop
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.database.tenant_context import with_shop_scope
+from juli_backend.models.ingest import PLATFORM_SHOPEE
 from juli_backend.models.shopee_connector import ShopeeConnectorState, ShopeeConnectorTokenState
 from juli_backend.repositories import utc_now_naive
 from juli_backend.services import ingest as ingest_service
@@ -181,9 +182,9 @@ async def get_shop_ingest_status(
     """The seller's Cài đặt › Juli Connector page (Connector 0.3.17, owner 2026-11-13): what Juli
     has received per dataset (last upload, the day the numbers reach, stopped after a Seller
     Centre change), the same entries the extension's popup reads with its own token."""
-    platform = getattr(shop, "platform", None) or "shopee"
+    platform = getattr(shop, "platform", None) or PLATFORM_SHOPEE
     datasets = await ingest_service.dataset_status(session, shop_id=shop.id, platform=platform)
-    if platform == "shopee":
+    if platform == PLATFORM_SHOPEE:
         # C2: the newest day held per daily dataset and, while behind, how far the read has got.
         held = await read_days.progress(session, shop.id, platform)
         state = await session.get(ShopeeConnectorState, shop.id)

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from decimal import Decimal as D
 from types import SimpleNamespace
+from typing import Any, cast
 
 from juli_backend.services.shopee_profit.order_profit import (
     OrderLine,
@@ -19,25 +20,25 @@ from tests.unit.test_shopee_profit_p90 import DAY, SCHEDULE
 COSTS = {"S1": SkuCost("S1", D(40000), D(0))}
 
 
-def _profits(statuses: list[OrderStatus]) -> dict[str, object]:
+def _profits(statuses: list[OrderStatus]) -> dict[str, Any]:
     lines = [
         OrderLine(f"o{i}", "S1", "P1", DAY, 1, D(100000), D(100000), status=st)
         for i, st in enumerate(statuses)
     ]
-    return product_profits(profit_lines(lines, COSTS, schedule=SCHEDULE), {"P1": D(10000)})  # type: ignore[return-value]
+    return product_profits(profit_lines(lines, COSTS, schedule=SCHEDULE), {"P1": D(10000)})
 
 
 def test_in_transit_order_moves_orders_and_gmv_but_not_profit_or_margin() -> None:
     base = _profits([OrderStatus.DELIVERED, OrderStatus.DELIVERED])["P1"]
     more = _profits([OrderStatus.DELIVERED, OrderStatus.DELIVERED, OrderStatus.IN_TRANSIT])["P1"]
-    assert (base.orders, more.orders) == (2, 3)  # type: ignore[attr-defined]
-    assert more.gmv > base.gmv  # type: ignore[attr-defined]
-    assert more.contribution == base.contribution  # type: ignore[attr-defined]
-    assert more.profit == base.profit and more.margin_pct == base.margin_pct  # type: ignore[attr-defined]
+    assert (base.orders, more.orders) == (2, 3)
+    assert more.gmv > base.gmv
+    assert more.contribution == base.contribution
+    assert more.profit == base.profit and more.margin_pct == base.margin_pct
 
 
 def test_campaign_profit_before_ads_ignores_in_transit_orders() -> None:
-    def read(statuses: list[OrderStatus]) -> dict[str, object]:
+    def read(statuses: list[OrderStatus]) -> dict[str, Any]:
         profits = _profits(statuses)
         alloc = SimpleNamespace(
             key="c1", spend=D(10000), direct_gmv=D(100000), products={"P1": D(10000)}
@@ -53,7 +54,9 @@ def test_campaign_profit_before_ads_ignores_in_transit_orders() -> None:
             window_days=7,
             product=lambda item: profits.get(item),
         )
-        return campaign_profile(env, "c1")  # type: ignore[arg-type,return-value]
+        got = campaign_profile(cast(Any, env), "c1")
+        assert got is not None
+        return got
 
     a = read([OrderStatus.DELIVERED, OrderStatus.DELIVERED])
     b = read([OrderStatus.DELIVERED, OrderStatus.DELIVERED, OrderStatus.IN_TRANSIT])
