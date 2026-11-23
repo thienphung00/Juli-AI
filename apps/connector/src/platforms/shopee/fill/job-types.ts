@@ -65,6 +65,8 @@ export interface VoucherPayload {
   productIds: string[];
   /** "Mã giảm giá thông minh" as the card says (off when the card does not say). */
   smart: boolean;
+  /** a2 C-E111: optional product names by id (`product_names`, parallel to product_ids) for the picker's name search. */
+  productNames?: Record<string, string>;
 }
 
 export interface AdsPayload {
@@ -175,6 +177,8 @@ export interface ComboPayload {
   tiers: { qty: number; value: number }[];
   purchaseLimit?: number;
   productIds: string[];
+  /** a2 C-E111: optional product names by id (`product_names`). */
+  productNames?: Record<string, string>;
 }
 
 /** The row a revert ends: by id first, else by the code (its suffix: the shop's prefix is never assumed), else by name. */
@@ -242,6 +246,23 @@ const ids = (v: unknown): string[] | undefined => {
   return out.length === v.length ? out : undefined;
 };
 
+/**
+ * a2 C-E111: `product_names` (optional, parallel to product_ids) as a map id -> name. Absent: {};
+ * present but malformed: null (the job is malformed).
+ */
+function productNames(raw: unknown, productIds: readonly string[]): Record<string, string> | null {
+  if (raw === undefined || raw === null) return {};
+  if (!Array.isArray(raw) || raw.length !== productIds.length) return null;
+  const out: Record<string, string> = {};
+  for (const [i, name] of raw.entries()) {
+    if (name === null) continue;
+    const s = str(name, 255);
+    if (!s || /[\r\n]/.test(s)) return null;
+    out[productIds[i]!] = s;
+  }
+  return out;
+}
+
 function voucher(raw: Record<string, unknown>): VoucherPayload | null {
   const usecase = raw.usecase === 1 ? 1 : raw.usecase === 2 ? 2 : undefined;
   const name = str(raw.name, 100);
@@ -277,7 +298,9 @@ function voucher(raw: Record<string, unknown>): VoucherPayload | null {
       discount = { type: "percent", value, max: { mode: "limited", value: cap } };
     }
   } else return null;
-  return { usecase, name, codeSuffix, startsAt, endsAt, discount, minSpend, usageTotal, perBuyer, display, productIds, smart };
+  const names = productNames(raw.product_names, productIds);
+  if (!names) return null;
+  return { usecase, name, codeSuffix, startsAt, endsAt, discount, minSpend, usageTotal, perBuyer, display, productIds, smart, ...(Object.keys(names).length > 0 ? { productNames: names } : {}) };
 }
 
 function ads(raw: Record<string, unknown>): AdsPayload | null {
@@ -326,7 +349,9 @@ function combo(raw: Record<string, unknown>): ComboPayload | null {
     if (!qty || !value || (tiers.length > 0 && qty <= (tiers[tiers.length - 1] as { qty: number }).qty)) return null;
     tiers.push({ qty, value });
   }
-  const out: ComboPayload = { name, startsAt, endsAt, discountType, tiers, productIds };
+  const names = productNames(raw.product_names, productIds);
+  if (!names) return null;
+  const out: ComboPayload = { name, startsAt, endsAt, discountType, tiers, productIds, ...(Object.keys(names).length > 0 ? { productNames: names } : {}) };
   if (raw.purchase_limit !== undefined) {
     const limit = int(raw.purchase_limit, 1, MAX_PURCHASE_LIMIT);
     if (!limit) return null;

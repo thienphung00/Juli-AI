@@ -123,7 +123,8 @@ export async function waitFor<T>(env: Env, find: () => T | null | undefined, ms 
 }
 
 export function textBoxesIn(row: Element): HTMLInputElement[] {
-  return Array.from(row.querySelectorAll<HTMLInputElement>('input:not([type]),input[type="text"],input[type="number"],input[type="tel"]')).filter(
+  // a2 (capture c2/01, 23/11): Shopee's number boxes carry type="numeric" (combo tier quantity, Giới hạn đặt hàng): E116
+  return Array.from(row.querySelectorAll<HTMLInputElement>('input:not([type]),input[type="text"],input[type="number"],input[type="tel"],input[type="numeric"]')).filter(
     (i) => usable(i) && !i.disabled && !i.readOnly,
   );
 }
@@ -358,22 +359,49 @@ export function holdsId(row: Element, id: string): boolean {
 
 const CHECKBOX = 'input[type="checkbox"],[role="checkbox"],[class*="eds-checkbox"]';
 
-/** The picker's search text box: the one after the search-type select, else the dialog's first. */
+/** Shopee's selects (eds-react-select, custom-eds-react-select: capture c2/02); never "product-selector", the picker itself. */
+const SELECT = '[class*="react-select"],[class*="eds-select"],[role="combobox"]';
+/** A box of a select (its own type-to-search input), never the picker's search text box. */
+const inSelect = (i: Element) => !!i.closest(SELECT);
+
+/** The picker's search text box: the one after the search-type select, else the dialog's first that is not a select's. */
 function searchBox(modal: HTMLElement): HTMLInputElement | undefined {
-  const appended = Array.from(modal.querySelectorAll<HTMLInputElement>('[class*="input-group__append"] input')).filter((i) => usable(i) && !i.disabled);
-  return appended[0] ?? textBoxesIn(modal)[0];
+  const appended = Array.from(modal.querySelectorAll<HTMLInputElement>('[class*="input-group__append"] input')).filter((i) => usable(i) && !i.disabled && !inSelect(i));
+  return appended[0] ?? textBoxesIn(modal).filter((i) => !inSelect(i))[0];
 }
 
-/** The step text of the product picker (F5.2). */
-export const pickStep = (opener: string, ids: readonly string[]) =>
-  `Bấm «${opener}», tìm theo Mã sản phẩm ${ids.join(", ")}, tick, bấm Xác nhận của hộp chọn`;
+/** Shopee's search-type select of the picker (capture c2/02): its own text, Tên sản phẩm (the default) or Mã sản phẩm. */
+export const SEARCH_BY_NAME = "Tên sản phẩm";
+export const SEARCH_BY_ID = "Mã sản phẩm";
+
+/** What the picker searches by now: "id" when its select shows Mã sản phẩm, "name" for Tên sản phẩm, null when not seen. */
+export function searchMode(modal: HTMLElement): { mode: "id" | "name" | null; select: HTMLElement | null } {
+  const selects = Array.from(modal.querySelectorAll<HTMLElement>(SELECT)).filter(
+    (el) => usable(el) && !el.closest('[class*="options-list"],[class*="dropdown"]') && /(tên|mã) sản phẩm/.test(normalizeLabel(el.textContent ?? "")),
+  );
+  // the outermost select element (its inner parts carry the same class family)
+  const select = selects.find((el) => !selects.some((o) => o !== el && o.contains(el))) ?? null;
+  const text = normalizeLabel(select?.textContent ?? "");
+  return { mode: text.includes(normalizeLabel(SEARCH_BY_ID)) ? "id" : text.includes(normalizeLabel(SEARCH_BY_NAME)) ? "name" : null, select };
+}
+
+/**
+ * The step text of the product picker (F5.2; a2 C-E111): Shopee's picker searches by Tên sản phẩm
+ * unless the person switches it, so a known product name is searched as is (the row ticked is the
+ * one showing «Mã: <id>»); without a name the person switches the search to Mã sản phẩm first.
+ */
+export const pickStep = (opener: string, ids: readonly string[], names: Readonly<Record<string, string>> = {}) => {
+  const named = ids.filter((id) => names[id]);
+  if (named.length === ids.length) return `Bấm «${opener}», tìm ${ids.map((id) => `«${names[id]}»`).join(", ")}, tick dòng ${ids.map((id) => `Mã: ${id}`).join(", ")}, bấm Xác nhận của hộp chọn`;
+  return `Bấm «${opener}», đổi ô tìm sang «${SEARCH_BY_ID}», tìm ${ids.join(", ")}, tick, bấm Xác nhận của hộp chọn`;
+};
 
 /**
  * 0.3.28: the product picker is the person's: "Thêm sản phẩm" is highlighted; once the person opens
  * the picker its search box gets the first id (a value write) and the rows of the card's ids are
  * highlighted. ✓ once the form (outside the picker) lists every id. Recorded under the env's key.
  */
-export function pickProducts(env: Env, opener: string, ids: readonly string[]): PickResult {
+export function pickProducts(env: Env, opener: string, ids: readonly string[], names: Readonly<Record<string, string>> = {}): PickResult {
   /** The form (outside the dialog) lists the product: its row shows the id. */
   const listed = (id: string) =>
     Array.from(env.doc.querySelectorAll<HTMLElement>("tr,li,[class*='row'],[role='row']")).some((r) => usable(r) && !r.closest('[role="dialog"],[class*="modal"]') && holdsId(r, id));
@@ -399,8 +427,13 @@ export function pickProducts(env: Env, opener: string, ids: readonly string[]): 
         const box = modal ? searchBox(modal) : undefined;
         if (!modal || !box) return false;
         const first = ids.find((id) => !listed(id)) ?? ids[0]!;
-        if (box.value !== first) writeValue(box, first);
+        // a2 C-E111: an id finds nothing while the picker searches by name (its default): the name
+        // when Juli knows it, else the id with the search-type select shown for the person to switch
+        const { mode, select } = searchMode(modal);
+        const want = mode !== "id" && names[first] ? names[first]! : first;
+        if (box.value !== want) writeValue(box, want);
         mark(box);
+        if (want === first && mode !== "id" && select) highlight(select);
         for (const row of Array.from(modal.querySelectorAll<HTMLElement>("tr,li,[role='row']"))) {
           const check = row.querySelector<HTMLElement>(CHECKBOX);
           if (check && ids.some((id) => holdsId(row, id))) highlight(check);

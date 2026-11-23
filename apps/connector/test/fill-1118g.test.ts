@@ -215,7 +215,7 @@ describe("F2.4 the combo form (live shape)", () => {
     afterPanel(h, () => document.getElementById("picker")!.removeAttribute("hidden"));
     await runFillJob(h.deps);
     expect(input("psearch").value).toBe("1001");
-    expect(panelText()).toContain("tìm theo Mã sản phẩm 1001");
+    expect(panelText()).toContain("đổi ô tìm sang «Mã sản phẩm», tìm 1001"); // a2 C-E111
     expect(document.getElementById("combo-products")!.textContent).toBe("");
   });
 });
