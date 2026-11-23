@@ -14,7 +14,7 @@ import type { Patch } from "./whatif";
  * recomputes the whole card.
  */
 
-const LEVER_LABEL: Readonly<Record<string, string>> = { combo: "Combo", khuyen_mai: "Khuyến mãi", voucher: "Voucher", khong_uu_dai: "Không ưu đãi" };
+const LEVER_LABEL: Readonly<Record<string, string>> = { combo: "Combo Khuyến Mãi", khuyen_mai: "Khuyến mãi", voucher: "Mã Giảm Giá", khong_uu_dai: "Không ưu đãi" };
 
 function dayMonth(iso: string): string {
   const [, m, d] = iso.slice(0, 10).split("-");

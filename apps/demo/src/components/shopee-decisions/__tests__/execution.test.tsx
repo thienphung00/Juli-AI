@@ -89,7 +89,7 @@ describe("thực hiện có hỗ trợ · bảng thao tác", () => {
     expect(done).toBeEnabled();
     fireEvent.click(done);
     await waitFor(() => expect(reco.calls.some((c) => c.name === "executed")).toBe(true));
-    expect(reco.calls.find((c) => c.name === "executed")!.args).toEqual(["card-voucher", { voucherId: "998877" }]);
+    expect(reco.calls.find((c) => c.name === "executed")!.args).toEqual(["card-voucher", { id: "998877" }]);
     expect(await screen.findByTestId("sd-outcome")).toHaveTextContent("Đã ghi nhận “Đã làm”");
   });
 
@@ -98,7 +98,7 @@ describe("thực hiện có hỗ trợ · bảng thao tác", () => {
     const reco = fakeReco({ detail: approved(card) });
     renderReco(<CardPage from={null} id="card-voucher" />, reco);
     fireEvent.click(await screen.findByRole("button", { name: "Đã làm" }));
-    await waitFor(() => expect(reco.calls.find((c) => c.name === "executed")?.args).toEqual(["card-voucher", { voucherId: null }]));
+    await waitFor(() => expect(reco.calls.find((c) => c.name === "executed")?.args).toEqual(["card-voucher", {}]));
   });
 
   it("read-only view: 'Đã làm' is locked", async () => {

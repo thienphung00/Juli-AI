@@ -11,6 +11,7 @@ import { ActualLines, DataThrough, MetricLines } from "./forecast-lines";
 import type { ExecutionCard, ExecutionState, ExecutionStates, ReaderBlock } from "../../lib/shopee-decisions/types";
 import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { fillJobHref } from "../planned-changes/listing-extras";
+import { jobDiffLines, jobHref, jobWord, markDoneBody } from "../../lib/shopee-decisions/card-job";
 import { TextChip } from "../shopee-analytics/ui";
 import { errorText, NavLink, RecoState } from "./ui";
 import { BoardActions } from "./board-actions";
@@ -35,6 +36,9 @@ const STATE_LABEL: Record<ExecutionState, string> = { cho_dien: "Chờ điền",
 const STATE_TONE: Record<ExecutionState, "flat" | "warn" | "up" | "down"> = { cho_dien: "flat", da_dien: "warn", khop: "up", lech: "down", hoan_tac: "flat" };
 /** The chip of a card: once the seller pressed "Đã làm" (the "Bạn lưu" step is done) it waits for Seller Centre's read-back. */
 export function stateLabel(c: ExecutionCard): string {
+  // K4: while the card waits on the Connector / the person, the word is the current job's (Chờ điền, Đã điền · chờ bạn lưu, Đã lưu · chờ xác minh)
+  if (c.job?.role === "revert" && c.state !== "hoan_tac") return `Hoàn tác · ${jobWord(c.job)}`;
+  if (c.job && (c.state === "cho_dien" || c.state === "da_dien")) return jobWord(c.job);
   if (c.state === "da_dien" && (c.executed_at || c.completed >= 3)) return "Đã lưu · chờ xác minh";
   return STATE_LABEL[c.state];
 }
@@ -94,6 +98,9 @@ export function valueText(field: string | null, v: unknown): string {
 }
 
 export function detailOf(c: ExecutionCard): string {
+  const diffs = c.job ? jobDiffLines(c.job) : [];
+  if (diffs.length > 0) return diffs.join(" · ");
+  if (c.job && c.job.total > 0 && (c.state === "cho_dien" || c.state === "da_dien")) return `${fmt(c.job.filled, 0)}/${fmt(c.job.total, 0)} đã điền`;
   if (c.state === "hoan_tac") return "Đã dừng đo lường";
   if (c.state === "khop") return `Đo từ ${dm(c.measure_start)}${c.measure_days ? ` · ${fmt(c.measure_days, 0)} ngày` : ""}`;
   if (c.state === "lech" && c.mismatch) return `Seller Centre ${valueText(c.mismatch.field, c.mismatch.observed)} · thẻ ${valueText(c.mismatch.field, c.mismatch.expected)}`;
@@ -174,18 +181,21 @@ export function Row({
   const [error, setError] = useState<string | null>(null);
   // UI grill G14: a voucher needs its Seller Centre code to be read back; the row asks for it (the
   // sample shop has none to give: the server gives it a sample code).
-  const needsCode = !sample && VOUCHER_KINDS.has(c.change_kind);
+  // K4: Đã làm has an optional code / id box for every kind that has a forward job (vouchers always)
+  const needsCode = !sample && (VOUCHER_KINDS.has(c.change_kind) || c.job?.role === "forward");
   // the captured code can arrive on a later refresh (after Lưu, or the Connector's next voucher read):
   // it fills the field until the seller types their own
   const [typed, setTyped] = useState<string | null>(null);
   const code = typed ?? c.captured_voucher_id ?? "";
   const setCode = (v: string) => setTyped(v);
-  const href = c.open_job ? fillJobHref(c.open_job) : null;
+  // K3: the card's current job (the revert job while an undo is queued)
+  const href = jobHref(c.job) ?? (c.open_job ? fillJobHref(c.open_job) : null);
+  const markable = c.can_mark_done ?? ((c.state === "da_dien" || (sample && c.state === "cho_dien")) && !c.executed_at);
   const markDone = async () => {
     setBusy(true);
     setError(null);
     try {
-      await host.reco.executed(c.card_id, needsCode ? { voucherId: code.trim() || null } : {});
+      await host.reco.executed(c.card_id, needsCode ? markDoneBody(code) : {});
       onDone();
     } catch (e) {
       // P100 S2-F2: a refusal (e.g. a voucher needs its Seller Centre code) is said, never silent
@@ -229,7 +239,7 @@ export function Row({
               Xem đo lường
             </NavLink>
           ) : null}
-          {(c.state === "cho_dien" || c.state === "da_dien") && !sample ? (
+          {(c.state === "cho_dien" || c.state === "da_dien" || c.job?.role === "revert") && !sample ? (
             readOnly ? null : href ? (
               <a className="sa-btn sa-btn--primary" href={href} rel="noopener noreferrer" target="_blank">
                 Mở Seller Centre
@@ -240,12 +250,12 @@ export function Row({
               <SellerCentrePage cardId={c.card_id} />
             )
           ) : null}
-          {(c.state === "da_dien" || (sample && c.state === "cho_dien")) && !c.executed_at ? (
+          {markable ? (
             <>
               {needsCode ? (
-                <input aria-label="Mã voucher" className="sd-th-row__code" data-testid={`sd-th-code-${c.card_id}`} disabled={readOnly} inputMode="numeric" onChange={(e) => setCode(e.target.value)} placeholder="Mã voucher" type="text" value={code} />
+                <input aria-label={VOUCHER_KINDS.has(c.change_kind) ? "Mã voucher" : "Mã hoặc ID"} className="sd-th-row__code" data-testid={`sd-th-code-${c.card_id}`} disabled={readOnly} onChange={(e) => setCode(e.target.value)} placeholder={VOUCHER_KINDS.has(c.change_kind) ? "Mã voucher" : "Mã hoặc ID"} type="text" value={code} />
               ) : null}
-              <button className="sa-btn" disabled={readOnly || busy || (needsCode && code.trim() === "")} onClick={() => void markDone()} type="button">
+              <button className="sa-btn" disabled={readOnly || busy || (needsCode && VOUCHER_KINDS.has(c.change_kind) && !c.job && code.trim() === "")} onClick={() => void markDone()} type="button">
                 Đã làm
               </button>
             </>

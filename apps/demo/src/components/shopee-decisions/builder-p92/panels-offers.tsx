@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { MarketPriceMarker } from "../../shopee-analytics/market-price-marker";
 import { fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { CoPurchase, VariationRow } from "../../../lib/shopee-decisions/builder-api";
-import { DEAL_SOC_TYPES, FORM_DEFAULTS, MAX_ADDONS, comboTierDefault, belowPaidHint, belowPaidProblem, MAX_COMBO_NAME, MAX_COMBO_TIERS, MAX_PROGRAMME_NAME, MAX_TITLE, kmoney, marginText, newTier, num, voucherChips, type AddonRow, type ComboTierRow, type Forms, type GiftForm, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
+import { COMBO_DEFAULT_TYPE, DEAL_SOC_TYPES, FORM_DEFAULTS, MAX_ADDONS, comboTierDefault, belowPaidHint, belowPaidProblem, MAX_COMBO_NAME, MAX_COMBO_TIERS, MAX_PROGRAMME_NAME, MAX_TITLE, kmoney, marginText, newTier, num, voucherChips, type AddonRow, type ComboTierRow, type Forms, type GiftForm, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
 import { HourIn, NumIn, Pills, ProductSelect, Seg, TextIn, VariationSelect, setAt, type PanelCtx } from "./shared";
 import { ProductTargets } from "./targets";
 
@@ -36,8 +36,8 @@ function Calc({ rows, testId }: { readonly rows: readonly (readonly [string, str
 // ── Voucher ──────────────────────────────────────────────────────────────
 
 const SCOPES = [
-  ["shop", "Voucher shop (cả shop)"],
-  ["product", "Voucher sản phẩm"],
+  ["shop", "Mã Giảm Giá shop (cả shop)"],
+  ["product", "Mã Giảm Giá sản phẩm"],
   ["follower", "Người theo dõi / khách mới"],
   ["livestream", "Livestream / video"],
 ] as const;
@@ -128,7 +128,7 @@ export function ComboPanel({ form, set, ctx }: P<"combo">) {
     <div className="p2-panel" data-testid="p2-panel-combo">
       <TextIn hint={`${[...form.name].length}/${MAX_COMBO_NAME} ký tự`} label="Tên Combo Khuyến Mãi" onChange={(name) => set({ name })} value={form.name} />
       <ProductTargets ctx={ctx} onChange={(items) => set({ items })} selected={form.items} title="Sản phẩm của Combo" warnNoStock />
-      <Pills label="Loại Combo" onChange={(dtype) => set({ dtype })} options={COMBO_TYPE_OPTIONS} value={form.dtype} />
+      <Pills label="Loại Combo" onChange={(dtype) => set({ dtype })} options={COMBO_TYPE_OPTIONS} value={form.dtype || COMBO_DEFAULT_TYPE} />
       <div className="p2-rows" data-testid="p2-combo-tiers">
         {tiers.map((t, i) => (
           <div className="p2-row p2-row--wrap" data-testid={`p2-tier-${i + 1}`} key={i}>
@@ -203,7 +203,7 @@ export function ComboPanel({ form, set, ctx }: P<"combo">) {
 
 type TimeForm = { readonly start: string; readonly end: string; readonly startHour: string; readonly endHour: string };
 
-/** "Thời gian …" with hour precision (0–23, empty = the whole day), as Seller Centre's programme forms. */
+/** "Thời gian …" as HH:mm (empty = the whole day), as Seller Centre's programme forms; minutes are kept in the card spec. */
 function TimeWindow({ legend, testId, form, set }: { readonly legend: string; readonly testId: string; readonly form: TimeForm; readonly set: (patch: Partial<TimeForm>) => void }) {
   return (
     <fieldset className="p2-grid" data-testid={testId}>
@@ -502,7 +502,7 @@ export function PriceFlashPanel({ form, set, ctx }: P<"price_flash">) {
   const variations = ctx.catalogVariations && ctx.catalogVariations.length > 0 ? ctx.catalogVariations : ctx.variations;
   return (
     <div className="p2-panel" data-testid="p2-panel-flash">
-      <Pills label="Loại thay đổi" onChange={(what) => set({ what })} options={[["price", "Đổi giá niêm yết"], ["flash_sale", "Flash sale của shop"]]} value={form.what} />
+      <Pills label="Loại thay đổi" onChange={(what) => set({ what })} options={[["price", "Đổi giá niêm yết"], ["flash_sale", "Flash Sale Của Shop"]]} value={form.what} />
       <Seg label={form.what === "price" ? "Nhập giá theo" : "Nhập giảm theo"} onChange={(mode) => set({ mode })} options={[["pct", form.what === "price" ? "Thay đổi (%)" : "Giảm (%)"], ["final_price", form.what === "price" ? "Giá bán mới (đ)" : "Giá flash sale (đ)"]]} value={form.mode} />
       <VarRows bounded={form.what === "flash_sale"} ctx={ctx} direction={form.what === "price" ? "change" : "off"} mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} variations={variations} />
       {form.what === "flash_sale" ? (

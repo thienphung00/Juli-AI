@@ -140,12 +140,12 @@ export const FILL_JOB_KINDS: ReadonlySet<string> = new Set(FILLABLE_CHANGE_KINDS
 
 const KIND_LABEL: Record<string, string> = {
   title: "Tên sản phẩm",
-  description_first_line: "Dòng đầu của mô tả",
-  voucher: "Tạo voucher",
-  ads_edit: "Sửa quảng cáo",
-  affiliate_commission: "Hoa hồng chiến dịch mở rộng",
+  description_first_line: "Mô tả sản phẩm",
+  voucher: "Tạo Mã Giảm Giá",
+  ads_edit: "Sửa Dịch vụ hiển thị",
+  affiliate_commission: "Tiếp thị liên kết · Hoa hồng",
   combo: "Tạo Combo Khuyến Mãi",
-  voucher_end: "Kết thúc voucher",
+  voucher_end: "Kết thúc Mã Giảm Giá",
   combo_end: "Kết thúc Combo",
   readback: "Đọc lại Seller Centre",
 };
