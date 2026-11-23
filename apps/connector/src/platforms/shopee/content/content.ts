@@ -10,6 +10,11 @@ import type { JobReply } from "../fill/job-types";
 import type { FillReply } from "../../../core/fill/types";
 import { isPageMessage } from "./messages";
 
+/** a2 K2: the job this page runs (kept: Shopee's redirect after a save can drop the address's #juli-fill). */
+let activeJobId: string | undefined;
+/** a2 K2: the id each job's save answer carried (the page hook saw it). */
+const savedRefs = new Map<string, string>();
+
 window.addEventListener("message", (event: MessageEvent) => {
   if (!isPageMessage(event, window, SELLER_CENTRE_ORIGIN, CHANNEL)) return;
   const data = event.data as Record<string, unknown>;
@@ -26,11 +31,13 @@ window.addEventListener("message", (event: MessageEvent) => {
       .sendMessage({ type: "backfill-result", day: data.day, status: data.status, results: data.results })
       .catch(() => undefined);
   } else if (data.kind === "fill-saved") {
-    // The person saved a voucher on a fill-job page: keep only its new id (digits).
-    const trigger = parseJobTrigger(window.location);
-    if (trigger && typeof data.ref === "string" && /^\d{1,20}$/.test(data.ref)) {
+    // The person saved on a fill-job page: keep only the new id (digits). a2 K2: the job is
+    // reported `saved` with it as `captured_ref`, and the follow loop reads it as the save's id.
+    const jobId = parseJobTrigger(window.location)?.jobId ?? activeJobId;
+    if (jobId && typeof data.ref === "string" && /^\d{1,20}$/.test(data.ref)) {
+      savedRefs.set(jobId, data.ref);
       void chrome.runtime
-        .sendMessage({ type: "fill-job-report", jobId: trigger.jobId, status: "captured", capturedRef: data.ref })
+        .sendMessage({ type: "fill-job-report", jobId, status: "saved", capturedRef: data.ref })
         .catch(() => undefined);
     }
   } else if (data.kind === "reader-result") {
@@ -73,7 +80,9 @@ function startFill(): void {
 // A queued fill job (P97 D85.6): `#juli-fill=<job id>` on one of the allowed pages.
 function startJob(): void {
   const send = async (message: Record<string, unknown>) => (await chrome.runtime.sendMessage(message).catch(() => undefined)) as { ok?: boolean; value?: unknown } | undefined;
+  activeJobId = parseJobTrigger(window.location)?.jobId;
   void runFillJob({
+    savedRef: () => (activeJobId ? (savedRefs.get(activeJobId) ?? null) : null),
     doc: document,
     loc: window.location,
     ask: async (jobId): Promise<JobReply> => {

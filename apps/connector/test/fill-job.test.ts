@@ -126,7 +126,7 @@ describe("a voucher job (0.3.28: guided)", () => {
     expect((await runFillJob(h.deps)).status).toBe("partial");
     expect(document.querySelectorAll("#ptable input:checked")).toHaveLength(0);
     expect(document.getElementById("picker")?.hasAttribute("hidden")).toBe(true);
-    expect(panelText()).toContain("Bấm «Thêm sản phẩm», tìm theo Mã sản phẩm 1001, 1003, tick, bấm Xác nhận của hộp chọn");
+    expect(panelText()).toContain("Bấm «Thêm sản phẩm», đổi ô tìm sang «Mã sản phẩm», tìm 1001, 1003, tick, bấm Xác nhận của hộp chọn");
     expect(wire.forbidden).toEqual([]);
   });
 

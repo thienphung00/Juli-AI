@@ -10,6 +10,7 @@ import { READBACK_LABEL, countdownOf, readbackOf, readingsOf, stepText, vnWhen, 
 import type { CardDetail, ExecutionSheet, ExecutionStep, SheetPage } from "../../lib/shopee-decisions/types";
 import { capturedVoucherId, FILL_JOB_KINDS, FillJobsChecklist, fillJobHref, isForwardJob, isRevertJob, ListingSheetExtras, useFillJobs, type FillJobRow } from "../planned-changes/listing-extras";
 import { TextChip } from "../shopee-analytics/ui";
+import { jobHref, jobWord, jobDiffLines, markDoneBody, type CardJob } from "../../lib/shopee-decisions/card-job";
 import { CopyButton, errorText } from "./ui";
 
 /**
@@ -21,16 +22,36 @@ import { CopyButton, errorText } from "./ui";
  * "Hoàn tác" (executed cards) shows the same steps in reverse; "Đã hoàn tác" records the revert.
  */
 
+/** K4: the current job's status word (Chờ điền / Đã điền · chờ bạn lưu / Đã lưu · chờ xác minh / Khớp / Lệch), its count and the differing fields. */
+export function JobLine({ job }: { readonly job: CardJob }) {
+  const diffs = jobDiffLines(job);
+  const tone = job.readback?.result === "match" ? "up" : job.readback?.result === "mismatch" ? "down" : job.status === "filled" ? "warn" : "flat";
+  return (
+    <div className="sd-job" data-testid="sd-job">
+      <TextChip tone={tone}>{jobWord(job)}</TextChip>
+      {job.total > 0 ? <span data-testid="sd-job-count">{`${job.filled}/${job.total} đã điền`}</span> : null}
+      {diffs.length > 0 ? (
+        <ul data-testid="sd-job-diffs">
+          {diffs.map((d) => (
+            <li key={d}>{d}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 export const READ_ONLY_TITLE = "Chế độ xem: không thể thao tác thay seller";
 
 /**
  * The page of a sheet: its name and ONE button. "Mở và điền" when the Connector has a fill job
  * (`fillHref` carries the job), else "Mở trang". A page with no known address shows only its name.
  */
-export function PageLink({ page, fillHref }: { readonly page: SheetPage; readonly fillHref?: string | null }) {
+export function PageLink({ page, fillHref, reverse = false }: { readonly page: SheetPage; readonly fillHref?: string | null; readonly reverse?: boolean }) {
   // P100 S2-D4: the sample shop is not in Seller Centre, so its sheet names the page without a link.
   const sample = useSampleShopReviewer();
-  const href = sample ? null : (fillHref ?? page.deep_link);
+  // an undo never links to the forward create page: only the revert job's own page opens
+  const href = sample ? null : (fillHref ?? (reverse ? null : page.deep_link));
   return (
     <span className="sd-page" data-testid="sd-page">
       <b>{page.label}</b>
@@ -122,7 +143,7 @@ export function SheetView({ sheet, reverse = false, fillHref = null }: { readonl
   const w = sheet.time_window;
   return (
     <div className="sd-sheet" data-testid={reverse ? "sd-revert-sheet" : "sd-sheet"}>
-      <PageLink fillHref={fillHref} page={sheet.page} />
+      <PageLink fillHref={fillHref} page={sheet.page} reverse={reverse} />
       <ol className="sd-steps">
         {steps.map((s) => (
           <StepRow key={s.order} reverse={reverse} step={s} />
@@ -215,11 +236,19 @@ function RevertBlock({ detail, sheet, onChanged, revertJobs, onQueued }: { reado
     if (!host.reco.revertFill) return;
     setBusy(true);
     setError(null);
+    // the tab is opened inside the click (popup blockers), then pointed at the queued revert job
+    const tab = typeof window === "undefined" ? null : window.open("", "_blank");
+    if (tab) tab.opener = null;
     try {
-      await host.reco.revertFill(detail.id);
+      const queued = await host.reco.revertFill(detail.id);
+      const job = (queued.jobs ?? []).find((j) => j.status === "queued" || j.status === "opened" || j.status === "filled");
+      const target = job ? fillJobHref(job) : null;
+      if (tab && target) tab.location.href = target;
+      else tab?.close();
       setOpen(true);
       onQueued();
     } catch (e) {
+      tab?.close();
       setError(errorText(e));
     } finally {
       setBusy(false);
@@ -233,7 +262,8 @@ function RevertBlock({ detail, sheet, onChanged, revertJobs, onQueued }: { reado
     );
   }
   const openJob = jobs.find((j) => j.status === "queued" || j.status === "opened" || j.status === "filled");
-  const href = openJob ? fillJobHref(openJob) : null;
+  // K3: the revert job's own page (the card's `job` while an undo is queued), never the forward create page
+  const href = (detail.job?.role === "revert" ? jobHref(detail.job) : null) ?? (openJob ? fillJobHref(openJob) : null);
   const blockedTitle = host.readOnly ? READ_ONLY_TITLE : undefined;
   return (
     <div className="sd-revert" data-testid="sd-revert">
@@ -258,7 +288,7 @@ function RevertBlock({ detail, sheet, onChanged, revertJobs, onQueued }: { reado
             </div>
           ) : null}
           <FillJobsChecklist enabled jobs={jobs} />
-          <SheetView reverse sheet={sheet} />
+          <SheetView fillHref={href} reverse sheet={sheet} />
           <div className="sd-actions">
             <button className="sa-btn sa-btn--primary" data-testid="sd-reverted-confirm" disabled={!!host.readOnly || busy || (canFill && !ready)} onClick={() => void confirm(false)} title={blockedTitle} type="button">
               Đã hoàn tác
@@ -308,16 +338,19 @@ export function ExecutionPanel({ detail, sheet, onExecuted, onReverted, onRefres
     prevSig.current = sig;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig]);
-  const blocked = !!host.readOnly || busy || (needsVoucherId && voucherId.trim() === "" && !captured);
-  // ONE page button: "Mở và điền" opens the Connector's job, else the page itself
+  // K4: Đã làm is offered for every kind with a forward job; the code / id box is optional
+  const hasForward = !sample && (forwardJobs.length > 0 || detail.job?.role === "forward");
+  const showBox = needsVoucherId || hasForward;
+  const blocked = !!host.readOnly || busy || detail.can_mark_done === false || (needsVoucherId && voucherId.trim() === "" && !captured && !detail.job);
+  // ONE page button: "Mở và điền" opens the card's current job (K3), else the page itself
   const openJob = fill.enabled && !executed ? forwardJobs.find((j) => j.status === "queued" || j.status === "opened" || j.status === "filled") : undefined;
-  const fillHref = openJob ? fillJobHref(openJob) : null;
+  const fillHref = (detail.job?.role === "forward" ? jobHref(detail.job) : null) ?? (openJob ? fillJobHref(openJob) : null);
 
   const markDone = async () => {
     setBusy(true);
     setError(null);
     try {
-      await host.reco.executed(detail.id, { voucherId: needsVoucherId ? voucherId.trim() || null : null });
+      await host.reco.executed(detail.id, showBox ? markDoneBody(voucherId || captured || "") : {});
       onExecuted();
     } catch (e) {
       setError(errorText(e));
@@ -346,13 +379,14 @@ export function ExecutionPanel({ detail, sheet, onExecuted, onReverted, onRefres
           <SheetView fillHref={fillHref} sheet={sheet} />
           <ListingSheetExtras detail={detail} sheet={sheet} />
           <FillJobsChecklist enabled={fill.enabled} jobs={forwardJobs} />
+          {detail.job ? <JobLine job={detail.job} /> : null}
           {needsVoucherId && captured ? (
             <p className="sa-hint" data-testid="sd-voucher-captured">
               Connector đã lấy mã voucher {captured}.
             </p>
-          ) : needsVoucherId ? (
+          ) : showBox ? (
             <label className="sd-voucher-id">
-              Mã voucher trên Seller Centre
+              {needsVoucherId ? "Mã voucher trên Seller Centre" : "Mã hoặc ID trên Seller Centre"}
               <input
                 disabled={!!host.readOnly}
                 onChange={(event) => setVoucherId(event.target.value)}

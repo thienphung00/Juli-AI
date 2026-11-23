@@ -55,6 +55,9 @@ export interface JobDeps<J extends CoreJob = CoreJob> {
   /** 0.3.27 (contract D): posts what the page shows the platform holds now (absent: nothing is
    * posted); true when Juli took it. A read-back whose post failed is reported failed. */
   postCurrent?(rows: CurrentRow[]): Promise<boolean>;
+  /** a2 K2: the id of what the person's save created, from the page's own save answer (the page
+   * hook saw it), or null. Absent: none. */
+  savedRef?(): string | null;
   /** The platform asked for the password again: the service worker stops everything for the shop. */
   halt(jobId: string): Promise<void>;
   /** The password prompt text is on the page (never typed into). */
@@ -74,6 +77,7 @@ const REFUSAL: Record<string, string> = {
   inactive: "",
   unpaired: "Connector chưa kết nối với Juli. Kết nối lại rồi mở trang từ Juli.",
   unknown_job: "Juli không còn thấy việc này (đã hủy hoặc đã xong).",
+  malformed_job: "Việc này thiếu thông tin nên Juli không điền. Juli đã được báo lỗi.",
   wrong_page: "Việc này thuộc trang khác nên Juli không điền vào trang này.",
   budget: "Hôm nay Connector đã dùng hết lượt truy cập Seller Centre. Thử lại vào ngày mai.",
   error: "Juli chưa lấy được nội dung việc này. Thử lại sau.",
@@ -144,6 +148,8 @@ export interface SaveWatch<J extends CoreJob = CoreJob> {
   detect(doc: Document, loc: { pathname: string; hash: string }, job: J): boolean;
   /** The id of what the save created, read from the page it landed on, or null (not drawn yet). */
   capture?(doc: Document, job: J): string | null;
+  /** a2 K2: whether this job's save creates an object whose id is captured (absent: every job with `capture`). */
+  captures?(job: J): boolean;
 }
 
 /** What the platform pack brings to a job run: its form per action and its panel texts. */
@@ -334,17 +340,27 @@ async function follow<J extends CoreJob>(
       if (pack.saved && safe(() => pack.saved!.detect(deps.doc, deps.loc, job), false)) {
         // E46: the steps and fields as last read before the save took the form away, never older
         shown = f.finalOf(shown);
-        await deps.report(job.id, "saved", undefined, f.progressOf(shown), f.detailOf(shown, false));
         showJobPanel(deps.doc, { outcome: "saved", job, result: shown }, pack.labels);
-        const capture = pack.saved.capture;
-        if (!capture) return;
-        for (let wait = 0; wait < 30; wait += 1) {
-          const ref = safe(() => capture(deps.doc, job), null);
+        // a2 K2: `saved` carries the new object's numeric id (the save answer's, else the list row
+        // it landed on). The row may draw a moment later: looked for a few seconds before the
+        // report, then `saved` goes without it and is sent again with the id once it shows.
+        const wanted = !!pack.saved.capture && (pack.saved.captures?.(job) ?? true);
+        const capture = wanted ? pack.saved.capture : undefined;
+        const refNow = (): string | null => (wanted ? (safe(() => deps.savedRef?.() ?? null, null) ?? safe(() => capture!(deps.doc, job), null)) : null);
+        let ref = refNow();
+        for (let wait = 0; !ref && wanted && wait < SAVED_REF_FIRST_WAIT_S; wait += 1) {
+          await deps.sleep(1_000);
+          ref = refNow();
+        }
+        await deps.report(job.id, "saved", undefined, f.progressOf(shown), f.detailOf(shown, false), ref ?? undefined);
+        if (ref || !wanted) return;
+        for (let wait = SAVED_REF_FIRST_WAIT_S; wait < SAVED_REF_WAIT_S; wait += 1) {
+          await deps.sleep(1_000);
+          ref = refNow();
           if (ref) {
-            await deps.report(job.id, "captured", undefined, undefined, undefined, ref);
+            await deps.report(job.id, "saved", undefined, undefined, undefined, ref);
             return;
           }
-          await deps.sleep(1_000);
         }
         return;
       }
@@ -375,6 +391,10 @@ function isPanel(node: Node): boolean {
   const el = node.nodeType === 1 ? (node as Element) : node.parentElement;
   return !!el?.closest(`#${PANEL_ID}`) || (el as Element | null)?.id === PANEL_ID;
 }
+
+/** a2 K2: seconds the save's id is looked for before `saved` is reported, and in all. */
+const SAVED_REF_FIRST_WAIT_S = 5;
+const SAVED_REF_WAIT_S = 30;
 
 /** Without a change, the form is still read in full every this many turns (30 s). */
 const FILL_FOLLOW_FULL_EVERY = 15;

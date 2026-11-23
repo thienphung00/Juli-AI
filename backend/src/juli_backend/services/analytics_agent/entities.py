@@ -18,6 +18,7 @@ from juli_backend.services.analytics_agent.windows import (
     anchor_for,
     build_windows,
     campaign_days,
+    clip_to_freshness,
     sale_days_vi,
 )
 from juli_backend.services.metrics.compute import raw_value
@@ -55,6 +56,33 @@ def _sale_note(w: Any) -> str:
     return f" (có ngày sale {', '.join(f'{d:%d/%m}' for d in days)})" if days else ""
 
 
+def campaign_verdict(c: dict[str, Any]) -> str:
+    """ "Lỗ" / "Lãi" / "Chưa rõ": ROAS against the registry's ROAS hoà vốn; the profit after ads
+    when the break-even is not defined (no giá vốn). Never a guess."""
+    if c.get("roas") is not None and c.get("break_even") is not None:
+        return "Lỗ" if c["roas"] < c["break_even"] else "Lãi"
+    p = c.get("profit_after_ads")
+    return "Chưa rõ" if p is None else ("Lỗ" if float(p) < 0 else "Lãi")
+
+
+def campaign_row(c: dict[str, Any], prefix: str = "") -> dict[str, Any]:
+    """One campaign: name, spend, GMV, ROAS, ROAS hoà vốn (registry) and lỗ / lãi."""
+    be = fmt.value("roas", _f(c["break_even"])) if c.get("break_even") is not None else "chưa có"
+    return {
+        "label_vi": str(c["name"]),
+        "value_vi": f"{campaign_verdict(c)} · ROAS {fmt.value('roas', _f(c['roas']))}"
+        f" · hoà vốn {be}",
+        "detail_vi": prefix
+        + f"chi {fmt.value('ads_spend', _f(c['spend']))} · GMV {fmt.value('gmv', _f(c['gmv']))}",
+    }
+
+
+def campaign_order(c: dict[str, Any]) -> float:
+    """Worst profit after ads first; unknown last."""
+    p = c.get("profit_after_ads")
+    return float("inf") if p is None else float(p)
+
+
 async def _window(
     data: DataPort,
     preset: str,
@@ -74,7 +102,7 @@ async def _window(
         named_month=named_month,
         sale_aware=True,
     )
-    return w, latest
+    return clip_to_freshness(w, latest), latest
 
 
 async def run_entity(
@@ -98,8 +126,22 @@ async def run_entity(
     w, latest = got
     blob = _intent_blob(intent)
     if kind in ("voucher", "affiliate"):
-        now = await data.entity_totals(kind, w.cur[0], w.cur[1], item_id)
-        before = await data.entity_totals(kind, w.prev[0], w.prev[1], item_id) if w.prev else None
+        if kind == "voucher":
+            # the stored per-order income (`order_settlements.seller_voucher_borne`): only days
+            # that HAVE income rows count, never as 0; no source splits it by product
+            if item_id:
+                return []
+            now = await data.voucher_income(w.cur[0], w.cur[1])
+            before = await data.voucher_income(w.prev[0], w.prev[1]) if w.prev else None
+            if not now.get("rows"):
+                return []
+            if before is not None and not before.get("rows"):
+                before = None
+        else:
+            now = await data.entity_totals(kind, w.cur[0], w.cur[1], item_id)
+            before = (
+                await data.entity_totals(kind, w.prev[0], w.prev[1], item_id) if w.prev else None
+            )
         want = "cost" if _COST.search(blob) else (metric or "orders")
         if want not in ("orders", "gmv", "aov", "cost"):
             return []  # this entity has no such metric: never another metric under its label
@@ -142,62 +184,45 @@ async def run_entity(
             )
         ]
         if kind == "voucher":
-            rows = (await data.voucher_rows(*w.cur))[:TOP_ROWS]
-            if rows:
-                out.append(
-                    _answer(
-                        "top_products",
-                        "Kết quả từng mã voucher",
-                        w,
-                        latest,
-                        rows=[
-                            {
-                                "label_vi": str(r["code"]),
-                                "value_vi": fmt.value("gmv", _f(r["gmv"])),
-                                "detail_vi": (
-                                    f"{fmt.value('orders', _f(r['orders']))} đơn · chi phí "
-                                    f"{fmt.value('gmv', _f(r['cost']))}"
-                                ),
-                            }
-                            for r in rows
-                        ],
-                        stop="data_answer",
-                    )
+            # Ưu đãi is a COST (owner 2026-11-20): the voucher part is the cost answer above; the
+            # income data may end before the window does, and the answers say how far it goes
+            income_to = now.get("income_to")
+            if income_to is not None and income_to < w.cur[1]:
+                for ev in out:
+                    ev["fresh_vi"] = f"Số liệu thu nhập đến hết {income_to:%d/%m}"
+            # no source names the voucher code of an order (the income rows carry only amounts)
+            out.append(
+                _answer(
+                    "metric_total",
+                    "Kết quả từng mã voucher",
+                    w,
+                    latest,
+                    value=NO_DATA_VI,
+                    value_raw=None,
+                    stop="data_answer",
                 )
+            )
         return out
     if kind == "campaign":
         camps = await data.campaign_rows(*w.cur)
         if not camps:
             return []
         loss_only = bool(_LOSS.search(blob))
-        pick = [
-            c
-            for c in camps
-            if not loss_only
-            or (
-                c["roas"] is not None
-                and c["break_even"] is not None
-                and c["roas"] < c["break_even"]
-            )
-        ]
-        pick.sort(key=lambda c: float(c["profit_after_ads"]))
-        title = "Chiến dịch dưới ROAS hoà vốn" if loss_only else "Hiệu quả từng chiến dịch"
+        losing = [c for c in camps if campaign_verdict(c) == "Lỗ"]
+        pick = losing if loss_only and losing else camps
+        pick = sorted(pick, key=campaign_order)
+        title = (
+            "Chiến dịch đang lỗ (dưới ROAS hoà vốn)"
+            if loss_only and losing
+            else ("Chưa có chiến dịch nào lỗ" if loss_only else "Hiệu quả từng chiến dịch")
+        )
         return [
             _answer(
                 "top_products",
                 title,
                 w,
                 latest,
-                rows=[
-                    {
-                        "label_vi": str(c["name"]),
-                        "value_vi": f"ROAS {fmt.value('roas', _f(c['roas']))} · hoà vốn "
-                        f"{fmt.value('roas', _f(c['break_even']))}",
-                        "detail_vi": f"chi {fmt.value('ads_spend', _f(c['spend']))} · GMV "
-                        f"{fmt.value('gmv', _f(c['gmv']))}",
-                    }
-                    for c in pick[:TOP_ROWS]
-                ],
+                rows=[campaign_row(c) for c in pick[:TOP_ROWS]],
                 stop="data_answer",
             )
         ]

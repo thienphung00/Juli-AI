@@ -33,7 +33,7 @@ import {
 import { isDatacenterPath, isMydataPath } from "./config";
 import { isReadOnlyOrderDetailPath, isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, READER_PAGES, type ReaderEndpoint } from "./endpoints";
 import { isNoCampaign } from "./promotion-map";
-import { type PageItem, trimOrderCards, trimOrderDetail, trimOrderIndex, withPageSkus, withUnresolvedSkus } from "./orders-map";
+import { cardOrdersWithoutSku, incomeNotFinal, type PageItem, pageIncomeFinal, trimOrderCards, trimOrderDetail, trimOrderIndex, withPageSkus, withUnresolvedSkus } from "./orders-map";
 import type { Pacer } from "./runner";
 import { buildBackfillDayPlan } from "./sync";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "../../core/time";
@@ -1248,7 +1248,33 @@ async function readOrders(env: ReaderEnv, collected: ReaderResponse[], sinceDay?
       throw new Stop(fail(env.hasSession() ? "needs_template" : "needs_data_page", collected, "order_list"));
     }
   }
-  return readOrdersFromApi(env, collected, sinceDay);
+  const note = await readOrdersFromApi(env, collected, sinceDay);
+  const bundles = await readBundleDetails(env, collected);
+  return note ?? bundles;
+}
+
+/** a2 C-A2: a get_one_order read for a combo's order was refused (or gave no order): its lines stay as the card had them. */
+export const BUNDLE_DETAIL_REFUSED = "bundle_detail_refused";
+
+/**
+ * batch-1123-a2 C-A2: on the card-list path, the orders whose card has a line naming no SKU (a
+ * combo's parent row) are read one by one with get_one_order (budget-counted, paced, trimmed in
+ * the page, the same request as the links path), so their lines carry the item ids. A refused read
+ * leaves the card's lines and says so in the note.
+ */
+async function readBundleDetails(env: ReaderEnv, collected: ReaderResponse[]): Promise<string | undefined> {
+  const ids = cardOrdersWithoutSku(collected);
+  if (ids.length === 0 || !isReadOnlyOrderDetailPath(READER_ENDPOINTS.order_detail.path)) return undefined;
+  const template = env.template("order_detail") ?? orderServiceHeaders(env);
+  let refused = false;
+  for (const id of ids.slice(0, ORDER_DETAIL_MAX_PER_RUN)) {
+    if (env.budget && env.budget.left <= 0) return "partial:budget";
+    const request = buildReaderRequest(env.origin, "order_detail", template, { query: { order_id: id } }, env.session());
+    const response = await send(env, request, collected, {}, true);
+    response.body = trimOrderDetail(response.body);
+    if (classify(response.status, response.body) !== "ok" || !isRecord(payloadOf(response.body))) refused = true;
+  }
+  return refused ? BUNDLE_DETAIL_REFUSED : undefined;
 }
 
 /**
@@ -1356,7 +1382,10 @@ function readOrderPage(
   const sn = sns[0] ? { orderSn: sns[0] } : {};
   const at = env.now();
   const income = env.orderPageIncome?.() ?? [];
-  if (job.incomeFor?.[0] !== false && income.length > 0) {
+  const wantIncome = job.incomeFor?.[0] !== false;
+  // a2 C-A10: only a page that shows the final amount is posted as the order's income
+  const incomeNote = wantIncome && income.length > 0 && !pageIncomeFinal(income) ? INCOME_NOT_SHOWN : undefined;
+  if (wantIncome && pageIncomeFinal(income)) {
     collected.push({ endpoint: "order_income_components", url: `${env.origin}${READER_PAGES.order_income.path}${opened}`, status: 200, body: { code: 0, data: { items: income } }, capturedAt: at, source: "page", orderId: opened, ...sn });
   }
   const stored = job.fixBodies?.[0];
@@ -1369,8 +1398,13 @@ function readOrderPage(
     if (fixed) collected.push({ endpoint: "order_detail", url: `${env.origin}${READER_PAGES.order_income.path}${opened}`, status: 200, body: fixed, capturedAt: at, source: "page", orderId: opened, ...sn });
     note = matched ? undefined : fixed ? "unresolved_item" : "page_lines_unmatched";
   }
-  return ids.length > 1 ? "partial:one_order_per_page" : note;
+  return ids.length > 1 ? "partial:one_order_per_page" : (note ?? incomeNote);
 }
+
+/** a2 C-A10: the order page showed its income rows but not "Doanh Thu Đơn Hàng" within the wait: nothing posted for it. */
+export const INCOME_NOT_SHOWN = "income_final_not_shown";
+/** How long the reader waits for the order page's "Doanh Thu Đơn Hàng" row once the page shows its lines. */
+export const PAGE_INCOME_WAIT_MS = 15_000;
 
 /**
  * Per-order income: the order page the scheduler opened is `ids[0]`: its own answer is kept; for
@@ -1402,7 +1436,11 @@ async function readOrderIncome(
   if (settled && denied()) throw new Stop(fail("blocked_no_permission", collected, "page"));
   if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_password_recheck", collected, "password_modal"));
   if (env.captchaVisible?.()) throw new Stop(fail("blocked_captcha", collected, "page"));
-  if (shown() && !called()) return readOrderPage(env, ids, collected, sns, job);
+  if (shown() && !called()) {
+    // a2 C-A10: the lines can draw before the "Doanh thu" block: wait for its final amount
+    if (job.incomeFor?.[0] !== false) await env.waitFor(() => pageIncomeFinal(env.orderPageIncome?.() ?? []), PAGE_INCOME_WAIT_MS);
+    return readOrderPage(env, ids, collected, sns, job);
+  }
   // 0.3.31 waited for the page's detail call too, but the order page makes it before the hook is
   // in place (capture 2026-11-23), so a page whose income call WAS seen ended needs_template
   // (0.3.32): the income call is all the replay needs.
@@ -1426,10 +1464,12 @@ async function readOrderIncome(
     });
   }
   const where = opened ? orderKeyIn(template, opened) : null;
+  // a2 C-A10: an order whose answer has no final amount yet is skipped and said (`income_not_final`)
+  const notFinal = () => (incomeNotFinal(collected) ? INCOME_NOT_FINAL : undefined);
   // 0.3.26: no order key in the page's own call: the other orders cannot be requested. Said, not
   // silent ("no_order_key" when not one order was read; else the rest is left for the next run).
   if (!where) {
-    if (ids.length <= 1) return undefined;
+    if (ids.length <= 1) return notFinal();
     return collected.some((r) => r.endpoint === "order_income_components") ? "partial:no_order_key" : "no_order_key";
   }
   for (const [offset, id] of ids.slice(1).entries()) {
@@ -1438,7 +1478,11 @@ async function readOrderIncome(
     // An income answer that is not data (a refused order) is skipped; a rate stop still stops all.
     await send(env, request, collected, { orderId: id, ...snOf(offset + 1) }, true, true);
   }
+  return notFinal();
 }
+
+/** a2 C-A10: an income answer without its final amount (the order is not final yet): that order was skipped. */
+export const INCOME_NOT_FINAL = "income_not_final";
 
 // -- affiliate ("Tăng Đơn Cùng KOL") ---------------------------------------------------------
 //

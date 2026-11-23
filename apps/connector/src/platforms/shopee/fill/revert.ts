@@ -10,7 +10,7 @@ import { FILL_LABELS, FILL_JOB_PAGES, FILL_POLL_MS, FILL_WAIT_MS } from "../conf
 import type { CurrentRow, Env, FillOutcome } from "../../../core/fill/form";
 import { findControl, normalizeLabel } from "../../../core/fill/locate";
 import { readValue } from "../../../core/fill/write";
-import { controlWithText, holdsId } from "./controls";
+import { controlWithText, holdsId, usable } from "./controls";
 import { markProgrammeEnd, PROGRAMME_END_TODO, programmeRow, slotRowText } from "./promos";
 import type { EndTarget, FillJob } from "./job-types";
 
@@ -132,7 +132,40 @@ export function endedNow(doc: Document, job: FillJob): boolean {
   if (toast) return true;
   const programme = job.kind === "discount_end" || job.kind === "flash_sale_end" || job.kind === "deal_end";
   const row = programme ? programmeRowOf(doc, end) : listRowOf(doc, end);
-  return !!row && ENDED.test(row.textContent ?? "") && !endControl(row);
+  if (row && ENDED.test(row.textContent ?? "") && !endControl(row)) return true;
+  return confirmedAndGone(doc, job, row);
+}
+
+/** a2 C-E120: per job, the highlighted row (or its marked control) that was on the page when Shopee's confirm showed. */
+const confirmSeen = new Map<string, Element>();
+/** Shopee's confirm of a delete / end ("Xác nhận xóa", "Bạn có chắc …", "Kết thúc chương trình?"). Assumed shape: capture 4 pending. */
+const CONFIRM_TEXT = /(xóa|xoá|kết thúc|bạn có chắc|xác nhận|delete|end)/i;
+
+function confirmDialogShown(doc: Document): boolean {
+  return Array.from(doc.querySelectorAll<HTMLElement>('[role="dialog"],[role="alertdialog"],[class*="modal"],[class*="popconfirm"],[class*="confirm"]')).some(
+    (el) => usable(el) && CONFIRM_TEXT.test(el.textContent ?? ""),
+  );
+}
+
+/**
+ * a2 C-E120 (live 23/11: combo_end stayed `filled` after Xóa + confirm, the combo gone from the
+ * list): the person's confirm dialog was seen while the row Juli highlighted was on the page, the
+ * dialog has closed, and that row is gone (and no row matches the job any more). A row that only
+ * vanishes WITHOUT a confirm (another tab, a filter, another page) is still not ended.
+ */
+function confirmedAndGone(doc: Document, job: FillJob, row: HTMLElement | null): boolean {
+  const marked = doc.querySelector(`[${END_MARK}]`);
+  const here = marked ?? row;
+  const seen = confirmSeen.get(job.id);
+  // a page drawn again with the row (Shopee's list reloaded, the job reopened): start over
+  if (seen && here && here !== seen) confirmSeen.delete(job.id);
+  if (confirmDialogShown(doc)) {
+    if (here) confirmSeen.set(job.id, here);
+    return false;
+  }
+  const gone = !!confirmSeen.get(job.id) && !confirmSeen.get(job.id)!.isConnected && !marked && !row;
+  if (gone) confirmSeen.delete(job.id);
+  return gone;
 }
 
 // -- product page: current values (contract D) and read-back (contract C) -------------------
@@ -173,20 +206,41 @@ function toastShown(doc: Document): boolean {
   );
 }
 
-/** The voucher's code as Shopee lists it ends with the job's suffix. */
-function voucherRowOf(doc: Document, job: FillJob): HTMLElement | null {
-  if (job.payload.kind === "voucher") return listRowOf(doc, { code: job.payload.voucher.codeSuffix, name: job.payload.voucher.name });
-  if (job.payload.kind === "combo") return listRowOf(doc, { name: job.payload.combo.name });
+/** The list row the save landed on: a voucher by its code (ending with the job's suffix) or name, a combo / programme by its name. */
+function savedRowOf(doc: Document, job: FillJob): HTMLElement | null {
+  const p = job.payload;
+  if (p.kind === "voucher") return listRowOf(doc, { code: p.voucher.codeSuffix, name: p.voucher.name });
+  if (p.kind === "combo") return listRowOf(doc, { name: p.combo.name });
+  if (p.kind === "product_discount") return listRowOf(doc, { name: p.discount.name });
+  if (p.kind === "add_on" || p.kind === "gift") return listRowOf(doc, { name: p.deal.name });
   return null;
 }
 
-/** F2.3 (E44): the new object's id from its row's edit link (`edit=<id>`, `/<id>`), digits only. */
+/** a2 K2: the kinds whose save creates an object Juli reads back and undoes by its id. */
+const CAPTURED_KINDS = new Set(["voucher", "combo", "product_discount", "add_on", "gift"]);
+export const capturesId = (job: FillJob): boolean => job.mode === "forward" && CAPTURED_KINDS.has(job.kind);
+
+/** An object id in a list link: `?edit=` / `id=` / `*_id=`, or a path segment after the tool's name. */
+const LINK_ID = [
+  /[?&](?:edit|id|voucher_id|bundle_id|bundle_deal_id|discount_id|promotion_id|add_on_deal_id)=(\d{6,20})/,
+  /\/(?:vouchers|bundle|discount|add-on-deal|shop-flash-sale)\/(?:edit\/|detail\/)?(\d{6,20})(?:[/?#]|$)/,
+];
+/** a2 K2 (assumed, capture 3 pending): a cell that shows the id itself ("ID: 528…", or the bare number). Product ids ("Mã: …") are never taken. */
+const TEXT_ID = /^(?:id\s*[:#]?\s*)?(\d{12,20})$/i;
+
+/** F2.3 (E44, a2 K2): the new object's id from its list row: its links first, else a cell showing the id. */
 export function capturedId(doc: Document, job: FillJob): string | null {
-  const row = voucherRowOf(doc, job);
+  const row = savedRowOf(doc, job);
   if (!row) return null;
   const hrefs = Array.from(row.querySelectorAll<HTMLAnchorElement>("a[href]")).map((a) => a.getAttribute("href") ?? "");
   for (const href of hrefs) {
-    const m = /[?&](?:edit|id|voucher_id|bundle_id)=(\d{6,20})/.exec(href) ?? /\/(?:vouchers|bundle)\/(?:edit\/|detail\/)?(\d{6,20})(?:[/?#]|$)/.exec(href);
+    for (const re of LINK_ID) {
+      const m = re.exec(href);
+      if (m) return m[1] as string;
+    }
+  }
+  for (const leaf of leafTexts(row)) {
+    const m = TEXT_ID.exec(leaf);
     if (m) return m[1] as string;
   }
   return null;
@@ -194,11 +248,14 @@ export function capturedId(doc: Document, job: FillJob): string | null {
 
 /** The save of each kind's page, as the follow loop sees it. */
 export function savedOn(doc: Document, loc: { pathname: string }, job: FillJob): boolean {
+  // live 23/11 (E118): the combo save lands on /portal/marketing/list/discount/ (a trailing slash)
+  const path = loc.pathname.length > 1 ? loc.pathname.replace(/\/+$/, "") : loc.pathname;
   switch (job.kind) {
     case "voucher":
-      return FILL_JOB_PAGES.voucher_list.test(loc.pathname);
+      return FILL_JOB_PAGES.voucher_list.test(path);
     case "combo":
-      return FILL_JOB_PAGES.bundle_list.test(loc.pathname);
+      // E118: Khuyến Mãi của Shop's list (discountType=all…), or the combo list
+      return FILL_JOB_PAGES.bundle_list.test(path) || FILL_JOB_PAGES.discount_list.test(path);
     case "voucher_end":
     case "combo_end":
     case "discount_end":
@@ -210,16 +267,16 @@ export function savedOn(doc: Document, loc: { pathname: string }, job: FillJob):
     case "product_discount":
     case "add_on":
     case "gift":
-      return FILL_JOB_PAGES.discount_list.test(loc.pathname) || /^\/portal\/marketing\/add-on-deal\/list/.test(loc.pathname);
+      return FILL_JOB_PAGES.discount_list.test(path) || /^\/portal\/marketing\/add-on-deal\/list/.test(path);
     case "flash_sale":
-      return FILL_JOB_PAGES.flash_sale_list.test(loc.pathname);
+      return FILL_JOB_PAGES.flash_sale_list.test(path);
     case "readback":
       return false;
     default:
-      return toastShown(doc) || (job.kind !== "affiliate_commission" && /^\/portal\/product\/list/.test(loc.pathname));
+      return toastShown(doc) || (job.kind !== "affiliate_commission" && /^\/portal\/product\/list/.test(path));
   }
 }
 
 export function captureOn(doc: Document, job: FillJob): string | null {
-  return job.kind === "voucher" || job.kind === "combo" ? capturedId(doc, job) : null;
+  return capturesId(job) ? capturedId(doc, job) : null;
 }

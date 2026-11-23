@@ -102,7 +102,7 @@ describe("P97 D85.13 · một thẻ, nhiều đối tượng", () => {
     const b = fakeBuilder();
     open(b);
     await toKind("voucher");
-    fireEvent.click(await screen.findByRole("radio", { name: "Voucher sản phẩm" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Mã Giảm Giá sản phẩm" }));
     fireEvent.click(screen.getByLabelText(/Áp cho nhiều sản phẩm/));
     fireEvent.click(within(screen.getByTestId("p2-targets")).getByRole("checkbox", { name: /Chọn Găng tay cao su A/ }));
     await waitFor(() => expect(evals(b).at(-1)).toMatchObject({ kind: "voucher", scope: "product", item_ids: [P_ZIP, P_GLOVE] }));

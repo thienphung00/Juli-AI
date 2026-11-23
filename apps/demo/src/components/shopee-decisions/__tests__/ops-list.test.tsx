@@ -71,7 +71,7 @@ describe("Ops · Danh sách đề xuất", () => {
     await waitFor(() => expect(row).toHaveTextContent("Găng tay cao su A"));
     const cells = within(row).getAllByRole("cell").map((c) => c.textContent);
     expect(cells[1]).toBe("JC-2611-0007");
-    expect(cells[3]).toBe("Voucher");
+    expect(cells[3]).toBe("Mã Giảm Giá");
     expect(cells[4]).toBe("Juli");
     expect(cells[5]).toBe("#1");
     expect(cells[6]).toBe("2 (V1 mặc định)");

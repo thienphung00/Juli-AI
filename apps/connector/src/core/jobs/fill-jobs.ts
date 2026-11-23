@@ -19,6 +19,11 @@ export interface JobSource<J extends CoreJob> {
   parseJob(raw: unknown): J | null;
   /** 0.3.27: the job tab landed on the platform's anti-bot page: the error code to report, else null. */
   blockedUrl?(url: string | undefined): string | null;
+  /**
+   * batch-1123-a2 C-K1: a served job of a kind this pack runs, still open, that does not parse: its
+   * id (it is reported `failed` with JOB_MALFORMED, never silently dropped), else null.
+   */
+  malformedId?(raw: unknown): string | null;
   /** 0.3.27: a job whose page is only read (a read-back): its tab is closed once it reported captured. */
   closeWhenDone?(job: J): boolean;
 }
@@ -67,6 +72,8 @@ export interface FillJobsDeps<J extends CoreJob = CoreJob> {
 
 /** How long a freshly opened job page holds the readers back. */
 const FILL_JOB_BUSY_MS = 20 * 60_000;
+/** C-K1: the error a served job that does not parse is reported with. */
+export const JOB_MALFORMED = "job_malformed";
 const EMPTY: FillJobsState = { autoOpened: [] };
 
 export function jobUrl(origin: string, job: Pick<CoreJob, "id" | "openPath">): string {
@@ -100,11 +107,20 @@ export class FillJobs<J extends CoreJob = CoreJob> {
     await saveState(this.deps.storage, { fill: { ...(await this.fill()), ...patch } });
   }
 
-  private async list(token: string): Promise<{ enabled: boolean; jobs: J[] } | "unpaired" | "error"> {
+  private async list(token: string): Promise<{ enabled: boolean; jobs: J[]; malformed: string[] } | "unpaired" | "error"> {
     try {
       const raw = (await this.deps.client.fillJobs(token)) as { enabled?: boolean; jobs?: unknown[] } | null;
-      const jobs = (Array.isArray(raw?.jobs) ? raw.jobs : []).map((j) => this.deps.pack.parseJob(j)).filter((j): j is J => j !== null);
-      return { enabled: raw?.enabled === true, jobs };
+      const jobs: J[] = [];
+      const malformed: string[] = [];
+      for (const served of Array.isArray(raw?.jobs) ? raw.jobs : []) {
+        const job = this.deps.pack.parseJob(served);
+        if (job) jobs.push(job);
+        else {
+          const id = this.deps.pack.malformedId?.(served) ?? null;
+          if (id) malformed.push(id);
+        }
+      }
+      return { enabled: raw?.enabled === true, jobs, malformed };
     } catch (error) {
       return error instanceof GatewayError && error.status === 401 ? "unpaired" : "error";
     }
@@ -202,6 +218,7 @@ export class FillJobs<J extends CoreJob = CoreJob> {
     const listed = await this.list(token.token);
     if (listed === "unpaired" || listed === "error") return this.noted(listed);
     if (!listed.enabled) return this.noted("disabled");
+    await this.reportMalformed(listed.malformed);
     const handled = (j: J) => this.deps.readback?.pages(j) !== null && this.deps.readback?.pages(j) !== undefined;
     const next = listed.jobs.find((j) => j.status === "queued" && !(fill.autoOpened ?? []).includes(j.id) && !handled(j));
     if (!next) return this.noted("nothing_queued");
@@ -252,6 +269,15 @@ export class FillJobs<J extends CoreJob = CoreJob> {
     await this.setFill({ readbacks: pending });
   }
 
+  /** C-K1: each served job that does not parse is told to Juli once (`failed`, JOB_MALFORMED). */
+  private async reportMalformed(ids: string[]): Promise<void> {
+    const told = (await this.fill()).malformed ?? [];
+    const fresh = ids.filter((id) => !told.includes(id));
+    if (fresh.length === 0) return;
+    for (const id of fresh) await this.report(id, "failed", { error: JOB_MALFORMED });
+    await this.setFill({ malformed: [...told, ...fresh].slice(-50) });
+  }
+
   private async noted(status: string): Promise<string> {
     await this.setFill({ lastPoll: { at: new Date(this.deps.now()).toISOString(), status } });
     return status;
@@ -267,6 +293,10 @@ export class FillJobs<J extends CoreJob = CoreJob> {
     if (listed === "error") return { ok: false, reason: "error" };
     if (!listed.enabled) return { ok: false, reason: "inactive" };
     const job = listed.jobs.find((j) => j.id === jobId);
+    if (!job && listed.malformed.includes(jobId)) {
+      await this.reportMalformed([jobId]);
+      return { ok: false, reason: "malformed_job" };
+    }
     if (!job) return { ok: false, reason: "unknown_job" };
     if (!senderMatchesJob(this.deps.pack.origin, tabUrl, job)) return { ok: false, reason: "wrong_page" };
     const fill = state.fill ?? EMPTY;

@@ -45,6 +45,7 @@ from juli_backend.services.analytics_agent.types import (
     LLMPort,
     Template,
 )
+from juli_backend.services.metrics.registry import REASON_ADS_SCOPE_MISSING
 
 VN = ZoneInfo("Asia/Ho_Chi_Minh")
 logger = logging.getLogger(__name__)
@@ -106,6 +107,25 @@ def _platform_has_analytics(platform: str) -> bool:
     from juli_backend.services.capabilities.registry import Route, can
 
     return platform in ANALYTICS_PLATFORMS and can(platform, "read_shop_totals").route != Route.none
+
+
+#: money metrics that need the shop's ads spend (profit, the margins, the break-even ROAS)
+ADS_DEPENDENT_METRICS = frozenset({"profit", "margin", "roas_break_even", "cost_ratio"})
+
+
+async def _tiktok_profit_gate_open(data: DataPort, as_of: date) -> bool:
+    """True when the shop's ads spend is known: any day carries an ads figure (NULL is not 0)."""
+    return any(r.get("ads_spend") is not None for r in await data.shop_daily(as_of))
+
+
+async def _tiktok_profit_gated(platform: str, metric: str, data: DataPort, as_of: date) -> bool:
+    """Owner W3-Q5 = a: a TikTok shop's profit and margins are "—" (reason `ads_scope_missing`)
+    until its ads spend is known; never a before-ads number under the profit label."""
+    return (
+        platform == "tiktok"
+        and metric in ADS_DEPENDENT_METRICS
+        and not await _tiktok_profit_gate_open(data, as_of)
+    )
 
 
 def _window_args(intent: dict[str, Any], dec: dict[str, Any]) -> dict[str, Any]:
@@ -542,6 +562,22 @@ async def _answer(
         result.stop_reasons.append("data_missing")
         return
     await out.emit(present.status("checking_data"))
+    gate_metric = dec.get("metric") or lookup.default_metric(dec.get("chain"))
+    if await _tiktok_profit_gated(req.platform, gate_metric, data, as_of):
+        # W3-Q5: profit and the margins are "—" until the shop's ads spend is known
+        await out.emit(
+            {
+                "type": "data_answer",
+                "kind": "metric_total",
+                "title_vi": labels.metric(gate_metric),
+                "value": "—",
+                "value_raw": None,
+                "reason_code": REASON_ADS_SCOPE_MISSING,
+                "stop": "data_answer",
+            }
+        )
+        result.stop_reasons.append("data_answer")
+        return
     kw = _window_args(intent, dec)
     entity = routing.entity_kind(intent)
     prod_money = bool(

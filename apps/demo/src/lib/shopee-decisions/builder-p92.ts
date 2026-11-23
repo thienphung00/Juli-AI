@@ -53,11 +53,11 @@ export const MAX_GIFT_QTY = 49;
 
 /** The 12 strategies, each with the driver metric(s) it is measured by (B-3, artboard `kinds`). */
 export const KINDS_92: readonly { readonly key: Kind92; readonly name: string; readonly drivers: string }[] = [
-  { key: "voucher", name: "Voucher", drivers: "AOV · CTOR" },
+  { key: "voucher", name: "Mã Giảm Giá", drivers: "AOV · CTOR" },
   { key: "combo", name: "Combo Khuyến Mãi", drivers: "AOV · CTOR" },
-  { key: "deal_soc", name: "Deal Sốc", drivers: "AOV · CTOR · đơn" },
+  { key: "deal_soc", name: "Mua Kèm Deal Sốc", drivers: "AOV · CTOR · đơn" },
   { key: "product_discount", name: "Chương Trình Của Shop", drivers: "CTOR · đơn" },
-  { key: "price_flash", name: "Giá bán + Flash sale", drivers: "CTOR · đơn" },
+  { key: "price_flash", name: "Flash Sale Của Shop", drivers: "CTOR · đơn" },
   { key: "variation_set", name: "Phân loại hàng", drivers: "AOV · CTOR" },
   { key: "ads", name: "Dịch vụ hiển thị", drivers: "chi · GMV · ROAS" },
   { key: "title", name: "Tên sản phẩm", drivers: "lượt xem · CTR" },
@@ -71,7 +71,7 @@ export const kindName92 = (k: string): string => KINDS_92.find((x) => x.key === 
 
 /** The kind the server knows for a form kind (some forms hold two). */
 export const SERVER_KIND_NAMES: Readonly<Record<string, string>> = {
-  voucher: "Voucher",
+  voucher: "Mã Giảm Giá",
   combo: "Combo Khuyến Mãi",
   listing_combo: "Listing combo mới",
   add_on: "Mua Kèm Deal Sốc",
@@ -226,10 +226,13 @@ export const comboTierDefault = (i: number, part: "qty" | "value", dtype: "pct" 
   return part === "qty" ? d[0] : dtype === "pct" ? d[1] : undefined;
 };
 
+/** The combo type preselected in the builder: Giảm giá theo % (the tiers' default values are %). */
+export const COMBO_DEFAULT_TYPE = "pct" as const;
+
 export function initialForms(): Forms {
   return {
     voucher: { scope: "product", dtype: "amount", value: "", min: "", max: "", usage: "", perBuyer: "", start: "", end: "", items: [] },
-    combo: { name: "", items: [], dtype: "pct", tiers: [newTier("", ""), newTier("", "")], limit: "", start: "", end: "" },
+    combo: { name: "", items: [], dtype: COMBO_DEFAULT_TYPE, tiers: [newTier("", ""), newTier("", "")], limit: "", start: "", end: "" },
     deal_soc: {
       type: "add_on",
       name: "",
@@ -294,18 +297,22 @@ function comboTiersIncrease(dtype: "pct" | "amount" | "special_price", tiers: re
  * precision (0–23) in Seller Centre; "" = the whole day. `maxDays` = the programme's longest run (180 for
  * Chương Trình Của Shop); null = no limit.
  */
-export const HOUR_PROBLEM = "Chỉ chọn giờ tròn (0–23)";
-/** "8", "08" or "08:00" → the hour (Seller Centre's programme forms run on whole hours); null for anything else, minutes included. */
-export function parseHour(text: string): number | null {
+export const HOUR_PROBLEM = "Nhập giờ dạng HH:mm (00:00–23:59)";
+/** "8", "08", "08:00" or "08:30" → { hour, minute } (Seller Centre shows HH:mm); null for anything else. */
+export function parseClock(text: string): { readonly hour: number; readonly minute: number } | null {
   const m = /^(\d{1,2})(?::(\d{2}))?$/.exec(text.trim());
   if (!m) return null;
-  const h = Number(m[1]);
-  const min = m[2] === undefined ? 0 : Number(m[2]);
-  return h <= 23 && min === 0 ? h : null;
+  const hour = Number(m[1]);
+  const minute = m[2] === undefined ? 0 : Number(m[2]);
+  return hour <= 23 && minute <= 59 ? { hour, minute } : null;
+}
+/** The hour part of an HH:mm text (minutes are read by `parseClock`); null for anything that is not a time. */
+export function parseHour(text: string): number | null {
+  return parseClock(text)?.hour ?? null;
 }
 /** The error to show next to an hour field ("" = the whole day, no error). */
 export function hourProblem(text: string): string | null {
-  return text.trim() === "" || parseHour(text) !== null ? null : HOUR_PROBLEM;
+  return text.trim() === "" || parseClock(text) !== null ? null : HOUR_PROBLEM;
 }
 
 /** "₫5.000". */
@@ -313,14 +320,18 @@ const vndText = (n: number): string => `₫${fmt(n, 0)}`;
 
 function windowHours(c: { start: string; end: string; startHour?: string; endHour?: string }, maxDays: number | null = null): { problem: string | null; fields: Record<string, number> } {
   const fields: Record<string, number> = {};
-  for (const [key, text, date] of [["start_hour", c.startHour ?? "", c.start], ["end_hour", c.endHour ?? "", c.end]] as const) {
+  const at: Record<string, number> = {};
+  for (const [key, text, date] of [["start", c.startHour ?? "", c.start], ["end", c.endHour ?? "", c.end]] as const) {
     if (text.trim() === "") continue;
-    const h = parseHour(text);
-    if (h === null) return { problem: HOUR_PROBLEM, fields: {} };
+    const t = parseClock(text);
+    if (t === null) return { problem: HOUR_PROBLEM, fields: {} };
     if (!date) return { problem: "Chọn ngày cho giờ bắt đầu / kết thúc.", fields: {} };
-    fields[key] = h;
+    fields[`${key}_hour`] = t.hour;
+    // minutes ride in the card spec next to the hour (only when not on the hour)
+    if (t.minute > 0) fields[`${key}_minute`] = t.minute;
+    at[key] = t.hour * 60 + t.minute;
   }
-  if (c.start && c.end && c.start === c.end && fields["start_hour"] !== undefined && fields["end_hour"] !== undefined && fields["end_hour"] <= fields["start_hour"]) {
+  if (c.start && c.end && c.start === c.end && at["start"] !== undefined && at["end"] !== undefined && at["end"] <= at["start"]) {
     return { problem: "Giờ kết thúc phải sau giờ bắt đầu (chạy tối thiểu 1 giờ).", fields: {} };
   }
   if (maxDays !== null && c.start && c.end) {
@@ -328,8 +339,8 @@ function windowHours(c: { start: string; end: string; startHour?: string; endHou
     const b = Date.parse(`${c.end}T00:00:00Z`);
     if (Number.isFinite(a) && Number.isFinite(b) && b >= a) {
       const dayCount = Math.round((b - a) / 86_400_000);
-      const hours = fields["start_hour"] !== undefined && fields["end_hour"] !== undefined ? dayCount * 24 + fields["end_hour"] - fields["start_hour"] : null;
-      const days = hours !== null ? Math.max(1, Math.ceil(hours / 24)) : dayCount + 1;
+      const minutes = at["start"] !== undefined && at["end"] !== undefined ? dayCount * 1440 + at["end"] - at["start"] : null;
+      const days = minutes !== null ? Math.max(1, Math.ceil(minutes / 1440)) : dayCount + 1;
       if (days > maxDays) return { problem: `Chương trình chạy tối đa ${maxDays} ngày.`, fields: {} };
     }
   }
@@ -419,7 +430,8 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       };
     }
     case "combo": {
-      const c = f.combo;
+      // Loại Combo: the type the tiers show (% unless another is picked); never empty, so the result is never "0 phương án"
+      const c = { ...f.combo, dtype: f.combo.dtype || COMBO_DEFAULT_TYPE };
       if (c.items.length === 0) return no("Chọn ít nhất một sản phẩm cho combo.");
       if (c.items.length > MAX_TARGETS) return no(`Combo có tối đa ${MAX_TARGETS} sản phẩm.`);
       if ([...c.name.trim()].length > MAX_COMBO_NAME) return no(`Tên Combo Khuyến Mãi tối đa ${MAX_COMBO_NAME} ký tự.`);

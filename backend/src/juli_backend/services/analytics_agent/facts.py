@@ -141,7 +141,12 @@ def writer_input(chain_json: dict[str, Any], labels: LabelTable) -> tuple[dict[s
         summary["tổng_hai_mục_lớn_nhất_%"] = fmt.decimal(total, 0)
     from juli_backend.services.analytics_agent.writer import STOP_VI
 
+    prod = chain_json.get("product") or {}
+    scope = (
+        f"sản phẩm {prod.get('name') or prod.get('item_id')}" if prod.get("item_id") else "cả shop"
+    )
     inp = {
+        "phạm_vi": scope,  # the entity every number below belongs to (never a product under "shop")
         "kỳ": window["label_vi"],
         "kết_luận": STOP_VI.get(chain_json["stop_reason"], ""),
         "chi_tiết": steps,

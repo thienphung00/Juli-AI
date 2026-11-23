@@ -129,7 +129,7 @@ describe("G14 · the voucher code on a Thực hiện row", () => {
     expect(done).toBeDisabled();
     fireEvent.change(code, { target: { value: "88001" } });
     fireEvent.click(done);
-    await waitFor(() => expect(reco.calls.find((c) => c.name === "executed")?.args).toEqual(["v", { voucherId: "88001" }]));
+    await waitFor(() => expect(reco.calls.find((c) => c.name === "executed")?.args).toEqual(["v", { id: "88001" }]));
   });
 
   it("is pre-filled with the code the Connector picked up; a title card has no code field", async () => {

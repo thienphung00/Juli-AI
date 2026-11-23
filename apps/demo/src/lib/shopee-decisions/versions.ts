@@ -572,8 +572,8 @@ export const PRODUCT_GROUPS: readonly (readonly [string, string])[] = [
   ["listing", "Tên, từ khoá, ảnh bìa"],
   ["ads", "Dịch vụ hiển thị"],
   ["promotion", "Khuyến mãi, giá"],
-  ["voucher", "Voucher"],
-  ["combo", "Combo"],
+  ["voucher", "Mã Giảm Giá"],
+  ["combo", "Combo Khuyến Mãi"],
   ["affiliate", "Tiếp thị liên kết"],
   ["sale", "Flash Sale, chương trình"],
 ];
