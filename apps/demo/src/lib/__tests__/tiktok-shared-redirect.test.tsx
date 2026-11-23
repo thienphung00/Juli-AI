@@ -21,16 +21,15 @@ const shop = (id: string): ShopReportState => ({ status: "loading", token: "t", 
 beforeEach(() => {
   replace.mockReset();
   window.history.replaceState(null, "", "/");
-  delete process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS;
 });
 
 describe("W3 U-4 · the one switch for a TikTok shop's ADR-108 screens", () => {
-  it("is off by default and on by the env flag or ?adr108=1", () => {
+  it("is off by default and on only by ?adr108=1 (no build-wide env switch)", () => {
     expect(tiktokLegacyScreens()).toBe(false);
+    expect(tiktokLegacyScreens(null)).toBe(false);
+    expect(tiktokLegacyScreens(new URLSearchParams(""))).toBe(false);
     expect(tiktokLegacyScreens(new URLSearchParams("adr108=1"))).toBe(true);
     expect(tiktokLegacyScreens(new URLSearchParams("adr108=0"))).toBe(false);
-    process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS = "1";
-    expect(tiktokLegacyScreens()).toBe(true);
   });
 
   it("without the switch, a TikTok shop is sent to the shared screen", async () => {

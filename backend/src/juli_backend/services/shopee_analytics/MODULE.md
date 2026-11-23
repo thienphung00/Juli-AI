@@ -167,7 +167,8 @@ carries the same facts for the KOL cards. Entry points `queries.kol_table` / `qu
   (`tiktok-layer4-rebuild` beat); the TikTok day hook (`record_touched_days`) runs `after_ingest`
   for platform `tiktok` (`MATERIALIZED_PLATFORMS`).
 - The engine sees a TikTok shop's lines once `repositories.shopee_analytics` reads the shop's
-  own platform (t2, `own_platform()`); the W3 tests stand in for it.
+  own platform (t2, `own_platform(shop_id, table)`: the shop's platform when it holds rows of it in
+  that table, else `shopee`, so a Shopee read never changes); the W3 tests stand in for it.
 
 ## TikTok on the seller routes (W3 t2)
 

@@ -27,8 +27,8 @@ import { DemoShell } from "../demo-shell";
 import { RulesEditor } from "../quyet-dinh/rules-editor";
 import { SettingsPageClient } from "../quyet-dinh/settings-rules";
 
-// W3 U-4: these tests exercise the ADR-108 TikTok screens, which stay behind the one switch.
-process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS = "1";
+// W3 U-4: these tests exercise the ADR-108 TikTok screens, reachable only with `?adr108=1` (decision #8).
+window.history.replaceState(null, "", "/?adr108=1");
 
 /**
  * P32-E (D42 amendment 2, owner 2026-10-15): Shopee's ISV criteria want "all

@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { AppNavigation } from "../components/app-shell/app-navigation";
-import { APP_DESTINATIONS, SHOPEE_DESTINATIONS, TIKTOK_DESTINATIONS } from "../lib/app-navigation";
+import { APP_DESTINATIONS, SHOPEE_DESTINATIONS, SHARED_TIKTOK_DESTINATIONS } from "../lib/app-navigation";
 
 /**
  * One rail for TikTok Shop and Shopee (owner, 2026-11-19): the same labels in the same order;
@@ -21,7 +21,7 @@ describe("app navigation — a TikTok shop", () => {
 
   it("uses the Shopee rail's labels and order, minus the entries TikTok has no page for yet", () => {
     const shopee = SHOPEE_DESTINATIONS.map((d) => d.label);
-    const tiktok = TIKTOK_DESTINATIONS.map((d) => d.label);
+    const tiktok = SHARED_TIKTOK_DESTINATIONS.map((d) => d.label);
     expect(tiktok).toEqual(shopee.filter((label) => tiktok.includes(label)));
     expect(shopee.filter((label) => !tiktok.includes(label))).toEqual(["Dữ liệu shop"]);
   });

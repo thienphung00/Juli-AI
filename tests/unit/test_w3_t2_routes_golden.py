@@ -185,11 +185,33 @@ async def test_a_shopee_shop_reads_exactly_its_shopee_lines(session):
     lines = await repo.in_window(seeded.shop_id, CUR_START, CUR_END)
     assert len(lines) > 0 and {ln.platform for ln in lines} == {"shopee"}
     assert await repo.day_bounds(seeded.shop_id) is not None
-    # the shop's platform decides: the same rows are invisible to a TikTok shop until relabelled
+    shopee_refs = sorted(ln.order_ref for ln in lines)
+    bounds = await repo.day_bounds(seeded.shop_id)
+    # a shop row still on the ``tiktok`` column default that holds only Shopee rows keeps its
+    # Shopee read unchanged (the T5 readers' contract) ...
     await session.execute(update(Shop).where(Shop.id == seeded.shop_id).values(platform="tiktok"))
     await session.flush()
-    assert await repo.in_window(seeded.shop_id, CUR_START, CUR_END) == []
-    assert await repo.day_bounds(seeded.shop_id) is None
+    again = await repo.in_window(seeded.shop_id, CUR_START, CUR_END)
+    assert sorted(ln.order_ref for ln in again) == shopee_refs
+    assert await repo.day_bounds(seeded.shop_id) == bounds
+    # ... and once it holds a TikTok row it reads its TikTok rows only, never a mix
+    tiktok_line = ShopeeOrderLine(
+        **{
+            c.key: getattr(lines[0], c.key)
+            for c in ShopeeOrderLine.__table__.columns
+            if c.key not in {"id", "platform", "order_ref"}
+        },
+        platform="tiktok",
+        order_ref=f"{999:032x}",
+    )
+    session.add(tiktok_line)
+    await session.flush()
+    only = await repo.in_window(seeded.shop_id, CUR_START, CUR_END)
+    assert [(ln.platform, ln.order_ref) for ln in only] == [("tiktok", f"{999:032x}")]
+    await session.execute(update(Shop).where(Shop.id == seeded.shop_id).values(platform="shopee"))
+    await session.flush()
+    back = await repo.in_window(seeded.shop_id, CUR_START, CUR_END)
+    assert sorted(ln.order_ref for ln in back) == shopee_refs
 
 
 async def test_a_product_name_containing_shopee_survives_unchanged(session):

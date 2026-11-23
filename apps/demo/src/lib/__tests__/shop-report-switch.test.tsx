@@ -21,14 +21,14 @@ function stubPlatform(platform: unknown) {
 
 beforeEach(() => {
   shopN += 1;
-  delete process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS;
+  window.history.replaceState(null, "", "/");
   window.sessionStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({ accessToken: "token-1", tokenType: "bearer" }));
   window.sessionStorage.setItem(ACTIVE_SHOP_STORAGE_KEY, JSON.stringify({ id: `sw-${shopN}`, name: "Shop" }));
 });
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
-  delete process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS;
+  window.history.replaceState(null, "", "/");
   window.sessionStorage.clear();
   window.localStorage.clear(); // the active shop is mirrored there
 });
@@ -47,7 +47,7 @@ describe("W3 · the shell's report read for a TikTok shop", () => {
   });
 
   it("reads it behind the switch", async () => {
-    process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS = "1";
+    window.history.replaceState(null, "", "/?adr108=1");
     stubPlatform("tiktok");
     const loadAnalysis = vi.fn().mockResolvedValue(sampleEnvelope());
     render(
@@ -60,7 +60,7 @@ describe("W3 · the shell's report read for a TikTok shop", () => {
   });
 
   it("an unknown platform is an error to retry, never a TikTok read", async () => {
-    process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS = "1";
+    window.history.replaceState(null, "", "/?adr108=1");
     stubPlatform(undefined);
     const loadAnalysis = vi.fn().mockResolvedValue(sampleEnvelope());
     render(

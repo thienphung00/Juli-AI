@@ -712,7 +712,7 @@ async def run_layer4_rebuild_fanout(
 
     A failing shop is logged and the walk goes on. Returns the days rebuilt over all shops."""
     from juli_backend.database.tenant_context import with_sticky_shop_scope
-    from juli_backend.services.shopee_analytics.materialize import rebuild_recent
+    from juli_backend.services.shopee_analytics import materialize
     from juli_backend.workers.services.polling.ingestion import (
         BLOCKS_REREAD_BUDGET_SECONDS,
         BLOCKS_REREAD_WINDOW_MIN_SECONDS,
@@ -722,7 +722,7 @@ async def run_layer4_rebuild_fanout(
 
     enumerate_shops = enumerate_fn or enumerate_pollable_shops
     reread = reread_fn or run_blocks_reread
-    rebuild = rebuild_fn or rebuild_recent
+    rebuild = rebuild_fn or materialize.rebuild_recent
     today = ((now or datetime.now(UTC)) + _SHOP_UTC_OFFSET).date()
     async with session_factory() as session:
         shops = await enumerate_shops(session)

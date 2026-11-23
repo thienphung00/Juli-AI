@@ -857,6 +857,8 @@ def test_beat_schedule_has_exactly_the_expected_entries():
         "businesses-backfill",
         # P101 W2 (S-4): the nightly TikTok raw vs canonical reconcile.
         "tiktok-canonical-reconcile",
+        # P101 W3: the nightly TikTok A-34 blocks re-read + layer-4 rebuild (one entry).
+        "tiktok-layer4-rebuild",
     }
 
 

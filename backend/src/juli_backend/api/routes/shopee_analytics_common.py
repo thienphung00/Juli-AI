@@ -16,7 +16,7 @@ from urllib.parse import quote
 from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse, Response
 
-from juli_backend.services.metrics.registry import Platform
+from juli_backend.services.metrics import Platform
 from juli_backend.services.shopee_analytics import (
     InvalidWindow,
     NoShopeeData,

@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { tiktokLegacyScreens } from "../../lib/tiktok-screens";
 import {
   destinationsFor,
   isDestinationOn,
@@ -70,7 +69,7 @@ export function AppNavigation({
   platform = "tiktok",
   sampleShop = false,
   juliEnabled = false,
-  tiktokLegacy = tiktokLegacyScreens(),
+  tiktokLegacy = false,
 }: {
   readonly activePath: string;
   /** Which platform's routes the shared rail uses. */
@@ -79,7 +78,7 @@ export function AppNavigation({
   readonly sampleShop?: boolean;
   /** `GET /v1/demo/juli/enabled` for the acting shop: the Juli entry shows only when true. */
   readonly juliEnabled?: boolean;
-  /** W3 U-4: a TikTok shop keeps the ADR-108 rail (the one switch, `lib/tiktok-screens.ts`). */
+  /** W3 U-4: the ADR-108 rail for a TikTok shop; off by default (the rail shows the shared screens). */
   readonly tiktokLegacy?: boolean;
 }) {
   const destinations = destinationsFor(platform, { sampleShop, juliEnabled, tiktokLegacy });

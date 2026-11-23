@@ -28,6 +28,7 @@ from juli_backend.services.metrics.registry import (
     METRICS,
     Comparison,
     MetricDef,
+    Platform,
     SourceSpec,
 )
 
@@ -42,6 +43,7 @@ __all__ = [
     "KolStatus",
     "MetricDef",
     "MetricValue",
+    "Platform",
     "ShopLine",
     "ShopLines",
     "SourceSpec",

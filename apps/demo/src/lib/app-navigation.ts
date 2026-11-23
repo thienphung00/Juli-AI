@@ -73,8 +73,8 @@ function railFor(platform: NavPlatform, withJuli: boolean, legacyTiktok = false)
 }
 
 /** A TikTok shop's rail (Juli not on): the shared Tổng quan / Phân tích screens (W3). */
-export const TIKTOK_DESTINATIONS: readonly AppDestination[] = railFor("tiktok", false);
-export const TIKTOK_DESTINATIONS_WITH_JULI: readonly AppDestination[] = railFor("tiktok", true);
+export const SHARED_TIKTOK_DESTINATIONS: readonly AppDestination[] = railFor("tiktok", false);
+export const SHARED_TIKTOK_DESTINATIONS_WITH_JULI: readonly AppDestination[] = railFor("tiktok", true);
 
 /** A TikTok shop's ADR-108 rail (Trang chủ `/`, Phân tích `/analytics`), behind `tiktokLegacyScreens` (decision #8). */
 export const APP_DESTINATIONS: readonly AppDestination[] = railFor("tiktok", false, true);
@@ -111,7 +111,7 @@ export function destinationsFor(
   const juli = options.juliEnabled === true;
   if (platform !== "shopee") {
     if (options.tiktokLegacy) return juli ? APP_DESTINATIONS_WITH_JULI : APP_DESTINATIONS;
-    return juli ? TIKTOK_DESTINATIONS_WITH_JULI : TIKTOK_DESTINATIONS;
+    return juli ? SHARED_TIKTOK_DESTINATIONS_WITH_JULI : SHARED_TIKTOK_DESTINATIONS;
   }
   if (options.sampleShop) return juli ? SAMPLE_SHOP_DESTINATIONS_WITH_JULI : SAMPLE_SHOP_DESTINATIONS;
   return juli ? SHOPEE_DESTINATIONS_WITH_JULI : SHOPEE_DESTINATIONS;
