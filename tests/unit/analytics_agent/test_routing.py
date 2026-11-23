@@ -15,9 +15,9 @@ TODAY = date(2026, 10, 26)
 def intent(**kw: Any) -> dict[str, Any]:
     base = {
         "question_type": "why_changed",
-        "metric_phrase": "orders",
+        "metric_phrase": "that number",
         "claimed_direction": "down",
-        "time_phrase": "this week",
+        "time_phrase": "recently",
         "explicit_from": None,
         "explicit_to": None,
         "named_month": None,

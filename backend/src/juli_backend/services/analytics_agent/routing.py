@@ -22,7 +22,7 @@ from juli_backend.services.analytics_agent.types import (
     LLMPort,
     Usage,
 )
-from juli_backend.services.analytics_agent.windows import build_windows
+from juli_backend.services.analytics_agent.windows import build_windows, window_from_phrase
 
 MAX_INTENTS = 3  # config value (J3); the rest is offered through `more`
 FITS_GO, FITS_NO = 0.7, 0.3
@@ -57,7 +57,9 @@ METRICS: dict[str, str] = {
 }
 WINDOWS: dict[str, str] = {
     "yesterday_vs_same_weekday": "yesterday or one recent day",
-    "last_7d_vs_prev_7d": "this week, the last 7 days, recently over a few days",
+    "this_week_vs_same_days_last_week": "this week so far (Monday to yesterday) compared with the "
+    "same days last week",
+    "last_7d_vs_prev_7d": "the last 7 days, recently over a few days",
     "last_full_week_vs_week_before": "last calendar week (Mon-Sun) compared with the week before",
     "last_30d_vs_prev_30d": "the last 30 days or 'recently' with no period named",
     "mtd_vs_same_days_last_month": "this month so far compared with last month",
@@ -84,6 +86,55 @@ CHAIN_ALLOWED_METRICS = {
     "ads_change": {"ads_spend", "roas"},
     "cost_change": {"cost_ratio"},
 }
+
+# A named metric needs no picker (Q19): the words map to one metric, code decides, not the model.
+METRIC_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(rx, re.I), m)
+    for rx, m in (
+        (r"chi phí quảng cáo|ad(s|vertising)?\s*(spend|cost)|tiền quảng cáo", "ads_spend"),
+        (r"roas", "roas"),
+        (r"biên|margin", "margin"),
+        (r"lợi nhuận|profit", "profit"),
+        (r"doanh thu|\bgmv\b|revenue|sales value", "gmv"),
+        (r"đơn hàng|số đơn|\borders?\b", "orders"),
+        (r"\bctor\b|chuyển đổi|conversion", "ctor"),
+        (r"\bctr\b|click[- ]through", "ctr"),
+        (r"lượt xem|\bviews?\b", "views"),
+    )
+)
+METRIC_CHAIN = {m: c for c, m in CHAIN_METRIC.items()}
+METRIC_CHAIN.update(roas="ads_change", ads_spend="ads_change", margin="profit_change")
+
+# An entity the seller names (Q17): the answer must be filtered to it or refused, never a shop
+# number under the entity's label.
+ENTITY_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(rx, re.I), k)
+    for rx, k in (
+        (r"voucher|mã giảm giá|khuyến mãi|promotion", "voucher"),
+        (r"affiliate|tiếp thị liên kết|\bttlk\b|\bkol\b|hoa hồng", "affiliate"),
+        (r"campaign|chiến dịch", "campaign"),
+    )
+)
+
+
+def metric_from_phrase(phrase: str | None) -> str | None:
+    for rx, m in METRIC_WORDS:
+        if phrase and rx.search(phrase):
+            return m
+    return None
+
+
+def entity_kind(intent: dict[str, Any]) -> str | None:
+    """voucher | affiliate | campaign when the question names one (not a product: that is
+    `scope`)."""
+    blob = " ".join(
+        str(intent.get(k) or "") for k in ("entity_phrase", "metric_phrase", "source_phrase")
+    )
+    for rx, k in ENTITY_WORDS:
+        if rx.search(blob):
+            return k
+    return None
+
 
 INTENT_TOOL: dict[str, Any] = {
     "name": "emit_intent",
@@ -114,6 +165,7 @@ INTENT_TOOL: dict[str, Any] = {
                         "named_month",
                         "product_phrase",
                         "source_phrase",
+                        "entity_phrase",
                     ],
                     "properties": {
                         "question_type": {
@@ -141,6 +193,11 @@ INTENT_TOOL: dict[str, Any] = {
                             "them, no translation",
                         },
                         "source_phrase": {"type": ["string", "null"]},
+                        "entity_phrase": {
+                            "type": ["string", "null"],
+                            "description": "a voucher, affiliate / commission or ad campaign the "
+                            "seller names, copied as written; null when none",
+                        },
                     },
                 },
             },
@@ -321,6 +378,22 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
         dec[k] = info["pick"]
         if not ok:
             unclear.append((k, info["top2"]))
+    preset = window_from_phrase(intent.get("time_phrase"))
+    if preset:  # one phrase, one window; never asked
+        dec["window"] = preset
+        dec["checks"]["window"] = {"pick": preset, "rule": "phrase"}
+        unclear = [x for x in unclear if x[0] != "window"]
+    named = metric_from_phrase(intent.get("metric_phrase"))
+    if named and dec.get("mode") != "lookup":  # a named metric is never asked about (Q19)
+        dec["metric"] = named
+        dec["chain"] = METRIC_CHAIN.get(named, dec.get("chain"))
+        dec["checks"]["metric"] = {"pick": named, "rule": "phrase"}
+        unclear = [x for x in unclear if x[0] not in ("chain", "metric")]
+        answers = {**answers, "metric_named": {"noul": 1.0}}
+    elif named and dec.get("lookup") != "top_products":
+        dec["metric"] = named
+        unclear = [x for x in unclear if x[0] != "metric"]
+        answers = {**answers, "metric_named": {"noul": 1.0}}
     mn = answers.get("metric_named", {}).get("noul")
     if mn is not None:
         dec["checks"]["metric_named"] = {

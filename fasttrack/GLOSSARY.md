@@ -65,3 +65,13 @@ Every term here was misread by an agent at least once and then corrected by the 
 
 ## Who changed the data?
 Before saying "Juli changed X", check the actor or source field of the row (Connector, file import, Seller Centre, the owner). Don't assume.
+
+## Juli Chat terms (batch-1123-a, owner 2026-11-23)
+| Term | Means |
+|---|---|
+| **ROAS hoà vốn** | registry `roas_break_even`: GMV ÷ what an order keeps after giá vốn, fees and vouchers, before ads. The ROAS at which profit after ads is 0. |
+| **Ngày sale** | a double day (1.1 … 12.12), the 15th and the 25th (`shopee_kpi.flow_glm.calendar_row`). Marked in comparisons; a sale week is never the baseline. |
+| **Giá vốn** | the cost of goods, VAT-inclusive, per unit / item. Missing giá vốn means profit is not trusted. |
+| **Tuần** / **tuần trước** / **tuần này** | a week is Mon–Sun. "Tuần trước" = the last complete Mon–Sun. "Tuần này" = Monday to the newest complete day, against the same days last week. |
+| **7 ngày qua** | the last 7 complete days. |
+| **Đề xuất card** | a card in the seller's Đề xuất tab. Chat points to an existing one (flagging duplicates) or drafts a Draft card; it never sends or executes one. |

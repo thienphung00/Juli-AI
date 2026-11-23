@@ -69,6 +69,16 @@ class _Out:
         await self.sink.emit(event)
 
 
+NO_ENTITY_DATA_VI = "Juli chưa có số liệu này"
+
+
+async def _anchor(data: DataPort, as_of: date) -> date:
+    """The newest complete day held, never later than `as_of`: where every window is anchored."""
+    rows = await data.shop_daily(as_of)
+    latest = max((r["day"] for r in rows if r["complete"]), default=None)
+    return min(as_of, latest) if latest else as_of
+
+
 def _platform_has_analytics(platform: str) -> bool:
     from juli_backend.services.capabilities.registry import Route, can
 
@@ -172,6 +182,16 @@ async def _run(
     max_intents: int | None,
 ) -> None:
     template: Template | None = TEMPLATE_BY_KEY.get(req.template) if req.template else None
+    # The window the seller sees is the window that runs (B2): one anchor per ask, kept in
+    # `pending` across a clarifying choice.
+    pinned = (req.pending or {}).get("anchor") if req.choice else None
+    if pinned:
+        label_day = date.fromisoformat(pinned)
+    elif _platform_has_analytics(req.platform):
+        label_day = await _anchor(data, as_of)
+    else:
+        label_day = as_of
+    as_of = label_day if pinned else as_of
     blocks: list[tuple[dict[str, Any], dict[str, Any]]] = []  # (intent, decision)
     more: list[dict[str, Any]] = []
     if req.template and template is None:
@@ -240,7 +260,8 @@ async def _run(
             await _unsupported(out, result, req.platform, _other_platform(intent, req.platform))
             continue
         if dec["outcome"] == "needs_choice":
-            ev = routing.needs_choice_event(dec, intent, labels, as_of, dec.get("turns", 0))
+            ev = routing.needs_choice_event(dec, intent, labels, label_day, dec.get("turns", 0))
+            ev["pending"]["anchor"] = label_day.isoformat()
             ev["pending"]["restated"] = restated
             ev["pending"]["more"] = more
             await out.emit(ev)
@@ -279,6 +300,18 @@ async def _answer(
     restated: str,
     template: Template | None,
 ) -> None:
+    entity = routing.entity_kind(intent)
+    if entity:  # Q17: no reader filters by this entity yet -> refuse, never a shop number
+        await out.emit(
+            {
+                "type": "label",
+                "stop_reason": "data_missing",
+                "text_vi": NO_ENTITY_DATA_VI,
+                "detail_vi": None,
+            }
+        )
+        result.stop_reasons.append("data_missing")
+        return
     mode = dec.get("mode", "why")
     preset = dec.get("window") or "last_7d_vs_prev_7d"
     item_id: str | None = dec.get("item_id")
@@ -304,6 +337,7 @@ async def _answer(
                         "remaining": [["product", [o["value"] for o in opts]]],
                         "turns": dec.get("turns", 0),
                         "restated": restated,
+                        "anchor": as_of.isoformat(),
                     },
                 }
             )

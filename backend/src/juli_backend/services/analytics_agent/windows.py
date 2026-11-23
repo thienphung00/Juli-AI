@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+
+from juli_backend.services.shopee_kpi.flow_glm import calendar_row
 
 WEEKDAYS = ["thứ Hai", "thứ Ba", "thứ Tư", "thứ Năm", "thứ Sáu", "thứ Bảy", "Chủ nhật"]
 
@@ -37,14 +40,43 @@ def _clamp_day(y: int, m: int, day: int) -> date:
     return date(y, m, min(day, (nxt - timedelta(days=1)).day))
 
 
+def is_sale_day(d: date) -> bool:
+    """Sale days: double days (11/11, 12/12 ...), the 15th and the 25th: the one calendar of
+    `shopee_kpi.flow_glm.calendar_row`."""
+    cal = calendar_row(d)
+    return bool(cal["double_day"] or cal["day15"] or cal["day25"])
+
+
 def campaign_days(a: date, b: date) -> list[date]:
-    """Shopee double days (11/11, 12/12 ...): day == month."""
+    """Sale days in [a, b] (double days, 15th, 25th)."""
     out, d = [], a
     while d <= b:
-        if d.day == d.month:
+        if is_sale_day(d):
             out.append(d)
         d += timedelta(days=1)
     return out
+
+
+# One phrase -> one window (J2): the model never decides what "last week" means.
+_PHRASES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(r"tuần\s+(trước|vừa rồi|qua)|last\s+(full\s+)?week|previous\s+week", re.I),
+        "last_full_week_vs_week_before",
+    ),
+    (re.compile(r"tuần\s+này|this\s+week", re.I), "this_week_vs_same_days_last_week"),
+    (
+        re.compile(r"7\s*ngày\s*(qua|gần nhất|vừa rồi)|(last|past)\s+7\s+days", re.I),
+        "last_7d_vs_prev_7d",
+    ),
+)
+
+
+def window_from_phrase(phrase: str | None) -> str | None:
+    """The preset a time phrase names, or None when it names none."""
+    for rx, preset in _PHRASES:
+        if phrase and rx.search(phrase):
+            return preset
+    return None
 
 
 def build_windows(
@@ -67,6 +99,10 @@ def build_windows(
         w = Windows(
             preset, (a_ - timedelta(days=6), a_), (a_ - timedelta(days=13), a_ - timedelta(days=7))
         )
+    elif preset == "this_week_vs_same_days_last_week":
+        mon = a_ - timedelta(days=a_.weekday())  # a_ = the newest complete day
+        last_mon = mon - timedelta(days=7)
+        w = Windows(preset, (mon, a_), (last_mon, last_mon + (a_ - mon)))
     elif preset == "last_full_week_vs_week_before":
         end = a_ - timedelta(days=(a_.weekday() + 1) % 7) if a_.weekday() != 6 else a_
         w = Windows(
