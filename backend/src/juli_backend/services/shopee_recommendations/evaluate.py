@@ -1800,7 +1800,7 @@ def _affiliate_without_orders(
         base_label="gmv_lien_ket",
         lift_scale=size_scale(float(change), config.COMMISSION_REF_POINTS),
     )
-    certain = {
+    certain: dict[str, Any] = {
         "kind": "affiliate",
         "commission_pct_before": None if cur is None else num(round(cur, 2)),
         "commission_pct_after": num(new_rate * 100),
