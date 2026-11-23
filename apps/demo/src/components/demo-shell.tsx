@@ -13,7 +13,7 @@ import { resetReviewerSample } from "../lib/reviewer/sample-store";
 import { clearActiveShop, storeActiveShop } from "../lib/shop-session";
 import { storeReviewerRecord, type ReviewerShopOption } from "../lib/reviewer/session";
 import { useJuliEnabled } from "../lib/juli/enabled";
-import { useShopPlatform } from "../lib/shopee-analytics/platform";
+import { useShopPlatformState } from "../lib/shopee-analytics/platform";
 import { ShopReportProvider, useShopReport } from "../lib/shop-report/shop-report-context";
 import { buildGoogleAuthorizeUrl, clearAuthSession } from "../lib/supabase-auth";
 import { AppNavigation } from "./app-shell/app-navigation";
@@ -70,8 +70,10 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
   const { feedback, resetMockState } = useDemoState();
-  const { state } = useShopReport();
-  const platform = useShopPlatform(state);
+  const { state, reload } = useShopReport();
+  const platformState = useShopPlatformState(state);
+  // Only read once the platform is known: the guards below keep an unknown platform off every screen.
+  const platform = platformState.platform ?? "tiktok";
   const juliEnabled = useJuliEnabled(state);
   const reviewer = useReviewer();
   const entry = useLandingEntry();
@@ -159,8 +161,29 @@ function DemoShellContent({ children }: { children: ReactNode }) {
     return <>{children}</>;
   }
 
+  // The marketplace of an acting shop could not be read: never guess (a Shopee shop must not render as TikTok).
+  if ("shop" in state && platformState.phase === "error") {
+    return (
+      <div className="app-shell">
+        <div className="qv-empty" data-testid="platform-error" role="alert">
+          <p>Chưa tải được thông tin shop.</p>
+          <button
+            className="qv-link"
+            onClick={() => {
+              platformState.retry();
+              reload();
+            }}
+            type="button"
+          >
+            Thử lại
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // The marketplace of an acting shop is still being asked: neutral state, never the TikTok chrome.
-  if (state.status === "loading") {
+  if (state.status === "loading" || ("shop" in state && platformState.phase === "loading")) {
     return (
       <div className="app-shell">
         <p className="text-muted" role="status">
@@ -191,8 +214,8 @@ function DemoShellContent({ children }: { children: ReactNode }) {
         </p>
         {/* P50 (D68.8): signed-in sellers only; partner trial accounts and the sample never ask. */}
         {"token" in state && !reviewer ? <TermsAcceptanceStrip token={state.token} /> : null}
-        {state.status === "ready" ? <TermStrip shopId={state.shop.id} token={state.token} /> : null}
-        {state.status === "ready" && !reviewer ? <PermissionStrip shopId={state.shop.id} token={state.token} /> : null}
+        {state.status === "ready" || (state.status === "empty" && platform === "tiktok") ? <TermStrip shopId={state.shop.id} token={state.token} /> : null}
+        {(state.status === "ready" || (state.status === "empty" && platform === "tiktok")) && !reviewer ? <PermissionStrip shopId={state.shop.id} token={state.token} /> : null}
         <div className="app-shell__split">
           <main className="app-content">{sampleRedirect ? null : page}</main>
           <ReviewerGuide onSwitchToSandbox={guideSwitch} />

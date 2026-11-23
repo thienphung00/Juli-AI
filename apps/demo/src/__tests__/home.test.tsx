@@ -13,6 +13,10 @@ import { ShopReportProvider } from "../lib/shop-report/shop-report-context";
 import { AUTH_SESSION_STORAGE_KEY } from "../lib/supabase-auth";
 import { vnClock, vnWeekdayDate } from "../lib/vn-format";
 
+// W3 U-4: these tests exercise the ADR-108 TikTok Home, which stays behind the one switch.
+process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS = "1";
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), usePathname: () => "/" }));
+
 /**
  * Trang chủ (AC-8.5, ADR-109 decision 3): GMV / Đơn / AOV cards and the
  * 5-stream matrix from the ADR-108 report. Replaces the two-launcher Home

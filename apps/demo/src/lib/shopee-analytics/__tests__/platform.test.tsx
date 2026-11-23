@@ -2,113 +2,132 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ShopReportState } from "../../shop-report/shop-report-context";
-import { PLATFORM_PROBE_TIMEOUT_MS, probeShopPlatform, resetShopPlatformCache, useShopPlatform, useShopPlatformResolved } from "../platform";
+import {
+  PLATFORM_ATTEMPTS,
+  PLATFORM_BACKOFF_MS,
+  PLATFORM_READ_TIMEOUT_MS,
+  probeShopPlatform,
+  resetShopPlatformCache,
+  useShopPlatformState,
+} from "../platform";
 
 function respond(status: number, body: unknown): typeof fetch {
   return vi.fn(async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
 }
+const calls = (f: typeof fetch) => (f as unknown as ReturnType<typeof vi.fn>).mock.calls as [string, RequestInit][];
 
 beforeEach(() => resetShopPlatformCache());
+afterEach(() => vi.useRealTimers());
 
-describe("which marketplace the acting shop is on", () => {
-  it("shops/me carrying a platform decides, with no probe", async () => {
+describe("which marketplace the acting shop is on (only /v1/shops/me says)", () => {
+  it("shops/me carrying a platform decides, with exactly one read", async () => {
     const f = respond(200, { platform: "shopee" });
     expect(await probeShopPlatform("t", "s0", f)).toBe("shopee");
-    const calls = (f as unknown as ReturnType<typeof vi.fn>).mock.calls as [string, RequestInit][];
-    expect(calls).toHaveLength(1);
-    expect(calls[0]![0]).toBe("/v1/shops/me");
-    expect(calls[0]![1].headers).toMatchObject({ Authorization: "Bearer t", "X-Shop-Id": "s0" });
+    expect(calls(f)).toHaveLength(1);
+    expect(calls(f)[0]![0]).toBe("/v1/shops/me");
+    expect(calls(f)[0]![1].headers).toMatchObject({ Authorization: "Bearer t", "X-Shop-Id": "s0" });
     expect(await probeShopPlatform("t", "s0b", respond(200, { platform: "tiktok" }))).toBe("tiktok");
   });
 
-  it("a shop the Shopee API answers is Shopee (shops/me without platform falls back to the probe)", async () => {
-    const f = vi.fn(async (url: string) => (url === "/v1/shops/me" ? new Response(JSON.stringify({ id: "s1" }), { status: 200 }) : new Response("{}", { status: 200 }))) as unknown as typeof fetch;
-    expect(await probeShopPlatform("t", "s1", f)).toBe("shopee");
-    const [url, init] = (f as unknown as ReturnType<typeof vi.fn>).mock.calls[1] as [string, RequestInit];
-    expect(url).toBe("/v1/demo/shopee/overview?period=30d");
-    expect(init.headers).toMatchObject({ Authorization: "Bearer t", "X-Shop-Id": "s1" });
+  it("never probes a Shopee read route: those answer TikTok shops too", async () => {
+    const f = respond(200, { id: "s1" });
+    expect(await probeShopPlatform("t", "s1", f)).toBeNull();
+    expect(await probeShopPlatform("t", "s1", respond(409, { detail: { code: "no_shopee_data" } }))).toBeNull();
+    expect(calls(f).map(([url]) => url)).toEqual(["/v1/shops/me"]);
   });
 
-  it("a shop with no data yet is still Shopee", async () => {
-    expect(await probeShopPlatform("t", "s2", respond(409, { detail: { code: "no_shopee_data", message: "x" } }))).toBe("shopee");
-  });
-
-  it("409 not_a_shopee_shop is TikTok", async () => {
-    expect(await probeShopPlatform("t", "s3", respond(409, { detail: { code: "not_a_shopee_shop", message: "x" } }))).toBe("tiktok");
-  });
-
-  it("an unclear failure is not remembered and not Shopee", async () => {
+  it("an unclear answer is unknown, not remembered and not TikTok", async () => {
     expect(await probeShopPlatform("t", "s4", respond(500, {}))).toBeNull();
-    expect(await probeShopPlatform("t", "s4", respond(200, {}))).toBe("shopee");
+    expect(await probeShopPlatform("t", "s4", respond(200, { platform: "other" }))).toBeNull();
+    expect(await probeShopPlatform("t", "s4", respond(200, { platform: "shopee" }))).toBe("shopee");
   });
 
   it("remembers the answer per shop", async () => {
     const f = respond(200, { platform: "shopee" });
     await probeShopPlatform("t", "s5", f);
     await probeShopPlatform("t", "s5", f);
-    expect((f as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
+    expect(calls(f)).toHaveLength(1);
   });
 
-  it("the hook answers tiktok until proven otherwise, then shopee", async () => {
-    const f = respond(200, {});
-    const state: ShopReportState = { status: "empty", token: "t", shop: { id: "s6", name: "Shop" } };
-    function Probe() {
-      return <span data-testid="p">{useShopPlatform(state, f)}</span>;
-    }
-    render(<Probe />);
-    expect(screen.getByTestId("p")).toHaveTextContent("tiktok");
-    await waitFor(() => expect(screen.getByTestId("p")).toHaveTextContent("shopee"));
-  });
-
-  it("anonymous visitors and sessions without a shop never probe", async () => {
-    const f = respond(200, {});
-    function Probe({ state }: { state: ShopReportState }) {
-      return <span data-testid="p">{useShopPlatform(state, f)}</span>;
-    }
-    render(<Probe state={{ status: "anonymous", envelope: null }} />);
-    render(<Probe state={{ status: "no-shop", token: "t" }} />);
-    expect(f).not.toHaveBeenCalled();
-    expect(screen.getAllByTestId("p").map((e) => e.textContent)).toEqual(["tiktok", "tiktok"]);
+  it("a stalled read ends as unknown after the timeout", async () => {
+    vi.useFakeTimers();
+    const stalled = vi.fn(() => new Promise<Response>(() => undefined)) as unknown as typeof fetch;
+    const pending = probeShopPlatform("t", "s6", stalled);
+    await vi.advanceTimersByTimeAsync(PLATFORM_READ_TIMEOUT_MS + 1);
+    expect(await pending).toBeNull();
   });
 });
 
-/** W3 U-3: Quyết định of a TikTok shop sat on "Đang tải đề xuất…" while the platform question was open. */
-describe("the resolved platform of a TikTok shop (Quyết định waits on it)", () => {
-  afterEach(() => vi.useRealTimers());
-
-  function Resolved({ state, f }: { state: ShopReportState; f: typeof fetch }) {
-    return <span data-testid="r">{String(useShopPlatformResolved(state, f))}</span>;
+describe("the platform phase the screens wait on", () => {
+  const loading = (id: string): ShopReportState => ({ status: "loading", token: "t", shop: { id, name: "Shop" } });
+  function Phase({ state, f }: { state: ShopReportState; f: typeof fetch }) {
+    const s = useShopPlatformState(state, f);
+    return (
+      <>
+        <span data-testid="p">{`${s.phase}:${String(s.platform)}`}</span>
+        <button onClick={s.retry} type="button">
+          retry
+        </button>
+      </>
+    );
   }
-  const tiktokShop = { id: "s7", name: "Shop" };
 
-  it("answers tiktok from shops/me in every state that carries the shop", async () => {
-    const states: ShopReportState[] = [
-      { status: "loading", token: "t", shop: tiktokShop },
-      { status: "ready", token: "t", shop: { id: "s8", name: "Shop" }, envelope: {} as never },
-      { status: "error", token: "t", shop: { id: "s9", name: "Shop" } },
-    ];
-    for (const state of states) {
-      const { unmount } = render(<Resolved f={respond(200, { platform: "tiktok" })} state={state} />);
-      await waitFor(() => expect(screen.getByTestId("r")).toHaveTextContent("tiktok"));
-      unmount();
-    }
+  it("TikTok resolves from shops/me", async () => {
+    render(<Phase f={respond(200, { platform: "tiktok" })} state={loading("t1")} />);
+    expect(screen.getByTestId("p")).toHaveTextContent("loading:null");
+    await waitFor(() => expect(screen.getByTestId("p")).toHaveTextContent("ready:tiktok"));
   });
 
-  it("is null only while the shell is resolving who the shop is", () => {
-    render(<Resolved f={respond(200, {})} state={{ status: "resolving" }} />);
-    expect(screen.getByTestId("r")).toHaveTextContent("null");
+  it("Shopee resolves from shops/me", async () => {
+    render(<Phase f={respond(200, { platform: "shopee" })} state={loading("t2")} />);
+    await waitFor(() => expect(screen.getByTestId("p")).toHaveTextContent("ready:shopee"));
   });
 
-  it("a platform read that never answers ends as unclear (tiktok), not as a wait with no end", async () => {
+  it("a stalled shops/me never renders TikTok: loading, bounded retries, then an error with a retry", async () => {
     vi.useFakeTimers();
     const stalled = vi.fn(() => new Promise<Response>(() => undefined)) as unknown as typeof fetch;
-    render(<Resolved f={stalled} state={{ status: "loading", token: "t", shop: tiktokShop }} />);
-    expect(screen.getByTestId("r")).toHaveTextContent("null");
+    render(<Phase f={stalled} state={loading("t3")} />);
+    expect(screen.getByTestId("p")).toHaveTextContent("loading:null");
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(PLATFORM_PROBE_TIMEOUT_MS + 1);
+      await vi.advanceTimersByTimeAsync(PLATFORM_READ_TIMEOUT_MS + 1);
     });
-    expect(screen.getByTestId("r")).toHaveTextContent("tiktok");
-    // Unclear is not remembered: the next visit asks again.
-    expect(await probeShopPlatform("t", "s7", respond(200, { platform: "tiktok" }))).toBe("tiktok");
+    expect(screen.getByTestId("p")).toHaveTextContent("loading:null"); // retrying, still neutral
+    const total = PLATFORM_ATTEMPTS * PLATFORM_READ_TIMEOUT_MS + PLATFORM_BACKOFF_MS.reduce((a, b) => a + b, 0);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(total);
+    });
+    expect(screen.getByTestId("p")).toHaveTextContent("error:null");
+    expect(calls(stalled)).toHaveLength(PLATFORM_ATTEMPTS);
+    // The retry button asks again from the start.
+    await act(async () => {
+      screen.getByRole("button", { name: "retry" }).click();
+    });
+    expect(screen.getByTestId("p")).toHaveTextContent("loading:null");
+    expect(calls(stalled)).toHaveLength(PLATFORM_ATTEMPTS + 1);
+  });
+
+  it("a failing shops/me that recovers on a retry resolves", async () => {
+    vi.useFakeTimers();
+    const f = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("{}", { status: 503 }))
+      .mockResolvedValue(new Response(JSON.stringify({ platform: "shopee" }), { status: 200 })) as unknown as typeof fetch;
+    render(<Phase f={f} state={loading("t4")} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PLATFORM_BACKOFF_MS[0]! + 10);
+    });
+    expect(screen.getByTestId("p")).toHaveTextContent("ready:shopee");
+  });
+
+  it("anonymous visitors and sessions without a shop never read it", () => {
+    const f = respond(200, {});
+    render(<Phase f={f} state={{ status: "anonymous", envelope: null }} />);
+    expect(f).not.toHaveBeenCalled();
+    expect(screen.getByTestId("p")).toHaveTextContent("none:tiktok");
+  });
+
+  it("is loading while the shell resolves who the shop is", () => {
+    render(<Phase f={respond(200, {})} state={{ status: "resolving" }} />);
+    expect(screen.getByTestId("p")).toHaveTextContent("loading:null");
   });
 });

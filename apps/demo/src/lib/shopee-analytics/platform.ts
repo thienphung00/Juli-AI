@@ -1,22 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type { NavPlatform } from "../app-navigation";
 import type { ShopReportState } from "../shop-report/shop-report-context";
-import { DEMO_SHOPEE_BASE, ShopeeApiError, createShopeeApi } from "./client";
 
 /**
- * Which marketplace the acting shop is on, for the seller shell's navigation and header (ADR-120 d.2).
+ * Which marketplace the acting shop is on, for the seller shell's navigation, header and screens (ADR-120 d.2).
  *
- * `GET /v1/shops/me` returns `platform` ("tiktok" | "shopee"); that is read first. A backend that
- * does not send it yet is probed through the Shopee read API instead: `/v1/demo/shopee/*` answers a
- * TikTok shop with 409 `not_a_shopee_shop` before it reads anything, and answers a Shopee shop with
- * data (or 409 `no_shopee_data`). The answer is kept per shop for the page's lifetime; an unclear
- * failure is treated as TikTok and not remembered.
+ * The answer comes ONLY from `GET /v1/shops/me` (`platform`: "tiktok" | "shopee"). Nothing is guessed from another
+ * route: the Shopee read routes answer TikTok shops too (W3), so a 409 or a 200 there says nothing about the
+ * marketplace. An answer is kept per shop for the page's lifetime.
+ *
+ * A read that fails or stalls leaves the platform UNKNOWN, never "tiktok": a Shopee shop must not render as TikTok.
+ * The hook retries a bounded number of times with growing pauses, then reports `phase: "error"` so the screen can
+ * offer a retry button.
  */
 
 const known = new Map<string, NavPlatform>();
+
+/** How long one `shops/me` read may stay open. */
+export const PLATFORM_READ_TIMEOUT_MS = 8_000;
+/** Reads before giving up, and the pauses between them (bounded backoff). */
+export const PLATFORM_ATTEMPTS = 3;
+export const PLATFORM_BACKOFF_MS: readonly number[] = [1_000, 3_000];
 
 async function platformFromShopsMe(token: string, shopId: string, fetchImpl?: typeof fetch): Promise<NavPlatform | null> {
   try {
@@ -33,54 +40,18 @@ async function platformFromShopsMe(token: string, shopId: string, fetchImpl?: ty
   }
 }
 
-/** How long the platform question may stay open before it is given up as "unclear" (W3 U-3). */
-export const PLATFORM_PROBE_TIMEOUT_MS = 10_000;
-
-/**
- * The question always ends: a read that never answers (a stalled `shops/me`, a dropped connection) used to leave
- * `useShopPlatformResolved` at `null` for good, and Quyết định then sat on "Đang tải đề xuất…" with no way out.
- * After the timeout the answer is `null` ("unclear": TikTok for the screens, not remembered, asked again next visit).
- */
+/** One read of the platform: the answer, or null when unknown (failed, malformed, or no answer in time). */
 export function probeShopPlatform(token: string, shopId: string, fetchImpl?: typeof fetch): Promise<NavPlatform | null> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(null), PLATFORM_PROBE_TIMEOUT_MS);
-    probeShopPlatformOnce(token, shopId, fetchImpl).then(
-      (platform) => {
-        clearTimeout(timer);
-        resolve(platform);
-      },
-      () => {
-        clearTimeout(timer);
-        resolve(null);
-      },
-    );
-  });
-}
-
-async function probeShopPlatformOnce(
-  token: string,
-  shopId: string,
-  fetchImpl?: typeof fetch,
-): Promise<NavPlatform | null> {
   const cached = known.get(shopId);
-  if (cached) return cached;
-  const declared = await platformFromShopsMe(token, shopId, fetchImpl);
-  if (declared) {
-    known.set(shopId, declared);
-    return declared;
-  }
-  try {
-    await createShopeeApi({ base: DEMO_SHOPEE_BASE, token, shopId, fetchImpl }).overview({ period: "30d" });
-    known.set(shopId, "shopee");
-    return "shopee";
-  } catch (error) {
-    if (error instanceof ShopeeApiError && error.status === 409) {
-      const platform = error.code === "not_a_shopee_shop" ? "tiktok" : "shopee";
-      known.set(shopId, platform);
-      return platform;
-    }
-    return null;
-  }
+  if (cached) return Promise.resolve(cached);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), PLATFORM_READ_TIMEOUT_MS);
+    void platformFromShopsMe(token, shopId, fetchImpl).then((platform) => {
+      clearTimeout(timer);
+      if (platform) known.set(shopId, platform);
+      resolve(platform);
+    });
+  });
 }
 
 /** Test hook: forget what was learned. */
@@ -88,44 +59,60 @@ export function resetShopPlatformCache(): void {
   known.clear();
 }
 
-/**
- * The acting shop's platform, or `null` while it is still being asked (a screen that must not flash
- * the wrong marketplace waits for the answer). Without a shop (`state` null, anonymous, no-shop) it is
- * TikTok at once; while the shell is still resolving who the shop is, `null`.
- */
-export function useShopPlatformResolved(state: ShopReportState | null, fetchImpl?: typeof fetch): NavPlatform | null {
-  const shopId = state && "shop" in state ? state.shop.id : null;
-  const token = state && "token" in state ? state.token : null;
-  const [answer, setAnswer] = useState<{ shopId: string; platform: NavPlatform } | null>(null);
-  useEffect(() => {
-    if (!shopId || !token) return;
-    let live = true;
-    void probeShopPlatform(token, shopId, fetchImpl).then((platform) => {
-      if (live) setAnswer({ shopId, platform: platform ?? "tiktok" });
-    });
-    return () => {
-      live = false;
-    };
-  }, [shopId, token, fetchImpl]);
-  if (state?.status === "resolving") return null;
-  if (!state || !shopId || !token) return "tiktok";
-  return known.get(shopId) ?? (answer && answer.shopId === shopId ? answer.platform : null);
+export type PlatformPhase = "none" | "loading" | "ready" | "error";
+
+export interface ShopPlatformState {
+  /** The platform when `phase` is "ready" (or "none": no shop, so TikTok's landing); null while loading or failed. */
+  readonly platform: NavPlatform | null;
+  readonly phase: PlatformPhase;
+  /** After "error": ask again from the start. */
+  readonly retry: () => void;
 }
 
-export function useShopPlatform(state: ShopReportState, fetchImpl?: typeof fetch): NavPlatform {
-  const shopId = "shop" in state ? state.shop.id : null;
-  const token = "token" in state ? state.token : null;
-  const [answer, setAnswer] = useState<{ shopId: string; platform: NavPlatform } | null>(null);
+/**
+ * The acting shop's platform as a phase: `none` without a shop (anonymous, no-shop: TikTok's landing screens),
+ * `loading` while the shell resolves the session or `shops/me` is being asked (bounded retries), `ready` with the
+ * answer, `error` when every read failed.
+ */
+export function useShopPlatformState(state: ShopReportState | null, fetchImpl?: typeof fetch): ShopPlatformState {
+  const shopId = state && "shop" in state ? state.shop.id : null;
+  const token = state && "token" in state ? state.token : null;
+  const [round, setRound] = useState(0);
+  const [answer, setAnswer] = useState<{ shopId: string; round: number; platform: NavPlatform | null } | null>(null);
+  const retry = useCallback(() => setRound((r) => r + 1), []);
+
   useEffect(() => {
     if (!shopId || !token) return;
     let live = true;
-    void probeShopPlatform(token, shopId, fetchImpl).then((platform) => {
-      if (live && platform) setAnswer({ shopId, platform });
-    });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = (n: number) => {
+      void probeShopPlatform(token, shopId, fetchImpl).then((platform) => {
+        if (!live) return;
+        if (platform || n + 1 >= PLATFORM_ATTEMPTS) {
+          setAnswer({ shopId, round, platform });
+          return;
+        }
+        timer = setTimeout(() => attempt(n + 1), PLATFORM_BACKOFF_MS[Math.min(n, PLATFORM_BACKOFF_MS.length - 1)]);
+      });
+    };
+    attempt(0);
     return () => {
       live = false;
+      if (timer) clearTimeout(timer);
     };
-  }, [shopId, token, fetchImpl]);
-  if (!shopId) return "tiktok";
-  return answer && answer.shopId === shopId ? answer.platform : (known.get(shopId) ?? "tiktok");
+  }, [shopId, token, fetchImpl, round]);
+
+  if (state?.status === "resolving") return { platform: null, phase: "loading", retry };
+  if (!state || !shopId || !token) return { platform: "tiktok", phase: "none", retry };
+  const cached = known.get(shopId);
+  if (cached) return { platform: cached, phase: "ready", retry };
+  if (answer && answer.shopId === shopId && answer.round === round) {
+    return answer.platform ? { platform: answer.platform, phase: "ready", retry } : { platform: null, phase: "error", retry };
+  }
+  return { platform: null, phase: "loading", retry };
+}
+
+/** The platform, or null while it is unknown (loading or failed). Without a shop it is TikTok. */
+export function useShopPlatformResolved(state: ShopReportState | null, fetchImpl?: typeof fetch): NavPlatform | null {
+  return useShopPlatformState(state, fetchImpl).platform;
 }

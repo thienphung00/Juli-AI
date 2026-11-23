@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { resolveTab } from "../lib/quyet-dinh/copy";
-import { useShopPlatformResolved } from "../lib/shopee-analytics/platform";
+import { useShopPlatformState } from "../lib/shopee-analytics/platform";
 import { useShopReportOptional } from "../lib/shop-report/shop-report-context";
 import { readActiveShop, type ActiveShop } from "../lib/shop-session";
 import { readAuthSession, type AuthSession } from "../lib/supabase-auth";
@@ -57,7 +57,8 @@ export function DecisionsPageClient() {
   // A Shopee shop gets the Shopee card screens (ADR-120); the marketplace is asked of the shell's
   // report state (`shops/me` → `platform`, else the Shopee probe). Without the shell: TikTok.
   const report = useShopReportOptional();
-  const platform = useShopPlatformResolved(report?.state ?? null);
+  const platformState = useShopPlatformState(report?.state ?? null);
+  const platform = platformState.platform;
   const [session, setSession] = useState<AuthSession | null | undefined>(
     undefined,
   );
@@ -107,6 +108,17 @@ export function DecisionsPageClient() {
   }
 
   if (session && shop && platform === null) {
+    // The platform is unknown, never guessed: wait (bounded retries), then offer a retry.
+    if (platformState.phase === "error") {
+      return (
+        <div className="qv-empty" data-testid="platform-error" role="alert">
+          <p>Chưa tải được thông tin shop.</p>
+          <button className="qv-link" onClick={platformState.retry} type="button">
+            Thử lại
+          </button>
+        </div>
+      );
+    }
     return <p className="demo-kicker">Đang tải đề xuất…</p>;
   }
 
