@@ -23,6 +23,8 @@ export interface FillJobsState {
   pausedUntil?: number;
   /** 0.3.27 (contract C): read-backs handed to the readers, by job id, and when (ms). */
   readbacks?: Record<string, number>;
+  /** batch-1123-a2 C-K1: served jobs that did not parse, already reported failed (last 50). */
+  malformed?: string[];
 }
 
 /** The shared daily request budget's counter. */

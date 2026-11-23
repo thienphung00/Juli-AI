@@ -413,7 +413,8 @@ describe("F3.1 revert jobs (contract B)", () => {
     expect(parseFillJob(voucherEnd())).toMatchObject({ kind: "voucher_end", mode: "revert", payload: { end: { id: "7700000000000001", code: "SHOPVGBB48" } } });
     expect(parseFillJob(voucherEnd({ mode: undefined }))).toBeNull();
     expect(parseFillJob(voucherEnd({ open_path: "/portal/marketing/vouchers/new" }))).toBeNull();
-    expect(parseFillJob(voucherEnd({ voucher_id: "x1", code: undefined, name: undefined }))).toBeNull();
+    // a2 C-K1 (E115): a code-like voucher_id ("x1") is now read as the code; only a non-code id is refused
+    expect(parseFillJob(voucherEnd({ voucher_id: "x-1", code: undefined, name: undefined }))).toBeNull();
     expect(parseFillJob(voucherJob({ mode: "revert" }))).toBeNull();
     expect(parseFillJob(affiliateJob({ mode: "revert" }))).toMatchObject({ mode: "revert" });
   });

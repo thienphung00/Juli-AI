@@ -74,6 +74,7 @@ const REFUSAL: Record<string, string> = {
   inactive: "",
   unpaired: "Connector chưa kết nối với Juli. Kết nối lại rồi mở trang từ Juli.",
   unknown_job: "Juli không còn thấy việc này (đã hủy hoặc đã xong).",
+  malformed_job: "Việc này thiếu thông tin nên Juli không điền. Juli đã được báo lỗi.",
   wrong_page: "Việc này thuộc trang khác nên Juli không điền vào trang này.",
   budget: "Hôm nay Connector đã dùng hết lượt truy cập Seller Centre. Thử lại vào ngày mai.",
   error: "Juli chưa lấy được nội dung việc này. Thử lại sau.",
