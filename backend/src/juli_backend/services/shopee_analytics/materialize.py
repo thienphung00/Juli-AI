@@ -574,7 +574,7 @@ async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable
     series: dict[period_spread.Period, dict[date, ShopDay]] = {}  # one read per period
     # P101 W3: a shop's daily analytics (none for a Shopee shop: nothing below changes for it)
     analytics = await tiktok_days.load_days(session, shop_id, wanted)
-    analytics_known = await tiktok_days.analytics_days(session, shop_id)
+    analytics_known = await tiktok_days.headline_days(session, shop_id)
     for day in wanted:
         ctx = replace(ctx0, rules=ctx0.rules.for_month(f"{day:%Y-%m}"))
         view = await service.load_view(session, shop_id, ctx, Window(day, day))

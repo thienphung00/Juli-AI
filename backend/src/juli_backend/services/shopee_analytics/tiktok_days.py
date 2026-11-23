@@ -7,21 +7,25 @@ refund cost rule, no tax). For a shop whose analytics rows (``analytics_performa
 product grain, daily) cover the day, :func:`overlay` then puts TikTok's own numbers on those rows,
 as Shopee's daily shop totals stand on a Shopee day:
 
-- headline GMV / đơn / units / views / clicks = the A-34 ``total_performance`` of the day's
-  products (owner 19/11 Q2: the analytics total), ``complete`` True, sources ``analytics``;
+- headline GMV / đơn / units = the day's SHOP-grain analytics row (shop performance, grain
+  ``shop``; owner 19/11 Q2: the analytics shop total -- an order with two products is one đơn),
+  views / clicks = the products' A-34 totals, ``complete`` True, sources ``analytics``;
 - product rows = each product's A-34 total, with the order lines' profit and line figures;
 - source rows (decision #7) from the channel blocks kept by the poll (``A34_BLOCKS``), read
   through ``shop_diagnosis.channels`` (the one field map): Thẻ sản phẩm, Video, LIVE (Organic)
   and Tiếp thị liên kết (TTLK) are split over the shop / product totals with
-  :func:`materialize.split_sources`, so they and ``chenh_lech_nguon`` add up to the row exactly;
+  :func:`materialize.split_sources` over the shop total, so the gap between the A-34 sum and the
+  shop-grain total lands in ``chenh_lech_nguon`` (as for Shopee) and the row adds up exactly;
   Tab cửa hàng (``trang_shop``) is stored beside them with its own views / clicks / GMV and is in
-  no sum (its orders column holds 0: the column is NOT NULL, the registry shows "—").
+  no sum (its orders column holds 0: the column is NOT NULL; ``detail.trang_shop_orders_known``
+  is False and the registry / routes return None with ``tab_reports_no_orders``).
   Quảng cáo stays NULL (no ads scope yet).
 
-A day the analytics do not cover (TikTok publishes ~2 days late, or a sandbox whose A-34 answers
-all zeros while it has orders) keeps the order-line rows and records the newest analytics day in
-``detail.analytics_through`` ("Số liệu đến dd/mm"). A shop without analytics rows (every Shopee
-shop) is never touched: :func:`load_days` returns nothing and the rows stay byte-identical.
+A day without a shop-grain analytics row (TikTok publishes ~2 days late), or whose analytics
+are all zero while it has orders (a sandbox), keeps the order-line rows and records the newest
+analytics day in ``detail.analytics_through`` ("Số liệu đến dd/mm"). A shop without analytics
+rows (every Shopee shop) is never touched: :func:`load_days` returns nothing and the rows stay
+byte-identical.
 """
 
 from __future__ import annotations
@@ -47,6 +51,9 @@ A34_BLOCKS_KEY = "A34_BLOCKS"
 #: = ``integrations.tiktok.mapping._A34_TOTAL_KEY``: the list row's own funnel totals.
 A34_TOTAL_KEY = "A34_TOTAL"
 PRODUCT_GRAIN = "product"
+SHOP_GRAIN = "shop"
+#: shop ``detail`` key: the ``trang_shop`` source rows' 0 orders are not a count (decision #7)
+SHOP_TAB_ORDERS_KNOWN_KEY = "trang_shop_orders_known"
 #: the column tag of a figure that came from TikTok's analytics
 ROW_SOURCE = "analytics"
 #: ``detail`` key of a day the analytics do not cover yet: the newest day they do
@@ -90,21 +97,31 @@ class ProductDay:
 
 
 @dataclass(frozen=True)
+class ShopTotal:
+    """The day's shop-grain analytics row: the headline (one đơn per order)."""
+
+    gmv: Decimal
+    orders: int
+    units: int | None
+
+
+@dataclass
 class AnalyticsDay:
     day: date
     products: dict[str, ProductDay] = field(default_factory=dict)
+    shop: ShopTotal | None = None
 
     @property
     def gmv(self) -> Decimal:
-        return sum((p.gmv for p in self.products.values()), ZERO)
+        return self.shop.gmv if self.shop else ZERO
 
     @property
     def orders(self) -> int:
-        return sum(p.orders for p in self.products.values())
+        return self.shop.orders if self.shop else 0
 
     @property
-    def units(self) -> int:
-        return sum(p.units for p in self.products.values())
+    def units(self) -> int | None:
+        return self.shop.units if self.shop else None
 
     @property
     def views(self) -> int | None:
@@ -118,6 +135,8 @@ class AnalyticsDay:
 
     @property
     def active(self) -> bool:
+        if self.shop is not None and (self.shop.gmv or self.shop.orders):
+            return True
         return any(p.active for p in self.products.values())
 
     def channel_sum(self, source: str) -> Counts | None:
@@ -183,9 +202,8 @@ async def load_days(
         await session.execute(
             select(t).where(
                 t.shop_id == shop_id,
-                t.grain == PRODUCT_GRAIN,
+                t.grain.in_((PRODUCT_GRAIN, SHOP_GRAIN)),
                 t.hour_index.is_(None),
-                t.tiktok_product_id.is_not(None),
                 t.start_date >= wanted[0],
                 t.start_date <= wanted[-1],
             )
@@ -196,6 +214,15 @@ async def load_days(
     for row in rows:
         if row.start_date not in keep or not _is_daily(row):
             continue
+        if row.grain == SHOP_GRAIN:
+            day = out.setdefault(row.start_date, AnalyticsDay(row.start_date))
+            orders = row.orders_count if row.orders_count is not None else row.sku_orders
+            day.shop = ShopTotal(
+                Decimal(row.gmv) if row.gmv is not None else ZERO,
+                int(orders or 0),
+                _int(row.items_sold),
+            )
+            continue
         pd = product_day(row)
         if pd is None:
             continue
@@ -203,15 +230,24 @@ async def load_days(
     return out
 
 
-async def analytics_days(session: AsyncSession, shop_id: uuid.UUID) -> list[date]:
-    """Every day the shop has daily product analytics for (none for a Shopee shop)."""
+async def analytics_days(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    grains: tuple[str, ...] = (PRODUCT_GRAIN, SHOP_GRAIN),
+) -> list[date]:
+    """Every day the shop has daily shop / product analytics for (none for a Shopee shop)."""
     t = AnalyticsPerformanceInterval
     found = await session.execute(
         select(t.start_date)
-        .where(t.shop_id == shop_id, t.grain == PRODUCT_GRAIN, t.hour_index.is_(None))
+        .where(t.shop_id == shop_id, t.grain.in_(grains), t.hour_index.is_(None))
         .distinct()
     )
     return sorted(found.scalars().all())
+
+
+async def headline_days(session: AsyncSession, shop_id: uuid.UUID) -> list[date]:
+    """The days with a shop-grain analytics row: the days a headline exists for."""
+    return await analytics_days(session, shop_id, (SHOP_GRAIN,))
 
 
 async def newest_day(session: AsyncSession, shop_id: uuid.UUID) -> date | None:
@@ -224,9 +260,10 @@ async def newest_day(session: AsyncSession, shop_id: uuid.UUID) -> date | None:
 
 
 def covers(day: AnalyticsDay | None, line_orders: int | None) -> bool:
-    """The analytics stand for the day: any count at all, or a day with no order line either (a
-    real zero day). All zeros beside order lines is a day TikTok has not counted (sandbox)."""
-    if day is None:
+    """The analytics stand for the day: a shop-grain row with any count at all, or a day with no
+    order line either (a real zero day). All zeros beside order lines is a day TikTok has not
+    counted (sandbox); no shop-grain row is a day TikTok has not published."""
+    if day is None or day.shop is None:
         return False
     return day.active or not line_orders
 
@@ -298,11 +335,12 @@ def overlay(rows: Any, analytics: AnalyticsDay, *, shop_id: uuid.UUID, day: date
         gmv=gmv,
         orders=orders,
         aov=(gmv / orders).quantize(Decimal("0.01")) if orders else None,
-        units=analytics.units or None,
+        units=analytics.units,
         views=analytics.views,
         product_clicks=analytics.clicks,
         complete=True,
     )
+    shop["detail"] = {**shop["detail"], SHOP_TAB_ORDERS_KNOWN_KEY: False}
     shop["sources"] = {
         **shop["sources"],
         "gmv": ROW_SOURCE,
@@ -445,6 +483,7 @@ __all__ = [
     "analytics_days",
     "covers",
     "flow_table",
+    "headline_days",
     "load_days",
     "mark_through",
     "newest_day",

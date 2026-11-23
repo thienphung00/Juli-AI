@@ -145,14 +145,15 @@ carries the same facts for the KOL cards. Entry points `queries.kol_table` / `qu
 - `materialize.rebuild_days` builds TikTok days with the same one-day view (canonical order lines
   + settlements → profit, both margin terms, cost coverage; delivered-only, refund cost rule, no
   tax). `tiktok_days.overlay` then puts the A-34 analytics on the rows of a day they cover:
-  headline GMV / đơn / units / views / clicks = the products' `total_performance` (sources
-  `analytics`, `complete` True); product rows = each product's total; source rows from the
+  headline GMV / đơn / units = the shop-grain analytics row (one đơn per order), views / clicks =
+  the products' A-34 totals (sources `analytics`, `complete` True); product rows = each product's
+  A-34 total (the residual row holds the gap to the shop total); source rows from the
   channel blocks the poll keeps (`traffic_breakdown.A34_BLOCKS`, read via
   `shop_diagnosis.channels`): Thẻ sản phẩm / Video / LIVE / Tiếp thị liên kết split by
-  `split_sources`, adding up with `chenh_lech_nguon`; `trang_shop` (Tab cửa hàng) stored with its
-  own views / clicks / GMV, orders 0 (NOT NULL column; the registry shows "—"), in no sum. Ads stay
-  NULL.
-- A day the analytics do not cover (lag, or all-zero A-34 beside order lines) keeps the order-line
+  `split_sources` over the shop total (the gap to it in `chenh_lech_nguon`); `trang_shop` (Tab cửa
+  hàng) stored with its own views / clicks / GMV, orders 0 (NOT NULL column;
+  `detail.trang_shop_orders_known` False, routes return None), in no sum. Ads stay NULL.
+- A day without a shop-grain row (lag), or all-zero analytics beside order lines, keeps the order-line
   numbers and stores `detail.analytics_through` (the newest covered day before it).
 - Profit for `tiktok_days.SETTLEMENT_ONLY_PLATFORMS` shops: no fee formula rows reach the view;
   a day with a delivered order that has no settlement has profit / margin terms NULL (its products
@@ -165,5 +166,5 @@ carries the same facts for the KOL cards. Entry points `queries.kol_table` / `qu
   (`tests/unit/test_w3_t1_shopee_unchanged.py`). `rebuild_recent` is the nightly rebuild
   (`tiktok-layer4-rebuild` beat); the TikTok day hook (`record_touched_days`) runs `after_ingest`
   for platform `tiktok` (`MATERIALIZED_PLATFORMS`).
-- `repositories.shopee_analytics` reads `order_lines` / `order_settlements` for every canonical
-  platform (a shop is one platform), so the engine sees a TikTok shop's lines.
+- The engine sees a TikTok shop's lines once `repositories.shopee_analytics` reads the shop's
+  own platform (t2, `own_platform()`); the W3 tests stand in for it.

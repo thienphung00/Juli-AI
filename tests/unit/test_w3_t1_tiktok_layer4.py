@@ -2,10 +2,14 @@
 
 Two products; four days:
 
-- D1: A-34 rows with the channel blocks (the poll since W3), order lines with settlements;
-- D2: A-34 rows stored before W3 (totals only, no blocks);
+- D1: shop-grain row (one order held both products: 7 đơn, GMV 950k) and A-34 rows with the
+  channel blocks (the poll since W3; 8 product-orders, 900k), order lines with settlements;
+- D2: shop-grain row and A-34 rows stored before W3 (totals only, no blocks);
 - D3: order lines only (TikTok has not published the day yet);
-- D4: A-34 rows that are all zero beside order lines (what a sandbox shop gets).
+- D4: shop-grain and A-34 rows that are all zero beside order lines (what a sandbox gets).
+
+The repository reads are pointed at the shop's own platform (``own_platform``, t2's change to
+``repositories.shopee_analytics``, which wins at merge) by :func:`_own_platform_reads`.
 """
 
 from __future__ import annotations
@@ -18,7 +22,10 @@ import pytest
 from sqlalchemy import select
 
 from juli_backend.integrations.tiktok import mapping
-from juli_backend.integrations.tiktok.mapping import expand_analytics_product_list_item
+from juli_backend.integrations.tiktok.mapping import (
+    expand_analytics_product_list_item,
+    expand_analytics_shop_performance,
+)
 from juli_backend.models.shopee_metrics import (
     RESIDUAL_ITEM,
     ShopeeProductMetricsDaily,
@@ -88,6 +95,39 @@ async def _analytics(session, shop_id, day, row, *, blocks=True):
     await AnalyticsPerformanceRepo(session).upsert(shop_id=shop_id, **kwargs)
 
 
+@pytest.fixture(autouse=True)
+def _own_platform_reads(monkeypatch):
+    """Stand-in for t2's ``own_platform()`` filter: every TikTok shop here reads its own rows."""
+    from juli_backend.repositories import shopee_analytics as repo
+
+    monkeypatch.setattr(repo, "PLATFORM_SHOPEE", "tiktok")
+
+
+async def _shop_grain(session, shop_id, day, *, gmv, orders, items):
+    rows = expand_analytics_shop_performance(
+        {
+            "performance": {
+                "intervals": [
+                    {
+                        "start_date": day.isoformat(),
+                        "end_date": (day + timedelta(days=1)).isoformat(),
+                        "sales": {
+                            "gmv": {"amount": str(gmv), "currency": "VND"},
+                            "orders_count": orders,
+                            "sku_orders_count": orders,
+                            "items_sold": items,
+                        },
+                        "traffic": {},
+                    }
+                ]
+            }
+        },
+        synced_at=1_763_000_000,
+    )
+    _, kwargs = transform_for_channel("tiktok.analytics.shop.raw", rows[0])
+    await AnalyticsPerformanceRepo(session).upsert(shop_id=shop_id, **kwargs)
+
+
 async def seed_tiktok_shop(session, *, refund_settled: bool = True):
     shop = await make_shop(session, await make_user(session), platform="tiktok")
     sid = shop.id
@@ -104,6 +144,9 @@ async def seed_tiktok_shop(session, *, refund_settled: bool = True):
     )
     if refund_settled:
         session.add(_settlement(sid, 3, -30_000, price=120_000))
+    await _shop_grain(session, sid, D1, gmv=950_000, orders=7, items=8)
+    await _shop_grain(session, sid, D2, gmv=900_000, orders=8, items=8)
+    await _shop_grain(session, sid, D4, gmv=0, orders=0, items=0)
     for p in PRODUCTS:
         await _analytics(session, sid, D1, a34_row(p))
         await _analytics(session, sid, D2, a34_row(p), blocks=False)
@@ -153,7 +196,7 @@ async def test_the_tiktok_ingest_hook_builds_the_day(session):
     shop = await seed_tiktok_shop(session)
     await record_touched_days(session, shop.id, frozenset({D1}))
     rows = await _rows(session, ShopeeShopMetricsDaily, shop.id)
-    assert [r.day for r in rows] == [D1] and rows[0].gmv == Decimal(900_000)
+    assert [r.day for r in rows] == [D1] and rows[0].gmv == Decimal(950_000)
 
 
 async def test_the_nightly_rebuild_covers_the_recent_data_days(session):
@@ -178,8 +221,10 @@ async def test_the_rebuild_is_idempotent(session, built):
 async def test_the_headline_is_the_analytics_total(built):
     _, _, shops, _, _ = built
     d1 = shops[D1]
-    # a34_row defaults: per product 200k + 100k + 0 + 150k = 450k, 4 orders, 2 000 impressions
-    assert d1.gmv == Decimal(900_000) and d1.orders == 8 and d1.aov == Decimal(112_500)
+    # the shop-grain row: one order held both products, so 7 đơn (A-34 per product says 8)
+    assert d1.gmv == Decimal(950_000) and d1.orders == 7 and d1.units == 8
+    assert d1.aov == (Decimal(950_000) / 7).quantize(Decimal("0.01"))
+    # views / clicks: the products' A-34 totals (2 000 impressions, 100 clicks each)
     assert d1.views == 4000 and d1.product_clicks == 200 and d1.complete
     assert d1.sources["gmv"] == d1.sources["orders"] == tiktok_days.ROW_SOURCE
     # the returned line is not a sale (glossary: returned is out of đơn / GMV)
@@ -217,7 +262,7 @@ async def test_the_four_sources_add_up_to_the_shop_total_and_the_shop_tab_stays_
     assert shop["video"].gmv == Decimal(200_000)
     assert shop["live"].gmv == Decimal(0)
     assert shop["lien_ket"].gmv == Decimal(300_000)
-    assert shop["chenh_lech_nguon"].gmv == Decimal(0)
+    assert shop["chenh_lech_nguon"].gmv == Decimal(50_000), "the gap to the shop total"
     assert sum(shop[k].gmv for k in SUMMED) == shops[D1].gmv
     assert sum(shop[k].orders for k in SUMMED) == shops[D1].orders
     assert shop["the_san_pham_khac"].views == 2000 and shop["the_san_pham_khac"].clicks == 100
@@ -311,8 +356,7 @@ async def test_one_number_per_metric_across_the_three_tables(built):
     _, _, shops, products, sources = built
     for day in (D1, D2):
         day_products = [p for p in products if p.day == day]
-        assert sum(p.gmv for p in day_products) == shops[day].gmv
-        assert sum(p.orders for p in day_products) == shops[day].orders
+        assert sum(p.gmv for p in day_products) == shops[day].gmv, "the residual row closes it"
         shop_sources = _by(sources, day)
         assert sum(shop_sources[k].gmv for k in SUMMED) == shops[day].gmv
 
@@ -376,3 +420,59 @@ async def test_the_rebuild_hands_a_tiktok_shop_no_fee_formula_rows(session, monk
     monkeypatch.setattr(service, "load_view", spy)
     await materialize.rebuild_days(session, shop.id, [D1])
     assert seen == [[]]
+
+
+async def test_a_multi_product_order_is_one_order_in_the_headline(built):
+    _, _, shops, products, sources = built
+    per_product = sum(p.orders for p in products if p.day == D1 and p.item_id != RESIDUAL_ITEM)
+    assert per_product == 8 and shops[D1].orders == 7
+    assert sum(_by(sources, D1)[k].orders for k in SUMMED) == 7
+
+
+# ---------------------------------------------------- Tab cửa hàng orders are not a count
+
+
+async def test_the_shop_tab_zero_orders_are_flagged_not_a_count(built):
+    _, _, shops, _, _ = built
+    assert shops[D1].detail[tiktok_days.SHOP_TAB_ORDERS_KNOWN_KEY] is False
+
+
+def _surfaces_tab_orders(node) -> bool:
+    if isinstance(node, dict):
+        named = any(v == "trang_shop" for v in node.values()) or "trang_shop" in node
+        if named and node.get("orders") == 0:
+            return True
+        return any(_surfaces_tab_orders(v) for v in node.values())
+    if isinstance(node, list):
+        return any(_surfaces_tab_orders(v) for v in node)
+    return False
+
+
+ROUTES = (
+    "overview",
+    "matrix",
+    "critical",
+    "ranking",
+    "channel-split",
+    "channel-split/products",
+    "metric-view",
+    "products/p1",
+)
+
+
+async def test_no_route_surfaces_the_shop_tab_zero_as_orders(session, built):
+    from juli_backend.models.models import User
+    from tests.support.api import authenticate, build_app, client_for
+
+    shop = built[0]
+    user = await session.get(User, shop.user_id)
+    await session.commit()
+    app = build_app(session)
+    authenticate(app, user=user, shop=shop)
+    params = {"period": "7d", "as_of": D2.isoformat()}
+    async with client_for(app) as client:
+        responses = {r: await client.get(f"/v1/demo/shopee/{r}", params=params) for r in ROUTES}
+    app.dependency_overrides.clear()
+    for route, response in responses.items():
+        if response.status_code == 200:
+            assert not _surfaces_tab_orders(response.json()), route
