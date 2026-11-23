@@ -26,6 +26,8 @@ import {
   stockDueAt,
   type TickReport,
   ReaderScheduler,
+  mergeOutcome,
+  outcomeRank,
   planJobs,
   type SchedulerAlarms,
   type SchedulerTabs,
@@ -1768,5 +1770,50 @@ describe("0.3.27 (contract C): a read-back's pages", () => {
     ctx.clock.now += GAP;
     expect(await ctx.scheduler.tick()).toBe("opened");
     expect((await ctx.read())?.run?.jobs.length).toBeGreaterThan(1);
+  });
+});
+
+
+describe("0.3.32: one outcome per reader in a run (C2)", () => {
+  it("the worst status leads (error > blocked > empty > ok) and every job's outcome is kept", () => {
+    expect(outcomeRank("done:order_income=posted")).toBe(0);
+    expect(outcomeRank("done:order_lines=empty")).toBe(1);
+    expect(outcomeRank("no_orders")).toBe(1);
+    expect(outcomeRank("blocked:login")).toBe(2);
+    expect(outcomeRank("waiting_budget")).toBe(2);
+    expect(outcomeRank("done:ads_campaign_daily:2026-11-02=rejected")).toBe(3);
+    expect(outcomeRank("timeout")).toBe(3);
+    expect(mergeOutcome(undefined, "done:a=posted")).toBe("done:a=posted");
+    expect(mergeOutcome("done:a=posted", "timeout")).toBe("timeout|done:a=posted");
+    expect(mergeOutcome("timeout|done:a=posted", "blocked:login")).toBe("timeout|done:a=posted|blocked:login");
+    expect(mergeOutcome("no_orders", "done:a=posted")).toBe("no_orders|done:a=posted");
+    expect(mergeOutcome("done:a=posted", "done:a=posted")).toBe("done:a=posted");
+    expect(mergeOutcome("x".repeat(158), "timeout")).toHaveLength(160); // the backend's cap
+  });
+
+  it("ads today + ads history in one run: the history's failure is not hidden by today's post, nor today's lost", async () => {
+    const ctx = setup({ readers: ["ads"] });
+    expect(await ctx.scheduler.tick()).toBe("opened");
+    await finishPage(ctx); // today's ads days: posted
+    ctx.clock.now += GAP;
+    expect(await ctx.scheduler.tick()).toBe("opened");
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "ads", status: "needs_template", detail: "ads_homepage", responses: [] });
+    const ads = (await ctx.read())?.lastRun?.outcomes.ads ?? "";
+    expect(ads.startsWith("needs_template:ads_homepage|done:")).toBe(true);
+    expect(ads).toContain("ads_campaign_daily:2026-11-02=posted");
+  });
+
+  it("two order pages in one run: the reader's outcome is the worse one, with both reasons", async () => {
+    const ctx = setup({ readers: ["order_income"] });
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], incomeQueue: [{ id: "26110001", completedAt: T0 - 2000 }, { id: "26110002", completedAt: T0 - 1000 }] };
+    (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async (job: ReaderJob) => ({
+      order_income: job.orderIds?.[0] === "26110001" ? "posted" : "rejected",
+    });
+    await driveOrderPages(ctx, (id) => ({ responses: [incomeAnswer(id)] }));
+    const income = (await ctx.read())?.lastRun?.outcomes.order_income ?? "";
+    expect(income.split("|")[0]).toMatch(/^error:order_income:0_rows:rejected/);
+    expect(income).toContain("done:order_income=posted");
   });
 });

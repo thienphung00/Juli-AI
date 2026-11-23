@@ -843,7 +843,7 @@ export class ReaderScheduler {
     const sectionWall = run.walls?.[readerSection(job.id)];
     if (sectionWall && sectionWall.count >= SECTION_WALLS_BLOCK) {
       // Two walls in a row in this section: its other pages are not opened in this run.
-      const skipped: ReaderRun = { ...run, outcomes: { ...run.outcomes, [job.id]: `blocked:${sectionWall.reason}` }, index: run.index + 1 };
+      const skipped: ReaderRun = { ...run, outcomes: withOutcome(run.outcomes, job.id, `blocked:${sectionWall.reason}`), index: run.index + 1 };
       return skipped.index >= skipped.jobs.length ? this.finishRun(sched, skipped) : this.startNext(sched, skipped);
     }
     if (job.id === "item_traffic") {
@@ -852,7 +852,7 @@ export class ReaderScheduler {
       const viewed = sched.viewedItems?.ids ?? [];
       const itemIds = (viewed.length > 0 ? viewed : (sched.itemIds ?? [])).slice(0, TRAFFIC_MAX_ITEMS);
       if (itemIds.length === 0) {
-        const skipped: ReaderRun = { ...run, outcomes: { ...run.outcomes, [job.id]: "no_items" }, index: run.index + 1 };
+        const skipped: ReaderRun = { ...run, outcomes: withOutcome(run.outcomes, job.id, "no_items"), index: run.index + 1 };
         return skipped.index >= skipped.jobs.length ? this.finishRun(sched, skipped) : this.startNext(sched, skipped);
       }
       job = { ...job, itemIds };
@@ -862,7 +862,7 @@ export class ReaderScheduler {
       // The ongoing campaigns the last list read named; the first one's edit page is opened.
       const campaigns = (sched.adsCampaigns ?? []).slice(0, ADS_DETAIL_MAX_CAMPAIGNS);
       if (campaigns.length === 0) {
-        const skipped: ReaderRun = { ...run, outcomes: { ...run.outcomes, [job.id]: "no_campaigns" }, index: run.index + 1 };
+        const skipped: ReaderRun = { ...run, outcomes: withOutcome(run.outcomes, job.id, "no_campaigns"), index: run.index + 1 };
         return skipped.index >= skipped.jobs.length ? this.finishRun(sched, skipped) : this.startNext(sched, skipped);
       }
       job = { ...job, campaignIds: campaigns.map((c) => c.id), campaignKinds: campaigns.map((c) => c.kind) };
@@ -872,7 +872,7 @@ export class ReaderScheduler {
       // The group campaigns (manual-mpd pages) the last list read named; the first one's page is opened.
       const groups = (sched.adsCampaigns ?? []).filter((c) => c.kind === "mpd").slice(0, ADS_PRODUCTS_MAX_CAMPAIGNS);
       if (groups.length === 0) {
-        const skipped: ReaderRun = { ...run, outcomes: { ...run.outcomes, [job.id]: "no_group_campaigns" }, index: run.index + 1 };
+        const skipped: ReaderRun = { ...run, outcomes: withOutcome(run.outcomes, job.id, "no_group_campaigns"), index: run.index + 1 };
         return skipped.index >= skipped.jobs.length ? this.finishRun(sched, skipped) : this.startNext(sched, skipped);
       }
       job = { ...job, campaignIds: groups.map((c) => c.id), campaignNames: groups.map((c) => c.name ?? "") };
@@ -884,7 +884,7 @@ export class ReaderScheduler {
       // order per page, so the job becomes one job per order (each a page open against the budget).
       const queued = (sched.incomeQueue ?? []).slice(0, ORDER_INCOME_MAX_PER_DAY);
       if (queued.length === 0) {
-        const skipped: ReaderRun = { ...run, outcomes: { ...run.outcomes, [job.id]: "no_orders" }, index: run.index + 1 };
+        const skipped: ReaderRun = { ...run, outcomes: withOutcome(run.outcomes, job.id, "no_orders"), index: run.index + 1 };
         return skipped.index >= skipped.jobs.length ? this.finishRun(sched, skipped) : this.startNext(sched, skipped);
       }
       const perOrder = queued.map((o) => orderPageJob(job as PlannedJob, o));
@@ -965,7 +965,7 @@ export class ReaderScheduler {
   private async finishJob(sched: ReaderSchedule, run: ReaderRun, outcome: string, close = true): Promise<string> {
     const job = run.jobs[run.index];
     if (close && run.current) await this.deps.tabs.close(run.current.tabId).catch(() => undefined);
-    const outcomes = { ...run.outcomes, ...(job ? { [job.id]: outcome } : {}) };
+    const outcomes = job ? withOutcome(run.outcomes, job.id, outcome, job.retry === true) : { ...run.outcomes };
     // 0.3.27: when each page last read and posted (a read-back's captured waits for it)
     if (job && outcome.startsWith("done")) sched = { ...sched, readAt: { ...sched.readAt, [job.id]: this.deps.now() } };
     const next: ReaderRun = {
@@ -1073,7 +1073,7 @@ export class ReaderScheduler {
   /** The day's request budget is spent: this job and the rest wait for tomorrow's run. */
   private async budgetSpent(sched: ReaderSchedule, run: ReaderRun): Promise<string> {
     const outcomes = { ...run.outcomes };
-    for (const job of run.jobs.slice(run.index)) outcomes[job.id] = "waiting_budget";
+    for (const job of run.jobs.slice(run.index)) outcomes[job.id] = mergeOutcome(outcomes[job.id], "waiting_budget");
     return this.finishRun(sched, { ...run, outcomes }, undefined, "budget_spent");
   }
 
@@ -1118,7 +1118,7 @@ export class ReaderScheduler {
     // contract R: the page's outcome reads "blocked:traffic_check" (section seller_centre) with the
     // pause's end in the outcome's note (the tick's outcomes already carry "<outcome>|<note>")
     const outcome = reason === "traffic_check" ? `blocked:traffic_check|until=${new Date(until).toISOString()}` : `blocked_${reason}`;
-    const outcomes = { ...run.outcomes, ...(job ? { [job.id]: outcome } : {}) };
+    const outcomes = job ? withOutcome(run.outcomes, job.id, outcome, job.retry === true) : { ...run.outcomes };
     // Ops sees the stop (reader, page, status, time); a failed post never changes the stop.
     await this.deps.sink
       .reportBlock?.({
@@ -1394,8 +1394,9 @@ export class ReaderScheduler {
       const retried = new Set(run.retried ?? []);
       const again = run.jobs
         .slice(0, run.index)
-        .filter((j) => readerSection(j.id) === section && !retried.has(j.id) && /^blocked:(login|password_recheck)/.test(run.outcomes[j.id] ?? ""));
+        .filter((j) => readerSection(j.id) === section && !retried.has(j.id) && (run.outcomes[j.id] ?? "").split("|").some((part) => /^blocked:(login|password_recheck)/.test(part)));
       for (const j of again) retried.add(j.id);
+      const retries = again.map((j) => ({ ...j, retry: true }));
       const catchupRead = this.catchupRead(run, job, readerJob, posted, responses);
       let outcome = jobOutcome(job.id, posted, summary, note, responses);
       // 0.3.29 (F4.6): an affiliate period answered "empty" while the programme showed data in this run is a failed read
@@ -1410,7 +1411,7 @@ export class ReaderScheduler {
         ...run,
         live: [...new Set([...(run.live ?? []), section])],
         walls,
-        jobs: [...run.jobs, ...again],
+        jobs: [...run.jobs, ...retries],
         retried: [...retried],
         ...(catchupRead ? { catchupRead } : {}),
         ...(affiliateData ? { affiliateData } : {}),
@@ -1646,4 +1647,55 @@ export function withSkuFixes(queue: IncomeQueued[], skuLess: { id: string; sn?: 
 /** The minute of the GMT+7 day (0..1439). */
 export function gmt7Minute(nowMs: number): number {
   return Math.floor(nowMs / 60_000 + 7 * 60) % 1440;
+}
+
+
+// -- one outcome per reader in a run (0.3.32, batch-1123-a C2) -----------------------------------
+// A run can open one reader more than once (today's ads days, then the ads history; one order page
+// per order). Its report keys outcomes by reader, so each job's outcome is MERGED into the reader's:
+// the worst status first (error > blocked > empty > ok, the backend's reader_status), then every
+// other job's outcome after "|", so no reason is lost. The backend reads the status from the head.
+
+const OUTCOME_EMPTY = new Set(["no_orders", "no_new_orders", "no_items", "no_campaigns", "no_group_campaigns"]);
+const POST_REFUSED = new Set(["rejected", "drift", "refused", "unpaired", "stopped"]);
+const POST_ACCEPTED = new Set(["posted", "queued"]);
+const POST_NOTHING = new Set(["empty", "ignored"]);
+/** The backend's report field cap (`_MAX_OUTCOME_LEN`). */
+const OUTCOME_MAX = 160;
+
+/** 3 error, 2 blocked, 1 empty, 0 ok: the status of an outcome's head (what precedes the first "|"). */
+export function outcomeRank(outcome: string): number {
+  const head = outcome.split("|")[0]?.trim() ?? "";
+  if (head.startsWith("blocked:") || head === "waiting_budget") return 2;
+  if (OUTCOME_EMPTY.has(head)) return 1;
+  if (head === "fresh" || head === "skipped") return 0;
+  if (head === "done" || head.startsWith("done:")) {
+    const results = head
+      .slice(5)
+      .split(",")
+      .map((pair) => pair.split("=")[1] ?? "")
+      .filter((v) => v && v !== "held");
+    if (results.some((v) => POST_REFUSED.has(v))) return 3;
+    if (results.some((v) => POST_ACCEPTED.has(v))) return 0;
+    return results.length > 0 && results.every((v) => POST_NOTHING.has(v)) ? 1 : 0;
+  }
+  return 3;
+}
+
+/** `previous` (the reader's outcome so far in this run) merged with one more job's `next`. */
+export function mergeOutcome(previous: string | undefined, next: string): string {
+  if (previous === undefined || previous === "" || previous === next) return next;
+  if (previous.split("|").includes(next)) return previous;
+  const merged = outcomeRank(next) > outcomeRank(previous) ? `${next}|${previous}` : `${previous}|${next}`;
+  return merged.slice(0, OUTCOME_MAX);
+}
+
+/** A page read again in the same run after its section answered (F4.3): its new outcome replaces the block it re-reads. */
+const CLEARED_BLOCK = /^blocked:(login|password_recheck)/;
+
+function withOutcome(outcomes: Record<string, string>, reader: string, next: string, retry = false): Record<string, string> {
+  const previous = retry
+    ? (outcomes[reader] ?? "").split("|").filter((part) => part && !CLEARED_BLOCK.test(part)).join("|") || undefined
+    : outcomes[reader];
+  return { ...outcomes, [reader]: mergeOutcome(previous, next) };
 }

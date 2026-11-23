@@ -39,6 +39,14 @@ from tests.unit.test_ingest_gateway import _paired_client, _shopee_tenant
         ("timeout", "error", "timeout"),
         ("needs_template:orders/list", "error", "needs_template:orders/list"),
         ("partial:page_cap", "error", "partial:page_cap"),
+        # Connector 0.3.32: one reader opened twice in a run, merged worst first
+        (
+            "timeout|done:ads_campaign_daily:2026-11-02=posted",
+            "error",
+            "timeout|done:ads_campaign_daily:2026-11-02=posted",
+        ),
+        ("blocked:login|done:item_traffic_sources=posted", "blocked", "login"),
+        ("done:order_lines=empty|done:order_lines=empty", "empty", "done:order_lines=empty"),
     ],
 )
 def test_each_connector_outcome_folds_into_one_status_and_reason(outcome, status, reason):

@@ -116,6 +116,8 @@ export interface PlannedJob {
   sinceDay?: string;
   /** ads (0.3.19): older days of the once-per-shop ads history, newest first, after `days`. */
   historyDays?: string[];
+  /** 0.3.32: a page read again in this run after its section answered (F4.3); its outcome replaces the block. */
+  retry?: boolean;
 }
 
 /** One scheduled run: the pages in order, one open tab at a time (persisted: the worker may restart). */
