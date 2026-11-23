@@ -31,7 +31,7 @@ def it(**kw: Any) -> dict[str, Any]:
 
 
 # (question, parser intent, jev answers, expected subset of the classify row)
-ROWS: list[tuple[str, Any, dict[str, Any], Any]] = [
+ROWS: list[tuple[str, Any, Any, Any]] = [
     (
         "Tôi muốn lập voucher cho ngày 24 và 25/11.",
         it(
@@ -134,14 +134,14 @@ ROWS: list[tuple[str, Any, dict[str, Any], Any]] = [
     (
         "Sản phẩm nào giảm mạnh nhất tuần trước và vì sao?",
         [  # the parser splits "what" and "why" into two intents (prompt rule)
-            it(
-                question_type="status",
-                metric_phrase="products with the biggest decline in revenue",
-                time_phrase="last week",
-            ),
+            it(question_type="status", metric_phrase=None, time_phrase="last week"),
             it(question_type="why_changed", metric_phrase="revenue", time_phrase="last week"),
         ],
-        ans(mode=ch("lookup"), lookup=ch("top_products")),
+        lambda st, q: (
+            ans(fits=nl(0.5), mode=ch("lookup"), lookup=ch("top_products"))
+            if st["intent"]["question_type"] == "status"
+            else ans()
+        ),
         [
             {"outcome": "go", "lookup": "top_decliners", "window": "last_full_week_vs_week_before"},
             {"outcome": "go", "window": "last_full_week_vs_week_before"},
@@ -249,7 +249,7 @@ def test_the_twenty_questions_are_all_here() -> None:
 
 @pytest.mark.parametrize("row", ROWS, ids=[r[0][:40] for r in ROWS])
 async def test_classify_routes_each_question(
-    row: tuple[str, Any, dict[str, Any], Any],
+    row: tuple[str, Any, Any, Any],
 ) -> None:
     text, parsed, jev_answers, expected = row
     parsed_list = parsed if isinstance(parsed, list) else [parsed]

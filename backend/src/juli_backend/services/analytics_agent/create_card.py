@@ -92,8 +92,16 @@ def max_days(card_type: str) -> int | None:
     return {"voucher": sp.MAX_VOUCHER_DAYS, "product_discount": sp.MAX_DISCOUNT_DAYS}.get(card_type)
 
 
-VOUCHER_LABEL_MIN = "Mã Giảm Giá · đơn tối thiểu"
-VOUCHER_LABEL_NO_MIN = "Mã Giảm Giá · không đơn tối thiểu"
+#: TODO: import VOUCHER_NAME, VOUCHER_MIN_PARTS, VOUCHER_SCOPE_LABELS, voucher_scope_label() from
+#: `shopee_recommendations/kinds.py` after Track S merges; these strings match theirs exactly.
+VOUCHER_NAME = "Mã Giảm Giá"
+VOUCHER_SCOPE_VI = {"shop": "Voucher toàn Shop", "product": "Voucher sản phẩm"}
+VOUCHER_MIN_VI = {True: "đơn tối thiểu", False: "không đơn tối thiểu"}
+
+
+def voucher_label(product: bool, has_min: bool) -> str:
+    scope = VOUCHER_SCOPE_VI["product" if product else "shop"]
+    return f"{VOUCHER_NAME} · {scope} · {VOUCHER_MIN_VI[has_min]}"
 
 
 @dataclass
@@ -430,7 +438,7 @@ async def run_create(
             return "duplicate"
     ev = await cardstage.draft_event(out_cards, data, jev, labels, kind, s.item_id, card)
     if s.card_type == "voucher":
-        ev["kind_vi"] = VOUCHER_LABEL_MIN if (s.min_spend or 0) > 0 else VOUCHER_LABEL_NO_MIN
+        ev["kind_vi"] = voucher_label(bool(s.item_id), (s.min_spend or 0) > 0)
     if w := window_vi(s):
         ev["window_vi"] = w
     await emit(ev)

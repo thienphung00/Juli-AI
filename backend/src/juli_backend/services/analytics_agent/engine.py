@@ -291,6 +291,7 @@ async def _run(
             blocks.append((intent, dec))
     await out.emit({"type": "restated", "text_vi": restated})
     total = len(blocks)
+    carry: dict[str, Any] = {}  # what one intent hands to the next (the top decliner)
     for idx, (intent, dec) in enumerate(blocks, 1):
         if total > 1:
             await out.emit(
@@ -350,8 +351,28 @@ async def _run(
             await out.emit(ev)
             result.stop_reasons.append("needs_choice")
             return  # one unclear item at a time; the tap resumes from pending
+        if (
+            dec.get("mode") == "why"
+            and carry.get("top_decliner")
+            and not dec.get("item_id")
+            and not intent.get("product_phrase")
+        ):  # "…and why": explain the product the ranking just found, not the whole shop
+            dec = {**dec, "item_id": carry["top_decliner"], "scope": "product"}
         await _answer(
-            req, out, result, data, engine, llm, jev, labels, as_of, intent, dec, restated, template
+            req,
+            out,
+            result,
+            data,
+            engine,
+            llm,
+            jev,
+            labels,
+            as_of,
+            intent,
+            dec,
+            restated,
+            template,
+            carry,
         )
     if more:
         await out.emit(
@@ -382,6 +403,7 @@ async def _answer(
     dec: dict[str, Any],
     restated: str,
     template: Template | None,
+    carry: dict[str, Any] | None = None,
 ) -> None:
     mode = dec.get("mode", "why")
     if mode == "create":  # J10: a Juli DRAFT card from a free request (never sent)
@@ -544,6 +566,8 @@ async def _answer(
             result.stop_reasons.append("data_missing")
             return
         ans.pop("stop", None)
+        if carry is not None and dec.get("lookup") == "top_decliners" and ans.get("rows"):
+            carry["top_decliner"] = ans["rows"][0].get("item_id")
         await out.emit(ans)
         result.stop_reasons.append("data_answer")
         return

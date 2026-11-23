@@ -312,12 +312,27 @@ INTENT_TOOL: dict[str, Any] = {
         },
     },
 }
+
+
+def _registry_metric_names() -> str:
+    """User-facing metric names, generated from registry.py (never hand-typed)."""
+    from juli_backend.services.metrics.registry import METRICS
+
+    seen: list[str] = []
+    for m in METRICS.values():
+        if m.label_vi not in seen and "{" not in m.label_vi:
+            seen.append(m.label_vi)
+    return "; ".join(seen)
+
+
 PARSE_SYSTEM = (
     "Turn a Shopee seller's Vietnamese question into English intent JSON by calling emit_intent. "
     "Today is {today} (Vietnam). Split a message that asks about several metrics into one intent "
     "each. "
     "Write phrases in plain English, except product_phrase: copy the seller's own product words "
     "verbatim. "
+    "The seller's metrics are named in this registry (a question that asks for or about any of "
+    "them is 'status' or 'why_changed', never 'other'): " + _registry_metric_names() + ". "
     "Do not invent ids. Dates only when the seller states them. Questions not about the shop's own "
     "sales/traffic data (competitors, tax, forecasts) get question_type 'other'. A question asking "
     "what the shop should do next week is question_type 'plan' (only that, not how-to "
@@ -549,6 +564,11 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     if fits <= FITS_NO:
         dec["outcome"] = "unsupported"
         return dec
+    ranking = False  # a ranking question needs no metric: it defaults to GMV decline
+    if "mode" in answers and "lookup" in answers:
+        okm, im = choice_ok(answers["mode"])
+        okl, il = choice_ok(answers["lookup"])
+        ranking = okm and okl and im["pick"] == "lookup" and il["pick"] in LIST_LOOKUPS
     ent = entity_kind(intent)
     if ent and fits > FITS_NO:  # an entity is answered from its own rows by code (Q17): no picker
         dec.update(outcome="go", mode="lookup", lookup="metric_total")
@@ -561,7 +581,9 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
         )
         return dec
     named_metric = metric_from_phrase(intent.get("metric_phrase"))
-    if fits < FITS_GO and not named_metric:  # a named metric is a fit (J3): no picker
+    if (
+        fits < FITS_GO and not named_metric and not (ranking and fits > FITS_NO)
+    ):  # a named metric is a fit (J3): no picker
         dec.update(outcome="needs_choice", remaining=[("chain", list(CHAINS))])
         return dec
     unclear: list[tuple[str, list[str]]] = []
@@ -573,6 +595,8 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
             okl, infol = choice_ok(answers["lookup"])
             dec["checks"]["lookup"] = infol
             dec["lookup"] = infol["pick"] if okl else "metric_total"
+            if dec["lookup"] in LIST_LOOKUPS and intent.get("claimed_direction") == "down":
+                dec["lookup"] = "top_decliners"  # the parser says it fell: a decline ranking
             if dec["lookup"] in ("top_products", "metric_total", "top_decliners") and (
                 DECLINE_WORDS.search(
                     f"{intent.get('metric_phrase') or ''} {intent.get('raw_text') or ''}"

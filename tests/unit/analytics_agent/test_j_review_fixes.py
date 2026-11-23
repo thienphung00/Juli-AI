@@ -366,3 +366,49 @@ async def test_decline_ranking_follows_the_decline_word_whatever_the_product_phr
     )
     rows = sink.of("data_answer")[0]["rows"]
     assert rows[0]["label_vi"] == "A" and rows[0]["value_vi"].startswith("▼")
+
+
+async def test_why_after_a_decline_ranking_explains_the_top_decliner() -> None:
+    first = YDAY - timedelta(days=40)
+    shop = shop_rows(first, YDAY, gmv=1000.0, orders=3.0)
+    prods = [
+        {
+            "day": first + timedelta(days=i),
+            "item_id": k,
+            "gmv": now if (first + timedelta(days=i)) >= date(2026, 11, 16) else before,
+            "orders": 1.0,
+            "units": 1.0,
+        }
+        for i in range(41)
+        for k, now, before in (("p1", 100.0, 900.0), ("p2", 800.0, 800.0))
+    ]
+    data = FakeData(shop, products=prods, names={"p1": "A", "p2": "B"})
+    llm = FakeLLM(
+        {
+            "restated_vi": "x",
+            "intents": [
+                intent(question_type="status", metric_phrase=None, time_phrase="last week"),
+                intent(
+                    question_type="why_changed", metric_phrase="revenue", time_phrase="last week"
+                ),
+            ],
+        },
+        text="x",
+    )
+
+    def jev(state: Any, q: Any) -> Any:
+        if state["intent"]["question_type"] == "status":
+            return full(
+                fits={"type": "noul", "noul": 0.5}, mode=ch("lookup"), lookup=ch("top_products")
+            )
+        return full(mode=ch("why"), chain=ch("gmv_change"), metric=ch("gmv"))
+
+    sink, _ = await go(
+        AskRequest(shop_id=SHOP, platform="shopee", as_of=YDAY, text="q"),
+        llm=llm,
+        jev=FakeJev(jev),
+        data=data,
+    )
+    assert not sink.of("needs_choice")
+    assert sink.of("data_answer")[0]["rows"][0]["label_vi"] == "A"
+    assert "shop_daily:p1" in data.calls  # the why chain ran on the top decliner

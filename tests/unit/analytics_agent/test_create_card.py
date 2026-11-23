@@ -91,7 +91,7 @@ async def test_voucher_request_asks_for_the_amount_and_minimum_then_drafts() -> 
         _data(),
     )
     card = sink2.of("card")[0]
-    assert card["kind_vi"] == "Mã Giảm Giá · đơn tối thiểu"
+    assert card["kind_vi"] == "Mã Giảm Giá · Voucher toàn Shop · đơn tối thiểu"
     assert card["window_vi"] == "24/11 00:00–25/11 23:59"
     spec = eng.custom_calls[0]  # type: ignore[attr-defined]
     assert (
@@ -123,7 +123,7 @@ async def test_no_minimum_label_and_only_the_missing_slot_is_asked() -> None:
         _engine(),
         _data(),
     )
-    assert sink2.of("card")[0]["kind_vi"] == "Mã Giảm Giá · không đơn tối thiểu"
+    assert sink2.of("card")[0]["kind_vi"] == "Mã Giảm Giá · Voucher toàn Shop · không đơn tối thiểu"
 
 
 def test_limits_dates_names_and_flash_sale_window() -> None:
@@ -276,3 +276,22 @@ def test_registry_reads_give_real_numbers_not_none() -> None:
 
     assert roas_break_even(10000, 2500) == 4.0 and roas_break_even(10000, 0) is None
     assert roas_direct(900, 300) == 3.0 and roas_direct(None, 3) is None
+
+
+def test_parse_prompt_lists_the_registry_metric_names() -> None:
+    from juli_backend.services.analytics_agent import routing
+    from juli_backend.services.metrics.registry import METRICS
+
+    assert "ROAS hoà vốn" in routing.PARSE_SYSTEM
+    for m in METRICS.values():
+        assert m.label_vi in routing.PARSE_SYSTEM or "{" in m.label_vi
+
+
+def test_voucher_labels_match_track_s_strings() -> None:
+    assert (
+        create_card.voucher_label(False, True) == "Mã Giảm Giá · Voucher toàn Shop · đơn tối thiểu"
+    )
+    assert (
+        create_card.voucher_label(True, False)
+        == "Mã Giảm Giá · Voucher sản phẩm · không đơn tối thiểu"
+    )
