@@ -368,7 +368,8 @@ async def execution_states(
             jobs.setdefault(j.proposal_id, []).append(j)
     cards: list[dict[str, Any]] = []
     reverted = await store.reverted_card_ids(session, shop_id)
-    views = await job_view.for_cards(session, shop_id, ids)  # K3 / K4
+    done = frozenset(p.id for p, _ in rows if p.status == STATUS_EXECUTED)
+    views = await job_view.for_cards(session, shop_id, ids, done)  # K3 / K4
     for p, card in rows:
         if str(p.id) in reverted:  # "Đã hoàn tác": the card leaves Thực hiện (F1.4)
             continue

@@ -724,7 +724,12 @@ async def list_cards(
     )
     out: list[tuple[dict[str, Any], dict[str, Any]]] = []
     behind = 0
-    views = await job_view.for_cards(session, shop_id, [p.id for p, _ in rows])
+    views = await job_view.for_cards(
+        session,
+        shop_id,
+        [p.id for p, _ in rows],
+        frozenset(p.id for p, _ in rows if p.status == STATUS_EXECUTED),
+    )
     jobs_by_card = {
         p.id: {
             "job": views[p.id]["job"],
@@ -811,7 +816,8 @@ async def _job_rows(
 
 async def _job_fields(session: AsyncSession, shop_id: uuid.UUID, p: ShopProposal) -> dict[str, Any]:
     """K3 / K4: the card's current job and whether Đã làm is offered."""
-    got = (await job_view.for_cards(session, shop_id, [p.id]))[p.id]
+    done = frozenset([p.id]) if p.status == STATUS_EXECUTED else frozenset()
+    got = (await job_view.for_cards(session, shop_id, [p.id], done))[p.id]
     return {
         "job": got["job"],
         "can_mark_done": p.status == STATUS_APPROVED and bool(got["has_forward"]),
@@ -1663,7 +1669,7 @@ async def mark_executed(
         kind = c["change_kind"]
         if kind == "voucher":
             job_kinds: tuple[str, ...] = ("voucher",)
-        elif kind in revert_fill.COMBO_CHANGE_KINDS:
+        elif kind in revert_fill.COMBO_CHANGE_KINDS:  # no combo list reader: ids only (E109)
             job_kinds = ("combo",)
         elif kind in revert_fill.PROGRAMME_KINDS:
             job_kinds = (kind,)
