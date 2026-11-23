@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
+import { seedShopPlatform } from "../../lib/shopee-analytics/platform";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -27,6 +28,7 @@ import type { QdQuery } from "../quyet-dinh/quyet-dinh-view";
 
 // W3 U-4: these tests exercise the ADR-108 TikTok screens, which stay behind the one switch.
 process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS = "1";
+seedShopPlatform("shop-1", "tiktok");
 
 /**
  * Phân tích (ADR-109 Amendment 2, AC-12.x): collapsible streams, cells with

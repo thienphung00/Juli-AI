@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 import type { ShopReportState } from "./shop-report/shop-report-context";
 import { useShopPlatformResolved } from "./shopee-analytics/platform";
@@ -13,16 +13,16 @@ import { tiktokLegacyScreens } from "./tiktok-screens";
  * old screens. Returns true while the page must not render the old screen yet (platform or switch not known,
  * or the redirect is under way), so ADR-108 never flashes at a shop that is leaving it.
  */
+const subscribeNever = () => () => undefined;
+const legacySnapshot = (): boolean => tiktokLegacyScreens(new URLSearchParams(window.location.search));
+const serverSnapshot = (): boolean | null => null;
+
 export function useTiktokSharedRedirect(state: ShopReportState, target: "/tong-quan" | "/phan-tich"): boolean {
   const router = useRouter();
   const platform = useShopPlatformResolved(state);
-  const [legacy, setLegacy] = useState<boolean | null>(null);
+  // Read from the URL on the client only (the server has no URL: null there, so hydration matches).
+  const legacy = useSyncExternalStore(subscribeNever, legacySnapshot, serverSnapshot);
   const hasShop = "shop" in state;
-
-  useEffect(() => {
-    // Read after mount: the server has no URL, and the first client render must match it.
-    setLegacy(tiktokLegacyScreens(new URLSearchParams(window.location.search)));
-  }, []);
 
   const redirect = hasShop && legacy === false && platform === "tiktok";
   useEffect(() => {

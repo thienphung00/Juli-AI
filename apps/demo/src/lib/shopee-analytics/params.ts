@@ -1,4 +1,4 @@
-import { sourceName } from "../platform-labels";
+import { OFFER_NAME_TABLE, sourceName } from "../platform-labels";
 import type { PeriodKind, WindowQuery } from "./client";
 
 /**
@@ -47,10 +47,7 @@ export const SOURCE_NAME: Readonly<Record<string, string>> = {
   video: nm("video"),
   lien_ket: nm("lien_ket"),
   ads: nm("ads"),
-  none: "Không ưu đãi",
-  voucher: "Voucher",
-  promo: "Khuyến mãi",
-  combo: "Combo",
+  ...OFFER_NAME_TABLE,
 };
 
 /** Thẻ sản phẩm children: artboard key ↔ API key. */

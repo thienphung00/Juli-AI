@@ -56,8 +56,12 @@ export function isSourceKey(key: string): key is SourceKey {
   return key in SOURCE_LABEL_TABLE.shopee;
 }
 
+/** The offer-type filters of the source chips (`src=`), the same on both platforms. */
+export const OFFER_NAME_TABLE: Readonly<Record<string, string>> = { none: "Không ưu đãi", voucher: "Voucher", promo: "Khuyến mãi", combo: "Combo" };
+
 /** The name of a source on a platform; an unknown key is returned as is. */
 export function sourceName(platform: NavPlatform, key: string): string {
+  if (key in OFFER_NAME_TABLE) return OFFER_NAME_TABLE[key]!;
   const k = sourceKeyOfFlow(key);
   return isSourceKey(k) ? SOURCE_LABEL_TABLE[platform][k].name : key;
 }

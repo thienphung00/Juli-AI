@@ -40,23 +40,38 @@ async function platformFromShopsMe(token: string, shopId: string, fetchImpl?: ty
   }
 }
 
-/** One read of the platform: the answer, or null when unknown (failed, malformed, or no answer in time). */
+const inflight = new Map<string, Promise<NavPlatform | null>>();
+
+/**
+ * One read of the platform: the answer, or null when unknown (failed, malformed, or no answer in time).
+ * Concurrent callers for the same shop (the shell's report provider and the screen's hook) share one request.
+ */
 export function probeShopPlatform(token: string, shopId: string, fetchImpl?: typeof fetch): Promise<NavPlatform | null> {
   const cached = known.get(shopId);
   if (cached) return Promise.resolve(cached);
-  return new Promise((resolve) => {
+  const pending = inflight.get(shopId);
+  if (pending) return pending;
+  const read = new Promise<NavPlatform | null>((resolve) => {
     const timer = setTimeout(() => resolve(null), PLATFORM_READ_TIMEOUT_MS);
     void platformFromShopsMe(token, shopId, fetchImpl).then((platform) => {
       clearTimeout(timer);
       if (platform) known.set(shopId, platform);
       resolve(platform);
     });
-  });
+  }).finally(() => inflight.delete(shopId));
+  inflight.set(shopId, read);
+  return read;
+}
+
+/** Test hook: a shop whose platform the test already knows (no `shops/me` read). */
+export function seedShopPlatform(shopId: string, platform: NavPlatform): void {
+  known.set(shopId, platform);
 }
 
 /** Test hook: forget what was learned. */
 export function resetShopPlatformCache(): void {
   known.clear();
+  inflight.clear();
 }
 
 export type PlatformPhase = "none" | "loading" | "ready" | "error";

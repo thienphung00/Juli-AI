@@ -13,6 +13,9 @@ import {
 import { shopInitials, shopSubline } from "../components/app-shell/shop-header";
 import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
 
+// W3 U-4: the header's "Juli đang chạy" time comes from the ADR-108 report, read only behind the one switch.
+process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS = "1";
+
 /**
  * The app shell (AC-8.5, ADR-109 decisions 1, 7, 8). Replaces the Phase 2.6
  * shell's header controls, assistance aside and bottom-nav-everywhere: the

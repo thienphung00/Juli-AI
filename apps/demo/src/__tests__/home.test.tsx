@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import { resetShopPlatformCache, seedShopPlatform } from "../lib/shopee-analytics/platform";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "../app/page";
@@ -15,6 +16,7 @@ import { vnClock, vnWeekdayDate } from "../lib/vn-format";
 
 // W3 U-4: these tests exercise the ADR-108 TikTok Home, which stays behind the one switch.
 process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS = "1";
+seedShopPlatform("shop-1", "tiktok");
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), usePathname: () => "/" }));
 
 /**
@@ -262,6 +264,7 @@ describe("/ — anonymous and signed-in doors", () => {
   });
 
   it("a Shopee shop never calls the TikTok-only analysis read", async () => {
+    resetShopPlatformCache(); // the shop is read from shops/me here, not seeded as TikTok
     window.sessionStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({ accessToken: "token-1", tokenType: "bearer" }));
     window.sessionStorage.setItem(ACTIVE_SHOP_STORAGE_KEY, JSON.stringify({ id: "shop-shopee-1", name: "Shop Shopee" }));
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ platform: "shopee" }), { status: 200, headers: { "Content-Type": "application/json" } }));
