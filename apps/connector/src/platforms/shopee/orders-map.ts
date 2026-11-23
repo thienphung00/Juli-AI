@@ -503,6 +503,15 @@ const INCOME_LABELS: [RegExp, string][] = [
 ];
 /** The income answer's final amount, under the income call's label or the order page's (0.3.32). */
 const FINAL_AMOUNT = /^(so tien cuoi cung|doanh thu don hang)$/;
+/** a2 C-A10: an income answer (call or page) with its income lines but no final amount yet: the order is not final. */
+export function incomeNotFinal(responses: ReaderResponse[]): boolean {
+  return responses.some((r) => {
+    if (r.endpoint !== "order_income_components" || classify(r.status, r.body) !== "ok") return false;
+    const found = pairs(payloadOf(r.body));
+    return found.length > 0 && !found.some((p) => FINAL_AMOUNT.test(plain(p.label)));
+  });
+}
+
 /** a2 C-A10: the order page's income rows hold the final amount ("Doanh Thu Đơn Hàng"). */
 export function pageIncomeFinal(items: readonly { name: string }[]): boolean {
   return items.some((i) => FINAL_AMOUNT.test(plain(i.name)));
@@ -577,11 +586,13 @@ export function mapOrderIncome(responses: ReaderResponse[], capturedAt: number):
       row[field] = SIGNED.has(field) ? vnd : Math.abs(vnd);
     }
     if (!("payout" in row)) {
-      // a2 C-A10: an order PAGE read without its "Doanh Thu Đơn Hàng" row (not drawn yet, folded, not
-      // final) is skipped, never drift: drift stops order_income for the whole version (live 23/11,
-      // 0.3.32 "Tạm dừng"). Only the income call's own answer without a final amount is drift.
-      if (response.source !== "page" && !drift.missing.includes("components.final_amount")) drift.missing.push("components.final_amount");
-      continue; // "Ước tính" until the order completes: no final amount, nothing to post yet
+      // a2 C-A10 (prod 23/11: drift "components.final_amount" from 0.3.32's income CALL): an answer
+      // that has its income lines but no final amount is an order not final yet (in transit, not
+      // settled): skipped, the reader says `income_not_final`. Drift stops order_income for the
+      // whole version, so it is kept for an answer of another shape: no income line at all.
+      const structural = response.source !== "page" && pairs(payloadOf(response.body)).length === 0;
+      if (structural && !drift.missing.includes("components")) drift.missing.push("components");
+      continue;
     }
     rows.push(row);
   }

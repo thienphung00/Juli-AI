@@ -33,7 +33,7 @@ import {
 import { isDatacenterPath, isMydataPath } from "./config";
 import { isReadOnlyOrderDetailPath, isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, READER_PAGES, type ReaderEndpoint } from "./endpoints";
 import { isNoCampaign } from "./promotion-map";
-import { cardOrdersWithoutSku, type PageItem, pageIncomeFinal, trimOrderCards, trimOrderDetail, trimOrderIndex, withPageSkus, withUnresolvedSkus } from "./orders-map";
+import { cardOrdersWithoutSku, incomeNotFinal, type PageItem, pageIncomeFinal, trimOrderCards, trimOrderDetail, trimOrderIndex, withPageSkus, withUnresolvedSkus } from "./orders-map";
 import type { Pacer } from "./runner";
 import { buildBackfillDayPlan } from "./sync";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "../../core/time";
@@ -1464,10 +1464,12 @@ async function readOrderIncome(
     });
   }
   const where = opened ? orderKeyIn(template, opened) : null;
+  // a2 C-A10: an order whose answer has no final amount yet is skipped and said (`income_not_final`)
+  const notFinal = () => (incomeNotFinal(collected) ? INCOME_NOT_FINAL : undefined);
   // 0.3.26: no order key in the page's own call: the other orders cannot be requested. Said, not
   // silent ("no_order_key" when not one order was read; else the rest is left for the next run).
   if (!where) {
-    if (ids.length <= 1) return undefined;
+    if (ids.length <= 1) return notFinal();
     return collected.some((r) => r.endpoint === "order_income_components") ? "partial:no_order_key" : "no_order_key";
   }
   for (const [offset, id] of ids.slice(1).entries()) {
@@ -1476,7 +1478,11 @@ async function readOrderIncome(
     // An income answer that is not data (a refused order) is skipped; a rate stop still stops all.
     await send(env, request, collected, { orderId: id, ...snOf(offset + 1) }, true, true);
   }
+  return notFinal();
 }
+
+/** a2 C-A10: an income answer without its final amount (the order is not final yet): that order was skipped. */
+export const INCOME_NOT_FINAL = "income_not_final";
 
 // -- affiliate ("Tăng Đơn Cùng KOL") ---------------------------------------------------------
 //

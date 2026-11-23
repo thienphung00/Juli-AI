@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // batch-1123-a2 C-A10: "Doanh thu từng đơn: Tạm dừng: Seller Centre đã thay đổi" on 0.3.32. The only
-// drift path of order_income is mapOrderIncome's "components.final_amount" (no answer with a final
+// drift path of order_income was mapOrderIncome's "components.final_amount" (no answer with a final
 // amount). The order page reader (0.3.32) posted the page's income rows as soon as the page showed
 // its product lines, so a page read before (or without) its "Doanh Thu Đơn Hàng" row became an
 // answer without a final amount: drift, and the dataset stopped for the whole version. Now the
@@ -76,10 +76,12 @@ describe("C-A10: the order page's income never trips drift", () => {
     expect(income!.drift).toBeNull();
   });
 
-  it("mapOrderIncome: a page answer without a final amount is skipped; the income call's own answer without one is still drift", () => {
+  it("mapOrderIncome: an answer without a final amount (page or call) is skipped, not drift; a call with no income line at all is drift", () => {
     const page: ReaderResponse = { endpoint: "order_income_components", url: "u", status: 200, body: { code: 0, data: { items: [{ name: "Phí cố định", amount: -16000 }] } }, capturedAt: NOW, source: "page", orderId: "5001" };
     expect(mapOrderIncome([page], NOW).drift).toBeNull();
     const call: ReaderResponse = { ...page, source: "replay" };
-    expect(mapOrderIncome([call], NOW).drift).toEqual({ unexpected: [], missing: ["components.final_amount"] });
+    expect(mapOrderIncome([call], NOW).drift).toBeNull();
+    const reshaped: ReaderResponse = { ...call, body: { code: 0, data: { renamed: { total: 1 } } } };
+    expect(mapOrderIncome([reshaped], NOW).drift).toEqual({ unexpected: [], missing: ["components"] });
   });
 });
