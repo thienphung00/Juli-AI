@@ -20,7 +20,26 @@ export type JobKind =
   | "voucher_end"
   | "combo_end"
   /** 0.3.27 (F3.2, contract C): read the object again after a save, read-only. */
-  | "readback";
+  | "readback"
+  /** batch-1123-a F (0.3.32): Chương Trình Của Shop, Flash Sale Của Shop, Deal Sốc (Mua Kèm / Mua Để Nhận Quà). */
+  | "product_discount"
+  | "flash_sale"
+  | "add_on"
+  | "gift"
+  /** The product page: a new cover (Ảnh bìa) and new options (Phân loại hàng). */
+  | "cover_image"
+  | "variation_set"
+  /** Their undo: the list row's Kết thúc / Xóa (or its "Thêm" menu) is shown, never pressed. */
+  | "discount_end"
+  | "flash_sale_end"
+  | "deal_end";
+
+/** batch-1123-a F: the end jobs of the programmes (revert only, like voucher_end / combo_end). */
+export const DEAL_LIST_QUERY = "?discountType=addondeal&status=all&page=1";
+export const DISCOUNT_LIST_QUERY = "?discountType=all&status=all&page=1";
+export const PROGRAMME_ENDS = ["discount_end", "flash_sale_end", "deal_end"] as const;
+/** The kinds a revert may be: a text, a commission or a price put back, a row's end, the product page's undo. */
+const REVERTIBLE: readonly JobKind[] = ["title", "description_first_line", "affiliate_commission", "voucher_end", "combo_end", "price", "cover_image", "variation_set", ...PROGRAMME_ENDS];
 
 /** Forward fill, the undo of an executed card (contract B), or a read-back (contract C). */
 export type JobMode = "forward" | "revert" | "readback";
@@ -67,6 +86,80 @@ export interface PricePayload {
   variations: PriceVariation[];
 }
 
+/** Per variation Giá sau giảm / Giá đã giảm / Giá Mua Kèm (`finalPrice`) OR %GIẢM (`discountPct`). */
+export interface DiscountRow {
+  variationId: string;
+  name?: string;
+  finalPrice?: number;
+  discountPct?: number;
+  /** Flash Sale: SL sản phẩm khuyến mãi of this variation. */
+  stock?: number;
+}
+
+export interface ProductDiscountPayload {
+  name: string;
+  startsAt: string;
+  endsAt: string;
+  productIds: string[];
+  variations: DiscountRow[];
+  /** One % for every variation of every product (a many-target card). */
+  allPct?: number;
+  promoQty?: number;
+  perBuyerLimit?: number;
+}
+
+export interface FlashSalePayload {
+  itemId: string;
+  productIds: string[];
+  /** The slot by its day (YYYY-MM-DD) and Shopee's label ("21:00:00 - 00:00:00"), never an id. */
+  slot: { day: string; label: string; startsAt: string };
+  variations: DiscountRow[];
+  units: number;
+  purchaseLimit?: number;
+}
+
+export interface DealAddon {
+  itemId: string;
+  price?: number;
+  pct?: number;
+  limit?: number;
+}
+
+export interface DealPayload {
+  dealType: "add_on" | "gift";
+  name: string;
+  startsAt: string;
+  endsAt: string;
+  mainProductIds: string[];
+  addonProductIds: string[];
+  addons: DealAddon[];
+  addonLimit?: number;
+  minSpend?: number;
+  giftQty?: number;
+  giftProductIds: string[];
+}
+
+export interface CoverPayload {
+  itemId: string;
+  oldCoverUrl: string;
+  newCoverUrl?: string;
+}
+
+export interface VariationOption {
+  name: string;
+  price?: number;
+  sku?: string;
+  stock?: number;
+}
+
+export interface VariationSetPayload {
+  itemId: string;
+  options: VariationOption[];
+  /** The undo: the options to delete (the person) and the old prices to put back. */
+  removeOptions: string[];
+  oldVariations: VariationOption[];
+}
+
 export interface ComboPayload {
   name: string;
   startsAt: string;
@@ -83,6 +176,8 @@ export interface EndTarget {
   id?: string;
   code?: string;
   name?: string;
+  /** A Flash Sale Của Shop row: its day and slot label. */
+  slot?: { day: string; label: string };
 }
 
 export type ReadbackDataset = "item_catalog" | "voucher_list" | "combo_list";
@@ -94,7 +189,12 @@ export interface ReadbackPayload {
 
 export type JobPayload =
   | { kind: "title" | "description_first_line"; fields: FillField[]; itemId: string }
-  | { kind: "voucher_end" | "combo_end"; end: EndTarget }
+  | { kind: "voucher_end" | "combo_end" | "discount_end" | "flash_sale_end" | "deal_end"; end: EndTarget }
+  | { kind: "product_discount"; discount: ProductDiscountPayload }
+  | { kind: "flash_sale"; flash: FlashSalePayload }
+  | { kind: "add_on" | "gift"; deal: DealPayload }
+  | { kind: "cover_image"; cover: CoverPayload }
+  | { kind: "variation_set"; variations: VariationSetPayload }
   | { kind: "readback"; readback: ReadbackPayload }
   | { kind: "voucher"; voucher: VoucherPayload }
   | { kind: "ads_edit"; ads: AdsPayload }
@@ -253,6 +353,18 @@ function addressOk(kind: JobKind, openPath: string, payload: JobPayload): boolea
     return !!m && m[1] === payload.price.itemId && url.search === "";
   }
   if (kind === "affiliate_commission") return FILL_JOB_PAGES.affiliate_open.test(path);
+  if (kind === "product_discount") return payload.kind === kind && FILL_JOB_PAGES.discount_new.test(path) && url.search === "";
+  if (kind === "flash_sale") return payload.kind === kind && FILL_JOB_PAGES.flash_sale_new.test(path) && url.search === "";
+  if (kind === "add_on" || kind === "gift") return payload.kind === kind && FILL_JOB_PAGES.deal_new.test(path) && url.search === "";
+  if ((kind === "cover_image" || kind === "variation_set") && (payload.kind === "cover_image" || payload.kind === "variation_set")) {
+    const m = FILL_JOB_PAGES.product_edit.exec(path);
+    const item = payload.kind === "cover_image" ? payload.cover.itemId : payload.variations.itemId;
+    return payload.kind === kind && !!m && m[1] === item && url.search === "";
+  }
+  // D2: the Deal Sốc list is the discount list's addondeal tab; Chương Trình Của Shop opens the "all" tab (its own tab value is not captured: E-case)
+  if (kind === "deal_end") return payload.kind === kind && FILL_JOB_PAGES.discount_list.test(path) && url.search === DEAL_LIST_QUERY;
+  if (kind === "discount_end") return payload.kind === kind && FILL_JOB_PAGES.discount_list.test(path) && (url.search === DISCOUNT_LIST_QUERY || url.search === "");
+  if (kind === "flash_sale_end") return payload.kind === kind && FILL_JOB_PAGES.flash_sale_list.test(path);
   if (kind === "voucher_end") return payload.kind === kind && FILL_JOB_PAGES.voucher_list.test(path);
   if (kind === "combo_end") return payload.kind === kind && FILL_JOB_PAGES.bundle_list.test(path);
   if (kind === "readback" && payload.kind === "readback") {
@@ -304,6 +416,197 @@ function readback(p: Record<string, unknown>): ReadbackPayload | null {
   return Object.keys(target).length > 0 ? { target, datasets } : null;
 }
 
+// -- batch-1123-a F: programmes and the product page ---------------------------------------
+
+export const MAX_PROGRAMME_NAME = 150;
+/** Shopee's Deal Sốc name box: maxlength 25 (capture 03). */
+export const MAX_DEAL_NAME = 25;
+export const MAX_VARIATION_ROWS = 40;
+/** Shopee's 8 fixed Flash Sale Của Shop slots (capture 01): only these labels are picked. */
+export const FLASH_SLOT_LABELS: readonly string[] = ["00:00:00 - 02:00:00", "02:00:00 - 09:00:00", "09:00:00 - 12:00:00", "12:00:00 - 15:00:00", "15:00:00 - 17:00:00", "17:00:00 - 19:00:00", "19:00:00 - 21:00:00", "21:00:00 - 00:00:00"];
+const SLOT_LABEL = { test: (label: string) => FLASH_SLOT_LABELS.includes(label) };
+/** Days from today (GMT+7) to an ISO day; the forward fill books tomorrow .. a week ahead (capture 01). */
+export function daysAhead(day: string, now = Date.now()): number {
+  const today = new Date(now + 7 * 3_600_000).toISOString().slice(0, 10);
+  return Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+}
+const ISO_DAY = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+const HTTPS = /^https:\/\/[^\s"'<>]{1,2000}$/;
+
+function discountRows(raw: unknown, stock: boolean): DiscountRow[] | null {
+  if (!Array.isArray(raw) || raw.length > MAX_VARIATION_ROWS) return null;
+  const out: DiscountRow[] = [];
+  const seen = new Set<string>();
+  for (const r of raw) {
+    if (!isRecord(r)) return null;
+    const variationId = str(r.variation_id, 64);
+    const name = r.name === undefined ? undefined : str(r.name, 255);
+    const finalPrice = r.final_price === undefined ? undefined : int(r.final_price, 1, 1_000_000_000);
+    const discountPct = r.discount_pct === undefined ? undefined : num(r.discount_pct);
+    if (!variationId || seen.has(variationId) || (r.name !== undefined && !name)) return null;
+    if ((finalPrice === undefined) === (discountPct === undefined)) return null;
+    if (r.final_price !== undefined && finalPrice === undefined) return null;
+    if (discountPct !== undefined && !(discountPct > 0 && discountPct <= 90)) return null;
+    const row: DiscountRow = { variationId, ...(name ? { name } : {}), ...(finalPrice !== undefined ? { finalPrice } : { discountPct: discountPct! }) };
+    if (stock && r.stock !== undefined) {
+      const s = int(r.stock, 1, 1000);
+      if (!s) return null;
+      row.stock = s;
+    }
+    seen.add(variationId);
+    out.push(row);
+  }
+  return out;
+}
+
+function period(raw: Record<string, unknown>): { startsAt: string; endsAt: string } | null {
+  const startsAt = str(raw.starts_at, 16);
+  const endsAt = str(raw.ends_at, 16);
+  return startsAt && endsAt && DATE_FORMAT.test(startsAt) && DATE_FORMAT.test(endsAt) ? { startsAt, endsAt } : null;
+}
+
+function productDiscount(raw: Record<string, unknown>): ProductDiscountPayload | null {
+  const name = str(raw.name, MAX_PROGRAMME_NAME);
+  const when = period(raw);
+  const productIds = ids(raw.product_ids);
+  const variations = discountRows(raw.variations ?? [], false);
+  if (!name || !when || !productIds || productIds.length === 0 || !variations) return null;
+  const out: ProductDiscountPayload = { name, ...when, productIds, variations };
+  if (raw.all_pct !== undefined) {
+    const pct = num(raw.all_pct);
+    if (pct === undefined || !(pct > 0 && pct <= 90)) return null;
+    out.allPct = pct;
+  }
+  // one % for all, or a value per variation: never both, never neither
+  if ((out.allPct !== undefined) === (variations.length > 0)) return null;
+  for (const [key, field, max] of [["promo_qty", "promoQty", 10_000_000], ["per_buyer_limit", "perBuyerLimit", 100]] as const) {
+    if (raw[key] === undefined) continue;
+    const v = int(raw[key], 1, max);
+    if (!v) return null;
+    out[field] = v;
+  }
+  return out;
+}
+
+function flashSale(raw: Record<string, unknown>): FlashSalePayload | null {
+  const itemId = digitsOf(raw.item_id);
+  const productIds = ids(raw.product_ids);
+  const s = raw.slot;
+  const variations = discountRows(raw.variations, true);
+  const units = int(raw.units, 1, 1_000_000);
+  if (!itemId || !productIds || productIds.length !== 1 || productIds[0] !== itemId || !isRecord(s) || !variations || variations.length === 0 || !units) return null;
+  const day = str(s.day, 10);
+  const label = str(s.label, 19);
+  const startsAt = str(s.starts_at, 16);
+  if (!day || !ISO_DAY.test(day) || !label || !SLOT_LABEL.test(label) || !startsAt || !DATE_FORMAT.test(startsAt)) return null;
+  if (variations.some((v) => v.discountPct !== undefined && (v.discountPct < 5 || v.discountPct > 90))) return null;
+  const ahead = daysAhead(day);
+  if (ahead < 1 || ahead > 7) return null;
+  const out: FlashSalePayload = { itemId, productIds, slot: { day, label, startsAt }, variations, units };
+  if (raw.purchase_limit !== undefined) {
+    const limit = int(raw.purchase_limit, 1, 1000);
+    if (!limit) return null;
+    out.purchaseLimit = limit;
+  }
+  return out;
+}
+
+function deal(raw: Record<string, unknown>, kind: "add_on" | "gift"): DealPayload | null {
+  const name = str(raw.name, MAX_DEAL_NAME);
+  const when = period(raw);
+  if (raw.deal_type !== kind || !name || !when) return null;
+  const mainProductIds = ids(raw.main_product_ids ?? []);
+  const addonProductIds = ids(raw.addon_product_ids ?? []);
+  const giftProductIds = ids(raw.gift_product_ids ?? []);
+  if (!mainProductIds || !addonProductIds || !giftProductIds) return null;
+  const out: DealPayload = { dealType: kind, name, ...when, mainProductIds, addonProductIds, addons: [], giftProductIds };
+  if (kind === "add_on") {
+    if (mainProductIds.length !== 1 || addonProductIds.length === 0) return null;
+    const rows = raw.addons ?? [];
+    if (!Array.isArray(rows) || rows.length > MAX_PRODUCTS) return null;
+    for (const r of rows) {
+      if (!isRecord(r)) return null;
+      const itemId = digitsOf(r.item_id);
+      const price = r.price === undefined ? undefined : int(r.price, 1, 1_000_000_000);
+      const pct = r.pct === undefined ? undefined : num(r.pct);
+      const limit = r.limit === undefined ? undefined : int(r.limit, 1, 100);
+      if (!itemId || (price === undefined) === (pct === undefined) || (r.price !== undefined && !price) || (pct !== undefined && (pct < 0 || pct > 90)) || (r.limit !== undefined && !limit)) return null;
+      out.addons.push({ itemId, ...(price !== undefined ? { price } : { pct: pct! }), ...(limit ? { limit } : {}) });
+    }
+    if (raw.addon_limit !== undefined) {
+      const limit = int(raw.addon_limit, 1, 100);
+      if (!limit) return null;
+      out.addonLimit = limit;
+    }
+    return out;
+  }
+  const minSpend = int(raw.min_spend, 1, 9_999_999_999_999);
+  const giftQty = int(raw.gift_qty, 1, 49);
+  if (!minSpend || !giftQty || giftProductIds.length === 0) return null;
+  return { ...out, minSpend, giftQty };
+}
+
+function cover(raw: Record<string, unknown>, mode: JobMode): CoverPayload | null {
+  const itemId = digitsOf(raw.item_id);
+  const oldCoverUrl = typeof raw.old_cover_url === "string" && HTTPS.test(raw.old_cover_url) ? raw.old_cover_url : undefined;
+  if (!itemId || !oldCoverUrl) return null;
+  const out: CoverPayload = { itemId, oldCoverUrl };
+  if (raw.new_cover_url !== undefined) {
+    if (mode === "revert" || typeof raw.new_cover_url !== "string" || !HTTPS.test(raw.new_cover_url)) return null;
+    out.newCoverUrl = raw.new_cover_url;
+  }
+  return out;
+}
+
+function option(r: unknown): VariationOption | null {
+  if (!isRecord(r)) return null;
+  const name = str(r.name, 100);
+  if (!name || /[\r\n]/.test(name)) return null;
+  const out: VariationOption = { name };
+  for (const [key, max] of [["price", 2_000_000_000], ["stock", 10_000_000]] as const) {
+    if (r[key] === undefined || r[key] === null) continue;
+    const v = int(r[key], key === "price" ? 1 : 0, max);
+    if (v === undefined) return null;
+    out[key] = v;
+  }
+  if (r.sku !== undefined && r.sku !== null) {
+    const sku = str(r.sku, 100);
+    if (!sku) return null;
+    out.sku = sku;
+  }
+  return out;
+}
+
+function variationSet(raw: Record<string, unknown>, mode: JobMode): VariationSetPayload | null {
+  const itemId = digitsOf(raw.item_id);
+  if (!itemId) return null;
+  const list = (v: unknown, max: number) => (Array.isArray(v) && v.length <= max ? v.map(option) : null);
+  const options = list(raw.options ?? [], 12);
+  const old = list(raw.old_variations ?? [], MAX_VARIATION_ROWS);
+  const names = raw.remove_options ?? [];
+  const remove = Array.isArray(names) && names.length <= 12 ? names.map((n) => str(n, 100)) : null;
+  if (!options || !old || !remove || options.some((o) => !o) || old.some((o) => !o) || remove.some((n) => !n)) return null;
+  const out: VariationSetPayload = { itemId, options: options as VariationOption[], removeOptions: remove as string[], oldVariations: old as VariationOption[] };
+  if (mode === "revert" ? out.removeOptions.length === 0 : out.options.length === 0 || out.options.some((o) => o.price === undefined)) return null;
+  return out;
+}
+
+function programmeEnd(p: Record<string, unknown>): EndTarget | null {
+  const id = digitsOf(p.id);
+  const name = str(p.name, MAX_PROGRAMME_NAME);
+  if (p.id !== undefined && p.id !== null && !id) return null;
+  let slot: EndTarget["slot"];
+  if (p.slot !== undefined) {
+    const s = p.slot;
+    const day = isRecord(s) ? str(s.day, 10) : undefined;
+    const label = isRecord(s) ? str(s.label, 19) : undefined;
+    if (!day || !ISO_DAY.test(day) || !label || !SLOT_LABEL.test(label)) return null;
+    slot = { day, label };
+  }
+  if (!id && !name && !slot) return null;
+  return { ...(id ? { id } : {}), ...(name ? { name } : {}), ...(slot ? { slot } : {}) };
+}
+
 /** One job of the server's answer, or null when anything is off. */
 export function parseFillJob(raw: unknown): FillJob | null {
   if (!isRecord(raw)) return null;
@@ -318,9 +621,9 @@ export function parseFillJob(raw: unknown): FillJob | null {
   if (!["forward", "revert", "readback"].includes(mode)) return null;
   // a read-back job is only ever a read-back; an end job only ever a revert
   if ((kind === "readback") !== (mode === "readback")) return null;
-  if ((kind === "voucher_end" || kind === "combo_end") && mode !== "revert") return null;
-  // what a revert may be (contract B): a text put back, a commission put back, or a row's end
-  if (mode === "revert" && !["title", "description_first_line", "affiliate_commission", "voucher_end", "combo_end"].includes(kind)) return null;
+  if ((kind === "voucher_end" || kind === "combo_end" || (PROGRAMME_ENDS as readonly string[]).includes(kind)) && mode !== "revert") return null;
+  // what a revert may be (contract B): a text, a commission or a price put back, a row's end, a product page undo
+  if (mode === "revert" && !REVERTIBLE.includes(kind)) return null;
   let payload: JobPayload | null = null;
   if (kind === "title" || kind === "description_first_line") {
     const itemId = /\/portal\/product\/(\d{1,20})$/.exec(openPath.split("?")[0] ?? "")?.[1];
@@ -378,6 +681,24 @@ export function parseFillJob(raw: unknown): FillJob | null {
   } else if (kind === "voucher_end" || kind === "combo_end") {
     const end = endTarget(p, kind === "voucher_end" ? "voucher_id" : "combo_id");
     payload = end ? { kind, end } : null;
+  } else if (kind === "discount_end" || kind === "flash_sale_end" || kind === "deal_end") {
+    const end = programmeEnd(p);
+    payload = end ? { kind, end } : null;
+  } else if (kind === "product_discount") {
+    const d = productDiscount(p);
+    payload = d ? { kind, discount: d } : null;
+  } else if (kind === "flash_sale") {
+    const f = flashSale(p);
+    payload = f ? { kind, flash: f } : null;
+  } else if (kind === "add_on" || kind === "gift") {
+    const d = deal(p, kind);
+    payload = d ? { kind, deal: d } : null;
+  } else if (kind === "cover_image") {
+    const c = cover(p, mode);
+    payload = c ? { kind, cover: c } : null;
+  } else if (kind === "variation_set") {
+    const v = variationSet(p, mode);
+    payload = v ? { kind, variations: v } : null;
   } else if (kind === "readback") {
     const r = readback(p);
     payload = r ? { kind, readback: r } : null;

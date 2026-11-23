@@ -82,6 +82,8 @@ READ: dict[str, str] = {
     "Phí hoa hồng Tiếp thị liên kết": "affiliate_commission",
     "Phí dịch vụ PiShip": "fee_piship",
     "Phí dịch vụ hiển thị NTTD (từ doanh thu đơn hàng)": "fee_nttd",
+    # E80: Seller Centre's newer name of the same column (ads top-up taken from order revenue)
+    "Phí DVHT Nạp Tiền Tự Động (từ doanh thu đơn hàng)": "fee_nttd",
     "Thuế GTGT": "vat_withheld",
     "Thuế TNCN": "pit_withheld",
     "Trade-in Bonus by Seller": "trade_in_bonus_seller",
@@ -184,6 +186,7 @@ SUMMARY_FIELDS: dict[str, str] = {
     "Phí dịch vụ PiShip": "fee_piship",
     "Phí xử lý giao dịch": "fee_payment",
     "Phí dịch vụ hiển thị NTTD (từ doanh thu đơn hàng)": "fee_nttd",
+    "Phí DVHT Nạp Tiền Tự Động (từ doanh thu đơn hàng)": "fee_nttd",
     "Trade-in Bonus by Seller": "trade_in_bonus_seller",
     "Thuế GTGT": "vat_withheld",
     "Thuế TNCN": "pit_withheld",

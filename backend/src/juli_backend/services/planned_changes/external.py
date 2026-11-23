@@ -113,7 +113,7 @@ async def _facts(
 ) -> er.Facts:
     env = await load_env(session, shop_id, now=now)
     if env is None:
-        raise ProposalError(ERROR_NO_DATA, 409, "shop has no Shopee numbers")
+        raise ProposalError(ERROR_NO_DATA, 409, "Shop chưa có số liệu Shopee.")
     campaigns = [
         er.Campaign(c.key, c.name, tuple(c.products), float(c.spend))
         for c in env.view.ads.campaigns
@@ -122,7 +122,31 @@ async def _facts(
     campaigns += [er.Campaign(k, s.name) for k, s in env.campaigns.items() if k not in known]
     price_items = sorted({r.items[0] for r in rows if r.items and r.status != er.STATUS_CANCELLED})
     variations = await builder.variation_rows_for(session, shop_id, env, price_items)
-    return er.Facts(today=now.date(), campaigns=campaigns, variations=variations)
+    reports = await _report_keys(session, shop_id, now, rows, campaigns)
+    return er.Facts(today=now.date(), campaigns=campaigns, variations=variations, reports=reports)
+
+
+async def _report_keys(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    now: datetime,
+    rows: list[Any],
+    campaigns: list[er.Campaign],
+) -> dict[date, frozenset[str]]:
+    """E77: per evaluation day of the ads rows, the campaigns that have a report on it (one
+    environment load per distinct day)."""
+    days = {
+        er.as_of_day(r, now.date())
+        for r in rows
+        if r.status != er.STATUS_CANCELLED and r.on is not None
+    }
+    out: dict[date, frozenset[str]] = {}
+    for day in sorted(days):
+        env = await load_env(session, shop_id, as_of=day, now=_when(now.date()))
+        out[day] = frozenset(
+            c.key for c in campaigns if env is not None and campaign_profile(env, c.key) is not None
+        )
+    return out
 
 
 async def existing_refs(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, uuid.UUID]:
@@ -437,6 +461,17 @@ async def commit_import(
                     got = await _create(
                         session, shop.id, plan, rp.row, user_id=user_id, now=now, plan_key=plan_key
                     )
+            except manual.DuplicateCard as dup:  # an open card already holds this change: "Đã có"
+                counts["exists"] += 1
+                cards.append(
+                    {
+                        **base,
+                        "action": "exists",
+                        "reason": "exists",
+                        "existing_code": dup.existing_code,
+                    }
+                )
+                continue
             except (ProposalError, SpecRefused, ValidationError, builder.NoShopeeData) as exc:
                 counts["refused"] += 1
                 message = getattr(exc, "detail", None) or type(exc).__name__

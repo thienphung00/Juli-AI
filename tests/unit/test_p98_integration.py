@@ -422,7 +422,9 @@ async def test_the_routes_no_longer_answer_422_for_an_ads_edit(seller, session, 
     chosen = await seller.post(f"{B}/choose", json={**common, "chosen": 0})
     assert chosen.status_code == 201, chosen.text
     assert chosen.json()["outcome"]["result"]["ads"]["lever"] == "budget"
-    grouped = await seller.post(f"{B}/group", json={**common, "members": [0], "days": 7})
+    # another budget for the group: the same change as the card just chosen is a duplicate (S4)
+    other = {**common, "versions": [{**version, "daily_budget": 160_000}]}
+    grouped = await seller.post(f"{B}/group", json={**other, "members": [0], "days": 7})
     assert grouped.status_code == 201, grouped.text
 
 

@@ -493,6 +493,13 @@ export const FILL_JOB_PAGES = {
   /** 0.3.27: the lists a revert (voucher_end / combo_end) opens and a save lands on. */
   voucher_list: /^\/portal\/marketing\/vouchers\/list$/,
   bundle_list: /^\/portal\/marketing\/bundle\/list$/,
+  /** batch-1123-a F: the create forms of Chương Trình Của Shop, Flash Sale Của Shop and Deal Sốc. */
+  discount_new: /^\/portal\/marketing\/discount\/create$/,
+  flash_sale_new: /^\/portal\/marketing\/shop-flash-sale\/create$/,
+  deal_new: /^\/portal\/marketing\/add-on-deal\/create$/,
+  /** The lists their saves land on and their undo opens (assumed: E-case for the first E2E run). */
+  discount_list: /^\/portal\/marketing\/list\/discount$/,
+  flash_sale_list: /^\/portal\/marketing\/shop-flash-sale\/list$/,
 } as const;
 
 // -- market search reader (P92 B-10, Connector 0.3.5) -----------------------------------------
@@ -532,3 +539,21 @@ export const MARKET_SORT = "relevancy";
 export function marketActive(shopId: string | undefined): boolean {
   return !!shopId;
 }
+
+
+/**
+ * 0.3.32 (batch-1123-a C3): Phân tích Nội dung (KOL content) has day D from about 13:30 GMT+7 on
+ * D+1 ("Lần cập nhật gần nhất: 13:30"). Its page is read from this minute of the GMT+7 day on; a
+ * daily run that ends earlier arms its own read-back run for then.
+ */
+export const CONTENT_READY_MINUTE_GMT7 = 13 * 60 + 35;
+/**
+ * Datasets whose empty answer is still posted (0 rows), so Juli counts the day as read (0.3.32,
+ * owner rule: fix every staleness gap together): the affiliate period pages that can be a real zero.
+ */
+export const POST_EMPTY_DATASETS: ReadonlySet<string> = new Set([
+  "affiliate_content_period",
+  "affiliate_partner_period",
+  "affiliate_product_period",
+  "affiliate_commission_period",
+]);

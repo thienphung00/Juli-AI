@@ -81,11 +81,12 @@ async def test_send_saves_an_agent_card_with_a_jc_code_in_de_xuat(session):
     assert out["card_code"].startswith("JC-") and out["already_sent"] is False
     proposal = await session.get(ShopProposal, uuid.UUID(out["card_id"]))
     assert proposal.code == out["card_code"]
-    # the seller's own card is sent at once: the same status a "Tự tạo: Chọn" card has
+    # the seller's own card is sent at once: the same status a "Tự tạo: Chọn" card has (another
+    # value: the same change as the agent card is refused as a duplicate, S4)
     seller_card = await manual.create_manual(
         session,
         shop_id,
-        [{"change_kind": "product_discount", "items": ["1001"], "inputs": {"discount_pct": 5}}],
+        [{"change_kind": "product_discount", "items": ["1001"], "inputs": {"discount_pct": 6}}],
         0,
         False,
         manual.Actor("seller", user_id),

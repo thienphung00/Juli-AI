@@ -7,9 +7,10 @@ import type { Env, FillOutcome, FormMap } from "../../../core/fill/form";
 import { type JobLabels, jobLabels } from "../../../core/fill/job-panel";
 import { findControl } from "../../../core/fill/locate";
 import { fillOne } from "../../../core/fill/settle";
-import { findRow } from "./controls";
+import { buttonsMatching, findRow } from "./controls";
 import { COMBO_LABELS, cssAttr, fillAds, fillAffiliate, fillCombo, fillVariationPrices, fillVoucher, VOUCHER_LABELS } from "./fillers";
-import { fillEnd, productCurrent, readProduct } from "./revert";
+import { fillEnd, fillProgrammeEnd, productCurrent, readProduct } from "./revert";
+import { ADD_GROUP_TEXT, DISCOUNT_LABELS, fillCover, fillDeal, fillFlashSale, fillProductDiscount, fillVariationSet, FLASH_SLOT_TEXT, imageGrid, lockedOutcome, priceLocked } from "./promos";
 import { readAffiliate } from "./fillers";
 import type { FillJob, JobKind } from "./job-types";
 
@@ -71,8 +72,39 @@ export const SHOPEE_FORMS: Readonly<Record<JobKind, FormMap<FillJob>>> = {
   price: {
     page: FILL_JOB_PAGES.product_edit,
     ready: (doc, job) => job.payload.kind === "price" && job.payload.price.variations.some((v) => !!doc.querySelector(`[data-variation-id="${cssAttr(v.variationId)}"]`)),
-    fill: async (env, job) => (job.payload.kind === "price" ? fillVariationPrices(env, job.payload.price.variations) : NOTHING()),
+    fill: async (env, job) => {
+      if (job.payload.kind !== "price") return NOTHING();
+      // F7: a price greyed by a running promotion: nothing is written, the job ends "Bị khoá"
+      if (priceLocked(env.doc, job.payload.price.variations)) return lockedOutcome(env, "Giá theo phân loại");
+      return fillVariationPrices(env, job.payload.price.variations);
+    },
   },
+  // batch-1123-a F (0.3.32)
+  product_discount: {
+    page: FILL_JOB_PAGES.discount_new,
+    ready: rowReady(DISCOUNT_LABELS.name),
+    fill: async (env, job) => (job.payload.kind === "product_discount" ? fillProductDiscount(env, job.payload.discount) : NOTHING()),
+  },
+  flash_sale: {
+    page: FILL_JOB_PAGES.flash_sale_new,
+    ready: (doc) => buttonsMatching(doc, FLASH_SLOT_TEXT).length > 0,
+    fill: async (env, job) => (job.payload.kind === "flash_sale" ? fillFlashSale(env, job.payload.flash) : NOTHING()),
+  },
+  add_on: { page: FILL_JOB_PAGES.deal_new, fill: async (env, job) => (job.payload.kind === "add_on" ? fillDeal(env, job.payload.deal) : NOTHING()) },
+  gift: { page: FILL_JOB_PAGES.deal_new, fill: async (env, job) => (job.payload.kind === "gift" ? fillDeal(env, job.payload.deal) : NOTHING()) },
+  cover_image: {
+    page: FILL_JOB_PAGES.product_edit,
+    ready: (doc) => !!imageGrid(doc),
+    fill: async (env, job) => (job.payload.kind === "cover_image" ? fillCover(env, job.payload.cover, job.mode === "revert") : NOTHING()),
+  },
+  variation_set: {
+    page: FILL_JOB_PAGES.product_edit,
+    ready: (doc) => !!doc.querySelector('input[placeholder="Nhập"]') || buttonsMatching(doc, ADD_GROUP_TEXT).length > 0,
+    fill: async (env, job) => (job.payload.kind === "variation_set" ? fillVariationSet(env, job.payload.variations, job.mode === "revert") : NOTHING()),
+  },
+  discount_end: { page: FILL_JOB_PAGES.discount_list, fill: fillProgrammeEnd },
+  flash_sale_end: { page: FILL_JOB_PAGES.flash_sale_list, fill: fillProgrammeEnd },
+  deal_end: { page: FILL_JOB_PAGES.discount_list, fill: fillProgrammeEnd },
   voucher_end: { page: FILL_JOB_PAGES.voucher_list, fill: fillEnd },
   combo_end: { page: FILL_JOB_PAGES.bundle_list, fill: fillEnd },
   // a read-back of a product opens its edit page, an affiliate one the open campaign (the list

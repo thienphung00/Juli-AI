@@ -92,6 +92,42 @@ class ServiceCardEngine:
                 await s.rollback()
         return {"ok": True, "kind": kind, "item": item, "source": source, "card": _brief(card)}
 
+    async def build_custom(self, spec: dict[str, Any], as_of: date) -> dict[str, Any]:
+        """A card from a typed Tự tạo spec (the builder's own validation and translation, then the
+        same evaluation as `engine_card`). Reads only; nothing is saved."""
+        from pydantic import TypeAdapter, ValidationError
+
+        from juli_backend.services.shopee_builder import service as bsvc
+        from juli_backend.services.shopee_builder import specs as sp
+        from juli_backend.services.shopee_builder.context import SpecRefused
+        from juli_backend.services.shopee_builder.translate import to_variant
+        from juli_backend.services.shopee_recommendations import manual, result_store, versions
+
+        try:
+            parsed: Any = TypeAdapter(sp.VersionSpec).validate_python(spec)
+        except ValidationError:
+            return {"ok": False, "reason": "invalid_spec"}
+        now = datetime(as_of.year, as_of.month, as_of.day, 12)
+        async with self._f() as s:
+            try:
+                ctx = await bsvc.build_context(s, self.shop, [parsed], as_of=as_of, now=now)
+                try:
+                    tr = to_variant(parsed, ctx)
+                except SpecRefused as exc:
+                    return {"ok": False, "reason": exc.code}
+                card, why = manual.build_variant(ctx.env, tr.variant, now=now)
+                if card is None:
+                    return {"ok": False, "reason": (why or {}).get("code", "refused")}
+                cand = manual.candidate_of(tr.variant)
+                card["versions"] = versions.build_versions(ctx.env, cand, card, now=now)
+                blocks = await result_store.compute_many(
+                    s, self.shop, ctx.env, [result_store.Job(card)], now=now
+                )
+                result_store.write_into(card, blocks[0])
+            finally:
+                await s.rollback()
+        return {"ok": True, "kind": tr.card_kind, "card": _brief(card)}
+
 
 def _items(c: Any) -> set[str]:
     out: set[str] = set()

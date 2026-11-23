@@ -13,13 +13,14 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.shopee_profit.fees import (
+    INFRASTRUCTURE_FEE,
     FeeBase,
     FeeComponent,
     FeeFormula,
@@ -114,6 +115,101 @@ def choose_fixed_fee_rate(
 
 def seed_schedule(rate: Decimal) -> FeeSchedule:
     return FeeSchedule((shopee_vn_non_mall(rate, SEED_EFFECTIVE_FROM),))
+
+
+SERVICE_FEE_CODE = "phi_dich_vu"
+#: Fewest income rows a shop's phí dịch vụ rate is learned from, and the share of them that
+#: must carry the fee for the shop to count as enrolled (Voucher / Freeship Xtra).
+SERVICE_MIN_ROWS = 5
+SERVICE_ENROLLED_SHARE = Decimal("0.5")
+
+
+def learn_service_rate(
+    rows: Iterable[tuple[Decimal | None, Decimal | None, Decimal | None, Decimal | None]],
+) -> Decimal | None:
+    """F4: the shop's phí dịch vụ rate (Voucher / Freeship Xtra) learned from income-file rows
+    ``(product price, Phí Dịch Vụ, phí hạ tầng, Voucher Xtra)``. A row's service part is its
+    Voucher Xtra when the file states it, else Phí Dịch Vụ minus the infrastructure fee (the
+    stated one, else the 3.000đ the formula has as its own component), never below 0. The rate is
+    the parts' total / the prices' total over the rows that carry one. None = the shop is not
+    enrolled (too few rows, or under half of them carry the fee)."""
+    parts: list[tuple[Decimal, Decimal]] = []
+    for price, service, infra, xtra in rows:
+        if price is None or price <= 0:
+            continue
+        if xtra is not None:
+            part = xtra
+        elif service is not None:
+            part = max(service - (infra if infra is not None else INFRASTRUCTURE_FEE), Decimal(0))
+        else:
+            continue
+        parts.append((price, part))
+    if len(parts) < SERVICE_MIN_ROWS:
+        return None
+    charged = [(p, f) for p, f in parts if f > 0]
+    if Decimal(len(charged)) / Decimal(len(parts)) < SERVICE_ENROLLED_SHARE:
+        return None
+    rate = sum((f for _, f in charged), Decimal(0)) / sum((p for p, _ in charged), Decimal(0))
+    rate = rate.quantize(Decimal("0.0001"))
+    return rate if Decimal(0) < rate < 1 else None
+
+
+SERVICE_LEARN_DAYS = 90
+
+
+def _service_part(
+    service: Decimal | None, infra: Decimal | None, xtra: Decimal | None
+) -> Decimal | None:
+    if xtra is not None:
+        return xtra
+    if service is None:
+        return None
+    return max(service - (infra if infra is not None else INFRASTRUCTURE_FEE), Decimal(0))
+
+
+def learn_service_rate_recent(
+    rows: Iterable[
+        tuple[date | None, Decimal | None, Decimal | None, Decimal | None, Decimal | None]
+    ],
+) -> Decimal | None:
+    """F4: :func:`learn_service_rate` over the income rows ``(paid day, price, Phí Dịch Vụ, infra,
+    Xtra)`` since the shop's first row that carries the fee, or the newest 90 days, whichever is
+    shorter, so rows from before it joined the programme never dilute the rate."""
+    dated = [r for r in rows if r[0] is not None]
+    if not dated:
+        return None
+    newest = max(r[0] for r in dated if r[0] is not None)
+    carrying = [
+        r[0]
+        for r in dated
+        if r[0] is not None and (_service_part(r[2], r[3], r[4]) or Decimal(0)) > 0
+    ]
+    if not carrying:
+        return None
+    start = max(min(carrying), newest - timedelta(days=SERVICE_LEARN_DAYS))
+    return learn_service_rate(
+        (price, service, infra, xtra)
+        for day, price, service, infra, xtra in dated
+        if day is not None and day >= start
+    )
+
+
+def with_service_fee(schedule: FeeSchedule, rate: Decimal | None) -> FeeSchedule:
+    """``schedule`` with the phí dịch vụ component added to every version (on the order value
+    after discounts); unchanged when the shop is not enrolled or a version already has it."""
+    if rate is None:
+        return schedule
+    service = FeeComponent(
+        SERVICE_FEE_CODE, FeeKind.PCT, FeeBase.ITEM_AFTER_SELLER_PROMO, rate=rate
+    )
+    return FeeSchedule(
+        tuple(
+            v
+            if any(c.code == SERVICE_FEE_CODE for c in v.components)
+            else FeeFormula(v.effective_from, (*v.components, service))
+            for v in schedule.versions
+        )
+    )
 
 
 def formula_from_components(

@@ -65,3 +65,24 @@ Every term here was misread by an agent at least once and then corrected by the 
 
 ## Who changed the data?
 Before saying "Juli changed X", check the actor or source field of the row (Connector, file import, Seller Centre, the owner). Don't assume.
+
+## Shopee fees, cards and origins (batch-1123-a, owner 2026-11-23)
+| Term | Means |
+|---|---|
+| **Phí dịch vụ** | the Shopee fee of a shop enrolled in Voucher / Freeship Xtra: about 5,5 % of the order value after discounts, beside the 3.000đ phí hạ tầng per order. Its rate is learned per shop from the income file (never hard-coded); orders without an income row use it in the fee formula. |
+| **Voucher / Freeship Xtra** | the Shopee programme a shop joins to get Xtra vouchers and free-shipping; the fee for it is the phí dịch vụ above. |
+| **Phí DVHT Nạp Tiền Tự Động** | the income-file column "(từ doanh thu đơn hàng)": ads top-up Shopee takes from order revenue (renamed "Phí dịch vụ hiển thị NTTD"). It is ads spend paid from order revenue, never a platform fee; counted once. |
+| **Kế hoạch nháp** | the shop's draft plan: cards accepted but not yet executed or sent to the team; their numbers add up there before the plan is confirmed. |
+| **Card origin** | where a card was created: **Tự tạo** = made by hand in the builder; **engine** = the backend rules; **agent** = Juli chat (draft sent with "Gửi vào Đề xuất"); **import** = an outside-Juli file. |
+| **Duplicate card** | a card with the same kind, same target (item / variation / campaign key), same changed field and same target value as one that is open (Đề xuất, Kế hoạch, Thực hiện). It is refused with a Vietnamese reason naming the existing card's code; a finished card or one in Đo lường does not block. |
+
+## Juli Chat terms (batch-1123-a, owner 2026-11-23)
+| Term | Means |
+|---|---|
+| **ROAS hoà vốn** | registry `roas_break_even`: GMV ÷ what an order keeps after giá vốn, fees and vouchers, before ads. The ROAS at which profit after ads is 0. |
+| **Ngày sale** | a double day (1.1 … 12.12), the 15th and the 25th (`shopee_kpi.flow_glm.calendar_row`). Marked in comparisons; a sale week is never the baseline. |
+| **Giá vốn** | the cost of goods, VAT-inclusive, per unit / item. Missing giá vốn means profit is not trusted. |
+| **Tuần** / **tuần trước** / **tuần này** | a week is Mon–Sun. "Tuần trước" = the last complete Mon–Sun. "Tuần này" = Monday to the newest complete day, against the same days last week. |
+| **7 ngày qua** | the last 7 complete days. |
+| **Đề xuất card** | a card in the seller's Đề xuất tab. Chat points to an existing one (flagging duplicates) or drafts a Draft card; it never sends or executes one. |
+| **Ngày chi dưới ngân sách** (tạm, chờ owner) | a day when the shop's ad spend is below its summed daily budget AND it had 0 orders (weekly analysis, Juli Chat). |

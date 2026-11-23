@@ -80,6 +80,8 @@
 .juli-data { display: flex; flex-direction: column; gap: 12px; }
 .juli-top { list-style: none; margin: 0; padding: 0; }
 .juli-top__row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 44px; border-bottom: 1px solid var(--juli-border); font-size: 15px; }
+.juli-top__main { display: flex; flex-direction: column; min-width: 0; padding: 6px 0; }
+.juli-top__detail { font-size: 13px; line-height: 18px; color: var(--juli-muted-foreground); }
 .juli-rank { color: var(--juli-muted-foreground); }
 .juli-bars { display: flex; align-items: flex-end; gap: 10px; height: 160px; border-bottom: 1px solid var(--juli-border); overflow-x: auto; }
 .juli-bar { flex: 1 0 44px; min-width: 44px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; background: none; border: 0; padding: 0; font-size: 12px; color: var(--juli-muted-foreground); cursor: pointer; }

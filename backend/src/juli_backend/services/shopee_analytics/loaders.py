@@ -27,7 +27,8 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.ingest import PlatformDailyMetric
+from juli_backend.models.ingest import PLATFORM_SHOPEE, PlatformDailyMetric
+from juli_backend.models.shopee_profit import ShopeeOrderIncome
 from juli_backend.repositories import (
     AdCampaignPurposesReadRepo,
     MarketKeywordMetricsReadRepo,
@@ -71,6 +72,7 @@ from juli_backend.services.shopee_profit.ads_days import (
     SOURCE_DAILY_REPORT,
     DayAds,
     TypeFigure,
+    add_income_topup,
     resolve_ad_days,
 )
 from juli_backend.services.shopee_profit.ads_sources import (
@@ -147,6 +149,8 @@ class ShopContext:
     formula_rows: list[fee_table.FormulaRow]
     purposes: dict[str, str] = field(default_factory=dict)  # campaign key -> purpose
     snapshot_times: dict[str, Any] = field(default_factory=dict)
+    #: F4: phí dịch vụ rate learned from the shop's income rows (None = not enrolled)
+    service_rate: Decimal | None = None
 
     def db_schedules(self, item_ids: list[str]) -> dict[str, FeeSchedule]:
         out: dict[str, FeeSchedule] = {}
@@ -160,6 +164,28 @@ class ShopContext:
             if schedule is not None:
                 out[item_id] = schedule
         return out
+
+
+SERVICE_RATE_ROWS = 3000
+
+
+async def _service_rate(session: AsyncSession, shop_id: uuid.UUID) -> Decimal | None:
+    """F4: the shop's phí dịch vụ rate from its newest income rows (never hard-coded per shop)."""
+    stmt = (
+        select(
+            ShopeeOrderIncome.paid_on,
+            ShopeeOrderIncome.product_price,
+            ShopeeOrderIncome.fee_service,
+            ShopeeOrderIncome.fee_infra,
+            ShopeeOrderIncome.fee_voucher_xtra,
+        )
+        .where(ShopeeOrderIncome.shop_id == shop_id, ShopeeOrderIncome.platform == PLATFORM_SHOPEE)
+        .order_by(ShopeeOrderIncome.paid_on.desc().nulls_last())
+        .limit(SERVICE_RATE_ROWS)
+    )
+    return fee_table.learn_service_rate_recent(
+        tuple(r) for r in (await session.execute(stmt)).all()
+    )
 
 
 async def load_context(session: AsyncSession, shop_id: uuid.UUID) -> ShopContext:
@@ -202,7 +228,9 @@ async def load_context(session: AsyncSession, shop_id: uuid.UUID) -> ShopContext
     purposes = {
         p.campaign_key: p.purpose for p in await AdCampaignPurposesReadRepo(session).latest(shop_id)
     }
-    return ShopContext(catalog, rules, formula_rows, purposes)
+    return ShopContext(
+        catalog, rules, formula_rows, purposes, service_rate=await _service_rate(session, shop_id)
+    )
 
 
 # ---------------------------------------------------------------------------------------
@@ -678,13 +706,32 @@ async def _connector_ads_until(session: AsyncSession, shop_id: uuid.UUID) -> dat
     return day
 
 
+async def _income_topup(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window
+) -> dict[date, Decimal]:
+    """E80: the ads top-up the income export took from order revenue (``fee_nttd``), per payout
+    day of the window (the amounts are stored positive)."""
+    stmt = (
+        select(ShopeeOrderIncome.paid_on, func.sum(ShopeeOrderIncome.fee_nttd))
+        .where(
+            ShopeeOrderIncome.shop_id == shop_id,
+            ShopeeOrderIncome.platform == PLATFORM_SHOPEE,
+            ShopeeOrderIncome.paid_on >= window.start,
+            ShopeeOrderIncome.paid_on <= window.end,
+            ShopeeOrderIncome.fee_nttd > 0,
+        )
+        .group_by(ShopeeOrderIncome.paid_on)
+    )
+    return {r[0]: Decimal(r[1]) for r in (await session.execute(stmt)).all()}
+
+
 async def load_ad_days(
     session: AsyncSession, shop_id: uuid.UUID, window: Window
 ) -> dict[date, DayAds]:
     """P100 A.5 + R12: the window's ONE ad spend per day (the daily report day, else the Connector
     day, else the period report spread over its days; no source = no entry, never 0). P100 B.3:
     a day after the newest Connector ads read is missing, not the period report's average."""
-    return resolve_ad_days(
+    days = resolve_ad_days(
         await _connector_ad_days(session, shop_id, window),
         await _daily_report_ad_days(session, shop_id, window),
         await _period_ad_windows(session, shop_id, window),
@@ -692,6 +739,7 @@ async def load_ad_days(
         window.end,
         connector_until=await _connector_ads_until(session, shop_id),
     )
+    return add_income_topup(days, await _income_topup(session, shop_id, window))
 
 
 def ads_daily_of(days: Mapping[date, DayAds], window: Window) -> AdsDaily:

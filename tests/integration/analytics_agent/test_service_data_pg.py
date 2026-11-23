@@ -280,3 +280,20 @@ async def test_nothing_is_written(world: Any) -> None:
     await d.cost_lines(AS_OF - timedelta(days=6), AS_OF)
     await ServiceCardEngine(f, sid).engine_card("product_discount", "1001", AS_OF)
     assert await counts() == before
+
+
+async def test_entity_readers_run_on_the_real_schema_and_return_their_shapes(world: Any) -> None:
+    """Track J: every new named SELECT / service read executes on the real tables."""
+    sid, f = world
+    d = ServiceData(f, sid)
+    a, b = AS_OF - timedelta(days=6), AS_OF
+    for kind in ("voucher", "affiliate"):
+        tot = await d.entity_totals(kind, a, b)
+        assert {"orders", "gmv", "cost"} <= set(tot)
+        assert {"orders", "gmv", "cost"} <= set(await d.entity_totals(kind, a, b, "1001"))
+    assert isinstance(await d.voucher_rows(a, b), list)
+    assert isinstance(await d.budget_days(a, b), list)
+    for c in await d.campaign_rows(a, b):
+        assert {"key", "name", "spend", "gmv", "roas", "break_even", "profit_after_ads"} <= set(c)
+    p = await d.product_profit("1001", a, b)
+    assert p is None or {"profit", "margin_pct", "coverage_pct", "gmv"} <= set(p)

@@ -7,7 +7,7 @@ import re
 from typing import Any
 
 from juli_backend.services.analytics_agent import fmt
-from juli_backend.services.analytics_agent.chains import ChainResult, split_node
+from juli_backend.services.analytics_agent.chains import COST_METRIC, ChainResult, split_node
 from juli_backend.services.analytics_agent.types import LabelTable
 
 STATUS = {
@@ -58,6 +58,8 @@ def path_steps(chain: ChainResult, labels: LabelTable, limit: int = 4) -> list[d
             continue
         base, sub = split_node(f.node, labels)
         m = sub or (base if base in labels.metrics else metric)
+        if m == COST_METRIC and f.level in ("product", "endpoint.product", "line"):
+            m = "cost_total"  # these rows hold money, not the ratio (was "▼ 39.139.569,0 điểm %")
         label = chain.node_vi(f.node, labels)
         if f.level in ("source", "endpoint.channel"):
             link: dict[str, Any] = {"kind": "channel", "metric": metric, "channel": base, **w}

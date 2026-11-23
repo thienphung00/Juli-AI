@@ -108,7 +108,7 @@ def detail(code: str, message: str, **more: Any) -> dict[str, Any]:
 
 
 def no_data() -> HTTPException:
-    return HTTPException(409, detail=detail(manual.ERROR_NO_DATA, "shop has no Shopee numbers"))
+    return HTTPException(409, detail=detail(manual.ERROR_NO_DATA, "Shop chưa có số liệu Shopee."))
 
 
 def not_found(item_id: str) -> HTTPException:

@@ -144,6 +144,9 @@ class Facts:
     campaigns: Sequence[Campaign] = ()
     #: item id -> [{"variation_id", "name"}]
     variations: Mapping[str, Sequence[Mapping[str, Any]]] = field(default_factory=dict)
+    #: evaluation day -> keys of the campaigns that have an ads report on it (E77); None = unknown
+    #: (every campaign counts as having one)
+    reports: Mapping[date, frozenset[str]] | None = None
 
 
 # ------------------------------------------------------------------------------- reading
@@ -373,16 +376,44 @@ def roas_target(plan: str, data: str) -> float | None:
     return _number(m.group(1)) if m else None
 
 
-def pick_campaign(row: SheetRow, campaigns: Sequence[Campaign]) -> Campaign | None:
-    """By the campaign's name in the plan ("CDN/01"), else the busiest campaign of the product."""
+def as_of_day(row: SheetRow, today: date) -> date:
+    """The day a row's evaluation reads up to: its start day (a future one: today) - 1."""
+    return min(row.on or today, today) - timedelta(days=1)
+
+
+def pick_campaign(
+    row: SheetRow,
+    campaigns: Sequence[Campaign],
+    reports: Mapping[date, frozenset[str]] | None = None,
+    as_of: date | None = None,
+) -> Campaign | None:
+    """E77: by the campaign's name in the plan ("CDN/01"), else the campaigns holding the row's
+    items; among them the one that HAS a report at ``as_of`` (when known), preferring the key whose
+    products cover every item of the row, then the busiest. A per-product key without a report yet
+    gives way to the group key that has one. None of them with a report: the first by the old rule
+    (the evaluation then refuses it as before)."""
     token = re.search(r"\b([A-Za-z]{2,6}/\d+)\b", row.plan)
+    holding = [c for c in campaigns if any(i in c.products for i in row.items)]
+    named: list[Campaign] = []
     if token:
         want = fold(token.group(1))
         named = [c for c in campaigns if want in fold(c.name)]
-        if named:
-            return named[0]
-    holding = [c for c in campaigns if any(i in c.products for i in row.items)]
-    return max(holding, key=lambda c: c.spend) if holding else None
+    have = None if reports is None or as_of is None else reports.get(as_of, frozenset())
+
+    def rank(c: Campaign) -> tuple[int, float]:
+        covers = bool(row.items) and all(i in c.products for i in row.items)
+        return (1 if covers else 0, c.spend)
+
+    for pool in (named, holding):
+        if have is not None:
+            pool = [c for c in pool if c.key in have]
+        if pool:
+            if have is None and pool is named:
+                return pool[0]
+            return max(pool, key=rank)
+    if have is not None and (named or holding):
+        return named[0] if named else max(holding, key=lambda c: c.spend)
+    return None
 
 
 def new_title(data: str) -> str | None:
@@ -475,7 +506,7 @@ def _specs(row: SheetRow, facts: Facts, kinds: tuple[str, ...]) -> list[CardPlan
         # owner 2026-11-16: "tắt quảng cáo" on a product = Shopee's Xoá sản phẩm khỏi chiến dịch
         if item is None:
             return "no_item"
-        camp = pick_campaign(row, facts.campaigns)
+        camp = pick_campaign(row, facts.campaigns, facts.reports, as_of_day(row, facts.today))
         if camp is None:
             return "no_campaign"
         spec: dict[str, Any] = {
@@ -490,7 +521,7 @@ def _specs(row: SheetRow, facts: Facts, kinds: tuple[str, ...]) -> list[CardPlan
         roas = roas_target(row.plan, row.data)
         if roas is None or roas <= 0:
             return "no_roas"
-        camp = pick_campaign(row, facts.campaigns)
+        camp = pick_campaign(row, facts.campaigns, facts.reports, as_of_day(row, facts.today))
         if camp is None:
             return "no_campaign"
         spec = {

@@ -192,14 +192,21 @@ def _income(service):
     )  # fmt: skip
 
 
-def _env(lines, schedule):
+def _env(lines, fees):
+    """``fees``: a real ``FeeContext`` -- the shop's fee formulas and learned service rate now come
+    from ``shopee_analytics`` (``fee_table``), not from the env's own reading of its lines."""
     return RecoEnv(
         ctx=None,
-        view=SimpleNamespace(
-            pairs=[(ln, None) for ln in lines], fees=SimpleNamespace(schedule=lambda i: schedule)
-        ),
+        view=SimpleNamespace(pairs=[(ln, None) for ln in lines], fees=fees),
         as_of=AS_OF,
     )
+
+
+def _fees(service_rate=None):
+    from juli_backend.services.shopee_analytics.catalog import Catalog
+    from juli_backend.services.shopee_analytics.engine import build_fee_context
+
+    return build_fee_context(["i1"], Catalog(), None, service_rate)
 
 
 def _ln(order_id, income=None):
@@ -210,35 +217,38 @@ def _ln(order_id, income=None):
 
 
 def test_an_enrolled_shops_service_fee_joins_the_formula_at_its_own_rate():
-    seed = seed_schedule(D("0.105"))
-    env = _env([_ln("o1", _income(7_900)), _ln("o2", _income(7_900)), _ln("o3")], seed)
+    env = _env([_ln("o1", _income(7_900)), _ln("o2", _income(7_900)), _ln("o3")], _fees(D("0.079")))
     assert env.service_fee_rate == D("0.079")
     formula = env.schedule("i1").formula_on(AS_OF)
     assert formula is not None
     service = [c for c in formula.components if c.code == FEE_SERVICE]
     assert len(service) == 1 and service[0].rate == D("0.079")
-    # 10,5 % cố định + 6 % giao dịch + 7,9 % dịch vụ (+ 3.000đ hạ tầng): the Δ fee rate of a
-    # price change is what the shop really pays
-    assert formula.pct_rate_on_buyer_paid == D("0.244")
+    # the category rate of an item with no category (default) + 6 % giao dịch + 7,9 % dịch vụ
+    # (+ 3.000đ hạ tầng): the Δ fee rate of a price change is what the shop really pays
+    default = seed_schedule(D("0.105")).formula_on(AS_OF)
+    assert default is not None
+    assert formula.pct_rate_on_buyer_paid == default.pct_rate_on_buyer_paid + D("0.079")
     (line,) = [ln for ln in env.lines_for(["i1"]) if ln.order_id == "o1"]
     assert line.income is None  # reported fees dropped: the formula above prices it
     fee = formula.fee(line).total
-    assert fee == D(100_000) * D("0.244") + 3_000
+    assert fee == D(100_000) * formula.pct_rate_on_buyer_paid + 3_000
 
 
 def test_a_shop_charged_no_service_fee_keeps_the_formula():
-    seed = seed_schedule(D("0.105"))
-    env = _env([_ln("o1", _income(0)), _ln("o2")], seed)
+    fees = _fees(None)
+    env = _env([_ln("o1", _income(0)), _ln("o2")], fees)
     assert env.service_fee_rate is None
-    assert env.schedule("i1") is seed
+    assert env.schedule("i1") is fees.schedule("i1")
 
 
 def test_a_formula_that_already_has_the_service_fee_is_not_charged_twice():
+    from juli_backend.services.shopee_analytics import fee_table
+
     (version,) = seed_schedule(D("0.105")).versions
     own = FeeComponent(FEE_SERVICE, FeeKind.PCT, rate=D("0.05"))
     schedule = FeeSchedule((type(version)(version.effective_from, (*version.components, own)),))
-    env = _env([_ln("o1", _income(7_900))], schedule)
-    formula = env.schedule("i1").formula_on(AS_OF)
+    out = fee_table.with_service_fee(schedule, D("0.079"))
+    formula = out.formula_on(AS_OF)
     assert formula is not None
     assert [c.rate for c in formula.components if c.code == FEE_SERVICE] == [D("0.05")]
 
@@ -249,7 +259,14 @@ def test_a_formula_that_already_has_the_service_fee_is_not_charged_twice():
 async def test_sample_shop_price_and_promotion_estimates_stay_within_their_bounds(engine):
     """Nước rửa chén on the sample shop (END 2026-11-10): 61 of its 109 orders hold "500ml hương
     chanh" (105 units, 6.195.000đ). Pinned numbers after the fix (prod 2026-11-15 showed 995k,
-    +299.919đ and a whole-day Flash Sale)."""
+    +299.919đ and a whole-day Flash Sale).
+
+    Batch 1123-a: the learned phí dịch vụ rate is the service part of Phí Dịch Vụ (minus the
+    3.000đ hạ tầng the formula already charges), 5,86 % here instead of the 7,9 % the old env
+    reading took from the whole Phí Dịch Vụ (which charged the infrastructure fee twice). A lower
+    fee rate means a discount saves less in fees, so the programme's cost rises by about
+    0,0204 x the 619.500đ it discounts (+13k: 482.068 -> 495.124); the other figures move by
+    the same fee-rate difference and are re-pinned from the run."""
     from juli_backend.database.tenant_context import with_shop_scope
     from juli_backend.services.sample_shop.catalog import PRODUCTS
     from juli_backend.services.shopee_builder import service as builder
@@ -283,7 +300,11 @@ async def test_sample_shop_price_and_promotion_estimates_stay_within_their_bound
             ctx = await builder.build_context(
                 session, report.shop_id, list(specs.values()), as_of=END, now=NOW
             )
-            assert ctx.env.service_fee_rate == D("0.079")  # the generator's SERVICE_FEE
+            # the generator writes Phí Dịch Vụ = 7,9 % of the buyer-paid value with no breakdown;
+            # the learner takes Phí Dịch Vụ minus the 3.000đ hạ tầng (real Shopee files carry it
+            # inside Phí Dịch Vụ, and the formula has it as its own component), so the learned
+            # service part is (7,9 % x paid - 3.000) / paid over the shop's orders: 5,86 %
+            assert ctx.env.service_fee_rate == D("0.0586")
             out = {
                 name: integrate.evaluate(ctx, spec, str(report.shop_id))[0].result
                 for name, spec in specs.items()
@@ -297,14 +318,18 @@ async def test_sample_shop_price_and_promotion_estimates_stay_within_their_bound
     assert one.days == 30
     assert float(one.cost_total) < 619_500
     # F2 (2026-11-16): the base is the adaptive window per metric, not the fixed 30 days
-    assert float(one.cost_total) == pytest.approx(482_068, rel=0.02)
+    assert float(one.cost_total) == pytest.approx(
+        495_124, rel=0.02
+    )  # was 482_068 at a 7,9 % service fee: see the docstring
 
     # 2. +5 % on 105 units × 59.000đ = 309.750đ gross: the price effect can never exceed it
     parts = {p.key: float(p.amount) for p in price.build_up}
     assert 0 < parts["price"] < 309_750
     d_profit = float(price.likely.profit or 0) - float(price.before.profit or 0)
     assert d_profit < 309_750
-    assert d_profit == pytest.approx(141_818, rel=0.02)
+    assert d_profit == pytest.approx(
+        147_788, rel=0.02
+    )  # was 141_818 at 7,9 %: +5 % on 309.750đ pays 2,04 points less fee
 
     # 3. a 2-hour slot on one day: 2/24 of the day's 3,6 orders get the −15 %
     assert flash.days == 1

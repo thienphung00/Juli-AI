@@ -72,19 +72,33 @@ async def test_a_pairing_without_an_install_id_supersedes_nothing(session):
 
 def test_minimum_version_compares_numerically_and_lets_unnamed_versions_through(monkeypatch):
     monkeypatch.delenv(min_version.ENV_MIN_VERSION, raising=False)
-    assert min_version.minimum() == "0.3.24"
-    assert min_version.is_too_old("0.3.23")
+    assert min_version.minimum() == "0.3.31"
+    assert min_version.is_too_old("0.3.30")
     assert min_version.is_too_old("0.2.99")
-    assert not min_version.is_too_old("0.3.24")
-    assert not min_version.is_too_old("0.3.25")
+    assert not min_version.is_too_old("0.3.31")
+    assert not min_version.is_too_old("0.3.32")
     assert not min_version.is_too_old("0.3.100")
     assert not min_version.is_too_old("0.10.0")
     assert not min_version.is_too_old(None)
     assert not min_version.is_too_old("")
     monkeypatch.setenv(min_version.ENV_MIN_VERSION, "not a version")
-    assert min_version.minimum() == "0.3.24"
+    assert min_version.minimum() == "0.3.31"
     monkeypatch.setenv(min_version.ENV_MIN_VERSION, "0.4.0")
-    assert min_version.is_too_old("0.3.25")
+    assert min_version.is_too_old("0.3.31")
+
+
+def test_an_unnamed_version_is_refused_only_for_a_connector_paired_token(monkeypatch):
+    monkeypatch.delenv(min_version.ENV_MIN_VERSION, raising=False)
+    assert min_version.made_by_connector("inst_x", None)
+    assert min_version.made_by_connector(None, "Juli Connector 0.3.30")
+    assert not min_version.made_by_connector(None, None)
+    assert not min_version.made_by_connector(None, "loader")
+    assert min_version.refuses(None, from_connector=True)
+    assert min_version.refuses("seller-centre-xlsx-1", from_connector=True)
+    assert not min_version.refuses(None, from_connector=False)
+    assert not min_version.refuses("seller-centre-xlsx-1", from_connector=False)
+    assert min_version.refuses("0.3.30", from_connector=False)
+    assert not min_version.refuses("0.3.31", from_connector=True)
 
 
 async def _token(session, shop, user):
@@ -104,11 +118,11 @@ async def test_an_old_connector_gets_upgrade_required_and_nothing_is_written(ses
     user, shop = await _shop(session)
     app, auth = await _token(session, shop, user)
     async with client_for(app) as ext:
-        old = await ext.get("/v1/ingest/status", headers={**auth, "X-Connector-Version": "0.3.23"})
+        old = await ext.get("/v1/ingest/status", headers={**auth, "X-Connector-Version": "0.3.30"})
         assert old.status_code == 426
         assert old.json()["detail"] == {
             "code": "connector_upgrade_required",
-            "minimum": "0.3.24",
+            "minimum": "0.3.31",
         }
         body = {
             "period_start": "2026-11-17",
@@ -123,10 +137,58 @@ async def test_an_old_connector_gets_upgrade_required_and_nothing_is_written(ses
             "/v1/ingest/fill-jobs", headers={**auth, "X-Connector-Version": "0.3.1"}
         )
         assert poll.status_code == 426
-        ok = await ext.get("/v1/ingest/status", headers={**auth, "X-Connector-Version": "0.3.24"})
+        ok = await ext.get("/v1/ingest/status", headers={**auth, "X-Connector-Version": "0.3.31"})
         assert ok.status_code == 200
+        # C5a: this token was paired by a Connector (install id), so a silent request is older.
         unnamed = await ext.get("/v1/ingest/status", headers=auth)
-        assert unnamed.status_code == 200
+        assert unnamed.status_code == 426
+        assert unnamed.json()["detail"]["code"] == "connector_upgrade_required"
+
+
+async def test_a_loader_token_without_a_connector_version_still_posts(session, monkeypatch):
+    """The export loader (scripts/load_shopee_exports.py) pairs with no install id and no
+    Connector label and posts ``source_version`` "seller-centre-xlsx-1": still accepted."""
+    monkeypatch.delenv(min_version.ENV_MIN_VERSION, raising=False)
+    _, shop = await _shop(session)
+    issued = await _pair(session, shop, None, NOW)
+    await session.commit()
+    auth = {"Authorization": f"Bearer {issued.token}"}
+    app = build_app(session)
+    async with client_for(app) as loader:
+        status_ = await loader.get("/v1/ingest/status", headers=auth)
+        assert status_.status_code == 200, status_.text
+        body = {
+            "source": "file",
+            "source_version": "seller-centre-xlsx-1",
+            "captured_at": "2026-11-17T03:00:00Z",
+            "period": {"start": "2026-11-17", "end": "2026-11-17", "granularity": "day"},
+            "rows": [],
+        }
+        posted = await loader.post("/v1/ingest/shopee/traffic_overview", headers=auth, json=body)
+        assert posted.status_code != 426, posted.text
+
+
+async def test_a_connector_label_token_without_a_version_is_refused(session):
+    """A token from a Connector older than the install id (label "Juli Connector <v>" only)."""
+    _, shop = await _shop(session)
+    code = (await svc.create_pairing_code(session, shop=shop, user_id=shop.user_id, now=NOW)).code
+    issued = await svc.redeem_pairing_code(
+        session,
+        code=code,
+        platform="shopee",
+        platform_shop_id=None,
+        client_label="Juli Connector 0.3.22",
+        install_id=None,
+        now=NOW,
+    )
+    await session.commit()
+    app = build_app(session)
+    async with client_for(app) as ext:
+        got = await ext.get(
+            "/v1/ingest/status", headers={"Authorization": f"Bearer {issued.token}"}
+        )
+    assert got.status_code == 426
+    assert got.json()["detail"] == {"code": "connector_upgrade_required", "minimum": "0.3.31"}
 
 
 async def test_the_token_list_carries_each_computers_version_and_last_seen(session):

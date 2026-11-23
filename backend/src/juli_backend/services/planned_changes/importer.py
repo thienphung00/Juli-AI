@@ -386,7 +386,7 @@ async def _prepare(
         return Preview(file_hash, [], [], missing), None
     env = await load_env(session, shop_id, now=now)
     if env is None:
-        raise ProposalError(ERROR_NO_DATA, 409, "shop has no Shopee numbers")
+        raise ProposalError(ERROR_NO_DATA, 409, "Shop chưa có số liệu Shopee.")
     ctx = await _context(session, shop_id, env, today)
     checked = pr.check_rows(parsed, ctx)
     plans: list[RowPlan] = []
@@ -675,26 +675,38 @@ async def apply_import(
             card, why = build_row_card(env, row, now=now, depends=depends, import_number=number)
             if card is None:
                 raise ProposalError(ERROR_FILE, 422, f"{ref}: {why}")
-            created = await manual.create_manual(
-                session,
-                shop_id,
-                [
+            try:
+                created = await manual.create_manual(
+                    session,
+                    shop_id,
+                    [
+                        {
+                            "label": row.ref,
+                            "change_kind": row.kind,
+                            "items": [row.item_id],
+                            "extra": {},
+                            "inputs": card["inputs"],
+                        }
+                    ],
+                    0,
+                    False,
+                    actor.manual(),
+                    now=now,
+                    env=env,
+                    cards=[card],
+                    origin=ORIGIN_IMPORT,
+                )
+            except manual.DuplicateCard as dup:  # an open card holds it: "Đã có", the rest goes on
+                out.append(
                     {
-                        "label": row.ref,
+                        "ref": ref,
+                        "item_id": row.item_id,
                         "change_kind": row.kind,
-                        "items": [row.item_id],
-                        "extra": {},
-                        "inputs": card["inputs"],
+                        "action": "exists",
+                        "existing_code": dup.existing_code,
                     }
-                ],
-                0,
-                False,
-                actor.manual(),
-                now=now,
-                env=env,
-                cards=[card],
-                origin=ORIGIN_IMPORT,
-            )
+                )
+                continue
             card_id = uuid.UUID(created["id"])
             code_of[ref] = created["card"]["code"]
             await store.set_meta(session, shop_id, card_id, {"external_ref": ref})

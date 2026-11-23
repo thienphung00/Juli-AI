@@ -16,6 +16,7 @@ import {
   type SellerPairingCode,
 } from "../../lib/connector-pairing";
 import { AppPageHeader } from "../app-shell/page-header";
+import { problemLabel } from "../ops/ops-contract-shop";
 
 /** Cài đặt › Juli Connector (P96, owner 2026-11-06): the seller pairs their own Chrome with the shop. */
 export function ConnectorSettings({
@@ -180,8 +181,22 @@ const machineLabel = (label: string | null, index: number): string =>
 
 const day = (iso: string | null): string | null => (iso ? new Date(iso).toLocaleDateString("vi-VN") : null);
 
+/** "2026-11-19" -> "19/11" (a calendar day, no time zone shift). */
+const dayMonth = (iso: string): string => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+
+/**
+ * C2 (batch-1123-a): per daily dataset the newest day Juli holds and, while the Connector still has
+ * days to read, how far it has read (`GET /v1/ingest/shop-status`).
+ */
+type DatasetProgress = ConnectorDatasetStatus & {
+  readonly held_through?: string | null;
+  readonly reading_through?: string | null;
+  /** The reason a page of this dataset is stopped now (`login`, `password_recheck` ...), else null. */
+  readonly blocked?: string | null;
+};
+
 /** What Juli has received from the Connector, page by page (0.3.17). */
-function ReceivedData({ received }: { readonly received: readonly ConnectorDatasetStatus[] }) {
+function ReceivedData({ received }: { readonly received: readonly DatasetProgress[] }) {
   const byName = new Map(received.map((d) => [d.dataset, d]));
   return (
     <section aria-label="Juli đã nhận gì" data-testid="connector-received">
@@ -201,13 +216,15 @@ function ReceivedData({ received }: { readonly received: readonly ConnectorDatas
             </tr>
             {group.items.map(([key, label]) => {
               const d = byName.get(key);
-              const through = day(d?.last_period_end ?? null);
+              const through = day(d?.held_through ?? d?.last_period_end ?? null);
               const state =
                 d?.drift === "drift"
                   ? "Tạm dừng: Seller Centre đã thay đổi, Juli đang cập nhật"
-                  : d?.last_ingest_at
-                    ? `Nhận lúc ${new Date(d.last_ingest_at).toLocaleString("vi-VN")}`
-                    : "Chưa nhận";
+                  : d?.reading_through
+                    ? `Đang đọc đến ${dayMonth(d.reading_through)}${d.blocked ? ` · ${problemLabel(`blocked:${d.blocked}`)}` : ""}`
+                    : d?.last_ingest_at
+                      ? `Nhận lúc ${new Date(d.last_ingest_at).toLocaleString("vi-VN")}`
+                      : "Chưa nhận";
               return (
                 <tr data-testid={`received-${key}`} key={key}>
                   <td>{label}</td>

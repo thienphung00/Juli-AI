@@ -10,7 +10,7 @@ from typing import Any
 
 from juli_backend.services.analytics_agent.types import Usage
 
-AS_OF = date(2026, 10, 25)  # no Shopee double day in the 14 days before
+AS_OF = date(2026, 11, 8)  # no sale day (double day, 15th, 25th) in the 14 days before
 SPLIT = AS_OF - timedelta(days=7)  # last day of the comparison window
 
 
@@ -241,6 +241,14 @@ class FakeCardEngine:
         self.calls.append((kind, item))
         return self.per_kind.get(kind, self.result)
 
+    async def build_custom(self, spec: dict[str, Any], as_of: date) -> dict[str, Any]:
+        self.custom_calls = [*getattr(self, "custom_calls", []), spec]
+        return {
+            "ok": True,
+            "kind": "min_spend_voucher",
+            "card": {**engine_card(), "title": "Mã giảm giá cho cả shop", "kind": spec["kind"]},
+        }
+
 
 def version(
     label: str, gmv: float | None, profit: float | None, estimable: bool = True
@@ -269,3 +277,34 @@ def engine_card() -> dict[str, Any]:
             version("Mạnh", None, None, estimable=False),
         ],
     }
+
+
+class FakeEntityData(FakeData):
+    """FakeData plus the entity readers: synthetic voucher / affiliate / campaign / product rows."""
+
+    def __init__(self, *a: Any, **kw: Any):
+        self.entity: dict[str, Any] = kw.pop("entity", {})
+        super().__init__(*a, **kw)
+
+    async def entity_totals(
+        self, kind: str, a: date, b: date, item: str | None = None
+    ) -> dict[str, Any]:
+        rows = self.entity.get(kind, [])
+        sel = [r for r in rows if a <= r["day"] <= b and (item is None or r.get("item") == item)]
+        return {
+            "orders": sum(r["orders"] for r in sel),
+            "gmv": sum(r["gmv"] for r in sel),
+            "cost": sum(r["cost"] for r in sel) if sel or kind == "voucher" else None,
+        }
+
+    async def voucher_rows(self, a: date, b: date) -> list[dict[str, Any]]:
+        return self.entity.get("voucher_codes", [])
+
+    async def campaign_rows(self, a: date, b: date) -> list[dict[str, Any]]:
+        return self.entity.get("campaigns", [])
+
+    async def product_profit(self, item: str, a: date, b: date) -> dict[str, Any] | None:
+        return self.entity.get("product_profit", {}).get((item, a))
+
+    async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]:
+        return [r for r in self.entity.get("budget_days", []) if a <= r["day"] <= b]

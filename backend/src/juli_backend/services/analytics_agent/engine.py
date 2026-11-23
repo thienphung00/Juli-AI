@@ -9,6 +9,8 @@ recommendation engine. Nothing is written, nothing persisted.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import logging
 import os
 import time
 from collections.abc import Callable
@@ -17,7 +19,16 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from juli_backend.services.analytics_agent import cards as cardstage
-from juli_backend.services.analytics_agent import lookup, present, routing, writer
+from juli_backend.services.analytics_agent import (
+    create_card,
+    entities,
+    lookup,
+    present,
+    routing,
+    weekly,
+    windows,
+    writer,
+)
 from juli_backend.services.analytics_agent.cards_service import ServiceCardEngine
 from juli_backend.services.analytics_agent.chains import CHAIN_METRIC, ChainResult, run_chain
 from juli_backend.services.analytics_agent.data_service import ServiceData, SessionFactory
@@ -36,6 +47,7 @@ from juli_backend.services.analytics_agent.types import (
 )
 
 VN = ZoneInfo("Asia/Ho_Chi_Minh")
+logger = logging.getLogger(__name__)
 CHAIN_TIMEOUT_ENV = "JULI_AGENT_CHAIN_TIMEOUT_S"
 DEFAULT_CHAIN_TIMEOUT_S = 90.0
 #: a chain must end before the run's own 120 s limit, so the answer is `busy`, not a cut-off stream
@@ -51,7 +63,22 @@ def chain_timeout_s() -> float:
     return min(value, MAX_CHAIN_TIMEOUT_S) if value > 0 else DEFAULT_CHAIN_TIMEOUT_S
 
 
-UNSUPPORTED_VI = "Juli chưa hỗ trợ câu hỏi này"
+OFFER_VI = (
+    "Juli có thể xem số liệu (đơn, GMV, chi phí quảng cáo…), giải thích vì sao một chỉ số đổi, "
+    "phân tích tuần hoặc tạo thẻ nháp. Bạn muốn làm gì?"
+)
+LABELS_FOR_OFFER = {
+    "gmv": "GMV",
+    "orders": "số đơn",
+    "ads_spend": "chi phí quảng cáo",
+    "roas": "ROAS",
+    "profit": "lợi nhuận",
+    "margin": "biên lợi nhuận",
+    "views": "lượt xem",
+    "ctr": "CTR",
+    "ctor": "tỷ lệ chuyển đổi",
+    "aov": "AOV",
+}
 NO_TIKTOK_CARD_VI = "Chưa có đề xuất cho TikTok"
 ANALYTICS_PLATFORMS = ("shopee",)  # TikTok joins when P101 W3 opens its analytics routes (U12)
 #: Platforms whose recommendation engine can fill a draft card (Shopee only for now).
@@ -67,6 +94,12 @@ class _Out:
     async def emit(self, event: dict[str, Any]) -> None:
         self.result.events.append(event)
         await self.sink.emit(event)
+
+
+async def _latest(data: DataPort, as_of: date) -> date | None:
+    """The newest complete day held (the freshness line); calendar windows do not depend on it."""
+    rows = await data.shop_daily(as_of)
+    return max((r["day"] for r in rows if r["complete"]), default=None)
 
 
 def _platform_has_analytics(platform: str) -> bool:
@@ -146,17 +179,39 @@ async def run(
 
 
 async def _unsupported(
-    out: _Out, result: AnswerResult, platform: str, switch: str | None = None
+    out: _Out,
+    result: AnswerResult,
+    platform: str,
+    switch: str | None = None,
+    *,
+    text: str | None = None,
+    intent: dict[str, Any] | None = None,
+    restated: str | None = None,
 ) -> None:
+    """J11: nothing fits -> Juli offers the closest thing it can do, or asks ONE question; never a
+    number. The unmet request is logged (hash, restatement, parser output) in the run's routing."""
+    metric = routing.metric_from_phrase((intent or {}).get("metric_phrase"))
+    offer = (
+        f"Juli có thể cho bạn xem {LABELS_FOR_OFFER.get(metric, metric)} theo kỳ bạn chọn. "
+        "Bạn muốn xem kỳ nào?"
+        if metric
+        else OFFER_VI
+    )
     ev: dict[str, Any] = {
         "type": "unsupported",
-        "text_vi": UNSUPPORTED_VI,
+        "text_vi": offer,
         "templates": [t.key for t in TEMPLATES],
     }
     if switch:
         ev["switch_platform"] = switch
     await out.emit(ev)
     result.stop_reasons.append("unsupported")
+    digest = hashlib.sha256((text or "").encode()).hexdigest()[:16]
+    parsed = {k: v for k, v in (intent or {}).items() if k != "raw_text"}
+    result.routing.append(
+        {"step": "unmet_request", "text_hash": digest, "restated": restated, "parsed": parsed}
+    )
+    logger.info("juli_unmet_request", extra={"text_hash": digest, "restated": restated})
 
 
 async def _run(
@@ -172,6 +227,12 @@ async def _run(
     max_intents: int | None,
 ) -> None:
     template: Template | None = TEMPLATE_BY_KEY.get(req.template) if req.template else None
+    # The window the seller sees is the window that runs (B2): one anchor per ask, kept in
+    # `pending` across a clarifying choice.
+    pinned = (req.pending or {}).get("anchor") if req.choice else None
+    if pinned:
+        as_of = date.fromisoformat(pinned)
+    latest = await _latest(data, as_of) if _platform_has_analytics(req.platform) else None
     blocks: list[tuple[dict[str, Any], dict[str, Any]]] = []  # (intent, decision)
     more: list[dict[str, Any]] = []
     if req.template and template is None:
@@ -193,23 +254,29 @@ async def _run(
             )
         )
     elif req.choice and req.pending:
-        dec = routing.resume(req.pending, req.choice)
         restated = req.pending.get("restated") or routing.RESTATE_PREFIX
-        blocks.append((req.pending["intent"], dec))
+        if (req.pending.get("dec") or {}).get("mode") == "create":  # J10: a slot answer
+            filled = create_card.fill(req.pending["intent"], str(req.choice.get("value") or ""))
+            blocks.append((filled, {"outcome": "go", "mode": "create"}))
+        else:
+            dec = routing.resume(req.pending, req.choice)
+            blocks.append((req.pending["intent"], dec))
+        # the intents queued behind the one that asked: every intent gets its answer (B4)
+        blocks.extend((i, d) for i, d in req.pending.get("rest") or [])
         more = req.pending.get("more") or []
     else:
         parsed, usage = await routing.parse_intents(llm, req.text or "", as_of)
         result.cost_usd += usage.cost_usd
         if parsed is None:  # parse failed twice: template buttons (J11)
-            await _unsupported(out, result, req.platform)
+            await _unsupported(out, result, req.platform, text=req.text)
             return
         restated = parsed["restated"]
         intents = parsed["intents"][: max_intents or routing.MAX_INTENTS]
+        if len(parsed["intents"]) == 1:  # the seller's own words, for entity / decline words
+            intents[0]["raw_text"] = req.text or ""
         more = parsed["more"] + parsed["intents"][max_intents or routing.MAX_INTENTS :]
         # one Jev routing request per intent, in parallel
-        replies = await asyncio.gather(
-            *(jev.ask(routing.jev_state(i), routing.routing_questions(i)) for i in intents)
-        )
+        replies = await asyncio.gather(*(routing.route(jev, i) for i in intents))
         for intent, (answers, u) in zip(intents, replies, strict=True):
             result.cost_usd += u.cost_usd
             dec = routing.decide(intent, answers)
@@ -224,6 +291,7 @@ async def _run(
             blocks.append((intent, dec))
     await out.emit({"type": "restated", "text_vi": restated})
     total = len(blocks)
+    carry: dict[str, Any] = {}  # what one intent hands to the next (the top decliner)
     for idx, (intent, dec) in enumerate(blocks, 1):
         if total > 1:
             await out.emit(
@@ -237,18 +305,109 @@ async def _run(
                 }
             )
         if dec["outcome"] == "unsupported":
-            await _unsupported(out, result, req.platform, _other_platform(intent, req.platform))
+            await _unsupported(
+                out,
+                result,
+                req.platform,
+                _other_platform(intent, req.platform),
+                text=req.text,
+                intent=intent,
+                restated=restated,
+            )
             continue
+        if windows.this_period_empty(str(dec.get("window")), as_of) and not (
+            intent.get("explicit_from") and intent.get("explicit_to")
+        ):  # Monday: no complete day this week; offer last week, never a one-day window
+            month = dec.get("window") == "mtd_vs_same_days_last_month"
+            dec = {
+                **dec,
+                "outcome": "needs_choice",
+                "remaining": [
+                    (
+                        "window",
+                        [
+                            "last_month_vs_month_before"
+                            if month
+                            else "last_full_week_vs_week_before"
+                        ],
+                    )
+                ],
+            }
+            no_day = routing.NO_FULL_MONTH_DAY_VI if month else routing.NO_FULL_DAY_VI
+        else:
+            no_day = ""
         if dec["outcome"] == "needs_choice":
-            ev = routing.needs_choice_event(dec, intent, labels, as_of, dec.get("turns", 0))
+            ev = routing.needs_choice_event(
+                dec, intent, labels, as_of, dec.get("turns", 0), latest=latest
+            )
+            if no_day:
+                ev["question_vi"] = no_day
+            ev["pending"]["anchor"] = as_of.isoformat()
             ev["pending"]["restated"] = restated
             ev["pending"]["more"] = more
+            ev["pending"]["rest"] = [
+                [i, {k: v for k, v in d.items() if k != "checks"}] for i, d in blocks[idx:]
+            ]
             await out.emit(ev)
             result.stop_reasons.append("needs_choice")
             return  # one unclear item at a time; the tap resumes from pending
+        if (
+            dec.get("mode") == "why"
+            and carry.get("top_decliner")
+            and not dec.get("item_id")
+            and not intent.get("product_phrase")
+        ):  # "…and why": explain the product the ranking just found, not the whole shop
+            if carry.get("why_done"):
+                continue  # the ranking intent already asked why (asks_why): once is enough
+            dec = {**dec, "item_id": carry["top_decliner"], "scope": "product"}
         await _answer(
-            req, out, result, data, engine, llm, jev, labels, as_of, intent, dec, restated, template
+            req,
+            out,
+            result,
+            data,
+            engine,
+            llm,
+            jev,
+            labels,
+            as_of,
+            intent,
+            dec,
+            restated,
+            template,
+            carry,
         )
+        if (
+            intent.get("asks_why")
+            and dec.get("mode") == "lookup"
+            and dec.get("lookup") in routing.LIST_LOOKUPS
+            and carry.get("top_item")
+        ):  # "…and why" in one intent: the why chain on the top item, added by code
+            why = {
+                "outcome": "go",
+                "mode": "why",
+                "chain": "gmv_change",
+                "metric": "gmv",
+                "window": dec.get("window"),
+                "scope": "product",
+                "item_id": carry["top_item"],
+            }
+            carry["why_done"] = True
+            await _answer(
+                req,
+                out,
+                result,
+                data,
+                engine,
+                llm,
+                jev,
+                labels,
+                as_of,
+                {**intent, "question_type": "why_changed", "product_phrase": None},
+                why,
+                restated,
+                template,
+                carry,
+            )
     if more:
         await out.emit(
             {
@@ -278,8 +437,68 @@ async def _answer(
     dec: dict[str, Any],
     restated: str,
     template: Template | None,
+    carry: dict[str, Any] | None = None,
 ) -> None:
     mode = dec.get("mode", "why")
+    if mode == "create":  # J10: a Juli DRAFT card from a free request (never sent)
+        await out.emit(present.status("checking_data"))
+        outcome = cardstage.CardOutcome()
+        what = await create_card.run_create(
+            intent=intent,
+            data=data,
+            engine=engine if req.platform in CARD_PLATFORMS else None,
+            jev=jev,
+            labels=labels,
+            as_of=as_of,
+            restated=restated,
+            emit=out.emit,
+            out_cards=outcome,
+        )
+        result.cost_usd += outcome.cost_usd
+        for a in outcome.accepted:
+            result.cards.append(
+                {
+                    "draft_ref": a["ref"],
+                    "kind": a["kind"],
+                    "item_id": a["item_id"],
+                    "recommended": a["recommended"],
+                    "engine_card": a["engine_card"],
+                }
+            )
+        result.stop_reasons.append("needs_choice" if what == "asked" else "data_answer")
+        return
+    if mode == "analysis":  # J8: the weekly analysis, composed by code (no template, no writer)
+        no_data = {
+            "type": "label",
+            "stop_reason": "data_missing",
+            "text_vi": "Thiếu dữ liệu",
+            "detail_vi": None,
+        }
+        await out.emit(present.status("checking_data"))
+        events, outcome = (
+            await weekly.run_weekly(data, engine, jev, labels, as_of)
+            if _platform_has_analytics(req.platform)
+            else ([], cardstage.CardOutcome())
+        )
+        result.cost_usd += outcome.cost_usd
+        if not events:
+            await out.emit(no_data)
+            result.stop_reasons.append("data_missing")
+            return
+        for ev in events:
+            await out.emit(ev)
+        for a in outcome.accepted:
+            result.cards.append(
+                {
+                    "draft_ref": a["ref"],
+                    "kind": a["kind"],
+                    "item_id": a["item_id"],
+                    "recommended": a["recommended"],
+                    "engine_card": a["engine_card"],
+                }
+            )
+        result.stop_reasons.append("data_answer")
+        return
     preset = dec.get("window") or "last_7d_vs_prev_7d"
     item_id: str | None = dec.get("item_id")
     if dec.get("scope") == "product" and not item_id and intent.get("product_phrase"):
@@ -304,6 +523,7 @@ async def _answer(
                         "remaining": [["product", [o["value"] for o in opts]]],
                         "turns": dec.get("turns", 0),
                         "restated": restated,
+                        "anchor": as_of.isoformat(),
                     },
                 }
             )
@@ -323,6 +543,39 @@ async def _answer(
         return
     await out.emit(present.status("checking_data"))
     kw = _window_args(intent, dec)
+    entity = routing.entity_kind(intent)
+    prod_money = bool(
+        item_id
+        and dec.get("metric") in ("profit", "margin", "ads_spend", "roas", "roas_break_even")
+    )
+    if entity or prod_money:  # Q17: the entity's own rows, or "Juli chưa có số liệu này"
+        names = await data.item_names([item_id]) if item_id else {}
+        answers = await entities.run_entity(
+            entity,
+            data,
+            intent,
+            dec.get("metric"),
+            preset,
+            as_of,
+            item_id=item_id,
+            item_name=names.get(item_id) if item_id else None,
+            **kw,
+        )
+        if not answers:
+            await out.emit(
+                {
+                    "type": "label",
+                    "stop_reason": "data_missing",
+                    "text_vi": entities.NO_DATA_VI,
+                    "detail_vi": None,
+                }
+            )
+            result.stop_reasons.append("data_missing")
+            return
+        for a in answers:
+            await out.emit(a)
+        result.stop_reasons.append("data_answer")
+        return
     if mode == "lookup":
         metric = dec.get("metric") or lookup.default_metric(dec.get("chain"))
         ans = await lookup.run_lookup(
@@ -347,6 +600,10 @@ async def _answer(
             result.stop_reasons.append("data_missing")
             return
         ans.pop("stop", None)
+        if carry is not None and dec.get("lookup") in routing.LIST_LOOKUPS and ans.get("rows"):
+            carry["top_item"] = ans["rows"][0].get("item_id")
+            if dec.get("lookup") == "top_decliners":
+                carry["top_decliner"] = carry["top_item"]
         await out.emit(ans)
         result.stop_reasons.append("data_answer")
         return

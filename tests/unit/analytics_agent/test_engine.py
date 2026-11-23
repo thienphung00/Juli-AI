@@ -163,7 +163,7 @@ async def test_needs_choice_then_resume_from_pending_without_a_new_routing_call(
     sink, res = await go(req(text="q"), llm=llm, jev=jev, data=data_orders())
     nc = sink.of("needs_choice")[0]
     assert nc["item"] == "window" and res.stop_reasons == ["needs_choice"] and not sink.of("card")
-    assert nc["options"][0]["label_vi"] == "19/10–25/10 so với 12/10–18/10"
+    assert nc["options"][0]["label_vi"] == "02/11–08/11 so với 26/10–01/11"
     n_before = len(jev.calls)
     llm2 = FakeLLM(None, text=TEXT)
     jev2 = FakeJev(lambda s, q: full())
@@ -183,7 +183,7 @@ async def test_needs_choice_then_resume_from_pending_without_a_new_routing_call(
     )
 
 
-async def test_unsupported_is_fixed_line_with_templates_and_other_platform_switch() -> None:
+async def test_unsupported_offers_closest_action_with_templates_and_other_platform_switch() -> None:
     it = intent(source_phrase="tiktok shop")
     llm = FakeLLM({"restated_vi": "Doanh thu tiktok", "intents": [it]})
     sink, res = await go(
@@ -191,7 +191,7 @@ async def test_unsupported_is_fixed_line_with_templates_and_other_platform_switc
     )
     u = sink.of("unsupported")[0]
     assert (
-        u["text_vi"] == "Juli chưa hỗ trợ câu hỏi này"
+        u["text_vi"].startswith("Juli có thể")
         and len(u["templates"]) == 5
         and u["switch_platform"] == "tiktok"
     )

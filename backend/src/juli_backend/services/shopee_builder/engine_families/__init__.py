@@ -284,7 +284,7 @@ def _variation_set(spec: sp.VariationSetSpec, ctx: BuilderContext) -> OptionInpu
 def _not_estimable_set(spec: sp.VariationSetSpec) -> OptionInput:
     return OptionInput(
         kind="variation_set",
-        label=spec.label or "Bộ / quy cách nhiều món",
+        label=spec.label or "Phân loại hàng",
         drivers=(
             DriverEffect("aov", ALL_SOURCES, "not_estimable", note=common.NOTE_SET_NOT_CHEAPER),
         ),

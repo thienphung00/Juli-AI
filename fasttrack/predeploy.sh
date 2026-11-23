@@ -7,7 +7,7 @@
 #
 #   job        mirrors                                   command
 #   heads      plan (migration heads)                    infra/scripts/migration_heads.py heads -> exactly 1
-#   frontend   frontend                                  pnpm lint/type-check/test demo, @juli/ui, @juli/utils, landing
+#   frontend   frontend                                  pnpm lint/type-check/test demo, @juli/ui, @juli/utils, @juli/connector, landing
 #   static     static                                    mypy backend/src/juli_backend ; bandit -ll
 #   unit       backend-unit (all 4 shards, serially)     pytest tests/unit -m "not live"
 #              (+ unit-xdist, the gate speed-up trial: same files, -n 4 --dist loadfile; see below)
@@ -187,6 +187,7 @@ job_heads() {
 job_frontend() {
   pnpm lint:demo && pnpm type-check:demo && pnpm test:demo \
     && pnpm --filter @juli/ui test && pnpm --filter @juli/utils test \
+    && pnpm --filter @juli/connector type-check && pnpm --filter @juli/connector test \
     && pnpm lint:landing && pnpm type-check:landing && pnpm test:landing
 }
 job_static() {

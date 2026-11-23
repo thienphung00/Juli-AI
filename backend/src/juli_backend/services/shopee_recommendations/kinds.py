@@ -110,6 +110,25 @@ _PROGRAMME = Page("Marketing › Chương trình của Shopee", None, verified=F
 #: Keyword roles are Juli's own key list (ADR-120 d.11), kept in Juli Ops, not in Seller Centre.
 _JULI_KEYWORDS = Page("Juli › Từ khoá của sản phẩm", None, verified=False)
 
+#: S7: the sub-label of a Mã Giảm Giá card (the voucher kinds share Shopee's name) by its scope.
+VOUCHER_SCOPE_LABELS: dict[str, str] = {
+    "shop": "Voucher toàn Shop",
+    "product": "Voucher sản phẩm",
+}
+VOUCHER_KINDS: tuple[str, ...] = ("min_spend_voucher", "review_voucher")
+VOUCHER_NAME = "Mã Giảm Giá"
+#: kind -> the minimum-spend part of its name; the card title reads
+#: "Mã Giảm Giá · <scope> · <part>", e.g. "Mã Giảm Giá · Voucher sản phẩm · không đơn tối thiểu".
+VOUCHER_MIN_PARTS: dict[str, str] = {
+    "min_spend_voucher": "đơn tối thiểu",
+    "review_voucher": "không đơn tối thiểu",
+}
+
+
+def voucher_scope_label(scope: str | None) -> str:
+    return VOUCHER_SCOPE_LABELS["product" if scope == "product" else "shop"]
+
+
 _S = Slider
 KINDS: dict[str, KindSpec] = {
     # ---- ads
@@ -205,7 +224,7 @@ KINDS: dict[str, KindSpec] = {
     "product_discount": KindSpec(
         "product_discount",
         "promotion",
-        "Giảm giá sản phẩm",
+        "Chương Trình Của Shop",
         "price",
         "item",
         "ctor",
@@ -218,7 +237,7 @@ KINDS: dict[str, KindSpec] = {
     "price": KindSpec(
         "price",
         "promotion",
-        "Đổi giá niêm yết",
+        "Giá",
         "price",
         "item",
         "ctor",
@@ -232,7 +251,7 @@ KINDS: dict[str, KindSpec] = {
     "min_spend_voucher": KindSpec(
         "min_spend_voucher",
         "voucher",
-        "Voucher đơn tối thiểu",
+        "Mã Giảm Giá · đơn tối thiểu",
         "voucher",
         "shop",
         "aov",
@@ -251,7 +270,7 @@ KINDS: dict[str, KindSpec] = {
     "review_voucher": KindSpec(
         "review_voucher",
         "voucher",
-        "Voucher tri ân / đánh giá",
+        "Mã Giảm Giá · không đơn tối thiểu",
         "voucher",
         "shop",
         "ctor",
@@ -286,7 +305,7 @@ KINDS: dict[str, KindSpec] = {
     "flash_sale": KindSpec(
         "flash_sale",
         "sale",
-        "Đăng ký Flash Sale của shop",
+        "Flash Sale Của Shop",
         "flash_sale",
         "item",
         "orders",
@@ -316,7 +335,7 @@ KINDS: dict[str, KindSpec] = {
     "bundle_deal": KindSpec(
         "bundle_deal",
         "combo",
-        "Combo khuyến mãi (các bậc)",
+        "Combo Khuyến Mãi",
         "bundle",
         "item",
         "aov",
@@ -331,7 +350,7 @@ KINDS: dict[str, KindSpec] = {
     "add_on": KindSpec(
         "add_on",
         "combo",
-        "Mua kèm deal sốc",
+        "Mua Kèm Deal Sốc",
         "bundle",
         "item",
         "aov",
@@ -343,7 +362,7 @@ KINDS: dict[str, KindSpec] = {
     "gift": KindSpec(
         "gift",
         "combo",
-        "Quà tặng kèm",
+        "Mua Để Nhận Quà",
         "bundle",
         "item",
         "ctor",
@@ -355,7 +374,7 @@ KINDS: dict[str, KindSpec] = {
     "variation_set": KindSpec(
         "variation_set",
         "combo",
-        "Bộ / quy cách nhiều món",
+        "Phân loại hàng",
         "bundle",
         "item",
         "aov",
@@ -417,7 +436,7 @@ KINDS: dict[str, KindSpec] = {
     "title": KindSpec(
         "title",
         "listing",
-        "Sửa tên sản phẩm",
+        "Tên sản phẩm",
         "title",
         "item",
         "views",
@@ -438,7 +457,7 @@ KINDS: dict[str, KindSpec] = {
     "cover_image": KindSpec(
         "cover_image",
         "listing",
-        "Đổi ảnh bìa",
+        "Ảnh bìa",
         "images",
         "item",
         "ctr",
@@ -462,7 +481,7 @@ KINDS: dict[str, KindSpec] = {
     "description_first_line": KindSpec(
         "description_first_line",
         "listing",
-        "Sửa dòng đầu mô tả",
+        "Mô tả sản phẩm",
         "other",
         "item",
         "ctor",
@@ -530,7 +549,7 @@ KINDS: dict[str, KindSpec] = {
     "combo_multi": KindSpec(
         "combo_multi",
         "combo",
-        "Combo nhiều sản phẩm",
+        "Combo Khuyến Mãi",
         "bundle",
         "item",
         "aov",

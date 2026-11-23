@@ -120,6 +120,12 @@ function DailyBars({ data }: { readonly data: JuliDataAnswerData }) {
   );
 }
 
+/** The sale days inside the compared windows ("Ngày sale: 11/11, 15/11"), when the answer carries them. */
+function saleDays(data: JuliDataAnswerData): string | null {
+  const v = (data as unknown as { readonly sale_vi?: unknown }).sale_vi;
+  return typeof v === "string" && v.length > 0 ? v : null;
+}
+
 /** U4a: one data answer. */
 export function DataAnswer({ data, platform }: { readonly data: JuliDataAnswerData; readonly platform: JuliPlatform }) {
   return (
@@ -138,7 +144,10 @@ export function DataAnswer({ data, platform }: { readonly data: JuliDataAnswerDa
           {(data.rows ?? []).map((row, i) => (
             <li key={`${row.label_vi}-${i}`} className="juli-top__row">
               <span className="juli-rank juli-num">{i + 1}</span>
-              {row.link ? <a href={juliHref(row.link, platform)}>{row.label_vi}</a> : <span>{row.label_vi}</span>}
+              <span className="juli-top__main">
+                {row.link ? <a href={juliHref(row.link, platform)}>{row.label_vi}</a> : <span>{row.label_vi}</span>}
+                {row.detail_vi ? <span className="juli-top__detail">{row.detail_vi}</span> : null}
+              </span>
               <span className="juli-num">{row.value_vi}</span>
             </li>
           ))}
@@ -170,6 +179,7 @@ export function DataAnswer({ data, platform }: { readonly data: JuliDataAnswerDa
           </table>
         </div>
       ) : null}
+      {saleDays(data) ? <div className="juli-fresh">{saleDays(data)}</div> : null}
       <div className="juli-fresh">{data.fresh_vi}</div>
     </section>
   );
