@@ -49,6 +49,7 @@ from juli_backend.services.ingest import status as ingest_status
 from juli_backend.services.shopee_recommendations import (
     connector_state,
     fill_queue,
+    job_view,
     result_store,
     service,
     store,
@@ -367,6 +368,7 @@ async def execution_states(
             jobs.setdefault(j.proposal_id, []).append(j)
     cards: list[dict[str, Any]] = []
     reverted = await store.reverted_card_ids(session, shop_id)
+    views = await job_view.for_cards(session, shop_id, ids)  # K3 / K4
     for p, card in rows:
         if str(p.id) in reverted:  # "Đã hoàn tác": the card leaves Thực hiện (F1.4)
             continue
@@ -410,6 +412,8 @@ async def execution_states(
                 "open_job": None
                 if open_job is None
                 else {"id": str(open_job.id), "open_path": open_job.payload["open_path"]},
+                "job": views[p.id]["job"],
+                "can_mark_done": p.status == STATUS_APPROVED and views[p.id]["has_forward"],
             }
         )
     counts: dict[str, int] = {}

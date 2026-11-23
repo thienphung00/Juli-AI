@@ -205,6 +205,9 @@ class ComboSpec(_Base):
     #: combo starts / ends on ``start`` / ``end``); None = the whole day
     start_hour: Annotated[int, Field(ge=0, le=23)] | None = None
     end_hour: Annotated[int, Field(ge=0, le=23)] | None = None
+    #: the minute of the hour, only when the time is not on the hour (None = 0)
+    start_minute: Annotated[int, Field(ge=0, le=59)] | None = None
+    end_minute: Annotated[int, Field(ge=0, le=59)] | None = None
 
     @model_validator(mode="after")
     def _check(self) -> ComboSpec:
@@ -220,12 +223,28 @@ class ComboSpec(_Base):
             self.end_hour is not None and self.end is None
         ):
             raise ValueError("an hour needs its date")
+        if (self.start_minute is not None and self.start_hour is None) or (
+            self.end_minute is not None and self.end_hour is None
+        ):
+            raise ValueError("a minute needs its hour")
         if self.start and self.end:
             if self.end < self.start:
                 raise ValueError("end is before start")
-            if self.hours is not None and self.hours <= 0:
+            if self.minutes is not None and self.minutes <= 0:
                 raise ValueError("end is before start")
         return self
+
+    @property
+    def minutes(self) -> int | None:
+        """The running time in minutes when both ends carry an hour."""
+        if not (self.start and self.end) or self.start_hour is None or self.end_hour is None:
+            return None
+        return (
+            (self.end - self.start).days * 1440
+            + (self.end_hour - self.start_hour) * 60
+            + (self.end_minute or 0)
+            - (self.start_minute or 0)
+        )
 
     @property
     def hours(self) -> int | None:
@@ -238,9 +257,9 @@ class ComboSpec(_Base):
     def days(self) -> int | None:
         if not (self.start and self.end):
             return None
-        hours = self.hours
-        if hours is not None:
-            return max(1, -(-hours // 24))
+        minutes = self.minutes
+        if minutes is not None:
+            return max(1, -(-minutes // 1440))
         return (self.end - self.start).days + 1
 
 

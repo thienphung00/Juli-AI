@@ -38,8 +38,8 @@ STEP_ORDER: tuple[str, ...] = ("price", "giam_gia", "voucher", "combo", "ads")
 STEP_LABELS: dict[str, str] = {
     "price": "Giá bán",
     "giam_gia": "Giảm giá",
-    "voucher": "Voucher",
-    "combo": "Combo / mua kèm / quà tặng",
+    "voucher": "Mã Giảm Giá",
+    "combo": "Combo Khuyến Mãi",
     "ads": "Dịch vụ hiển thị",
     "other": "Khác",
 }

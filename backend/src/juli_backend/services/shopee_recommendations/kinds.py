@@ -26,9 +26,9 @@ FAMILIES: tuple[str, ...] = (
 FAMILY_LABELS: dict[str, str] = {
     "ads": "Dịch vụ hiển thị",
     "promotion": "Khuyến mãi / giá",
-    "voucher": "Voucher",
-    "sale": "Flash Sale / chương trình Shopee",
-    "combo": "Combo / mua kèm",
+    "voucher": "Mã Giảm Giá",
+    "sale": "Flash Sale Của Shop",
+    "combo": "Combo Khuyến Mãi",
     "affiliate": "Tiếp thị liên kết",
     "listing": "Tên, từ khoá, ảnh bìa",
     "mega_sale": "Chiến dịch lớn (mega sale)",

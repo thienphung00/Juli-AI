@@ -63,7 +63,9 @@ from juli_backend.services.shopee_recommendations import (
     combo,
     config,
     fill_queue,
+    fill_refs,
     freshness,
+    job_view,
     manual,
     plan_codes,
     product_queue,
@@ -722,6 +724,14 @@ async def list_cards(
     )
     out: list[tuple[dict[str, Any], dict[str, Any]]] = []
     behind = 0
+    views = await job_view.for_cards(session, shop_id, [p.id for p, _ in rows])
+    jobs_by_card = {
+        p.id: {
+            "job": views[p.id]["job"],
+            "can_mark_done": p.status == STATUS_APPROVED and views[p.id]["has_forward"],
+        }
+        for p, _ in rows
+    }
     for p, card in rows:
         if audience == "seller" and p.status in SELLER_HIDDEN:
             continue
@@ -739,6 +749,7 @@ async def list_cards(
         meta = await store.card_meta(session, shop_id, p.id)
         summary = _summary(p, card, meta, measuring, plan_codes_, measured.get(str(p.id)))
         summary["verification"] = {"state": states.get(p.id)}
+        summary.update(jobs_by_card[p.id])
         if audience == "seller":
             rank_ = card.get("rank") or {}
             summary["rank"] = {
@@ -798,6 +809,15 @@ async def _job_rows(
     ]
 
 
+async def _job_fields(session: AsyncSession, shop_id: uuid.UUID, p: ShopProposal) -> dict[str, Any]:
+    """K3 / K4: the card's current job and whether Đã làm is offered."""
+    got = (await job_view.for_cards(session, shop_id, [p.id]))[p.id]
+    return {
+        "job": got["job"],
+        "can_mark_done": p.status == STATUS_APPROVED and bool(got["has_forward"]),
+    }
+
+
 async def card_detail(
     session: AsyncSession, shop_id: uuid.UUID, card_id: uuid.UUID, *, audience: str
 ) -> dict[str, Any]:
@@ -837,6 +857,7 @@ async def card_detail(
         ),
         "reverted": meta.get("reverted"),
         "revert": await revert_fill.revert_state(session, shop_id, card_id),
+        **await _job_fields(session, shop_id, p),
         "card": seller_view(full) if audience == "seller" else full,
         "journey": [
             {
@@ -1568,6 +1589,22 @@ async def _chosen(
     return payload.get("chosen_version"), payload.get("chosen_version_code")
 
 
+async def _forward_job(
+    session: AsyncSession, shop_id: uuid.UUID, card_id: uuid.UUID, kinds: Sequence[str]
+) -> ShopeeFillJob | None:
+    """The newest forward fill job of the card for these job kinds (``None`` when it has none)."""
+    rows = await session.scalars(
+        select(ShopeeFillJob)
+        .where(
+            ShopeeFillJob.shop_id == shop_id,
+            ShopeeFillJob.proposal_id == card_id,
+            ShopeeFillJob.kind.in_(list(kinds)),
+        )
+        .order_by(ShopeeFillJob.version.desc(), ShopeeFillJob.seq.desc())
+    )
+    return next((j for j in rows if not fill_queue.is_aux(j)), None)
+
+
 async def mark_executed(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -1578,11 +1615,17 @@ async def mark_executed(
     user_id: uuid.UUID | None = None,
     staff_id: uuid.UUID | None = None,
     voucher_id: str | None = None,
+    code: str | None = None,
+    object_id: str | None = None,
     evidence_ref: str | None = None,
     payload_extra: Mapping[str, Any] | None = None,
     auto_plan: bool = False,
 ) -> dict[str, Any]:
-    """ "Đã làm": a person saved the change in Seller Centre. Records the execution
+    """ "Đã làm" (K1): ``object_id`` is Shopee's numeric id; ``code`` is what the person typed (a
+    non-digit ``voucher_id`` / ``object_id`` is routed to it). A read-back is always queued: by
+    id (the Connector's ``captured_ref``), else the typed code, else the name of the card's spec.
+
+    A person saved the change in Seller Centre. Records the execution
     (ADR-118) and one `executed` event per change in the sheet, each carrying
     ``change = {change_kind, target, expected}`` for the Connector's read-back."""
     now = _naive(now)
@@ -1610,16 +1653,28 @@ async def mark_executed(
         )
     # an execution recorded after the fact (an import) has nothing "after" to read back
     readback = (payload_extra or {}).get(verification.NO_READBACK_FLAG) is not False
+    typed_id, typed_code = None, None
+    for raw in (object_id, voucher_id, code):
+        got_id, got_code = fill_refs.split_ref(raw)
+        typed_id, typed_code = typed_id or got_id, typed_code or got_code
     for c in changes:
-        if c["change_kind"] == "voucher" and readback:
-            voucher_id = voucher_id or await fill_queue.captured_ref_of(
-                session, shop_id, card_id, "voucher"
-            )
-            if not voucher_id:
-                raise ProposalError(
-                    ERROR_BAD_INPUT, 422, "voucher_id is required to verify a voucher"
-                )
-            c["target"] = {**c["target"], "voucher_id": voucher_id}
+        if not readback:
+            continue
+        kind = c["change_kind"]
+        if kind == "voucher":
+            job_kinds: tuple[str, ...] = ("voucher",)
+        elif kind in revert_fill.COMBO_CHANGE_KINDS:
+            job_kinds = ("combo",)
+        elif kind in revert_fill.PROGRAMME_KINDS:
+            job_kinds = (kind,)
+        else:
+            continue
+        job = await _forward_job(session, shop_id, card_id, job_kinds)
+        cap_id, cap_code = fill_refs.split_ref(job.captured_ref if job else None)
+        ref_id, ref_code = typed_id or cap_id, typed_code or cap_code
+        name = str(((job.payload or {}) if job else {}).get("name") or p.code or "")
+        if kind == "voucher":
+            c["target"] = fill_refs.voucher_target(ref_id, ref_code, name)
             # F2.3 / E46: the person changed the form by hand: the saved form's values are what
             # the read-back must find; the card's own are kept beside them
             seen = await fill_queue.seen_voucher_values(session, shop_id, card_id)
@@ -1627,6 +1682,18 @@ async def mark_executed(
             if seen:
                 c["card_expected"] = {k: c["expected"][k] for k in seen}
                 c["expected"] = {**c["expected"], **seen}
+        elif kind in revert_fill.COMBO_CHANGE_KINDS:
+            c["target"] = {
+                **c.get("target", {}),
+                **fill_refs.object_target("combo_id", "combo_name", ref_id, name),
+            }
+        else:
+            c["target"] = {
+                **c.get("target", {}),
+                **fill_refs.object_target("id", "name", ref_id, name),
+            }
+        if ref_code and kind != "voucher":
+            c["target"] = {**c["target"], "code": ref_code}
     role = "client_representative" if user_id is not None else "juli_operator"
     execution = await proposals.record_execution(
         session,

@@ -70,3 +70,34 @@ def test_no_campaign_has_a_report_keeps_a_candidate_so_the_evaluation_refuses_as
     row = _row("A", date(2026, 11, 10))
     got = _pick(row, [GROUP], {er.as_of_day(row, TODAY): frozenset()})
     assert got is GROUP
+
+
+def test_a_campaign_renamed_after_the_rows_day_is_still_found_by_its_products():
+    """S-A1: the plan says "CDN/01" (the old name); today's list names the same campaigns
+    otherwise, so no name matches: the key that holds the item AND has a report on the day wins."""
+    renamed_solo = er.Campaign("s1", "Chiến dịch mới đổi tên", ("p1",), 100.0)
+    renamed_group = er.Campaign("g", "Nhóm đã đổi tên", ("p1", "p2", "p3"), 900.0)
+    row = _row("A", date(2026, 11, 9), plan="CDN/01 ROAS mục tiêu 5")
+    day = er.as_of_day(row, TODAY)
+    assert day == date(2026, 11, 8)  # the evaluation reads up to the day BEFORE the start
+    got = _pick(row, [renamed_solo, renamed_group], {day: frozenset({"g"})})
+    assert got is not None and got.key == "g"
+
+
+def test_before_any_per_product_key_exists_three_rows_of_one_plan_all_use_the_group_key():
+    solo = {i: er.Campaign(f"s{i}", "CDN/01 - riêng", (f"p{i}",), 50.0) for i in (1, 2, 3)}
+    rows = [
+        _row(f"QC-{n}", date(2026, 11, 9), plan="CDN/01 ROAS 5", items=(f"p{n}",))
+        for n in (1, 2, 3)
+    ]
+    day = er.as_of_day(rows[0], TODAY)
+    reports = {day: frozenset({"g"})}  # per-product keys only report from 12/11
+    facts = er.Facts(today=TODAY, campaigns=[*solo.values(), GROUP], reports=reports)
+    plans = er.plan_rows(rows, facts)
+    assert [c.spec["campaign_key"] for p in plans for c in p.cards] == ["g", "g", "g"]
+    # a later row of the same plan (reports exist for the per-product key) is unchanged
+    late = _row("QC-6", date(2026, 11, 12), plan="CDN/01 ROAS 6", items=("p1",))
+    late_day = er.as_of_day(late, TODAY)
+    both = {late_day: frozenset({"g", "s1"})}
+    got = er.pick_campaign(late, [solo[1], GROUP], both, late_day)
+    assert got is not None and got.key == "s1"  # the named per-product key still wins

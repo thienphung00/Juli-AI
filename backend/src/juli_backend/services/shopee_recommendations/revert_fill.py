@@ -41,7 +41,7 @@ from juli_backend.models.shopee_fill import (
 )
 from juli_backend.services.ingest.mapping import SHOPEE_PROMO_TYPES
 from juli_backend.services.shop_proposals.cycle import ProposalError
-from juli_backend.services.shopee_recommendations import fill_queue, store
+from juli_backend.services.shopee_recommendations import fill_queue, fill_refs, store
 from juli_backend.services.shopee_recommendations.fill_queue import (
     READBACK_PREFIX,
     REVERT_PREFIX,
@@ -78,6 +78,11 @@ ERROR_TARGET_UNKNOWN = "revert_target_unknown"
 ERROR_NOT_CONFIRMED = "revert_not_confirmed"
 ERROR_ALREADY_REVERTED = "reco_already_reverted"
 DATASET_ITEMS = "item_catalog"
+DATASET_COMBOS = "combo_list"  # the Connector's combo list reader (S-E118)
+COMBO_CHANGE_KINDS = ("bundle_deal", "combo", "combo_multi")
+#: programme kinds: the executed change carries K1 ids / names, but no list reader confirms them
+#: (D5: a save nobody reads is never a match), so no read-back job is queued
+PROGRAMME_KINDS = ("product_discount", "flash_sale", "add_on", "gift")
 DATASET_VOUCHERS = "voucher_list"  # the Connector's vouchers reader posts ingest `voucher_settings`
 _ENDED_WORDS = ("end", "expire", "delete", "finish", "het", "kết thúc", "ket thuc")
 _BEFORE_KEY = {"title": "title", "description_first_line": "first_line"}
@@ -152,22 +157,29 @@ def _revert_spec(
             "error": None if ok else ERROR_VALUE_UNKNOWN,
         }
     if j.kind == "voucher":
-        vid = str(j.captured_ref or executed_ref or "")
+        vid, code = fill_refs.split_ref(j.captured_ref or executed_ref)
+        code = code or payload.get("voucher_code")
+        suffix = payload.get("code_suffix") or (fill_refs.voucher_suffix(code) if code else None)
+        name = payload.get("name")
+        body = {
+            "mode": MODE_REVERT,
+            "open_path": VOUCHER_LIST_PATH,
+            "code_suffix": suffix,
+            "name": name,
+        }
+        if vid:
+            body["voucher_id"] = vid
+        if code:
+            body["code"] = code
         return {
             "kind": KIND_VOUCHER_END,
-            "target": {"voucher_id": vid},
-            "target_key": f"{REVERT_PREFIX}voucher:{vid or j.seq}",
-            "payload": {
-                "mode": MODE_REVERT,
-                "open_path": VOUCHER_LIST_PATH,
-                "voucher_id": vid,
-                "code_suffix": payload.get("code_suffix"),
-                "name": payload.get("name"),
-            },
-            "error": None if vid else ERROR_TARGET_UNKNOWN,
+            "target": fill_refs.voucher_target(vid, code or suffix, name),
+            "target_key": f"{REVERT_PREFIX}voucher:{vid or suffix or j.seq}",
+            "payload": body,
+            "error": None if (vid or suffix or name) else ERROR_TARGET_UNKNOWN,
         }
     if j.kind == "combo":
-        combo_id = str(j.captured_ref or "")
+        combo_id = fill_refs.split_ref(j.captured_ref)[0] or ""
         name = str(payload.get("name") or "")
         body: dict[str, Any] = {"mode": MODE_REVERT, "open_path": COMBO_LIST_PATH, "name": name}
         if combo_id:
@@ -317,7 +329,8 @@ async def _proposal(session: AsyncSession, shop_id: uuid.UUID, card_id: uuid.UUI
 async def _executed_voucher_id(
     session: AsyncSession, shop_id: uuid.UUID, card_id: uuid.UUID
 ) -> str | None:
-    """The voucher id "Đã làm" recorded (typed, or the Connector's captured one)."""
+    """The voucher id (digits) or, when the person typed a code, that code, as "Đã làm"
+    recorded it (typed, or the Connector's captured one)."""
     events = await session.scalars(
         select(CardEvent).where(
             CardEvent.shop_id == shop_id,
@@ -327,9 +340,10 @@ async def _executed_voucher_id(
     )
     for event in events:
         change = (event.payload or {}).get("change") or {}
-        vid = (change.get("target") or {}).get("voucher_id")
-        if change.get("change_kind") == "voucher" and vid:
-            return str(vid)
+        target = change.get("target") or {}
+        got = target.get("voucher_id") or target.get("voucher_code")
+        if change.get("change_kind") == "voucher" and got:
+            return str(got)
     return None
 
 
@@ -402,13 +416,30 @@ def _readback_of_change(kind: str, target: dict[str, Any]) -> dict[str, Any] | N
         }
     if kind == "voucher":
         vid = str(target.get("voucher_id") or "")
-        if not vid:
+        code = str(target.get("voucher_code") or target.get("code") or "")
+        name = str(target.get("name") or "")
+        ref = vid or code or name[:40]
+        if not ref:
             return None
         return {
-            "key": f"{READBACK_PREFIX}voucher:{vid}",
+            "key": f"{READBACK_PREFIX}voucher:{ref}",
             "open_path": VOUCHER_LIST_PATH,
-            "target": {"voucher_id": vid},
+            "target": {k: v for k, v in target.items() if v},
             "datasets": [DATASET_VOUCHERS],
+            "forward_kind": "voucher",
+        }
+    if kind in COMBO_CHANGE_KINDS:
+        cid = str(target.get("combo_id") or "")
+        name = str(target.get("combo_name") or target.get("name") or "")
+        ref = cid or name[:40]
+        if not ref:
+            return None
+        return {
+            "key": f"{READBACK_PREFIX}combo:{ref}",
+            "open_path": COMBO_LIST_PATH,
+            "target": {"combo_id": cid} if cid else {"combo_name": name},
+            "datasets": [DATASET_COMBOS],
+            "forward_kind": "combo",
         }
     if kind == "affiliate_commission":
         ids = [str(i) for i in (target.get("product_ids") or [])]
@@ -446,6 +477,7 @@ async def _upsert_readbacks(
             "open_path": spec["open_path"],
             "target": spec["target"],
             "datasets": spec["datasets"],
+            "forward_kind": spec.get("forward_kind"),
         }
         row = existing.get(spec["key"])
         if row is None:
@@ -500,7 +532,10 @@ async def queue_readback_after_revert(
     session: AsyncSession, shop_id: uuid.UUID, revert: ShopeeFillJob, *, now: datetime
 ) -> list[ShopeeFillJob]:
     """Contract C: a revert job is ``saved``: read the object back again (read-only)."""
-    kind = {KIND_VOUCHER_END: "voucher", KIND_COMBO_END: "combo"}.get(revert.kind, revert.kind)
+    kind = {
+        KIND_VOUCHER_END: "voucher",
+        KIND_COMBO_END: "combo",
+    }.get(revert.kind, revert.kind)
     target = dict(revert.target or {})
     spec = _readback_of_change(kind, target)
     if spec is None:
@@ -548,7 +583,11 @@ async def _item_matches(
 
 
 async def _voucher_ended(
-    session: AsyncSession, shop_id: uuid.UUID, voucher_id: str, since: datetime
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    voucher_id: str,
+    since: datetime,
+    code_suffix: str = "",
 ) -> bool:
     """A voucher list captured AFTER the revert was saved exists and either lacks the voucher or
     shows it ended. No such capture (or none at all) = not confirmed."""
@@ -567,7 +606,15 @@ async def _voucher_ended(
     ]
     if not after:
         return False
-    mine = [p for p in after if str((p.extra or {}).get("voucher_id")) == voucher_id]
+    suffix = code_suffix.upper()
+
+    def is_ours(p: PlatformPromotion) -> bool:
+        x = p.extra or {}
+        if voucher_id and voucher_id != "None":
+            return str(x.get("voucher_id")) == voucher_id
+        return bool(suffix) and str(x.get("voucher_code") or "").upper().endswith(suffix)
+
+    mine = [p for p in after if is_ours(p)]
     if not mine:
         return True  # a list read after the save does not hold it
     newest = max(mine, key=lambda p: p.captured_at)
@@ -641,8 +688,13 @@ async def _confirmed(
     if revert.kind in ("title", "description_first_line"):
         return await _item_matches(session, shop_id, revert, revert.updated_at)
     if revert.kind == KIND_VOUCHER_END:
+        tgt = revert.target or {}
         return await _voucher_ended(
-            session, shop_id, str((revert.target or {}).get("voucher_id")), back.updated_at
+            session,
+            shop_id,
+            str(tgt.get("voucher_id") or ""),
+            back.updated_at,
+            str(tgt.get("code_suffix") or ""),
         )
     return await _affiliate_matches(session, shop_id, revert, revert.updated_at)
 
