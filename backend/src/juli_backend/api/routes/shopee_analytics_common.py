@@ -40,14 +40,28 @@ MonthQ = Annotated[
 DateQ = Annotated[date | None, Query()]
 
 
-def refusal(exc: Exception) -> HTTPException:
+NO_DATA_BY_PLATFORM: dict[str, dict[str, str]] = {
+    "shopee": {"code": "no_shopee_data", "message": "Shop chưa có dữ liệu Shopee."},
+    "tiktok": {"code": "no_tiktok_data", "message": "Shop chưa có dữ liệu TikTok Shop."},
+}
+
+
+def stamped(body: dict[str, Any], platform: str) -> dict[str, Any]:
+    """The page builders name Shopee in ``platform``; a payload for a TikTok shop names TikTok.
+    A Shopee payload is returned as it is."""
+    if platform != "shopee" and "platform" in body:
+        body["platform"] = platform
+    return body
+
+
+def refusal(exc: Exception, platform: str = "shopee") -> HTTPException:
     if isinstance(exc, RowsNotMaterialized):
         # P99b: a window without stored daily rows shows this state, never numbers
         return HTTPException(status.HTTP_409_CONFLICT, detail=exc.json())
     if isinstance(exc, NoShopeeData):
         return HTTPException(
             status.HTTP_409_CONFLICT,
-            detail={"code": "no_shopee_data", "message": "Shop chưa có dữ liệu Shopee."},
+            detail=dict(NO_DATA_BY_PLATFORM.get(platform, NO_DATA_BY_PLATFORM["shopee"])),
         )
     if isinstance(exc, ProductNotFound):
         return HTTPException(

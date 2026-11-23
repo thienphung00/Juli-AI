@@ -139,3 +139,15 @@ carries the same facts for the KOL cards. Entry points `queries.kol_table` / `qu
   (picker returns them as `unmatched`, `selectable: false`). Product channel GMV partitions the product
   GMV via `channel_split.partition_channels` (ads capped at GMV as a placed-order overlay, TTLK next,
   Organic the rest); the raw ads figure stays as `ads_overlay_gmv` / `overlay_gmv`.
+
+
+## TikTok on the seller routes (W3 t2)
+
+The seller analytics routes (`/demo/shopee/overview` ... `kol-section`, not the two exports) are open
+to TikTok shops (`capability_gate.ANALYTICS_DATA_PLATFORMS`) and read the platform-neutral layer-4
+rows. A shop with no raw anchor anchors on its newest complete layer-4 day (`queries.resolve_window`,
+`queries.default_anchor`; a Shopee shop resolves as before). `channel_split` / `metric_view` take
+`platform`: on TikTok the shop total leaves out Tab cửa hàng (`channel_split.total_base`), Organic =
+Thẻ sản phẩm + Video + LIVE, Quảng cáo is `None`, and a row / luồng whose cell is missing carries
+`unavailable` (metric -> registry reason code). Shopee payloads gain no field. No data answers 409
+`no_tiktok_data` (Shopee: `no_shopee_data`).

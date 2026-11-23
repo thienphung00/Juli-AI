@@ -28,6 +28,16 @@ Generated TS contract: `apps/demo/src/lib/metrics/registry.generated.ts`, writte
 - Cost-dependent metrics carry `coverage` (`cost_coverage`) and `partial` below 100 %.
 - A formula change bumps `DERIVATION_VERSION`, and the TS file is regenerated.
 
+## TikTok traffic sources and reason codes (W3, decision #7)
+
+`TRAFFIC_SOURCES` says which sources a platform has. TikTok has Thẻ sản phẩm, Video, LIVE (Organic)
+and Tiếp thị liên kết (TTLK), which add up to the shop total, and Tab cửa hàng (`trang_shop`), which
+is a row beside them (`counts_in_total` is False; orders / CTOR / AOV are `None`, see
+`SOURCE_METRIC_GAPS`). Quảng cáo and the Shopee residual are `None`. `source_reason` /
+`metric_reason` give the reason code a screen shows beside a `None` (`ads_scope_missing`,
+`source_not_on_platform`, `tab_reports_no_orders`); a missing value is never 0. A change here bumps
+`DERIVATION_VERSION`.
+
 ## Must not
 
 - Read the database or the clock (a later step wires `components` to layer-4 tables).

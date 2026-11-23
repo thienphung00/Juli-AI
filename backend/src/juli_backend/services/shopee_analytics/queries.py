@@ -16,7 +16,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.repositories import PlatformItemSnapshotsRepo
-from juli_backend.services.shopee_analytics import kol, loaders, service
+from juli_backend.services.shopee_analytics import kol, loaders, service, stored
 from juli_backend.services.shopee_analytics import kol_compare as kol_compare_mod
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.critical import build_critical
@@ -55,7 +55,41 @@ def freshness_json(latest: dict[str, Any], anchor: date) -> dict[str, Any]:
 
 
 class NoShopeeData(LookupError):
-    """The shop has no Shopee numbers to anchor a window on."""
+    """The shop has no numbers (Shopee or TikTok) to anchor a window on; the route words the
+    refusal by the shop's platform."""
+
+
+async def default_anchor(session: AsyncSession, shop_id: uuid.UUID) -> date | None:
+    """The window end every screen shares (``loaders.default_as_of``); a shop with none of
+    the raw anchors (a TikTok shop, W3) anchors on its newest complete layer-4 day."""
+    return await loaders.default_as_of(session, shop_id) or await stored.last_complete_day(
+        session, shop_id
+    )
+
+
+async def resolve_window(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    period: str = "30d",
+    month: str | None = None,
+    start: date | None = None,
+    end: date | None = None,
+    as_of: date | None = None,
+) -> Window | None:
+    """``service.resolve``, anchored on the newest complete layer-4 day when the raw tables give
+    none. A shop that has a raw anchor (every Shopee shop with data) resolves exactly as before."""
+    window = await service.resolve(
+        session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
+    )
+    if window is not None or as_of is not None:
+        return window
+    day = await stored.last_complete_day(session, shop_id)
+    if day is None:
+        return None
+    return await service.resolve(
+        session, shop_id, period=period, month=month, start=start, end=end, as_of=day
+    )
 
 
 class ProductNotFound(LookupError):
@@ -72,7 +106,7 @@ async def _views(
     end: date | None,
     as_of: date | None,
 ) -> tuple[ShopContext, PeriodView, PeriodView]:
-    window = await service.resolve(
+    window = await resolve_window(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     if window is None:
@@ -193,7 +227,7 @@ async def orders(
     offset: int = 0,
 ) -> dict[str, Any]:
     """Đơn hàng: one row per confirmed order, hashed key, no buyer data."""
-    window = await service.resolve(
+    window = await resolve_window(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     if window is None:
@@ -250,7 +284,7 @@ async def product_page(
 ) -> dict[str, Any]:
     if period not in PRODUCT_PERIODS:
         raise ValueError(f"period must be one of {list(PRODUCT_PERIODS)}")
-    anchor = as_of or await loaders.default_as_of(session, shop_id)
+    anchor = as_of or await default_anchor(session, shop_id)
     if anchor is None:
         raise NoShopeeData(str(shop_id))
     ctx = await loaders.load_context(session, shop_id)
@@ -307,7 +341,7 @@ async def _kol_view_model(
     end: date | None,
     as_of: date | None,
 ) -> tuple[PeriodView, kol.KolModel]:
-    window = await service.resolve(
+    window = await resolve_window(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     if window is None:

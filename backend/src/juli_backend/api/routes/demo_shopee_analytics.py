@@ -16,8 +16,10 @@ request runs under that shop's tenant scope).
 - ``GET /demo/shopee/exports/tong-quan.xlsx`` / ``.../exports/ke-hoach.xlsx?month=`` -- the two
   Excel reports (P100): the period + level of Tổng quan, the month of Kế hoạch.
 
-Read-only. A shop that is not on Shopee answers 409 ``not_a_shopee_shop``; a shop without Shopee
-numbers 409 ``no_shopee_data``. The logic is ``services/shopee_analytics``.
+Read-only. W3: the analytics routes (not the two exports) answer a TikTok shop too, from the
+platform-neutral layer-4 rows; the exports stay Shopee-only (409 ``not_a_shopee_shop``). A shop
+without numbers answers 409 ``no_shopee_data`` / ``no_tiktok_data``. The logic is
+``services/shopee_analytics``.
 """
 
 from __future__ import annotations
@@ -28,7 +30,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Path, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.capability_gate import require_capability
+from juli_backend.api.capability_gate import ANALYTICS_DATA_PLATFORMS, require_capability
 from juli_backend.api.reviewer import reviewer_context
 from juli_backend.api.routes.shopee_analytics_common import (
     REFUSALS,
@@ -41,6 +43,7 @@ from juli_backend.api.routes.shopee_analytics_common import (
     export_tong_quan,
     export_tong_quan_all,
     refusal,
+    stamped,
     window_args,
 )
 from juli_backend.core.security import get_current_user
@@ -50,7 +53,9 @@ from juli_backend.services.shopee_analytics import channel_split, metric_view, q
 
 router = APIRouter(prefix="/demo/shopee", tags=["demo-shopee"])
 
-_gate_r = require_capability("read_shop_totals")
+_gate_r = require_capability("read_shop_totals", requires_data_on=ANALYTICS_DATA_PLATFORMS)
+#: the two Excel exports stay Shopee-only (TikTok exports are not in W3)
+_gate_x = require_capability("read_shop_totals")
 
 PLATFORM = "shopee"
 
@@ -67,11 +72,14 @@ async def shopee_overview(
 ) -> dict[str, Any]:
     shop_id = shop.id
     try:
-        return await queries.overview(
-            session, shop_id, **window_args(period, month, start, end, as_of)
+        return stamped(
+            await queries.overview(
+                session, shop_id, **window_args(period, month, start, end, as_of)
+            ),
+            shop.platform,
         )
     except REFUSALS as exc:
-        raise refusal(exc) from None
+        raise refusal(exc, shop.platform) from None
 
 
 @router.get("/matrix")
@@ -95,9 +103,10 @@ async def shopee_matrix(
             limit=limit,
             **window_args(period, month, start, end, as_of),
         )
-        return await reco.attach_card_refs(session, shop_id, "matrix", body, audience="seller")
+        body = await reco.attach_card_refs(session, shop_id, "matrix", body, audience="seller")
+        return stamped(body, shop.platform)
     except REFUSALS as exc:
-        raise refusal(exc) from None
+        raise refusal(exc, shop.platform) from None
 
 
 @router.get("/critical")
@@ -115,9 +124,10 @@ async def shopee_critical(
         body = await queries.critical(
             session, shop_id, **window_args(period, month, start, end, as_of)
         )
-        return await reco.attach_card_refs(session, shop_id, "critical", body, audience="seller")
+        body = await reco.attach_card_refs(session, shop_id, "critical", body, audience="seller")
+        return stamped(body, shop.platform)
     except REFUSALS as exc:
-        raise refusal(exc) from None
+        raise refusal(exc, shop.platform) from None
 
 
 @router.get("/ranking")
@@ -147,9 +157,10 @@ async def shopee_ranking(
             xep_theo=xep_theo,
             **window_args(period, month, start, end, as_of),
         )
-        return await reco.attach_card_refs(session, shop_id, "ranking", body, audience="seller")
+        body = await reco.attach_card_refs(session, shop_id, "ranking", body, audience="seller")
+        return stamped(body, shop.platform)
     except REFUSALS as exc:
-        raise refusal(exc) from None
+        raise refusal(exc, shop.platform) from None
 
 
 @router.get("/products/{item_id}")
@@ -163,9 +174,10 @@ async def shopee_product(
     shop_id = shop.id
     try:
         body = await queries.product_page(session, shop_id, item_id, period=period, as_of=as_of)
-        return await reco.attach_card_refs(session, shop_id, "product", body, audience="seller")
+        body = await reco.attach_card_refs(session, shop_id, "product", body, audience="seller")
+        return stamped(body, shop.platform)
     except REFUSALS as exc:
-        raise refusal(exc) from None
+        raise refusal(exc, shop.platform) from None
 
 
 # -- KOL (P91 D-9, D-11) -----------------------------------------------------------------
@@ -203,7 +215,7 @@ async def shopee_kols(
         )
         return await reco.attach_kol_cards(session, shop_id, body, audience="seller")
     except REFUSALS as exc:
-        raise refusal(exc) from None
+        raise refusal(exc, shop.platform) from None
 
 
 KolGroupQ = Annotated[str, Query(pattern="^(channel|campaign_type|kol)$")]
@@ -227,7 +239,7 @@ async def shopee_kols_compare(
             session, shop_id, group=group, **window_args(period, month, start, end, as_of)
         )
     except REFUSALS as exc:
-        raise refusal(exc) from None
+        raise refusal(exc, shop.platform) from None
 
 
 @router.get("/products/{item_id}/kols")
@@ -249,7 +261,7 @@ async def shopee_product_kols(
         )
         return await reco.attach_kol_cards(session, shop_id, body, audience="seller")
     except REFUSALS as exc:
-        raise refusal(exc) from None
+        raise refusal(exc, shop.platform) from None
 
 
 @router.get("/channel-split")
@@ -270,10 +282,11 @@ async def shopee_channel_split(
             session,
             shop_id,
             product_id=product_id,
+            platform=shop.platform,
             **window_args(period, month, start, end, as_of),
         )
     except REFUSALS as exc:
-        raise refusal(exc) from None
+        raise refusal(exc, shop.platform) from None
 
 
 @router.get("/channel-split/products")
@@ -289,10 +302,13 @@ async def shopee_channel_split_products(
     shop_id = shop.id
     try:
         return await channel_split.channel_split_products(
-            session, shop_id, **window_args(period, month, start, end, as_of)
+            session,
+            shop_id,
+            platform=shop.platform,
+            **window_args(period, month, start, end, as_of),
         )
     except REFUSALS as exc:
-        raise refusal(exc) from None
+        raise refusal(exc, shop.platform) from None
 
 
 MetricQ = Annotated[str, Query(pattern="^(views|ctr|ctor|aov|orders|gmv|margin)$")]
@@ -321,10 +337,11 @@ async def shopee_metric_view(
             audience="seller",
             channel=channel,
             product_id=product_id,
+            platform=shop.platform,
             **window_args(period, month, start, end, as_of),
         )
     except REFUSALS as exc:
-        raise refusal(exc) from None
+        raise refusal(exc, shop.platform) from None
 
 
 @router.get("/kol-section")
@@ -344,7 +361,7 @@ async def shopee_kol_section(
             session, shop_id, audience="seller", **window_args(period, month, start, end, as_of)
         )
     except REFUSALS as exc:
-        raise refusal(exc) from None
+        raise refusal(exc, shop.platform) from None
 
 
 @router.get("/exports/tong-quan.xlsx")
@@ -357,7 +374,7 @@ async def shopee_export_tong_quan(
     as_of: DateQ = None,
     product_id: Annotated[str | None, Query(max_length=64)] = None,
     all_shops: Annotated[bool, Query()] = False,
-    shop: Shop = Depends(_gate_r),
+    shop: Shop = Depends(_gate_x),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
@@ -386,7 +403,7 @@ async def shopee_export_ke_hoach(
     start: Annotated[date | None, Query(alias="from")] = None,
     end: Annotated[date | None, Query(alias="to")] = None,
     all_shops: Annotated[bool, Query()] = False,
-    shop: Shop = Depends(_gate_r),
+    shop: Shop = Depends(_gate_x),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Response:

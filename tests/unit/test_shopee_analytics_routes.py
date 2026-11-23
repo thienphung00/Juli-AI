@@ -133,16 +133,20 @@ async def test_the_product_page_and_its_404(seller):
     ).status_code == 422
 
 
-async def test_a_shop_that_is_not_on_shopee_is_refused_with_409(session):
+async def test_a_tiktok_shop_without_numbers_is_409_no_tiktok_data(session):
+    # W3 (R-1): the analytics screens are open to TikTok; with no rows the 409 names TikTok
     user = await make_user(session)
     shop = await make_shop(session, user, platform="tiktok")
     app = build_app(session)
     authenticate(app, user=user, shop=shop)
     async with client_for(app) as client:
         responses = [await client.get(f"{DEMO}/{s}") for s in SCREENS]
+        export = await client.get(f"{DEMO}/exports/tong-quan.xlsx")
     app.dependency_overrides.clear()
     assert [r.status_code for r in responses] == [409] * 4
-    assert responses[0].json()["detail"]["code"] == "not_a_shopee_shop"
+    assert responses[0].json()["detail"]["code"] == "no_tiktok_data"
+    # the Excel exports stay Shopee-only
+    assert export.status_code == 409 and export.json()["detail"]["code"] == "not_a_shopee_shop"
 
 
 async def test_a_shopee_shop_without_numbers_is_409_not_a_page_of_zeros(session):

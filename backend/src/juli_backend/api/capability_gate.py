@@ -28,6 +28,11 @@ from juli_backend.services.capabilities import Route, can
 #: The platforms whose data the guarded routes read today.
 DEFAULT_DATA_PLATFORMS: tuple[str, ...] = ("shopee",)
 
+#: W3: the seller analytics routes (Tổng quan, Phân tích, Quyết định reads) read the platform-
+#: neutral layer-4 tables, which TikTok shops now have; a TikTok shop without rows gets the
+#: platform-aware ``no_tiktok_data`` 409, not ``not_a_shopee_shop``.
+ANALYTICS_DATA_PLATFORMS: tuple[str, ...] = ("shopee", "tiktok")
+
 NOT_A_SHOPEE_SHOP: dict[str, str] = {
     "code": "not_a_shopee_shop",
     "message": "this shop is not on Shopee",
