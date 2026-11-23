@@ -126,6 +126,8 @@ export interface FillJobRow {
   readonly open_path: string | null;
   /** F3: `mode` is "revert" for an undo job and "readback" for a read-back job; absent on forward jobs. */
   readonly payload?: { readonly mode?: string } | null;
+  /** batch-1123-a E109: "Đã lưu trên Shopee · chưa đọc lại" when no reader confirms the save. */
+  readonly status_note?: string | null;
 }
 
 export const isRevertJob = (j: FillJobRow): boolean => j.payload?.mode === "revert";
@@ -157,6 +159,10 @@ export const FILL_STATUS_LABEL: Record<FillJobStatus, string> = {
   failed: "Lỗi",
   cancelled: "Đã hủy",
 };
+
+/** An unread save shows the server's note, never "Đã lưu" / "Xong" (which read as a match). */
+const unreadSave = (job: FillJobRow): boolean => !!job.status_note && (job.status === "saved" || job.status === "captured");
+export const fillStatusLabel = (job: FillJobRow): string => (unreadSave(job) ? job.status_note! : FILL_STATUS_LABEL[job.status]);
 
 const ERROR_TEXT: Record<string, string> = {
   budget_below_minimum: "Ngân sách thấp hơn mức tối thiểu ₫100.000 của Shopee nên Juli không điền.",
@@ -238,7 +244,7 @@ export function FillJobsChecklist({ jobs, enabled }: { readonly jobs: readonly F
     <ul className="sd-fill__list" data-testid="sd-fill-jobs">
       {jobs.map((job) => (
         <li data-status={job.status} data-testid={`sd-fill-job-${job.id}`} key={job.id}>
-          <span>{fillJobTitle(job)}</span> <TextChip tone={job.status === "failed" ? "warn" : job.status === "captured" ? "pink" : "info"}>{FILL_STATUS_LABEL[job.status]}</TextChip>
+          <span>{fillJobTitle(job)}</span> <TextChip tone={job.status === "failed" ? "warn" : job.status === "captured" && !unreadSave(job) ? "pink" : "info"}>{fillStatusLabel(job)}</TextChip>
           {job.captured_ref ? (
             <span className="sa-hint" data-testid="sd-fill-captured">
               {job.kind === "voucher" ? "Mã voucher" : "Mã"}: {job.captured_ref}

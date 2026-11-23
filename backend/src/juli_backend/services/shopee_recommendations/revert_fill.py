@@ -19,6 +19,7 @@ The serving rule lives in ``fill_queue._servable_card_jobs``. No migration: the 
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime
 from typing import Any
@@ -52,6 +53,22 @@ MODE_READBACK = "readback"
 KIND_READBACK = "readback"
 KIND_VOUCHER_END = "voucher_end"
 KIND_COMBO_END = "combo_end"
+#: batch-1123-a F: the end of a Chương Trình Của Shop / Flash Sale Của Shop / Deal Sốc (Mua Kèm
+#: Deal Sốc or Mua Để Nhận Quà) row, shown on the list and pressed by the person
+KIND_DISCOUNT_END = "discount_end"
+KIND_FLASH_SALE_END = "flash_sale_end"
+KIND_DEAL_END = "deal_end"
+#: ends and undos without a reader: the Connector seeing the save / the row ended is the evidence
+#: (as for a combo)
+NO_READER_REVERTS = (
+    KIND_COMBO_END,
+    KIND_DISCOUNT_END,
+    KIND_FLASH_SALE_END,
+    KIND_DEAL_END,
+    "price",
+    "cover_image",
+    "variation_set",
+)
 VOUCHER_LIST_PATH = "/portal/marketing/vouchers/list"
 COMBO_LIST_PATH = "/portal/marketing/bundle/list"
 AFFILIATE_PATH = "/portal/web-seller-affiliate/open_campaign"
@@ -162,6 +179,9 @@ def _revert_spec(
             "payload": body,
             "error": None if (combo_id or name) else ERROR_TARGET_UNKNOWN,
         }
+    promo = _promo_revert_spec(j, payload, target, seen)
+    if promo is not None:
+        return promo
     if j.kind == "affiliate_commission":
         ids = [str(i) for i in (payload.get("product_ids") or target.get("product_ids") or [])]
         value = _num(seen.get("commission_pct"))
@@ -178,6 +198,109 @@ def _revert_spec(
                 "commission_pct": value,
             },
             "error": None if (ids and value is not None) else ERROR_VALUE_UNKNOWN,
+        }
+    return None
+
+
+def _end_spec(
+    j: ShopeeFillJob, kind: str, open_path: str, body: dict[str, Any], label: str
+) -> dict[str, Any]:
+    """The end of a programme row: by the id Shopee gave it when known, else what the list shows."""
+    ref = str(j.captured_ref or "")
+    if ref.isdigit():
+        body = {**body, "id": ref}
+    ok = bool(body.get("id") or body.get("name") or body.get("slot"))
+    return {
+        "kind": kind,
+        "target": {"id": ref} if ref.isdigit() else {"name": body.get("name") or label},
+        "target_key": f"{REVERT_PREFIX}{j.kind}:{(ref if ref.isdigit() else label)[:50] or j.seq}",
+        "payload": {"mode": MODE_REVERT, "open_path": open_path, **body},
+        "error": None if ok else ERROR_TARGET_UNKNOWN,
+    }
+
+
+def price_key(variation_id: str) -> str:
+    """The Connector's report key of a variation's price (``price_`` + its letters and digits,
+    the same rule as ``priceKey`` in the Connector's fillers.ts)."""
+    return "price_" + re.sub(r"[^a-z0-9]", "", variation_id.lower())[:30]
+
+
+def _old_prices(payload: dict[str, Any], seen: dict[str, Any]) -> list[dict[str, Any]]:
+    """F2: each variation's price before the fill: what the Connector read on the page before it
+    wrote (``price:<variation id>``), else the catalogue's price kept in the job."""
+    kept = {str(r.get("variation_id")): r for r in payload.get("old_prices") or []}
+    out: list[dict[str, Any]] = []
+    for v in payload.get("variations") or []:
+        vid = str(v.get("variation_id") or "")
+        digits = "".join(ch for ch in str(seen.get(price_key(vid)) or "") if ch.isdigit())
+        price = int(digits) if digits else (kept.get(vid) or {}).get("price")
+        if not price:
+            return []
+        out.append(
+            {
+                "variation_id": vid,
+                "price": int(price),
+                **({"name": v["name"]} if v.get("name") else {}),
+            }
+        )
+    return out
+
+
+def _page(item_id: str) -> dict[str, Any]:
+    return {"mode": MODE_REVERT, "open_path": f"/portal/product/{item_id}", "item_id": item_id}
+
+
+def _promo_revert_spec(
+    j: ShopeeFillJob, payload: dict[str, Any], target: dict[str, Any], seen: dict[str, Any]
+) -> dict[str, Any] | None:
+    """batch-1123-a F: the undo of a price / programme / product-page job, or ``None``."""
+    item_id = str(payload.get("item_id") or target.get("item_id") or "")
+    if j.kind == "price":
+        old = _old_prices(payload, seen)
+        return {
+            "kind": "price",
+            "target": {"item_id": item_id},
+            "target_key": f"{REVERT_PREFIX}price:{item_id or j.seq}",
+            "payload": {**_page(item_id), "variations": old},
+            "error": None if (item_id and old) else ERROR_VALUE_UNKNOWN,
+        }
+    if j.kind == "product_discount":
+        name = str(payload.get("name") or "")
+        return _end_spec(
+            j, KIND_DISCOUNT_END, fill_queue.DISCOUNT_LIST_OPEN_PATH, {"name": name}, name
+        )
+    if j.kind in ("add_on", "gift"):
+        name = str(payload.get("name") or "")
+        deal = {"name": name, "deal_type": j.kind}
+        return _end_spec(j, KIND_DEAL_END, fill_queue.DEAL_LIST_OPEN_PATH, deal, name)
+    if j.kind == "flash_sale":
+        slot = payload.get("slot") or {}
+        body: dict[str, Any] = (
+            {"slot": {"day": slot.get("day"), "label": slot.get("label")}} if slot else {}
+        )
+        label = f"{slot.get('day')} {slot.get('label')}" if slot else ""
+        return _end_spec(j, KIND_FLASH_SALE_END, fill_queue.FLASH_SALE_LIST_PATH, body, label)
+    if j.kind == "cover_image":
+        cover = str(payload.get("old_cover_url") or "")
+        return {
+            "kind": "cover_image",
+            "target": {"item_id": item_id},
+            "target_key": f"{REVERT_PREFIX}cover_image:{item_id or j.seq}",
+            "payload": {**_page(item_id), "old_cover_url": cover},
+            "error": None if (item_id and cover) else ERROR_VALUE_UNKNOWN,
+        }
+    if j.kind == "variation_set":
+        added = [o.get("name") for o in payload.get("options") or [] if o.get("name")]
+        return {
+            "kind": "variation_set",
+            "target": {"item_id": item_id},
+            "target_key": f"{REVERT_PREFIX}variation_set:{item_id or j.seq}",
+            "payload": {
+                **_page(item_id),
+                "remove_options": added,
+                "old_variations": payload.get("old_variations") or [],
+            },
+            "error": None if (item_id and added) else ERROR_VALUE_UNKNOWN,
         }
     return None
 
@@ -492,7 +615,13 @@ async def revert_state(
             if not await _confirmed(session, shop_id, j, readbacks):
                 ready = False
                 break
-    return {"jobs": [job_json(j) for j in reverts], "ready": ready}
+    # D5: ready on the Connector's own save signal only (no reader) is said apart from a read-back
+    saved = [j for j in live if j.kind in NO_READER_REVERTS]
+    return {
+        "jobs": [job_json(j) for j in reverts],
+        "ready": ready,
+        "confirmed_by": ("saved_on_shopee" if saved else "readback") if ready else None,
+    }
 
 
 async def _confirmed(
@@ -502,8 +631,8 @@ async def _confirmed(
     readbacks: dict[str, ShopeeFillJob],
 ) -> bool:
     """The read-back made after ``revert`` was saved shows the original value / ended object."""
-    if revert.kind == KIND_COMBO_END:
-        return True  # no combo list reader: the Connector saw the row ended / gone
+    if revert.kind in NO_READER_REVERTS:
+        return True  # no list / page reader: the Connector saw the row ended / the save
     kind = "voucher" if revert.kind == KIND_VOUCHER_END else revert.kind
     spec = _readback_of_change(kind, dict(revert.target or {}))
     back = None if spec is None else readbacks.get(spec["key"][:80])

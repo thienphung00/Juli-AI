@@ -45,13 +45,13 @@ describe("F1.4 · hoàn tác and Đã lưu", () => {
 describe("F1.5 · non-fillable kinds", () => {
   it("exposes the fillable kinds", () => {
     expect(FILLABLE_CHANGE_KINDS).toContain("combo_multi");
-    expect(FILLABLE_CHANGE_KINDS).toHaveLength(9);
+    expect(FILLABLE_CHANGE_KINDS).toHaveLength(16);
   });
 
   it("a non-fillable card shows the line and a working Mở trang link, no disabled button", async () => {
     const detail = detailOf(voucherCard());
     const withLink = { ...detail, card: { ...detail.card, execution_sheet: { ...detail.card.execution_sheet, page: { ...detail.card.execution_sheet.page, deep_link: "https://seller.shopee.vn/portal/marketing/vouchers" } } } };
-    renderReco(<ThucHienView />, fakeReco({ detail: withLink, execution: states([exec({ card_id: "n", change_kind: "cover_image" })]) }));
+    renderReco(<ThucHienView />, fakeReco({ detail: withLink, execution: states([exec({ card_id: "n", change_kind: "price_display" })]) }));
     const box = await screen.findByTestId("sd-th-manual-n");
     expect(box).toHaveTextContent("Connector chưa điền loại thẻ này — làm theo bảng thao tác");
     await waitFor(() => expect(within(box).getByRole("link", { name: "Mở trang" })).toHaveAttribute("href", "https://seller.shopee.vn/portal/marketing/vouchers"));

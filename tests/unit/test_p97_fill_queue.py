@@ -121,12 +121,14 @@ async def test_a_second_approval_call_does_not_duplicate_the_jobs(session, shop)
     assert len(again) == 1 and len(await _jobs(session, seeded)) == 1
 
 
-async def test_ads_and_affiliate_cards_queue_their_pages_and_discounts_queue_nothing(session, shop):
+async def test_ads_affiliate_and_discount_cards_queue_their_pages(session, shop):
     seeded, ids = shop
     for card_id in ids[1:]:
         await _approve(session, seeded, card_id)
     jobs = {j.kind: j for j in await _jobs(session, seeded)}
-    assert set(jobs) == {"ads_edit", "affiliate_commission"}
+    # batch-1123-a F3: a Chương Trình Của Shop card is filled too (one % for every variation)
+    assert set(jobs) == {"ads_edit", "affiliate_commission", "product_discount"}
+    assert jobs["product_discount"].payload["all_pct"] == 15
     ads = jobs["ads_edit"].payload
     assert (
         ads["open_path"] == "/portal/marketing/pas/product/manual-mpd/160675212"
@@ -442,16 +444,19 @@ async def test_a_combo_card_becomes_a_validated_combo_job(session, shop):
     assert 0 < len(pl["name"]) <= fill_queue.MAX_COMBO_NAME
 
 
-async def test_a_generated_bundle_card_fills_as_two_percent_tiers_with_a_long_name_cut(
+async def test_a_generated_bundle_card_fills_as_two_percent_tiers_and_a_long_name_is_refused(
     session, shop
 ):
     seeded, _ = shop
     (job,) = await _combo_jobs(
-        session, seeded, _combo_card(tier2_pct=5, tier3_pct=8, name="N" * 40)
+        session, seeded, _combo_card(tier2_pct=5, tier3_pct=8, name="N" * 25)
     )
     assert job["payload"]["tiers"] == [{"qty": 2, "value": 5}, {"qty": 3, "value": 8}]
     assert job["payload"]["discount_type"] == "pct" and len(job["payload"]["name"]) == 25
     assert "purchase_limit" not in job["payload"]
+    # decision #13 (23/11): over Shopee's 25 the name is refused, never cut
+    (long,) = await _combo_jobs(session, seeded, _combo_card(tier2_pct=5, name="N" * 26))
+    assert (long["status"], long["error"]) == ("failed", fill_queue.COMBO_NAME_TOO_LONG)
 
 
 @pytest.mark.parametrize(

@@ -41,7 +41,7 @@ import { writeValue } from "../../../core/fill/write";
 export type { FillOutcome, Step } from "../../../core/fill/form";
 import type { CurrentRow, FillOutcome, Step } from "../../../core/fill/form";
 
-const dong = (n: number) => `${n.toLocaleString("vi-VN")} ₫`;
+export const dong = (n: number) => `${n.toLocaleString("vi-VN")} ₫`;
 
 /** A value safe inside a CSS attribute selector. jsdom tests have no CSS.escape. */
 export function cssAttr(value: string): string {
@@ -66,17 +66,22 @@ export function variationPriceRow(doc: Document, variationId: string, name?: str
   return hits.length === 1 ? (hits[0] as HTMLElement) : null;
 }
 
+/** The report key of one variation's price (`price_<id letters and digits>`). */
+export const priceKey = (variationId: string) => `price_${variationId.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 30)}`;
+
 /** Writes each variation's price into its own box. One variation never receives another's price. */
 export async function fillVariationPrices(env: Env, variations: readonly PriceVariation[]): Promise<FillOutcome> {
   const steps: Step[] = [];
   for (const v of variations) {
     const row = variationPriceRow(env.doc, v.variationId, v.name);
     const box = row ? textBoxesIn(row)[0] : undefined;
-    const ok = !!box && writeBox(keyed(env, `price:${v.variationId}`), box, String(v.price));
+    // a key Juli's report accepts ([a-z0-9_]): the revert reads the before price under it
+    const key = priceKey(v.variationId);
+    const ok = !!box && writeBox(keyed(env, key), box, String(v.price));
     steps.push({
       label: `${v.name ?? v.variationId}: ${dong(v.price)}`,
       ok,
-      keys: [`price:${v.variationId}`],
+      keys: [key],
       ...(ok ? {} : { note: row ? "Shopee chưa nhận giá." : "Không thấy ô giá của phân loại này." }),
     });
   }
@@ -118,9 +123,9 @@ export const GUIDE_NOTE = "Bạn bấm chọn trên trang (ô được tô viề
 export const PERIOD_KEYS = ["starts_at", "ends_at"];
 export const PERIOD_NOTE = "Chọn tay thời gian theo thẻ — Shopee đang để mặc định là bây giờ.";
 
-type Add = (label: string, ok: boolean, opts?: { note?: string; keys?: string[]; guide?: boolean }) => void;
+export type Add = (label: string, ok: boolean, opts?: { note?: string; keys?: string[]; guide?: boolean }) => void;
 
-function stepper(steps: Step[]): Add {
+export function stepper(steps: Step[]): Add {
   return (label, ok, opts = {}) =>
     steps.push({
       label,
@@ -135,13 +140,13 @@ function stepper(steps: Step[]): Add {
  * A click-needing control's step: done → the card's label ✓; todo → the person's numbered step
  * (`todo` text, highlighted on the page); missing → the card's label ✗.
  */
-function choice(add: Add, g: Guide, label: string, todo: string, keys: string[], note?: string): void {
+export function choice(add: Add, g: Guide, label: string, todo: string, keys: string[], note?: string): void {
   if (g === "todo") add(todo, false, { keys, guide: true });
   else add(label, g === "done", { keys, ...(note ? { note } : {}) });
 }
 
 /** The period: two typed dates make one step; a picker the person sets makes one step per date. */
-function period(env: Env, add: Add, label: string, startsAt: string, endsAt: string): void {
+export function period(env: Env, add: Add, label: string, startsAt: string, endsAt: string): void {
   const start = setDate(keyed(env, "starts_at"), label, startsAt, 0);
   const end = setDate(keyed(env, "ends_at"), label, endsAt, 1);
   if (start !== "todo" && end !== "todo") {
@@ -152,14 +157,14 @@ function period(env: Env, add: Add, label: string, startsAt: string, endsAt: str
   choice(add, end, `Kết thúc: ${endsAt}`, `Chọn ngày kết thúc ${dateText(endsAt)}`, ["ends_at"], PERIOD_NOTE);
 }
 
-function picked(add: Add, p: PickResult, opener: string, ids: readonly string[]): void {
+export function picked(add: Add, p: PickResult, opener: string, ids: readonly string[]): void {
   if (p.done) add(`Sản phẩm: ${ids.length}/${ids.length} đã chọn`, true, { keys: ["product_ids"] });
   else if (p.reason) add(`Sản phẩm: 0/${ids.length}`, false, { keys: ["product_ids"], note: p.reason });
   else add(pickStep(opener, ids), false, { keys: ["product_ids"], guide: true });
 }
 
 /** A box written now when it is on the page, else once the person's click reveals it. */
-function writeOrLater(env: Env, key: string, find: () => HTMLInputElement | undefined | null, value: string): boolean {
+export function writeOrLater(env: Env, key: string, find: () => HTMLInputElement | undefined | null, value: string): boolean {
   const box = find();
   if (box) return writeBox(keyed(env, key), box, value);
   env.log?.later({

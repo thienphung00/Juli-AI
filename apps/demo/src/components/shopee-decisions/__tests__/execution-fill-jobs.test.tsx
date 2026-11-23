@@ -99,7 +99,7 @@ describe("Connector điền sẵn · danh sách trang", () => {
   it("asks nothing for a card that is not approved or has no fill kind", async () => {
     const f = answer([job()]);
     vi.stubGlobal("fetch", f);
-    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: detailOf(voucherCard({ change_kind: "add_on", family: "combo" }), { status: "approved" }) }));
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: detailOf(voucherCard({ change_kind: "price_display", family: "combo" }), { status: "approved" }) }));
     await screen.findByTestId("sd-execution");
     expect(f).not.toHaveBeenCalled();
     expect(SHEET_VOUCHER).toBeDefined();

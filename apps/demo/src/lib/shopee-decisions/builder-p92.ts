@@ -43,6 +43,8 @@ export const MAX_LISTING_IMAGES = 9;
 export const MAX_CAMPAIGNS = 30;
 /** Shopee's programme forms (P100 wave 2, brief C), mirrored by `specs.py`. */
 export const MAX_PROGRAMME_NAME = 150;
+/** Mua Kèm Deal Sốc / Mua Để Nhận Quà: the form's name box takes 25 (owner decision #13, = specs.MAX_DEAL_NAME). */
+export const MAX_DEAL_NAME = 25;
 export const MAX_DISCOUNT_DAYS = 180;
 export const MAX_ADDONS = 5;
 export const MAX_ADDON_LIMIT = 100;
@@ -178,7 +180,7 @@ export interface Forms {
   /** `multi`: one % for every product in `targets` (Shopee's bulk discount, P97 D85.13). */
   /** Chương Trình Của Shop: Tên chương trình khuyến mãi, Thời gian khuyến mãi (hours), Số lượng sản phẩm khuyến mãi (empty = Không giới hạn), Giới hạn đặt hàng. */
   readonly product_discount: { mode: "pct" | "final_price"; rows: readonly VarValue[]; name: string; start: string; end: string; startHour: string; endHour: string; promoQty: string; perBuyer: string; multi: boolean; targets: readonly string[]; pct: string };
-  readonly price_flash: { what: "price" | "flash_sale"; mode: "pct" | "final_price"; rows: readonly VarValue[]; units: string; slotStart: string; slotHours: string };
+  readonly price_flash: { what: "price" | "flash_sale"; mode: "pct" | "final_price"; rows: readonly VarValue[]; units: string; slotStart: string; slotHours: string; purchaseLimit?: string };
   readonly variation_set: { rows: readonly NewVariation[] };
   /** Shopee's edit form (P97 D85.17): budget (≥ ₫100.000 or unlimited), ROAS (system / custom), products, dates; `campaignKeys` = many campaigns. */
   readonly ads: { lever: "budget" | "roas" | "add_product" | "remove_product"; campaignKey: string; campaignKeys: readonly string[]; dailyBudget: string; unlimited: boolean; roasMode: "system" | "custom"; roasTarget: string; itemId: string; start: string; end: string };
@@ -420,7 +422,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       const c = f.combo;
       if (c.items.length === 0) return no("Chọn ít nhất một sản phẩm cho combo.");
       if (c.items.length > MAX_TARGETS) return no(`Combo có tối đa ${MAX_TARGETS} sản phẩm.`);
-      if ([...c.name.trim()].length > MAX_COMBO_NAME) return no(`Tên combo tối đa ${MAX_COMBO_NAME} ký tự.`);
+      if ([...c.name.trim()].length > MAX_COMBO_NAME) return no(`Tên Combo Khuyến Mãi tối đa ${MAX_COMBO_NAME} ký tự.`);
       const tiers: { qty: number; value: number }[] = [];
       for (const [i, t] of c.tiers.entries()) {
         const qty = num(orDefault(t.qty, comboTierDefault(i, "qty", c.dtype)));
@@ -448,7 +450,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
     case "deal_soc": {
       const d = f.deal_soc;
       const name = d.name.trim();
-      if ([...name].length > MAX_PROGRAMME_NAME) return no(`Tên chương trình tối đa ${MAX_PROGRAMME_NAME} ký tự.`);
+      if ([...name].length > MAX_DEAL_NAME) return no(`Tên Deal Sốc tối đa ${MAX_DEAL_NAME} ký tự.`);
       const win = windowHours(d);
       const dates = win.problem ?? dateProblem(d.start, d.end, null);
       if (dates) return no(dates);
@@ -491,7 +493,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
     case "product_discount": {
       const d = f.product_discount;
       const name = d.name.trim();
-      if ([...name].length > MAX_PROGRAMME_NAME) return no(`Tên chương trình tối đa ${MAX_PROGRAMME_NAME} ký tự.`);
+      if ([...name].length > MAX_PROGRAMME_NAME) return no(`Tên chương trình khuyến mãi tối đa ${MAX_PROGRAMME_NAME} ký tự.`);
       const win = windowHours(d, MAX_DISCOUNT_DAYS);
       const promo = intIn(d.promoQty, 1, 10_000_000, "Số lượng sản phẩm khuyến mãi từ 1 trở lên (để trống = Không giới hạn).");
       const buyer = intIn(d.perBuyer, 1, 100, "Giới hạn đặt hàng từ 1 đến 100.");
@@ -540,7 +542,11 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       if (!Number.isInteger(units)) return no("Số lượng (suất): nhập số nguyên.");
       const hours = intIn(orDefault(p.slotHours, FORM_DEFAULTS.flashHours), 1, 72, "Số giờ của khung: từ 1 đến 72.");
       if (hours.problem) return no(hours.problem);
-      return { problem: null, version: { kind: "flash_sale", label: "Flash Sale Của Shop", item_id: id, variations: rows, units, ...(p.slotStart ? { slot_start: p.slotStart } : {}), slot_hours: hours.n ?? 2 } };
+      // batch-1123-a F4: Giới hạn đặt hàng (empty = Shopee's "Không hạn mức")
+      const limitText = (p.purchaseLimit ?? "").trim();
+      const limit = intIn(limitText, 1, 1000, "Giới hạn đặt hàng: từ 1 đến 1000.");
+      if (limit.problem || (limitText !== "" && limit.n === null)) return no(limit.problem ?? "Giới hạn đặt hàng: từ 1 đến 1000.");
+      return { problem: null, version: { kind: "flash_sale", label: "Flash Sale Của Shop", item_id: id, variations: rows, units, ...(p.slotStart ? { slot_start: p.slotStart } : {}), slot_hours: hours.n ?? 2, ...(limit.n !== null ? { purchase_limit: limit.n } : {}) } };
     }
     case "variation_set": {
       const out: Record<string, unknown>[] = [];
@@ -955,6 +961,7 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
         add("units", "Số lượng (suất)", fmt(n_(v["units"])));
         add("hours", "Số giờ của khung", fmt(n_(v["slot_hours"])));
         if (s_(v["slot_start"])) add("slot", "Khung giờ bắt đầu", s_(v["slot_start"]).replace("T", " "));
+        if (n_(v["purchase_limit"]) !== null) add("purchase_limit", "Giới hạn đặt hàng", fmt(n_(v["purchase_limit"])));
       }
       if (kind === "product_discount") {
         if (s_(v["name"])) add("name", "Tên chương trình khuyến mãi", s_(v["name"]));

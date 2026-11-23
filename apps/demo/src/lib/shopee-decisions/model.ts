@@ -567,4 +567,11 @@ export const FILLABLE_CHANGE_KINDS: readonly string[] = [
   "affiliate_commission",
   "bundle_deal",
   "combo_multi",
+  "price",
+  "product_discount",
+  "flash_sale",
+  "add_on",
+  "gift",
+  "cover_image",
+  "variation_restructure",
 ];
