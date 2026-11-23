@@ -165,10 +165,10 @@ async def test_voucher_orders_are_the_voucher_orders_not_the_shop_orders() -> No
             time_phrase="last week",
         ),
     )
-    tot, rows = sink.of("data_answer")
+    tot, per = sink.of("data_answer")
     assert tot["title_vi"].startswith("Đơn dùng voucher") and tot["value"] == "14"  # 2 x 7, not 210
     assert tot["window_vi"].startswith("16/11–22/11")
-    assert [r["label_vi"] for r in rows["rows"]] == ["VC-A", "VC-B"]
+    assert per["value"] == "Juli chưa có số liệu này"  # no source names the voucher code
     assert res.stop_reasons == ["data_answer"] and not sink.of("path")
 
 

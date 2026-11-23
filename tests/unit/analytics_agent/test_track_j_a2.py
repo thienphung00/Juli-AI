@@ -171,41 +171,46 @@ def _voucher_intent() -> dict[str, Any]:
     )
 
 
-async def test_voucher_answer_shows_uu_dai_as_a_cost_line() -> None:
-    rows = [
-        {"day": YDAY - timedelta(days=k), "orders": 2.0, "gmv": 400.0, "cost": 20.0}
-        for k in range(14)
+def _income(first: date, last: date) -> list[dict[str, Any]]:
+    """One synthetic income row per order day: 2 voucher orders, 400đ GMV, 20đ seller voucher."""
+    return [
+        {"day": first + timedelta(days=k), "orders": 2.0, "gmv": 400.0, "cost": 20.0}
+        for k in range((last - first).days + 1)
     ]
-    data = FakeEntityData(
-        _shop(),
-        entity={
-            "voucher": rows,
-            "voucher_codes": [{"code": "VC-A", "orders": 9, "gmv": 900.0, "cost": 90.0}],
-        },
-        costs=lambda a, b, i: {"cost_offers": 321.0},
+
+
+async def test_voucher_answer_is_the_uu_dai_voucher_cost_from_income_rows() -> None:
+    data = FakeEntityData(_shop(), entity={"voucher": _income(YDAY - timedelta(days=13), YDAY)})
+    sink, _ = await _ask(
+        data,
+        intent(
+            question_type="status",
+            metric_phrase="voucher cost",
+            entity_phrase="voucher",
+            time_phrase="last week",
+        ),
     )
+    answers = sink.of("data_answer")
+    cost = answers[0]
+    assert cost["title_vi"].startswith("Chi phí voucher (Ưu đãi)") and cost["value"] == "140đ"
+    assert cost["fresh_vi"] == "Số liệu đến hết 22/11"
+    assert answers[1]["value"] == "Juli chưa có số liệu này"  # per voucher code: no source
+
+
+async def test_income_ends_before_the_window_is_said_and_not_counted_as_zero() -> None:
+    first, last = date(2026, 11, 9), date(2026, 11, 19)  # the income export stops 19/11
+    data = FakeEntityData(_shop(), entity={"voucher": _income(first, last)})
     sink, _ = await _ask(data, _voucher_intent())
-    titles = [e["title_vi"] for e in sink.of("data_answer")]
-    assert "Chi phí Ưu đãi" in titles and "Kết quả từng mã voucher" in titles
-    cost = next(e for e in sink.of("data_answer") if e["title_vi"] == "Chi phí Ưu đãi")
-    assert cost["value"] == "321đ"
+    tot = sink.of("data_answer")[0]
+    assert tot["value"] == "8"  # 4 days (16-19/11) x 2 orders; 20-22/11 are not 0, just absent
+    assert tot["fresh_vi"] == "Số liệu thu nhập đến hết 19/11"
 
 
-async def test_voucher_without_captured_lines_is_no_data_not_zero() -> None:
+async def test_voucher_without_income_rows_is_no_data_not_zero() -> None:
     data = FakeEntityData(_shop(), entity={"voucher": []})
     sink, res = await _ask(data, _voucher_intent())
     assert sink.of("label")[0]["text_vi"] == "Juli chưa có số liệu này"
     assert res.stop_reasons == ["data_missing"]
-
-
-async def test_voucher_codes_missing_says_no_data() -> None:
-    rows = [
-        {"day": YDAY - timedelta(days=k), "orders": 2.0, "gmv": 400.0, "cost": 20.0}
-        for k in range(14)
-    ]
-    sink, _ = await _ask(FakeEntityData(_shop(), entity={"voucher": rows}), _voucher_intent())
-    per = next(e for e in sink.of("data_answer") if e["title_vi"] == "Kết quả từng mã voucher")
-    assert per["value"] == "Juli chưa có số liệu này"
 
 
 def test_writer_input_names_the_product_scope() -> None:

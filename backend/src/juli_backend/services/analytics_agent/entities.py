@@ -126,8 +126,22 @@ async def run_entity(
     w, latest = got
     blob = _intent_blob(intent)
     if kind in ("voucher", "affiliate"):
-        now = await data.entity_totals(kind, w.cur[0], w.cur[1], item_id)
-        before = await data.entity_totals(kind, w.prev[0], w.prev[1], item_id) if w.prev else None
+        if kind == "voucher":
+            # the stored per-order income (`order_settlements.seller_voucher_borne`): only days
+            # that HAVE income rows count, never as 0; no source splits it by product
+            if item_id:
+                return []
+            now = await data.voucher_income(w.cur[0], w.cur[1])
+            before = await data.voucher_income(w.prev[0], w.prev[1]) if w.prev else None
+            if not now.get("rows"):
+                return []
+            if before is not None and not before.get("rows"):
+                before = None
+        else:
+            now = await data.entity_totals(kind, w.cur[0], w.cur[1], item_id)
+            before = (
+                await data.entity_totals(kind, w.prev[0], w.prev[1], item_id) if w.prev else None
+            )
         want = "cost" if _COST.search(blob) else (metric or "orders")
         if want not in ("orders", "gmv", "aov", "cost"):
             return []  # this entity has no such metric: never another metric under its label
@@ -142,8 +156,6 @@ async def run_entity(
         }[want]
         if want == "cost" and now["cost"] is None:
             return []
-        if kind == "voucher" and not now["orders"] and not now["cost"]:
-            return []  # no voucher line captured: 0 is not an answer (NULL is never 0)
 
         def value_of(t: dict[str, Any] | None) -> float | None:
             if t is None:
@@ -172,55 +184,24 @@ async def run_entity(
             )
         ]
         if kind == "voucher":
-            # Ưu đãi is a COST (owner 2026-11-20): the shop's offer cost line, from the registry's
-            # cost_offers (promo + voucher + combo), never added back
-            offers = (await data.cost_lines(*w.cur)).get("cost_offers")
-            if offers is not None:
-                out.append(
-                    _answer(
-                        "metric_total",
-                        "Chi phí Ưu đãi",
-                        w,
-                        latest,
-                        value=fmt.value("gmv", _f(offers)),
-                        value_raw=_f(offers),
-                        stop="data_answer",
-                    )
+            # Ưu đãi is a COST (owner 2026-11-20): the voucher part is the cost answer above; the
+            # income data may end before the window does, and the answers say how far it goes
+            income_to = now.get("income_to")
+            if income_to is not None and income_to < w.cur[1]:
+                for ev in out:
+                    ev["fresh_vi"] = f"Số liệu thu nhập đến hết {income_to:%d/%m}"
+            # no source names the voucher code of an order (the income rows carry only amounts)
+            out.append(
+                _answer(
+                    "metric_total",
+                    "Kết quả từng mã voucher",
+                    w,
+                    latest,
+                    value=NO_DATA_VI,
+                    value_raw=None,
+                    stop="data_answer",
                 )
-            rows = (await data.voucher_rows(*w.cur))[:TOP_ROWS]
-            if rows:
-                out.append(
-                    _answer(
-                        "top_products",
-                        "Kết quả từng mã voucher",
-                        w,
-                        latest,
-                        rows=[
-                            {
-                                "label_vi": str(r["code"]),
-                                "value_vi": fmt.value("gmv", _f(r["gmv"])),
-                                "detail_vi": (
-                                    f"{fmt.value('orders', _f(r['orders']))} đơn · chi phí "
-                                    f"{fmt.value('gmv', _f(r['cost']))}"
-                                ),
-                            }
-                            for r in rows
-                        ],
-                        stop="data_answer",
-                    )
-                )
-            else:
-                out.append(
-                    _answer(
-                        "metric_total",
-                        "Kết quả từng mã voucher",
-                        w,
-                        latest,
-                        value=NO_DATA_VI,
-                        value_raw=None,
-                        stop="data_answer",
-                    )
-                )
+            )
         return out
     if kind == "campaign":
         camps = await data.campaign_rows(*w.cur)

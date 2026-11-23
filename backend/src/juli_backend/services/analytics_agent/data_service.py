@@ -359,6 +359,46 @@ class ServiceData:
             cost = comm[0]["c"]
         return {"orders": row["orders"], "gmv": row["gmv"], "cost": cost}
 
+    async def voucher_income(self, a: date, b: date) -> dict[str, Any]:
+        """Voucher orders and the voucher part of Ưu đãi from the stored per-order income
+        (`order_settlements`, the table the fee / profit loaders read): orders with
+        `seller_voucher_borne > 0`, the sum of `seller_voucher_borne`, and the GMV of those
+        orders from `order_lines`. Only orders that HAVE an income row count (a day without
+        income is not 0); `income_to` is the last order day the income holds in the window."""
+        head = (
+            await self._q(
+                """select count(*) as rows,
+                          count(*) filter (where seller_voucher_borne > 0) as orders,
+                          sum(seller_voucher_borne) as cost,
+                          max(ordered_on) as income_to
+                     from order_settlements
+                    where shop_id = :s and platform = 'shopee' and ordered_on between :a and :b""",
+                a=a,
+                b=b,
+            )
+        )[0]
+        gmv = (
+            await self._q(
+                f"""select coalesce(sum(deal_price * qty), 0) as gmv
+                      from order_lines
+                     where shop_id = :s and platform = 'shopee' and day between :a and :b
+                       and {self._sales_basis()}
+                       and order_ref in (select order_ref from order_settlements
+                                          where shop_id = :s and platform = 'shopee'
+                                            and ordered_on between :a and :b
+                                            and seller_voucher_borne > 0)""",  # nosec B608 — fragments are fixed literals (registry enum)
+                a=a,
+                b=b,
+            )
+        )[0]["gmv"]
+        return {
+            "rows": head["rows"],
+            "orders": head["orders"],
+            "gmv": gmv,
+            "cost": head["cost"],
+            "income_to": head["income_to"],
+        }
+
     async def voucher_rows(self, a: date, b: date) -> list[dict[str, Any]]:
         """One row per voucher code: orders, GMV, the voucher's cost."""
         return await self._q(
