@@ -244,9 +244,18 @@ def test_blocks_name_the_datasets_of_their_readers():
     assert read_days.blocked_by_dataset(None, {}) == {}
 
 
-async def test_an_empty_kol_content_day_is_accepted_and_counts_as_read(session):
-    """C3 (Connector 0.3.32): Phân tích Nội dung's empty day is posted with 0 rows; Juli keeps the
-    post, so the read-days hand-out no longer lists the day and C2 reads it as read."""
+@pytest.mark.parametrize(
+    "dataset",
+    [
+        "affiliate_content_period",
+        "affiliate_partner_period",
+        "affiliate_product_period",
+        "affiliate_commission_period",
+    ],
+)
+async def test_an_empty_affiliate_day_is_accepted_and_counts_as_read(session, dataset):
+    """C3 (Connector 0.3.32): an empty affiliate page day (KOL content, partners, products,
+    commissions) is posted with 0 rows; Juli keeps the post, so read-days no longer lists it."""
     from tests.unit.test_shopee_file_datasets import _body, _ingest, _shop
 
     shop = await _shop(session)
@@ -257,7 +266,7 @@ async def test_an_empty_kol_content_day_is_accepted_and_counts_as_read(session):
         period={"start": "2026-10-28", "end": "2026-10-28", "granularity": "period"},
         order_type=None,  # the Connector sends none for the affiliate pages
     )
-    result = await _ingest(session, shop, "affiliate_content_period", body)
+    result = await _ingest(session, shop, dataset, body)
     assert result.rows == 0
     covered = await read_days.covered_days(session, shop.id, "shopee", date(2026, 10, 30))
-    assert date(2026, 10, 28) in covered["affiliate_content_period"]
+    assert date(2026, 10, 28) in covered[dataset]

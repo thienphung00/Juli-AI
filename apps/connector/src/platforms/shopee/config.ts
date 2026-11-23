@@ -540,5 +540,13 @@ export function marketActive(shopId: string | undefined): boolean {
  * daily run that ends earlier arms its own read-back run for then.
  */
 export const CONTENT_READY_MINUTE_GMT7 = 13 * 60 + 35;
-/** Datasets whose empty answer is still posted (0 rows), so Juli counts the day as read (0.3.32). */
-export const POST_EMPTY_DATASETS: ReadonlySet<string> = new Set(["affiliate_content_period"]);
+/**
+ * Datasets whose empty answer is still posted (0 rows), so Juli counts the day as read (0.3.32,
+ * owner rule: fix every staleness gap together): the affiliate period pages that can be a real zero.
+ */
+export const POST_EMPTY_DATASETS: ReadonlySet<string> = new Set([
+  "affiliate_content_period",
+  "affiliate_partner_period",
+  "affiliate_product_period",
+  "affiliate_commission_period",
+]);
