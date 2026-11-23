@@ -27,8 +27,6 @@ PINNED: dict[str, int] = {
     "services/ops/contract_shops.py": 2,
     "services/reviewer/sandbox.py": 1,
     "services/sample_shop/seed.py": 1,
-    "services/shopee_analytics/materialize.py": 2,
-    "services/shopee_analytics/stored.py": 1,
     "services/shopee_builder/ads_campaigns.py": 1,
     "services/shopee_recommendations/codes.py": 2,
     "services/shopee_recommendations/daily_generation.py": 2,
@@ -36,7 +34,7 @@ PINNED: dict[str, int] = {
     "services/shopee_recommendations/store.py": 1,
     "services/stock_alert/job.py": 1,
 }
-PINNED_TOTAL = 30
+PINNED_TOTAL = 27
 
 
 def _counts() -> Counter[str]:

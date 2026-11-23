@@ -36,6 +36,11 @@ Four tasks, replacing the single-merchant ``fujiwa-poll-cycle`` beat entry:
     payload or queued for the next ``poll_shop`` to re-fetch by id; stored finance
     rows with no settlement are re-mapped.
 
+``juli_backend.tiktok_layer4_rebuild`` (beat, nightly 22:09 UTC = 05:09 UTC+7)
+    P101 W3: per pollable TikTok shop, the one 90-day re-read of the A-34 channel
+    blocks (under the shop's cycle lock, resumable), then the layer-4 rows (shop /
+    product / source per day) of its last 90 data days (``materialize.rebuild_recent``).
+
 PER-SHOP MUTEX. ``bootstrap_shop`` and ``poll_shop`` take the shop's ``cycle``
 lock (Redis ``SET NX EX``, owner-token release) and skip -- never wait -- when
 another holder has it, so two cycles for one shop never overlap and a long cold
@@ -61,6 +66,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -87,6 +93,11 @@ HISTORY_EXTEND_TASK = "juli_backend.shop_history_extend"
 CANONICAL_RECONCILE_TASK = "juli_backend.tiktok_canonical_reconcile"
 #: The reconcile's outer timeout (one task walks every TikTok shop).
 _CANONICAL_RECONCILE_TIMEOUT_SECONDS = 1800.0
+LAYER4_REBUILD_TASK = "juli_backend.tiktok_layer4_rebuild"
+#: P101 W3: the nightly layer-4 rebuild's outer timeout (one task walks every TikTok shop).
+_LAYER4_REBUILD_TIMEOUT_SECONDS = 3300.0
+#: what the walk keeps back from that timeout for the rebuilds of the shops after a re-read
+_LAYER4_REBUILD_RESERVE_SECONDS = 600.0
 
 _SHOP_UTC_OFFSET = timedelta(hours=7)
 
@@ -679,6 +690,87 @@ async def run_canonical_reconcile_fanout(
     return done
 
 
+async def run_layer4_rebuild_fanout(
+    session_factory: SessionFactory,
+    *,
+    lock: Any = None,
+    collaborators: Collaborators | None = None,
+    enumerate_fn: Callable[[AsyncSession], Awaitable[list[Any]]] | None = None,
+    reread_fn: Callable[..., Awaitable[Any]] | None = None,
+    rebuild_fn: Callable[..., Awaitable[int]] | None = None,
+    now: datetime | None = None,
+    clock: Callable[[], float] = time.monotonic,
+) -> int:
+    """Nightly (P101 W3), per pollable TikTok shop, each in its own session:
+
+    1. the one automatic 90-day re-read of the A-34 channel blocks (owner W3-Q4 = D), under the
+       shop's ``cycle`` lock so it never overlaps a poll cycle; skipped without ``collaborators``
+       (no TikTok / Redis env) or while the lock is held, resumed the next night; a finished
+       walk makes no call;
+    2. the layer-4 rows (shop / product / source per day) of the shop's last 90 data days
+       (``materialize.rebuild_recent``) -- TikTok revises its analytics days.
+
+    A failing shop is logged and the walk goes on. Returns the days rebuilt over all shops."""
+    from juli_backend.database.tenant_context import with_sticky_shop_scope
+    from juli_backend.services.shopee_analytics.materialize import rebuild_recent
+    from juli_backend.workers.services.polling.ingestion import (
+        BLOCKS_REREAD_BUDGET_SECONDS,
+        BLOCKS_REREAD_WINDOW_MIN_SECONDS,
+        enumerate_pollable_shops,
+        run_blocks_reread,
+    )
+
+    enumerate_shops = enumerate_fn or enumerate_pollable_shops
+    reread = reread_fn or run_blocks_reread
+    rebuild = rebuild_fn or rebuild_recent
+    today = ((now or datetime.now(UTC)) + _SHOP_UTC_OFFSET).date()
+    async with session_factory() as session:
+        shops = await enumerate_shops(session)
+    days = 0
+    started = clock()
+    for shop in shops:
+        # the re-read's budget: its own cap, and never past the walk's reserve; the lock TTL is
+        # that budget plus grace, so the lock always outlives the re-read holding it
+        left = _LAYER4_REBUILD_TIMEOUT_SECONDS - _LAYER4_REBUILD_RESERVE_SECONDS
+        budget = min(BLOCKS_REREAD_BUDGET_SECONDS, left - (clock() - started))
+        if (
+            collaborators is not None
+            and lock is not None
+            and budget >= (BLOCKS_REREAD_WINDOW_MIN_SECONDS)
+        ):
+
+            async def body(shop_id: uuid.UUID = shop.shop_id, budget: float = budget) -> Any:
+                async with session_factory() as session:
+                    kwargs = await collaborators(session)
+                    return await reread(
+                        session=session, shop_id=shop_id, now=now, budget_seconds=budget, **kwargs
+                    )
+
+            ttl = int(budget + _OUTER_TIMEOUT_GRACE_SECONDS) + _LOCK_GRACE_SECONDS
+            try:
+                await _with_cycle_lock(lock, str(shop.shop_id), "cycle", ttl, body)
+            except Exception as exc:
+                logger.error(
+                    "analytics_blocks_reread_shop_failed",
+                    extra={"shop_id": str(shop.shop_id), "error_type": type(exc).__name__},
+                    exc_info=True,
+                )
+        async with session_factory() as session:
+            try:
+                async with with_sticky_shop_scope(session, shop.shop_id):
+                    days += await rebuild(session, shop.shop_id, today=today)
+                    await session.commit()
+            except Exception as exc:
+                await session.rollback()
+                logger.error(
+                    "tiktok_layer4_rebuild_failed",
+                    extra={"shop_id": str(shop.shop_id), "error_type": type(exc).__name__},
+                    exc_info=True,
+                )
+    logger.info("tiktok_layer4_rebuild_fanout", extra={"shops": len(shops), "days": days})
+    return days
+
+
 # -- Celery wrappers ----------------------------------------------------------
 
 
@@ -856,9 +948,26 @@ def tiktok_canonical_reconcile() -> None:
     )
 
 
+@celery_app.task(name=LAYER4_REBUILD_TASK)
+def tiktok_layer4_rebuild() -> None:
+    """Beat: the nightly A-34 blocks re-read + layer-4 rebuild of every TikTok shop (P101 W3)."""
+
+    env = _env_ready()  # without TikTok / Redis env the re-read is skipped, the rebuild runs
+
+    async def go() -> None:
+        await run_layer4_rebuild_fanout(
+            _session_factory(),
+            lock=_redis_lock(env) if env else None,
+            collaborators=_production_collaborators(env) if env else None,
+        )
+
+    _run(go, timeout=_LAYER4_REBUILD_TIMEOUT_SECONDS, event="tiktok_layer4_rebuild")
+
+
 __all__ = [
     "BOOTSTRAP_TASK",
     "CANONICAL_RECONCILE_TASK",
+    "LAYER4_REBUILD_TASK",
     "FANOUT_TASK",
     "HISTORY_EXTEND_TASK",
     "HISTORY_TASK",
@@ -878,6 +987,7 @@ __all__ = [
     "run_canonical_reconcile_fanout",
     "run_fanout",
     "run_history_extend_fanout",
+    "run_layer4_rebuild_fanout",
     "run_history_task",
     "run_poll_shop_task",
     "score_and_persist_cards",
@@ -885,4 +995,5 @@ __all__ = [
     "shop_history_extend",
     "shop_poll_fanout",
     "tiktok_canonical_reconcile",
+    "tiktok_layer4_rebuild",
 ]

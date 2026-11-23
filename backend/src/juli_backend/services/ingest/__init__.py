@@ -64,6 +64,7 @@ from juli_backend.services.ingest.tiktok_canonical import (
     order_details_fetcher,
     order_search_kwargs,
     reconcile_shop,
+    record_touched_days,
 )
 from juli_backend.services.ingest.tiktok_canonical import enabled as tiktok_canonical_enabled
 from juli_backend.services.ingest.tiktok_canonical_throttle import noted_call
@@ -77,6 +78,7 @@ __all__ = [
     "order_details_fetcher",
     "order_search_kwargs",
     "reconcile_shop",
+    "record_touched_days",
     "tiktok_canonical_enabled",
     "noted_call",
     "min_version",
