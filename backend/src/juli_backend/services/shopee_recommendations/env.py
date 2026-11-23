@@ -23,14 +23,8 @@ from typing import TYPE_CHECKING, Any
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.loaders import ShopContext
 from juli_backend.services.shopee_analytics.metrics import ShopMetrics
-from juli_backend.services.shopee_profit.fees import (
-    FeeBase,
-    FeeComponent,
-    FeeKind,
-    FeeSchedule,
-)
+from juli_backend.services.shopee_profit.fees import FeeSchedule
 from juli_backend.services.shopee_profit.floor import FloorInputs, FloorResult, compute_floor
-from juli_backend.services.shopee_profit.income import FEE_SERVICE
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.order_profit import (
     OrderLine,
@@ -121,6 +115,8 @@ class RecoEnv:
     #: P100 Part S: products whose every variation a member stopped ("Ngừng theo dõi"): no new card
     stock_stopped: frozenset[str] = frozenset()
     _floor_cache: dict[str, dict[str, FloorResult]] = field(default_factory=dict, repr=False)
+    # kept for ``shopee_builder.reference`` (it passes them to ``replace``); the fee formula and the
+    # service rate are the view's own now (``fee_table``), so neither is read
     _schedule_cache: dict[str, FeeSchedule] = field(default_factory=dict, repr=False)
     _service_rate: Decimal | None = field(default=None, repr=False)
     #: not an init field, so ``dataclasses.replace`` (a copy with other pairs) starts it afresh
@@ -226,48 +222,15 @@ class RecoEnv:
 
     # ---------------------------------------------------------------------- order lines
     def schedule(self, item_id: str) -> FeeSchedule:
-        """The item's fee formula versions, with the shop's phí dịch vụ (Voucher / Freeship Xtra)
-        added when the shop pays it. ``shopee_vn_non_mall`` leaves it out (it applies only to an
-        enrolled shop), so a re-priced line whose reported fees ``lines_for`` dropped was charged
-        no service fee and every Δ fee of a price change came out too small. The rate is the
-        one the shop's own income rows show (``service_fee_rate``); a formula that already
-        carries the component (a ``platform_fee_formulas`` row) is kept as it is."""
-        cached = self._schedule_cache.get(item_id)
-        if cached is not None:
-            return cached
-        base = self.view.fees.schedule(item_id)
-        rate = self.service_fee_rate
-        if rate is not None and rate > 0:
-            component = FeeComponent(
-                FEE_SERVICE, FeeKind.PCT, FeeBase.ITEM_AFTER_SELLER_PROMO, rate=rate
-            )
-            base = FeeSchedule(
-                tuple(
-                    v
-                    if any(c.code == FEE_SERVICE for c in v.components)
-                    else replace(v, components=(*v.components, component))
-                    for v in base.versions
-                )
-            )
-        self._schedule_cache[item_id] = base
-        return base
+        """The item's fee formula versions. The shop's phí dịch vụ (Voucher / Freeship Xtra) is
+        already in them when it is enrolled: ``shopee_analytics.fee_table`` is the one place that
+        learns its rate from the income rows and adds the component."""
+        return self.view.fees.schedule(item_id)
 
     @property
     def service_fee_rate(self) -> Decimal | None:
-        """Phí dịch vụ ÷ the item value after seller promotions (its fee base) over the window's
-        lines that carry the income export; ``None`` when no line does or none was charged it
-        (the shop is not enrolled)."""
-        if self._service_rate is not None:
-            return self._service_rate if self._service_rate > 0 else None
-        fee = base = ZERO
-        for ln, _ in self.view.pairs:
-            if ln.income is None:
-                continue
-            fee += sum((a for code, a in ln.income.fees if code == FEE_SERVICE), ZERO)
-            base += max(ln.item_after_seller_promo, ZERO)
-        rate = (fee / base).quantize(Decimal("0.0001")) if fee > 0 and base > 0 else ZERO
-        self._service_rate = rate
-        return rate if rate > 0 else None
+        """The shop's learned phí dịch vụ rate (``None`` = not enrolled)."""
+        return self.view.fees.service_rate
 
     @property
     def costs(self) -> Mapping[str, SkuCost]:

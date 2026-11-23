@@ -421,7 +421,7 @@ def compute_view(ctx: ShopContext, data: PeriodData) -> PeriodView:
     lines = to_shop_lines(data.lines.lines, ctx.catalog, ctx.rules, data.lines.income)
     costs = resolve_costs(lines, ctx.rules)
     item_ids = sorted({sl.product_id for sl in lines} | set(data.product_flows.totals))
-    fees = build_fee_context(item_ids, ctx.catalog, ctx.db_schedules(item_ids))
+    fees = build_fee_context(item_ids, ctx.catalog, ctx.db_schedules(item_ids), ctx.service_rate)
     pairs = profit_pairs(lines, costs, fees)
     sales = [(ln, pb) for ln, pb in pairs if counts_in_sales(ln)]  # a returned order is no sale
     ads = allocate_ads(data.window, data.ads_daily, data.ads_reports, data.ad_spend)

@@ -37,6 +37,7 @@ from juli_backend.services.shopee_profit.money import ZERO
 SOURCE_CONNECTOR = "connector"
 SOURCE_DAILY_REPORT = "daily_report"
 SOURCE_PERIOD_SPREAD = "period_spread"
+SOURCE_INCOME_TOPUP = "income_topup"
 
 
 @dataclass(frozen=True)
@@ -113,6 +114,26 @@ def _period_day(
     if not found:
         return None
     return DayAds(spend, gmv, orders, SOURCE_PERIOD_SPREAD, {})
+
+
+def add_income_topup(
+    days: Mapping[date, DayAds], topup_by_day: Mapping[date, Decimal]
+) -> dict[date, DayAds]:
+    """E80: the ads top-up the income export took from order revenue ("Phí DVHT Nạp Tiền Tự Động")
+    is ads spend, never a platform fee. A day whose ads figure already holds the amount (spend at
+    least the top-up) keeps it: the top-up is then only how it was paid. Otherwise the top-up is
+    added to that day's spend (a day with no figure gets the top-up as its spend, source
+    ``income_topup``), so profit never counts it twice."""
+    out = dict(days)
+    for day, amount in topup_by_day.items():
+        if amount <= ZERO:
+            continue
+        have = out.get(day)
+        if have is None:
+            out[day] = DayAds(amount, ZERO, ZERO, SOURCE_INCOME_TOPUP, {})
+        elif have.spend < amount:
+            out[day] = DayAds(have.spend + amount, have.gmv, have.orders, have.source, have.by_type)
+    return out
 
 
 def source_counts(days: Mapping[date, DayAds]) -> dict[str, int]:
