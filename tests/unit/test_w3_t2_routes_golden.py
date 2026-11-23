@@ -1,10 +1,10 @@
 """W3 t2 (R-1, R-2, X-1): a TikTok shop that has layer-4 rows only answers every seller analytics
 route, with the same number per metric on every endpoint.
 
-The fixture is the synthetic shop of ``tests.support.shopee_analytics`` after the build: its raw
-Shopee tables are emptied (the raw repositories read Shopee lines only, as they do for a TikTok
-shop), the shop becomes a TikTok shop, and its shop rows are set to the four-source total of
-decision #7 (the shop tab and the Shopee residual are not part of it). Every figure is invented.
+The fixture is the synthetic shop of ``tests.support.shopee_analytics`` after the build:
+its daily Shopee table is emptied, its rows become TikTok rows, the shop becomes a TikTok
+shop, and its shop rows are set to the four-source total of decision #7 (the shop tab and
+the Shopee residual are not part of it). Every figure is invented.
 """
 
 from __future__ import annotations
@@ -16,8 +16,13 @@ from sqlalchemy import delete, update
 
 from juli_backend.database import Shop
 from juli_backend.models.ingest import PlatformDailyMetric
+from juli_backend.models.platform_data import (
+    PlatformItem,
+    PlatformPeriodMetric,
+    PlatformPromotion,
+)
 from juli_backend.models.shopee_metrics import ShopeeShopMetricsDaily, ShopeeSourceMetricsDaily
-from juli_backend.models.shopee_profit import ShopeeOrderLine
+from juli_backend.models.shopee_profit import PlatformItemSnapshot, ShopeeOrderLine
 from tests.support.api import authenticate, build_app, client_for
 from tests.support.shopee_analytics import seed_shopee_shop
 
@@ -44,7 +49,12 @@ IN_TOTAL = ("the_san_pham_khac", "video", "live", "lien_ket")
 async def tiktok(session):
     seeded = await seed_shopee_shop(session, rules=True)
     sid = seeded.shop_id
-    await session.execute(delete(ShopeeOrderLine).where(ShopeeOrderLine.shop_id == sid))
+    # the shop's order lines are its own platform's rows (canonical ``order_lines``)
+    await session.execute(
+        update(ShopeeOrderLine).where(ShopeeOrderLine.shop_id == sid).values(platform="tiktok")
+    )
+    for model in (PlatformItem, PlatformItemSnapshot, PlatformPeriodMetric, PlatformPromotion):
+        await session.execute(update(model).where(model.shop_id == sid).values(platform="tiktok"))
     await session.execute(delete(PlatformDailyMetric).where(PlatformDailyMetric.shop_id == sid))
     await session.execute(
         delete(ShopeeSourceMetricsDaily).where(
@@ -142,3 +152,41 @@ async def test_a_tiktok_shop_without_any_rows_is_409_no_tiktok_data(session):
         response = await c.get(f"{DEMO}/channel-split")
     app.dependency_overrides.clear()
     assert response.status_code == 409 and response.json()["detail"]["code"] == "no_tiktok_data"
+
+
+async def test_ranking_is_supported_for_a_tiktok_shop_with_its_own_order_lines(client):
+    body = (await client.get(f"{DEMO}/ranking", params=PARAMS)).json()
+    assert body["supported"] is True
+
+
+@pytest.mark.parametrize("route", ["overview", "matrix", "critical", "ranking", "products/1001"])
+async def test_the_page_payloads_name_tiktok_not_shopee(client, route):
+    text = (await client.get(f"{DEMO}/{route}", params=PARAMS)).text
+    assert "Shopee" not in text, route
+
+
+@pytest.mark.parametrize("route", ["overview", "matrix", "critical"])
+async def test_ads_are_none_with_the_scope_reason_never_zero(client, route):
+    body = (await client.get(f"{DEMO}/{route}", params=PARAMS)).json()
+    assert body["unavailable"]["ads"] == "ads_scope_missing"
+    if route == "overview":
+        ads = body["ads"]
+        assert all(ads[k] is None for k in ("spend", "gmv_placed", "spend_per_day"))
+    if route == "matrix":
+        assert all(p["ads"]["spend"] is None for p in body["products"])
+
+
+async def test_a_shopee_shop_reads_exactly_its_shopee_lines(session):
+    from juli_backend.repositories.shopee_analytics import ShopeeOrderLinesRepo
+    from tests.support.shopee_analytics import CUR_END, CUR_START
+
+    seeded = await seed_shopee_shop(session, rules=True)
+    repo = ShopeeOrderLinesRepo(session)
+    lines = await repo.in_window(seeded.shop_id, CUR_START, CUR_END)
+    assert len(lines) > 0 and {ln.platform for ln in lines} == {"shopee"}
+    assert await repo.day_bounds(seeded.shop_id) is not None
+    # the shop's platform decides: the same rows are invisible to a TikTok shop until relabelled
+    await session.execute(update(Shop).where(Shop.id == seeded.shop_id).values(platform="tiktok"))
+    await session.flush()
+    assert await repo.in_window(seeded.shop_id, CUR_START, CUR_END) == []
+    assert await repo.day_bounds(seeded.shop_id) is None

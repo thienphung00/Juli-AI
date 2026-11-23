@@ -46,12 +46,51 @@ NO_DATA_BY_PLATFORM: dict[str, dict[str, str]] = {
 }
 
 
+_ADS_FIGURES = (
+    "spend",
+    "gmv_placed",
+    "direct_gmv_placed",
+    "orders_placed",
+    "roas",
+    "roas_broad",
+    "roas_direct",
+    "spend_per_day",
+)
+
+
+def _rename(value: Any, old: str, new: str) -> Any:
+    if isinstance(value, str):
+        return value.replace(old, new)
+    if isinstance(value, list):
+        return [_rename(v, old, new) for v in value]
+    if isinstance(value, dict):
+        return {k: _rename(v, old, new) for k, v in value.items()}
+    return value
+
+
 def stamped(body: dict[str, Any], platform: str) -> dict[str, Any]:
-    """The page builders name Shopee in ``platform``; a payload for a TikTok shop names TikTok.
-    A Shopee payload is returned as it is."""
-    if platform != "shopee" and "platform" in body:
-        body["platform"] = platform
-    return body
+    """The page builders name Shopee ("platform", "GMV shop (Shopee)", ...); a payload for a
+    TikTok shop names TikTok Shop, from the registry's one platform-name table. A Shopee payload
+    is returned as it is."""
+    from juli_backend.services.metrics.registry import PLATFORM_NAMES, Platform, source_reason
+
+    if platform == "shopee":
+        return body
+    out: dict[str, Any] = _rename(
+        body, PLATFORM_NAMES[Platform.shopee], PLATFORM_NAMES[Platform(platform)]
+    )
+    if "platform" in out:
+        out["platform"] = platform
+    reason = source_reason(Platform(platform), "ads")
+    if reason is not None:
+        # R-2: a platform without ads figures says so (null + the registry reason), never 0
+        out["unavailable"] = {**out.get("unavailable", {}), "ads": reason}
+        ads = out.get("ads")
+        if isinstance(ads, dict):
+            for key in _ADS_FIGURES:
+                if key in ads:
+                    ads[key] = None
+    return out
 
 
 def refusal(exc: Exception, platform: str = "shopee") -> HTTPException:

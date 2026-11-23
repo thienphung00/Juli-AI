@@ -124,6 +124,12 @@ class Platform(StrEnum):
     tiktok = "tiktok"
 
 
+#: The platform's name as a screen says it (one place; page builders still write "Shopee")
+PLATFORM_NAMES: Mapping[Platform, str] = MappingProxyType(
+    {Platform.shopee: "Shopee", Platform.tiktok: "TikTok Shop"}
+)
+
+
 @dataclass(frozen=True)
 class SourceSpec:
     """Where a platform's number comes from: the dataset, its order basis and its field."""

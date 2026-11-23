@@ -251,3 +251,19 @@ async def test_a_dependency_opens_a_tiktok_shop_on_the_widened_gate() -> None:
     )
     tiktok = SimpleNamespace(platform="tiktok", id=uuid.uuid4())
     assert await dep(tiktok) is tiktok
+
+
+def test_stamped_renames_the_platform_for_tiktok_only() -> None:
+    body = {
+        "platform": "shopee",
+        "label": "GMV shop (Shopee)",
+        "rows": [{"note": "Doanh số của Shopee"}],
+        "ads": {"spend": 0, "gmv_placed": 0, "basis": {"key": "placed"}},
+    }
+    assert common.stamped(body, "shopee") is body and body["label"] == "GMV shop (Shopee)"
+    got = common.stamped(body, "tiktok")
+    assert got["platform"] == "tiktok" and got["label"] == "GMV shop (TikTok Shop)"
+    assert got["rows"][0]["note"] == "Doanh số của TikTok Shop"
+    assert got["ads"]["spend"] is None and got["ads"]["gmv_placed"] is None
+    assert got["ads"]["basis"] == {"key": "placed"}
+    assert got["unavailable"] == {"ads": REASON_ADS_SCOPE_MISSING}
