@@ -177,6 +177,18 @@ def entity_kind(intent: dict[str, Any]) -> str | None:
     return None
 
 
+#: the empty value of each create-card slot (the strict schema allows no optional / union fields)
+CARD_SLOT_EMPTY: dict[str, Any] = {
+    "card_type": "none",
+    "from_date": "",
+    "to_date": "",
+    "start_hour": -1,
+    "amount": -1,
+    "amount_unit": "none",
+    "min_spend": -1,
+    "quantity": -1,
+    "name": "",
+}
 CREATE_SLOTS = (
     "card_type",
     "from_date",
@@ -220,7 +232,7 @@ INTENT_TOOL: dict[str, Any] = {
                         "product_phrase",
                         "source_phrase",
                         "entity_phrase",
-                        *CREATE_SLOTS,
+                        "card",
                     ],
                     "properties": {
                         "question_type": {
@@ -255,28 +267,39 @@ INTENT_TOOL: dict[str, Any] = {
                             "them, no translation",
                         },
                         "source_phrase": {"type": ["string", "null"]},
-                        "card_type": {
-                            "anyOf": [{"type": "string", "enum": [*CARD_TYPES]}, {"type": "null"}],
-                            "description": "the kind of card the seller wants created",
-                        },
-                        "from_date": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
-                        "to_date": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
-                        "amount": {
-                            "type": ["number", "null"],
-                            "description": "the discount value the seller said (đ or %)",
-                        },
-                        "amount_unit": {
-                            "anyOf": [{"type": "string", "enum": ["vnd", "pct"]}, {"type": "null"}]
-                        },
-                        "start_hour": {
-                            "type": ["integer", "null"],
-                            "description": "hour of day a flash sale slot starts, 0-23",
-                        },
-                        "min_spend": {"type": ["integer", "null"], "description": "đ, 0 = none"},
-                        "quantity": {"type": ["integer", "null"]},
-                        "name": {
-                            "type": ["string", "null"],
-                            "description": "a name the seller gave",
+                        "card": {
+                            "type": "object",
+                            "description": "only for question_type create_card; otherwise leave "
+                            "every field at its empty value",
+                            "additionalProperties": False,
+                            "required": list(CARD_SLOT_EMPTY),
+                            "properties": {
+                                "card_type": {
+                                    "type": "string",
+                                    "enum": [*CARD_TYPES, "none"],
+                                    "description": "the kind of card; none when not said",
+                                },
+                                "from_date": {
+                                    "type": "string",
+                                    "description": "YYYY-MM-DD or empty",
+                                },
+                                "to_date": {"type": "string", "description": "YYYY-MM-DD or empty"},
+                                "start_hour": {
+                                    "type": "integer",
+                                    "description": "flash sale start hour 0-23, -1 if unsaid",
+                                },
+                                "amount": {
+                                    "type": "number",
+                                    "description": "discount value said, -1 if unsaid",
+                                },
+                                "amount_unit": {"type": "string", "enum": ["vnd", "pct", "none"]},
+                                "min_spend": {
+                                    "type": "integer",
+                                    "description": "minimum order in đ, 0 = none, -1 when not said",
+                                },
+                                "quantity": {"type": "integer", "description": "-1 when not said"},
+                                "name": {"type": "string", "description": "a name given, or empty"},
+                            },
                         },
                         "entity_phrase": {
                             "type": ["string", "null"],
@@ -303,10 +326,10 @@ PARSE_SYSTEM = (
     "example the products that fell most, and why) is two intents: the 'status' ranking, then a "
     "'why_changed'. A request to create or change something (voucher, discount, combo, deal, gift, "
     "flash sale, price, product name / title, cover, variation set) is question_type "
-    "'create_card': fill card_type and "
-    "only the slots the seller said (dates as YYYY-MM-DD in the year of today, amount with "
-    "amount_unit vnd or pct), null for "
-    "the rest; never invent a value. A request to change the ads budget, a ROAS target or an "
+    "'create_card': fill the `card` object with only the slots the seller said (dates as "
+    "YYYY-MM-DD in the year of today, amount with amount_unit vnd or pct) and leave every other "
+    "field at its empty value (none, empty text, -1); never invent a value. "
+    "A request to change the ads budget, a ROAS target or an "
     "affiliate commission, a how-to or knowledge question (how to get more views, how a Shopee fee "
     "is calculated) and a question about competitors are question_type 'other'."
 )
@@ -324,6 +347,18 @@ def clean_restatement(restated: str | None, seller_text: str) -> str:
     return RESTATE_PREFIX + body.rstrip(".")
 
 
+def flatten_card(intent: dict[str, Any]) -> dict[str, Any]:
+    """The schema's `card` object (sentinels for "not said") becomes the flat slots the engine
+    reads, None for "not said". An intent with the flat slots already (tests, old rows) is kept."""
+    card = intent.pop("card", None)
+    if not isinstance(card, dict):
+        return intent
+    for k, empty in CARD_SLOT_EMPTY.items():
+        v = card.get(k, empty)
+        intent[k] = None if v == empty else v
+    return intent
+
+
 async def parse_intents(
     llm: LLMPort, text: str, today: date
 ) -> tuple[dict[str, Any] | None, Usage]:
@@ -335,6 +370,8 @@ async def parse_intents(
         cost += u.cost_usd
         intents = (out or {}).get("intents")
         if isinstance(intents, list) and intents and all(isinstance(i, dict) for i in intents):
+            for i in intents:
+                flatten_card(i)
             return (
                 {
                     "restated": clean_restatement((out or {}).get("restated_vi"), text),

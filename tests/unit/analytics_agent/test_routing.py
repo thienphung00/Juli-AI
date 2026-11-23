@@ -98,13 +98,52 @@ def _walk(node: Any, path: str = "") -> list[str]:
     return bad
 
 
-def test_intent_schema_has_no_enum_beside_a_list_type() -> None:
-    """HTTP 400 "Enum value ... does not match declared type": a nullable enum is
-    {"anyOf": [{"type": "string", "enum": [...]}, {"type": "null"}]}."""
-    assert _walk(routing.INTENT_TOOL["input_schema"]) == []
-    props = routing.INTENT_TOOL["input_schema"]["properties"]["intents"]["items"]["properties"]
-    for name in ("card_type", "amount_unit"):
-        assert {"type": "null"} in props[name]["anyOf"]
+def _unions(node: Any) -> int:
+    n = 0
+    if isinstance(node, dict):
+        props = node.get("properties")
+        if isinstance(props, dict):
+            n += sum(
+                1
+                for p in props.values()
+                if isinstance(p, dict) and (isinstance(p.get("type"), list) or "anyOf" in p)
+            )
+        for v in node.values():
+            n += _unions(v)
+    elif isinstance(node, list):
+        n += sum(_unions(v) for v in node)
+    return n
+
+
+def test_intent_schema_has_no_enum_beside_a_list_type_and_few_unions() -> None:
+    """HTTP 400 "Enum value ... does not match declared type" and "too many parameters with union
+    types (limit 16)": the create-card slots live in one `card` object with plain types."""
+    schema = routing.INTENT_TOOL["input_schema"]
+    assert _walk(schema) == []
+    assert _unions(schema) <= 12
+    card = schema["properties"]["intents"]["items"]["properties"]["card"]
+    assert (
+        set(card["required"]) == set(card["properties"])
+        and "card" in (schema["properties"]["intents"]["items"]["required"])
+    )
+
+
+def test_card_object_sentinels_become_none_slots() -> None:
+    it = routing.flatten_card(
+        {
+            "question_type": "create_card",
+            "card": {
+                **routing.CARD_SLOT_EMPTY,
+                "card_type": "voucher",
+                "from_date": "2026-11-24",
+                "min_spend": 0,
+            },
+        }
+    )
+    assert it["card_type"] == "voucher" and it["from_date"] == "2026-11-24"
+    assert it["min_spend"] == 0  # "no minimum" is an answer, not "not said"
+    assert it["amount"] is None and it["amount_unit"] is None and it["name"] is None
+    assert "card" not in it
 
 
 def test_strict_tool_schema() -> None:
