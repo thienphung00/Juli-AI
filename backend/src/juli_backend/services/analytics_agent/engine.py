@@ -22,6 +22,7 @@ from juli_backend.services.analytics_agent import (
     lookup,
     present,
     routing,
+    weekly,
     windows,
     writer,
 )
@@ -322,6 +323,38 @@ async def _answer(
     template: Template | None,
 ) -> None:
     mode = dec.get("mode", "why")
+    if mode == "analysis":  # J8: the weekly analysis, composed by code (no template, no writer)
+        no_data = {
+            "type": "label",
+            "stop_reason": "data_missing",
+            "text_vi": "Thiếu dữ liệu",
+            "detail_vi": None,
+        }
+        await out.emit(present.status("checking_data"))
+        events, outcome = (
+            await weekly.run_weekly(data, engine, jev, labels, as_of)
+            if _platform_has_analytics(req.platform)
+            else ([], cardstage.CardOutcome())
+        )
+        result.cost_usd += outcome.cost_usd
+        if not events:
+            await out.emit(no_data)
+            result.stop_reasons.append("data_missing")
+            return
+        for ev in events:
+            await out.emit(ev)
+        for a in outcome.accepted:
+            result.cards.append(
+                {
+                    "draft_ref": a["ref"],
+                    "kind": a["kind"],
+                    "item_id": a["item_id"],
+                    "recommended": a["recommended"],
+                    "engine_card": a["engine_card"],
+                }
+            )
+        result.stop_reasons.append("data_answer")
+        return
     preset = dec.get("window") or "last_7d_vs_prev_7d"
     item_id: str | None = dec.get("item_id")
     if dec.get("scope") == "product" and not item_id and intent.get("product_phrase"):

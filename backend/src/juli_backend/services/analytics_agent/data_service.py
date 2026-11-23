@@ -387,3 +387,32 @@ class ServiceData:
             finally:
                 await s.rollback()
         return out
+
+    async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]:
+        """Per day: the shop's ad spend and its summed daily budget (None when a campaign has no
+        budget limit that day). The ads report rows `ads_campaign_daily`, read through the
+        existing `PlatformDailyMetricsRepo`."""
+        from decimal import Decimal
+
+        from juli_backend.repositories import PlatformDailyMetricsRepo
+        from juli_backend.services.shopee_recommendations.loader import ADS_DAILY
+
+        async with self._f() as s:
+            try:
+                rows = await PlatformDailyMetricsRepo(s).window(
+                    self.shop, datasets=[ADS_DAILY], start=a, end=b, any_item=True
+                )
+                plain = [(r.day, r.segment, dict(r.extra or {})) for r in rows]
+            finally:
+                await s.rollback()
+        per: dict[date, dict[str, Any]] = {}
+        for day, seg, extra in plain:
+            if seg == "all":
+                continue
+            d = per.setdefault(day, {"day": day, "spend": Decimal(0), "budget": Decimal(0)})
+            d["spend"] += Decimal(str(extra.get("cost") or 0))
+            bud = extra.get("daily_budget")
+            d["budget"] = (
+                None if bud is None or d["budget"] is None else d["budget"] + Decimal(str(bud))
+            )
+        return [per[k] for k in sorted(per)]

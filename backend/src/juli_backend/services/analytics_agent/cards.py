@@ -485,6 +485,22 @@ async def card_stage(
     else:
         reason, code = first_failure or ("Juli chưa tạo được phương án cho đòn bẩy này.", None)
         return none(reason, code)
+    await draft_event(out, data, jev, labels, kind, item, card, critical_item)
+    return out
+
+
+async def draft_event(
+    out: CardOutcome,
+    data: DataPort,
+    jev: JevPort,
+    labels: LabelTable,
+    kind: str,
+    item: str | None,
+    card: dict[str, Any],
+    critical_item: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Accept one engine card as a Juli DRAFT (never sent, never executed): the recommended
+    version, the `card` event and the accepted row, appended to `out`."""
     rec, vinfo, u3 = await _version_pick(jev, card)
     out.cost_usd += u3.cost_usd
     out.routing.append({"step": "version", **vinfo})
@@ -516,4 +532,4 @@ async def card_stage(
             else "Chưa đủ dữ liệu để gợi ý một phương án.",
         }
     )
-    return out
+    return out.events[-1]

@@ -181,7 +181,7 @@ INTENT_TOOL: dict[str, Any] = {
                     "properties": {
                         "question_type": {
                             "type": "string",
-                            "enum": ["why_changed", "status", "compare", "other"],
+                            "enum": ["why_changed", "status", "compare", "plan", "other"],
                         },
                         "metric_phrase": {"type": ["string", "null"]},
                         "claimed_direction": {
@@ -222,7 +222,8 @@ PARSE_SYSTEM = (
     "Write phrases in plain English, except product_phrase: copy the seller's own product words "
     "verbatim. "
     "Do not invent ids. Dates only when the seller states them. Questions not about the shop's own "
-    "sales/traffic data (competitors, tax, advice, forecasts) get question_type 'other'."
+    "sales/traffic data (competitors, tax, forecasts) get question_type 'other'. A question asking "
+    "what the shop should do next / next week, or how to improve, is question_type 'plan'."
 )
 RESTATE_PREFIX = "Đang tìm hiểu: "
 _PREFIXES = re.compile(r"^\s*(đang tìm hiểu|tôi hiểu)\s*[:：]\s*", re.I)
@@ -358,6 +359,9 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     """Thresholds (J7) + cross-checks (J6b) + lookup rules. `outcome` = go | needs_choice |
     unsupported."""
     dec: dict[str, Any] = {"checks": {}}
+    if intent.get("question_type") == "plan":  # "what should the shop do next week" (J8)
+        dec.update(outcome="go", mode="analysis", window=window_from_phrase("last week"))
+        return dec
     fits = answers["fits"]["noul"]
     dec["checks"]["fits"] = {
         "noul": round(fits, 4),
