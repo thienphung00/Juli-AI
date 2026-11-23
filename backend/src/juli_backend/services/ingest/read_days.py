@@ -29,6 +29,9 @@ from juli_backend.services.ingest.writers import UNRESOLVED_PREFIX
 
 #: The order line the list page gave with no item and no SKU (``writers._line_item``).
 UNKNOWN_ITEM = f"{UNRESOLVED_PREFIX}unknown"
+#: Connector 0.3.32: a line its order page could not name after 3 reads; no longer handed out for
+#: a re-read, but still a hole in the C2 status ("Đang đọc đến").
+UNRESOLVED_ITEM = f"{UNRESOLVED_PREFIX}unresolved_item"
 
 WINDOW_DAYS = 30
 PLATFORM_UTC_OFFSET = timedelta(hours=7)
@@ -100,6 +103,7 @@ async def covered_days(
     today: date,
     *,
     extension_only: bool = True,
+    unresolved_is_hole: bool = False,
 ) -> dict[str, set[date]]:
     """Per daily dataset the window days read. ``extension_only=False`` (C2, "held"): a day any
     source brought counts (a file import included)."""
@@ -160,7 +164,9 @@ async def covered_days(
                 ShopeeOrderLine.shop_id == shop_id,
                 ShopeeOrderLine.platform == platform,
                 ShopeeOrderLine.source == SOURCE_EXTENSION,
-                ShopeeOrderLine.item_id == UNKNOWN_ITEM,
+                ShopeeOrderLine.item_id.in_(
+                    (UNKNOWN_ITEM, UNRESOLVED_ITEM) if unresolved_is_hole else (UNKNOWN_ITEM,)
+                ),
                 ShopeeOrderLine.day >= first,
                 ShopeeOrderLine.day <= last,
             )
@@ -207,7 +213,7 @@ async def progress(
 ) -> dict[str, dict[str, str | None]]:
     today = vietnam_today(now)
     held = await covered_days(session, shop_id, platform, today, extension_only=False)
-    read = await covered_days(session, shop_id, platform, today)
+    read = await covered_days(session, shop_id, platform, today, unresolved_is_hole=True)
     return progress_of(held, read, today)
 
 

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Connector 0.3.32 (batch-1123-a C3): Phân tích Nội dung is ready at 13:30 GMT+7 for yesterday; its
 // empty state ("0 Nội dung") is read as an empty day. Made-up data only.
 import { describe, expect, it } from "vitest";
@@ -42,5 +43,31 @@ describe("KOL content timing", () => {
     expect(outcome.responses.map((r) => [r.endpoint, r.period])).toEqual([["affiliate_content_summary", { start: "2026-11-22", end: "2026-11-22" }]]);
     const missing = await runReaderJob({ id: "affiliate_content" }, { ...env, contentEmptyVisible: () => false });
     expect(missing.status).toBe("needs_template");
+  });
+});
+
+// -- the empty day is read strictly (verifier, 23/11) -----------------------------------------------
+describe("KOL content empty state", () => {
+  const doc = (html: string): Document => {
+    const d = new (globalThis as { DOMParser?: typeof DOMParser }).DOMParser!().parseFromString(`<body>${html}</body>`, "text/html");
+    return d;
+  };
+
+  it("an empty day: the count node says 0 Nội dung, or the content table's own empty node", async () => {
+    const { contentEmptyIn } = await import("../src/platforms/shopee/content-dom");
+    expect(contentEmptyIn(doc(`<div class="content-summary"><span>0 Nội dung</span></div><div class="eds-table"><div class="eds-table__empty">Không có dữ liệu</div></div>`))).toBe(true);
+    expect(contentEmptyIn(doc(`<div class="eds-table"><div class="eds-table__empty"><span>Không có dữ liệu</span></div></div>`))).toBe(true);
+  });
+
+  it("an error page that says Không có dữ liệu elsewhere is NOT an empty day", async () => {
+    const { contentEmptyIn } = await import("../src/platforms/shopee/content-dom");
+    // the words in a side widget, not the content table; an error banner on the page
+    expect(contentEmptyIn(doc(`<div class="widget"><p>Không có dữ liệu</p></div><div class="error-banner">Đã xảy ra lỗi. Thử lại</div>`))).toBe(false);
+    // the words outside the table and no count node
+    expect(contentEmptyIn(doc(`<div class="notice"><p>Không có dữ liệu cho bộ lọc này</p></div>`))).toBe(false);
+    // the table's empty node, but the page shows a retry banner
+    expect(contentEmptyIn(doc(`<div class="eds-table"><div class="eds-table__empty">Không có dữ liệu</div></div><div role="alert">Tải lại trang</div>`))).toBe(false);
+    // "10 Nội dung" is not zero
+    expect(contentEmptyIn(doc(`<span>10 Nội dung</span>`))).toBe(false);
   });
 });

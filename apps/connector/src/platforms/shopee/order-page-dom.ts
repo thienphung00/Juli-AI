@@ -36,6 +36,7 @@ export function incomeItemsIn(doc: Document): { name: string; amount: number }[]
 
 const VARIATION = /^Phân loại\s*:\s*(.+)$/i;
 const SKU = /^SKU phân loại\s*:\s*(.+)$/i;
+const QTY = /^[x×]?\s*(\d{1,4})$/i;
 const MONEY = /[-−–]?\s*₫\s*[\d.,]+|[\d.,]+\s*₫/;
 
 /** The meta lines of one product line: its child elements' texts, else its text split by line. */
@@ -62,6 +63,10 @@ export function pageItemsIn(doc: Document): PageItem[] {
     const priced = cells.map((el) => el.textContent ?? "").filter((t) => MONEY.test(t) && (t.match(/₫/g) ?? []).length === 1);
     const total = moneyOf(priced[priced.length - 1]);
     if (total !== undefined && total > 0) item.lineTotal = total;
+    // the quantity: a cell (outside the meta) that is a bare count ("2", "x2")
+    const counts = cells.map((el) => QTY.exec((el.textContent ?? "").trim())?.[1]).filter((q): q is string => q !== undefined);
+    const qty = counts.length > 0 ? Number(counts[counts.length - 1]) : undefined;
+    if (qty !== undefined && qty > 0) item.qty = qty;
     out.push(item);
   }
   return out;

@@ -1817,3 +1817,39 @@ describe("0.3.32: one outcome per reader in a run (C2)", () => {
     expect(income).toContain("done:order_income=posted");
   });
 });
+
+describe("0.3.32: an order page that cannot name a line is read 3 times, then 'unresolved_item'", () => {
+  it("counts one failed read a day, marks the third read as the last, then never queues the order again", async () => {
+    const ctx = setup({ readers: ["order_income"] });
+    const fix = { code: 0, data: { order_id: 26110009, order_sn: "261101ZZZZZZZZ", create_time: 1, items: [{ amount: 1, order_price: 1000 }] } };
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], incomeQueue: [{ id: "26110009", completedAt: T0, income: false, fix }] };
+    (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async (_job: ReaderJob, responses: ReaderResponse[]) =>
+      responses.some((r) => r.endpoint === "order_detail") ? { order_income: "empty", order_lines: "posted" } : { order_income: "empty" };
+    const lastFlags: boolean[] = [];
+    for (let day = 0; day < 3; day += 1) {
+      // the third (last) read is answered as the reader does: the lines posted as unresolved_item
+      const answer: ReaderResponse[] = day === 2 ? [{ endpoint: "order_detail", url: "u", status: 200, body: fix, capturedAt: T0, source: "page", orderId: "26110009" }] : [];
+      await driveOrderPages(ctx, () => ({ responses: answer, ...(day === 2 ? { detail: "unresolved_item" } : { detail: "page_lines_unmatched" }) }));
+      const msg = ctx.tabs.sent.filter((m) => (m.message as { job?: { id?: string } }).job?.id === "order_income").at(-1)?.message as { job: { fixLast?: boolean[] } };
+      lastFlags.push(msg.job.fixLast?.[0] ?? false);
+      if (day < 2) expect((await ctx.read())?.incomeQueue?.[0]?.fixFailedDays).toBe(day + 1);
+      ctx.clock.now += 24 * 3_600_000;
+      ctx.storage.data.readers = { ...(await ctx.read())!, incomeDay: undefined, lastRunDay: undefined, run: undefined };
+    }
+    expect(lastFlags).toEqual([false, false, true]);
+    expect((await ctx.read())?.incomeQueue).toEqual([]);
+    expect((await ctx.read())?.pageFixGivenUp).toEqual(["26110009"]);
+    // the orders reader meets the same SKU-less order again: it is not queued for its lines
+    const ordersRun = async (givenUp: string[]) => {
+      const o = setup({ readers: ["orders"] });
+      o.storage.data.readers = { adsDone: [], trafficDone: [], pageFixGivenUp: givenUp };
+      await o.scheduler.tick();
+      const tab = o.tabs.current;
+      await o.scheduler.onTabReady(tab.id, tab.url);
+      await o.scheduler.onResult(tab.id, { job: "orders", status: "done", responses: [{ endpoint: "order_detail", url: "u", status: 200, body: fix, capturedAt: T0, source: "replay" }] });
+      return ((await o.read())?.incomeQueue ?? []).map((q) => q.id);
+    };
+    expect(await ordersRun([])).toEqual(["26110009"]);
+    expect(await ordersRun(["26110009"])).toEqual([]);
+  });
+});

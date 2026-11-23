@@ -13,13 +13,13 @@ import { Pacer } from "../src/platforms/shopee/runner";
 const SC = "https://banhang.shopee.vn";
 const NOW = Date.UTC(2026, 10, 23, 3, 0, 0);
 
-const productLine = (variation: string, sku: string, total: string) => `
+const productLine = (variation: string, sku: string, total: string, qty = "1") => `
   <div class="product-item product">
     <div class="product-detail">
       <div class="product-name">Sản phẩm mẫu</div>
       <div class="product-meta"><div>Phân loại: ${variation}</div><div>SKU phân loại: ${sku}</div></div>
     </div>
-    <div class="price">₫50.000</div><div class="qty">1</div><div class="subtotal">${total}</div>
+    <div class="price">₫50.000</div><div class="qty">${qty}</div><div class="subtotal">${total}</div>
   </div>`;
 const incomeRow = (label: string, value: string) =>
   `<div class="income-item"><div class="income-label"><div class="income-label-text">${label}</div></div><div class="income-value">${value}</div></div>`;
@@ -73,10 +73,10 @@ describe("the order page DOM (0.3.32)", () => {
   });
 
   it("reads each product line's Phân loại, SKU phân loại and line total", () => {
-    const doc = page(productLine("Xanh, M", "G600024", "₫120.000") + productLine("Đỏ, L", "G600025", "₫70.000"));
+    const doc = page(productLine("Xanh, M", "G600024", "₫120.000", "2") + productLine("Đỏ, L", "G600025", "₫70.000"));
     expect(pageItemsIn(doc)).toEqual([
-      { variationName: "Xanh, M", sku: "G600024", lineTotal: 120_000 },
-      { variationName: "Đỏ, L", sku: "G600025", lineTotal: 70_000 },
+      { variationName: "Xanh, M", sku: "G600024", lineTotal: 120_000, qty: 2 },
+      { variationName: "Đỏ, L", sku: "G600025", lineTotal: 70_000, qty: 1 },
     ]);
   });
 
@@ -111,14 +111,40 @@ describe("SKUs from the order page (C1)", () => {
 
   it("a combo parent becomes one line per page line, priced by the page totals, the order total kept", () => {
     const fixed = withPageSkus(comboAnswer(), [
-      { variationName: "Xanh, M", sku: "G600024", lineTotal: 120_000 },
-      { variationName: "Đỏ, L", sku: "G600025", lineTotal: 70_000 },
+      { variationName: "Xanh, M", sku: "G600024", lineTotal: 120_000, qty: 1 },
+      { variationName: "Đỏ, L", sku: "G600025", lineTotal: 70_000, qty: 1 },
     ]);
     const rows = mapOrderLines([detailReply(fixed)], NOW).rows;
-    expect(rows.map((r) => [r.variation_sku, r.deal_price, r.line_no, r.promo_kind])).toEqual([
-      ["G600024", 120_000, 0, "bundle"],
-      ["G600025", 70_000, 1, "bundle"],
+    expect(rows.map((r) => [r.variation_sku, r.deal_price, r.qty, r.line_no, r.promo_kind])).toEqual([
+      ["G600024", 120_000, 1, 0, "bundle"],
+      ["G600025", 70_000, 1, 1, "bundle"],
     ]);
+  });
+
+  it("each split line takes its page quantity, and the money adds up to the parent's exactly", () => {
+    // a combo of 1 x 190.001đ (not divisible evenly) shown as 2 + 1 items on the page
+    const parentAnswer = trimOrderDetail({
+      code: 0,
+      data: {
+        order_id: 5004,
+        order_sn: "261123DDDDDDDD",
+        create_time: Math.floor(NOW / 1000),
+        order_items: [{ amount: 1, order_price: "190001", item_price: "200001", bundle_deal_id: 77, item_list: [{ amount: 1 }, { amount: 1 }] }],
+      },
+    });
+    const pageLines = [
+      { variationName: "Xanh, M", sku: "G600024", lineTotal: 126_000, qty: 2 },
+      { variationName: "Đỏ, L", sku: "G600025", lineTotal: 64_000, qty: 1 },
+    ];
+    const rows = mapOrderLines([detailReply(withPageSkus(parentAnswer, pageLines))], NOW).rows;
+    expect(rows.map((r) => r.qty)).toEqual(pageLines.map((p) => p.qty));
+    const total = (field: "deal_price" | "original_price") => rows.reduce((a, r) => a + Math.round((r[field] as number) * (r.qty as number) * 100), 0);
+    expect(total("deal_price")).toBe(190_001 * 100);
+    expect(total("original_price")).toBe(200_001 * 100);
+  });
+
+  it("a page line without a quantity: the combo is not split (nothing guessed)", () => {
+    expect(withPageSkus(comboAnswer(), [{ sku: "A", lineTotal: 1 }, { sku: "B", qty: 1 }])).toBeNull();
   });
 
   it("as many page lines as order lines: each SKU-less line takes its page line; else nothing is guessed", () => {
@@ -173,6 +199,48 @@ describe("the order page queue (0.3.32)", () => {
       { id: "5001", completedAt: 1, fix: { a: 1 } },
       { id: "5009", completedAt: 99, income: false, fix: { b: 2 } },
     ]);
-    expect(orderPageJob({ id: "order_income" }, queue[1]!)).toEqual({ id: "order_income", orderIds: ["5009"], orderSns: [""], incomeFor: [false], fixBodies: [{ b: 2 }] });
+    expect(orderPageJob({ id: "order_income" }, queue[1]!)).toEqual({ id: "order_income", orderIds: ["5009"], orderSns: [""], incomeFor: [false], fixBodies: [{ b: 2 }], fixLast: [false] });
+  });
+});
+
+describe("a line the order page cannot name (0.3.32, verifier)", () => {
+  const envFor = (doc: Document): ReaderEnv => {
+    let clock = NOW;
+    const sleep = async (ms: number) => {
+      clock += ms;
+    };
+    return {
+      origin: SC,
+      pacer: new Pacer({ sleep, now: () => clock, random: () => 0 }),
+      now: () => clock,
+      session: () => ({}),
+      hasSession: () => true,
+      template: () => undefined,
+      waitFor: pollingWaitFor(sleep, () => clock),
+      fetch: async () => {
+        throw new Error("nothing is requested");
+      },
+      orderPageIncome: () => incomeItemsIn(doc),
+      orderPageItems: () => pageItemsIn(doc),
+    };
+  };
+  // three page lines for a one-line order without SKU, no quantities: cannot be matched
+  const unmatchedPage = () => page(`<div class="product-item product"><div class="product-meta"><div>Phân loại: A</div></div></div>`.repeat(3));
+
+  it("before the last read: nothing posted, 'page_lines_unmatched'", async () => {
+    const env = envFor(unmatchedPage());
+    const job = { id: "order_income" as const, orderIds: ["5001"], orderSns: [""], incomeFor: [false], fixBodies: [comboAnswer()], fixLast: [false] };
+    const outcome = await runReaderJob(job, env);
+    expect(outcome.responses).toEqual([]);
+    expect(outcome.detail).toBe("page_lines_unmatched");
+  });
+
+  it("the last read posts the lines as unresolved_item", async () => {
+    const env = envFor(unmatchedPage());
+    const job = { id: "order_income" as const, orderIds: ["5001"], orderSns: [""], incomeFor: [false], fixBodies: [comboAnswer()], fixLast: [true] };
+    const outcome = await runReaderJob(job, env);
+    expect(outcome.detail).toBe("unresolved_item");
+    const rows = mapOrderLines(outcome.responses, NOW).rows;
+    expect(rows.map((r) => r.variation_sku)).toEqual(["unresolved_item"]);
   });
 });

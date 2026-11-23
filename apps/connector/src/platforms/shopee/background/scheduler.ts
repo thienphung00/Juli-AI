@@ -65,7 +65,7 @@ import {
   TRAFFIC_MAX_ITEMS,
   CONTENT_READY_MINUTE_GMT7,
 } from "../config";
-import { completedOrders, incomeReadIds, skuLessOrders, zeroRowsStep } from "../orders-map";
+import { completedOrders, incomeReadIds, PAGE_FIX_MAX_FAILS, skuLessOrders, zeroRowsStep } from "../orders-map";
 import { viewedItemIds } from "../product-period-map";
 import { activeItemIds, adsDayAnswer, completedTrafficDays, ongoingAdsCampaigns } from "../reader-map";
 import type { CaptureOutcome } from "./connector";
@@ -1234,6 +1234,7 @@ export class ReaderScheduler {
           ...(job.orderSns ? { orderSns: job.orderSns } : {}),
         ...(job.incomeFor ? { incomeFor: job.incomeFor } : {}),
         ...(job.fixBodies ? { fixBodies: job.fixBodies } : {}),
+        ...(job.fixLast ? { fixLast: job.fixLast } : {}),
           ...(job.history ? { history: job.history } : {}),
           ...(job.sinceDay ? { sinceDay: job.sinceDay } : {}),
           ...(job.historyDays ? { historyDays: job.historyDays } : {}),
@@ -1340,6 +1341,7 @@ export class ReaderScheduler {
         ...(job.orderSns ? { orderSns: job.orderSns } : {}),
         ...(job.incomeFor ? { incomeFor: job.incomeFor } : {}),
         ...(job.fixBodies ? { fixBodies: job.fixBodies } : {}),
+        ...(job.fixLast ? { fixLast: job.fixLast } : {}),
         ...(job.history ? { history: job.history } : {}),
         ...(job.sinceDay ? { sinceDay: job.sinceDay } : {}),
         ...(job.historyDays ? { historyDays: job.historyDays } : {}),
@@ -1494,7 +1496,8 @@ export class ReaderScheduler {
       const horizon = now - ORDER_INCOME_QUEUE_DAYS * 86_400_000;
       // 0.3.32: an order queued for its lines only asks for its income too once it has completed
       const upgraded = (sched.incomeQueue ?? []).map((o) => (o.income === false && doneIds.has(o.id) ? { ...o, income: true } : o));
-      const queue = withSkuFixes([...upgraded, ...fresh], skuLessOrders(responses), now)
+      const givenUp = new Set(sched.pageFixGivenUp ?? []);
+      const queue = withSkuFixes([...upgraded, ...fresh], skuLessOrders(responses).filter((o) => !givenUp.has(o.id)), now)
         .filter((o) => o.completedAt >= horizon)
         .slice(0, ORDER_INCOME_QUEUE_MAX);
       return {
@@ -1523,7 +1526,14 @@ export class ReaderScheduler {
       const fixedIds = new Set(
         linesLanded ? responses.filter((r) => r.endpoint === "order_detail" && r.orderId).map((r) => r.orderId as string) : [],
       );
+      const givenUp = (sched.incomeQueue ?? [])
+        .filter((o) => sent.has(o.id) && o.fix !== undefined && fixedIds.has(o.id) && (o.fixFailedDays ?? 0) + 1 >= PAGE_FIX_MAX_FAILS)
+        .map((o) => o.id);
       const incomeQueue = (sched.incomeQueue ?? []).flatMap((o) => {
+        // 0.3.32: a page read that could not name the line counts once a day (the last one posts it "unresolved_item")
+        if (sent.has(o.id) && o.fix !== undefined && !fixedIds.has(o.id) && o.fixFailedDay !== run.day) {
+          o = { ...o, fixFailedDays: (o.fixFailedDays ?? 0) + 1, fixFailedDay: run.day };
+        }
         if (!sent.has(o.id) || !answered.has(o.id)) return [o];
         const linesDone = o.fix === undefined || fixedIds.has(o.id);
         const incomeDone = o.income === false || read.has(o.id);
@@ -1534,7 +1544,12 @@ export class ReaderScheduler {
         const failedDays = (o.failedDays ?? 0) + 1;
         return failedDays >= ORDER_INCOME_MAX_FAILED_DAYS ? [] : [{ ...o, failedDays, failedDay: run.day }];
       });
-      return { incomeDay: run.day, incomeQueue, ...(read.size > 0 ? { incomeReadAt: this.deps.now() } : {}) };
+      return {
+        incomeDay: run.day,
+        incomeQueue,
+        ...(read.size > 0 ? { incomeReadAt: this.deps.now() } : {}),
+        ...(givenUp.length > 0 ? { pageFixGivenUp: [...(sched.pageFixGivenUp ?? []), ...givenUp].slice(-ORDER_INCOME_QUEUE_MAX) } : {}),
+      };
     }
     if (job.id === "affiliate" && job.history && shopId) {
       // The history is done once every window posted (or Shopee answered it empty); a failed
@@ -1625,7 +1640,14 @@ export class ReaderScheduler {
 
 /** 0.3.32: one order page job (the order the page opens is its only order). */
 export function orderPageJob(job: PlannedJob, o: IncomeQueued): PlannedJob {
-  return { ...job, orderIds: [o.id], orderSns: [o.sn ?? ""], incomeFor: [o.income !== false], fixBodies: [o.fix ?? null] };
+  return {
+    ...job,
+    orderIds: [o.id],
+    orderSns: [o.sn ?? ""],
+    incomeFor: [o.income !== false],
+    fixBodies: [o.fix ?? null],
+    ...(o.fix !== undefined ? { fixLast: [(o.fixFailedDays ?? 0) + 1 >= PAGE_FIX_MAX_FAILS] } : {}),
+  };
 }
 
 /**

@@ -277,6 +277,13 @@ async def write_order_lines(
                 "updated_at": provenance["updated_at"],
             }
         )
+    unresolved = sum(1 for v in values if v["item_id"] == f"{UNRESOLVED_PREFIX}unresolved_item")
+    if unresolved:
+        # Connector 0.3.32: the order page could not name these lines after 3 reads
+        logger.info(
+            "order_line_unresolved_item",
+            extra={"shop_id": str(shop_id), "lines": unresolved},
+        )
     await upsert_line_values(session, values)
 
 

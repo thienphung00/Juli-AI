@@ -270,3 +270,27 @@ async def test_an_empty_affiliate_day_is_accepted_and_counts_as_read(session, da
     assert result.rows == 0
     covered = await read_days.covered_days(session, shop.id, "shopee", date(2026, 10, 30))
     assert date(2026, 10, 28) in covered[dataset]
+
+
+async def test_an_unresolved_item_day_is_not_handed_out_again_but_stays_a_hole_in_c2(
+    session, monkeypatch, caplog
+):
+    """Connector 0.3.32: after 3 page reads that could not name a line, the Connector posts it as
+    ``unresolved_item``: the day leaves the re-read hand-out (no budget spent on it daily) but the
+    C2 status still shows the day as a hole; the write is logged."""
+    from tests.unit.test_ingest_composed_precedence import T1, T2, _catalogue, _write
+
+    monkeypatch.setattr(read_days, "vietnam_today", lambda now=None: TODAY)
+    _, shop = await _shopee_tenant(session)
+    await _catalogue(session, shop.id)
+    session.add(_post(shop.id, "order_lines", date(2026, 10, 20), date(2026, 11, 18)))
+    await session.flush()
+    at = datetime(2026, 11, 10, 3, 0)
+    await _write(session, shop.id, "extension", 3, T1, sku=None, ordered_at=at)
+    with caplog.at_level("INFO"):
+        await _write(session, shop.id, "extension", 3, T2, sku="unresolved_item", ordered_at=at)
+    assert any(r.getMessage() == "order_line_unresolved_item" for r in caplog.records)
+    covered = await read_days.covered_days(session, shop.id, "shopee", TODAY)
+    assert "order_lines" not in read_days.missing_by_dataset(covered, TODAY)
+    progress = await read_days.progress(session, shop.id, "shopee")
+    assert progress["order_lines"]["reading_through"] == "2026-11-09"

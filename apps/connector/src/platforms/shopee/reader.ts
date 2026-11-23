@@ -33,7 +33,7 @@ import {
 import { isDatacenterPath, isMydataPath } from "./config";
 import { isReadOnlyOrderDetailPath, isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, READER_PAGES, type ReaderEndpoint } from "./endpoints";
 import { isNoCampaign } from "./promotion-map";
-import { type PageItem, trimOrderCards, trimOrderDetail, trimOrderIndex, withPageSkus } from "./orders-map";
+import { type PageItem, trimOrderCards, trimOrderDetail, trimOrderIndex, withPageSkus, withUnresolvedSkus } from "./orders-map";
 import type { Pacer } from "./runner";
 import { buildBackfillDayPlan } from "./sync";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "../../core/time";
@@ -74,6 +74,8 @@ export interface ReaderJob {
   incomeFor?: boolean[];
   /** order_income (0.3.32): per order, its trimmed get_one_order answer when a line named no SKU (else null). */
   fixBodies?: (unknown | null)[];
+  /** order_income (0.3.32): per order, this is its last page read for its lines (then "unresolved_item"). */
+  fixLast?: boolean[];
   /** affiliate: older purchase windows to read once (the 6-month history), each ≤ 31 days. */
   history?: ConversionWindow[];
   /** orders (0.3.19): read back until orders placed before this GMT+7 day. */
@@ -196,7 +198,7 @@ export interface ReaderEnv {
   moreOrderPages?: () => boolean;
   /** 0.3.26: the page shows Seller Centre's "no permission" page or message (a sub-account without the right). */
   permissionDeniedVisible?: () => boolean;
-  /** Phân tích Nội dung (0.3.32): the page shows its empty state ("0 Nội dung" / "Không có dữ liệu"). */
+  /** Phân tích Nội dung (0.3.32): its own count node says "0 Nội dung" (or its table's empty state), no error banner (content-dom.ts). */
   contentEmptyVisible?: () => boolean;
   /** order page (0.3.32): the "Doanh thu" rows it shows, `{name, amount}` (order-page-dom.ts). */
   orderPageIncome?: () => { name: string; amount: number }[];
@@ -1347,7 +1349,7 @@ function readOrderPage(
   ids: string[],
   collected: ReaderResponse[],
   sns: string[],
-  job: Pick<ReaderJob, "incomeFor" | "fixBodies">,
+  job: Pick<ReaderJob, "incomeFor" | "fixBodies" | "fixLast">,
 ): string | undefined {
   const opened = ids[0];
   if (!opened) return undefined;
@@ -1360,9 +1362,12 @@ function readOrderPage(
   const stored = job.fixBodies?.[0];
   let note: string | undefined;
   if (stored) {
-    const fixed = withPageSkus(stored, env.orderPageItems?.() ?? []);
+    const matched = withPageSkus(stored, env.orderPageItems?.() ?? []);
+    // 0.3.32: the last allowed read (PAGE_FIX_MAX_FAILS) that still cannot match posts the lines as
+    // "unresolved_item": the order is not read again for them (Juli keeps the day as a hole)
+    const fixed = matched ?? (job.fixLast?.[0] ? withUnresolvedSkus(stored) : null);
     if (fixed) collected.push({ endpoint: "order_detail", url: `${env.origin}${READER_PAGES.order_income.path}${opened}`, status: 200, body: fixed, capturedAt: at, source: "page", orderId: opened, ...sn });
-    else note = "page_lines_unmatched";
+    note = matched ? undefined : fixed ? "unresolved_item" : "page_lines_unmatched";
   }
   return ids.length > 1 ? "partial:one_order_per_page" : note;
 }
@@ -1377,7 +1382,7 @@ async function readOrderIncome(
   ids: string[],
   collected: ReaderResponse[],
   sns: string[] = [],
-  job: Pick<ReaderJob, "incomeFor" | "fixBodies"> = {},
+  job: Pick<ReaderJob, "incomeFor" | "fixBodies" | "fixLast"> = {},
 ): Promise<string | undefined> {
   const snOf = (index: number) => (sns[index] ? { orderSn: sns[index] } : {});
   // 0.3.26: an account without the Tài chính right sees a permission page (the income call is

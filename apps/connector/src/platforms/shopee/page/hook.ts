@@ -38,6 +38,7 @@ import {
 } from "../reader";
 import { moreOrderPagesIn, orderLinksIn, orderListEmptyIn } from "../order-dom";
 import { incomeItemsIn, pageItemsIn } from "../order-page-dom";
+import { contentEmptyIn } from "../content-dom";
 import { Pacer, pageRowCount, runDay, type DayRequest } from "../runner";
 import { type PlannedRequest, requestUrl } from "../sync";
 import { gmt7Date } from "../../../core/time";
@@ -505,8 +506,7 @@ async function runReader(job: ReaderJob): Promise<void> {
     orderPageIncome: () => incomeItemsIn(document),
     orderPageItems: () => pageItemsIn(document),
     // Phân tích Nội dung (0.3.32): its empty state, on its own page only
-    contentEmptyVisible: () =>
-      location.pathname.includes("/content_analytics") && /\b0 Nội dung\b|Không có dữ liệu/.test(document.body?.textContent ?? ""),
+    contentEmptyVisible: () => location.pathname.includes("/content_analytics") && contentEmptyIn(document),
   };
   const outcome = await runReaderJob(job, env);
   window.postMessage(
