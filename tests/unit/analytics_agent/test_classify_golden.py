@@ -134,7 +134,12 @@ ROWS: list[tuple[str, Any, Any, Any]] = [
     (
         "Sản phẩm nào giảm mạnh nhất tuần trước và vì sao?",
         [  # the parser splits "what" and "why" into two intents (prompt rule)
-            it(question_type="status", metric_phrase=None, time_phrase="last week"),
+            it(
+                question_type="status",
+                metric_phrase=None,
+                ranking="decline",
+                time_phrase="last week",
+            ),
             it(question_type="why_changed", metric_phrase="revenue", time_phrase="last week"),
         ],
         lambda st, q: (
@@ -146,6 +151,42 @@ ROWS: list[tuple[str, Any, Any, Any]] = [
             {"outcome": "go", "lookup": "top_decliners", "window": "last_full_week_vs_week_before"},
             {"outcome": "go", "window": "last_full_week_vs_week_before"},
         ],
+    ),
+    (
+        "Chi phí quảng cáo tuần trước là bao nhiêu? (parser wrote a Vietnamese phrase)",
+        it(
+            question_type="status",
+            metric_phrase="Quảng cáo",
+            metric_key="cost_ads",
+            time_phrase="tuần trước",
+        ),
+        ans(fits=nl(0.43), mode=ch("lookup")),
+        {"outcome": "go", "mode": "lookup", "metric": "ads_spend"},
+    ),
+    (
+        "Sản phẩm nào bán chạy nhất tuần trước?",
+        it(
+            question_type="status",
+            metric_phrase="Sản phẩm bán",
+            metric_key="units",
+            ranking="top",
+            claimed_direction="up",
+            time_phrase="last week",
+        ),
+        ans(fits=nl(0.66), mode=ch("lookup"), lookup=ch("top_products")),
+        {"outcome": "go", "lookup": "top_products", "window": "last_full_week_vs_week_before"},
+    ),
+    (
+        "Sản phẩm nào giảm mạnh nhất tuần trước và vì sao? (one intent)",
+        it(
+            question_type="status",
+            metric_phrase=None,
+            ranking="decline",
+            asks_why=True,
+            time_phrase="last week",
+        ),
+        ans(fits=nl(0.5), mode=ch("lookup"), lookup=ch("top_products")),
+        {"outcome": "go", "lookup": "top_decliners", "window": "last_full_week_vs_week_before"},
     ),
     (
         "Tuần sau shop nên làm gì?",
@@ -244,7 +285,7 @@ ROWS: list[tuple[str, Any, Any, Any]] = [
 
 
 def test_the_twenty_questions_are_all_here() -> None:
-    assert len(ROWS) == 20
+    assert len(ROWS) == 23
 
 
 @pytest.mark.parametrize("row", ROWS, ids=[r[0][:40] for r in ROWS])

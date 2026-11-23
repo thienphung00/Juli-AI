@@ -148,6 +148,25 @@ _AD_WORDS = re.compile(
 _CAMPAIGN = re.compile(r"campaign|chiến dịch", re.I)
 
 
+#: registry metric key -> the agent's own metric key (where they differ)
+REGISTRY_TO_AGENT = {
+    "cost_ads": "ads_spend",
+    "cost_total_pct": "cost_ratio",
+    "net_revenue": "net_revenue",
+}
+
+
+def named_metric_of(intent: dict[str, Any]) -> str | None:
+    """The metric the seller named: the parser's typed `metric_key` wins; the phrase words are a
+    safety net."""
+    mk = intent.get("metric_key")
+    if mk and mk != "none":
+        agent = REGISTRY_TO_AGENT.get(mk, mk)
+        if agent in METRICS or agent == "roas_break_even":
+            return agent
+    return metric_from_phrase(intent.get("metric_phrase"))
+
+
 def metric_from_phrase(phrase: str | None) -> str | None:
     for rx, m in METRIC_WORDS:
         if phrase and rx.search(phrase):
@@ -202,6 +221,19 @@ CREATE_SLOTS = (
 )
 
 
+def _registry_metric_keys() -> list[str]:
+    from juli_backend.services.metrics.registry import METRICS as REG
+
+    return list(REG)
+
+
+def _registry_metric_names() -> str:
+    """User-facing metric names, generated from registry.py (never hand-typed)."""
+    from juli_backend.services.metrics.registry import METRICS
+
+    return "; ".join(f"{k} = {m.label_vi}" for k, m in METRICS.items() if "{" not in m.label_vi)
+
+
 INTENT_TOOL: dict[str, Any] = {
     "name": "emit_intent",
     "strict": True,
@@ -232,6 +264,9 @@ INTENT_TOOL: dict[str, Any] = {
                         "product_phrase",
                         "source_phrase",
                         "entity_phrase",
+                        "metric_key",
+                        "ranking",
+                        "asks_why",
                         "card",
                     ],
                     "properties": {
@@ -267,6 +302,22 @@ INTENT_TOOL: dict[str, Any] = {
                             "them, no translation",
                         },
                         "source_phrase": {"type": ["string", "null"]},
+                        "metric_key": {
+                            "type": "string",
+                            "enum": [*_registry_metric_keys(), "none"],
+                            "description": "the registry key of the metric the seller asks about "
+                            "(the prompt lists key = label); none when no metric is asked",
+                        },
+                        "ranking": {
+                            "type": "string",
+                            "enum": ["none", "top", "decline"],
+                            "description": "top = best sellers / top by a metric; decline = the "
+                            "biggest drop; none = not a ranking",
+                        },
+                        "asks_why": {
+                            "type": "boolean",
+                            "description": "true when the seller also asks why",
+                        },
                         "card": {
                             "type": "object",
                             "description": "only for question_type create_card; otherwise leave "
@@ -314,17 +365,6 @@ INTENT_TOOL: dict[str, Any] = {
 }
 
 
-def _registry_metric_names() -> str:
-    """User-facing metric names, generated from registry.py (never hand-typed)."""
-    from juli_backend.services.metrics.registry import METRICS
-
-    seen: list[str] = []
-    for m in METRICS.values():
-        if m.label_vi not in seen and "{" not in m.label_vi:
-            seen.append(m.label_vi)
-    return "; ".join(seen)
-
-
 PARSE_SYSTEM = (
     "Turn a Shopee seller's Vietnamese question into English intent JSON by calling emit_intent. "
     "Today is {today} (Vietnam). Split a message that asks about several metrics into one intent "
@@ -332,14 +372,16 @@ PARSE_SYSTEM = (
     "Write phrases in plain English, except product_phrase: copy the seller's own product words "
     "verbatim. "
     "The seller's metrics are named in this registry (a question that asks for or about any of "
-    "them is 'status' or 'why_changed', never 'other'): " + _registry_metric_names() + ". "
+    "them is 'status' or 'why_changed', never 'other'; set metric_key to its key, none if no "
+    "metric is asked; ranking is top for best sellers / top by a metric, decline for the biggest "
+    "drop; asks_why is true when the seller also asks why): " + _registry_metric_names() + ". "
     "Do not invent ids. Dates only when the seller states them. Questions not about the shop's own "
     "sales/traffic data (competitors, tax, forecasts) get question_type 'other'. A question asking "
     "what the shop should do next week is question_type 'plan' (only that, not how-to "
     "questions). A question about ONE product's profit, margin, revenue or orders is question_type "
     "'status' with product_phrase, never 'other'. A question that asks both what and why (for "
-    "example the products that fell most, and why) is two intents: the 'status' ranking, then a "
-    "'why_changed'. A request to create or change something (voucher, discount, combo, deal, gift, "
+    "example the products that fell most, and why) is ONE intent with ranking and asks_why true. "
+    "A request to create or change something (voucher, discount, combo, deal, gift, "
     "flash sale, price, product name / title, cover, variation set) is question_type "
     "'create_card': fill the `card` object with only the slots the seller said (dates as "
     "YYYY-MM-DD in the year of today, amount with amount_unit vnd or pct) and leave every other "
@@ -564,6 +606,17 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     if fits <= FITS_NO:
         dec["outcome"] = "unsupported"
         return dec
+    if intent.get("ranking") in ("top", "decline"):  # the parser's typed slot decides, no picker
+        dec.update(
+            outcome="go",
+            mode="lookup",
+            lookup="top_decliners" if intent["ranking"] == "decline" else "top_products",
+        )
+        dec["window"] = window_from_phrase(intent.get("time_phrase")) or (
+            choice_ok(answers["window"])[1]["pick"] if "window" in answers else None
+        )
+        dec["metric"] = named_metric_of(intent) or "gmv"
+        return dec
     ranking = False  # a ranking question needs no metric: it defaults to GMV decline
     if "mode" in answers and "lookup" in answers:
         okm, im = choice_ok(answers["mode"])
@@ -575,12 +628,12 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
         dec["window"] = window_from_phrase(intent.get("time_phrase")) or (
             choice_ok(answers["window"])[1]["pick"] if "window" in answers else None
         )
-        named = metric_from_phrase(intent.get("metric_phrase"))
+        named = named_metric_of(intent)
         dec["metric"] = named or (
             choice_ok(answers["metric"])[1]["pick"] if "metric" in answers else None
         )
         return dec
-    named_metric = metric_from_phrase(intent.get("metric_phrase"))
+    named_metric = named_metric_of(intent)
     if (
         fits < FITS_GO and not named_metric and not (ranking and fits > FITS_NO)
     ):  # a named metric is a fit (J3): no picker
@@ -595,8 +648,6 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
             okl, infol = choice_ok(answers["lookup"])
             dec["checks"]["lookup"] = infol
             dec["lookup"] = infol["pick"] if okl else "metric_total"
-            if dec["lookup"] in LIST_LOOKUPS and intent.get("claimed_direction") == "down":
-                dec["lookup"] = "top_decliners"  # the parser says it fell: a decline ranking
             if dec["lookup"] in ("top_products", "metric_total", "top_decliners") and (
                 DECLINE_WORDS.search(
                     f"{intent.get('metric_phrase') or ''} {intent.get('raw_text') or ''}"
@@ -616,7 +667,7 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
         dec["window"] = preset
         dec["checks"]["window"] = {"pick": preset, "rule": "phrase"}
         unclear = [x for x in unclear if x[0] != "window"]
-    named = metric_from_phrase(intent.get("metric_phrase"))
+    named = named_metric_of(intent)
     if named and dec.get("mode") != "lookup":  # a named metric is never asked about (Q19)
         dec["metric"] = named
         dec["chain"] = METRIC_CHAIN.get(named, dec.get("chain"))

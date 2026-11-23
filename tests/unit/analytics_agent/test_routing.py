@@ -228,7 +228,7 @@ def test_lookup_rules_vague_asks_metric_and_top_products_needs_none() -> None:
     )
     assert vague["outcome"] == "needs_choice" and vague["remaining"][0][0] == "metric"
     top = routing.decide(
-        intent(claimed_direction="none"),  # "down" would make it a decline ranking
+        intent(),  # the direction no longer decides a ranking: the typed slot does
         ans(
             mode=ch("lookup"),
             lookup=ch("top_products"),

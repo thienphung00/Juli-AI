@@ -357,6 +357,8 @@ async def _run(
             and not dec.get("item_id")
             and not intent.get("product_phrase")
         ):  # "…and why": explain the product the ranking just found, not the whole shop
+            if carry.get("why_done"):
+                continue  # the ranking intent already asked why (asks_why): once is enough
             dec = {**dec, "item_id": carry["top_decliner"], "scope": "product"}
         await _answer(
             req,
@@ -374,6 +376,38 @@ async def _run(
             template,
             carry,
         )
+        if (
+            intent.get("asks_why")
+            and dec.get("mode") == "lookup"
+            and dec.get("lookup") in routing.LIST_LOOKUPS
+            and carry.get("top_item")
+        ):  # "…and why" in one intent: the why chain on the top item, added by code
+            why = {
+                "outcome": "go",
+                "mode": "why",
+                "chain": "gmv_change",
+                "metric": "gmv",
+                "window": dec.get("window"),
+                "scope": "product",
+                "item_id": carry["top_item"],
+            }
+            carry["why_done"] = True
+            await _answer(
+                req,
+                out,
+                result,
+                data,
+                engine,
+                llm,
+                jev,
+                labels,
+                as_of,
+                {**intent, "question_type": "why_changed", "product_phrase": None},
+                why,
+                restated,
+                template,
+                carry,
+            )
     if more:
         await out.emit(
             {
@@ -566,8 +600,10 @@ async def _answer(
             result.stop_reasons.append("data_missing")
             return
         ans.pop("stop", None)
-        if carry is not None and dec.get("lookup") == "top_decliners" and ans.get("rows"):
-            carry["top_decliner"] = ans["rows"][0].get("item_id")
+        if carry is not None and dec.get("lookup") in routing.LIST_LOOKUPS and ans.get("rows"):
+            carry["top_item"] = ans["rows"][0].get("item_id")
+            if dec.get("lookup") == "top_decliners":
+                carry["top_decliner"] = carry["top_item"]
         await out.emit(ans)
         result.stop_reasons.append("data_answer")
         return
