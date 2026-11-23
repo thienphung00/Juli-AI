@@ -298,14 +298,18 @@ def forecast_of(env: RecoEnv, cand: Candidate, inputs: dict[str, Any]) -> Foreca
     item = inputs.get("item_id") or cand.item
     if pool is None or not kol.get("key") or not item:
         return None
-    if str(item) not in pool.products:  # S5: no orders in the window: the shop's prior economics
+    no_history = str(item) not in pool.products
+    if no_history:  # S5: no orders in the window: the shop's prior economics
         pool = with_prior_product(env, pool, str(item))
     invite = cand.kind == "affiliate_invite"
     rate = float(inputs.get("commission_pct", DEFAULT_RATE_PCT))
     qty = int(inputs["qty"]) if inputs.get("qty") is not None else DEFAULT_QTY
     if not 0 <= rate <= 50 or (not invite and not 1 <= qty <= 50):
         return None
-    return forecast(pool, kol["key"], str(item), qty=qty, rate_pct=rate, invite=invite)
+    f = forecast(pool, kol["key"], str(item), qty=qty, rate_pct=rate, invite=invite)
+    if f is not None and no_history:
+        f = with_prior_orders(env, f, str(item))
+    return f
 
 
 def with_prior_product(env: RecoEnv, pool: KolPool, item: str) -> KolPool:
@@ -337,6 +341,21 @@ def with_prior_product(env: RecoEnv, pool: KolPool, item: str) -> KolPool:
         in_stock=None if info is None or info.stock is None else info.stock > 0,
     )
     return replace(pool, products={**pool.products, item: stat})
+
+
+def with_prior_orders(env: RecoEnv, f: Forecast, item: str) -> Forecast:
+    """S5 (owner 23/11): a product with no history is estimated at ``no_order_prior``'s orders
+    (baseline x 1.05, per 30 days) whatever the creator model says; the model's low / high spread
+    around its own middle is kept."""
+    from juli_backend.services.shopee_recommendations.no_order_prior import order_prior
+
+    prior = order_prior(env, item)
+    if prior is None:
+        return f
+    mid = float(prior.orders) * 30 / max(env.window_days, 1)
+    lo = f.orders_lo / f.orders_mid if f.orders_mid > 0 else spread_for(0)[0]
+    hi = f.orders_hi / f.orders_mid if f.orders_mid > 0 else spread_for(0)[1]
+    return replace(f, orders_mid=mid, orders_lo=mid * lo, orders_hi=mid * hi)
 
 
 def _money(f: Forecast) -> dict[str, Any]:

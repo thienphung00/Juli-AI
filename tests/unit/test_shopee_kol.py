@@ -579,3 +579,19 @@ async def test_s5_a_creator_card_on_a_product_with_no_orders_is_estimated_on_the
     assert kol_cards.forecast_of(env, moved, dict(moved.inputs)) is not None
     ev = kol_cards.evaluation_of(env, moved, dict(moved.inputs))
     assert ev.refusal is None
+
+
+async def test_s5_a_creator_card_on_a_product_with_no_orders_uses_baseline_times_105(shop, session):
+    from dataclasses import replace as _replace
+
+    from juli_backend.services.shopee_recommendations.no_order_prior import order_prior
+
+    env = await load_env(session, shop.shop_id, as_of=AS_OF)
+    assert env is not None and env.kol is not None
+    cand = next(c for c in kol_cards.generate(env) if c.kind == "affiliate_invite")
+    new_item = "9990001"
+    moved = _replace(cand, items=(new_item,), inputs={**cand.inputs, "item_id": new_item})
+    f = kol_cards.forecast_of(env, moved, dict(moved.inputs))
+    prior = order_prior(env, new_item)
+    assert f is not None and prior is not None
+    assert f.orders_mid == pytest.approx(float(prior.orders) * 30 / env.window_days)

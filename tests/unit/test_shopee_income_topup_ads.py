@@ -21,16 +21,11 @@ def _day(spend: str) -> DayAds:
     return DayAds(Decimal(spend), Decimal(0), Decimal(0), SOURCE_DAILY_REPORT, {})
 
 
-def test_a_topup_already_inside_the_days_ads_spend_changes_nothing():
-    days = {D1: _day("500000")}
-    out = add_income_topup(days, {D1: Decimal("300000")})
+def test_a_topup_never_adds_to_a_day_that_has_an_ads_figure():
+    days = {D1: _day("500000"), D3: _day("50000")}
+    out = add_income_topup(days, {D1: Decimal("300000"), D3: Decimal("100000")})
     assert out[D1].spend == Decimal("500000")
-
-
-def test_a_topup_the_ads_figure_does_not_hold_is_added_as_ads_spend():
-    out = add_income_topup({D1: _day("100000")}, {D1: Decimal("300000")})
-    assert out[D1].spend == Decimal("400000")
-    assert out[D1].source == SOURCE_DAILY_REPORT
+    assert out[D3].spend == Decimal("50000")  # ads 50k + top-up 100k is not 150k
 
 
 def test_a_day_with_no_ads_figure_takes_the_topup_as_its_spend():

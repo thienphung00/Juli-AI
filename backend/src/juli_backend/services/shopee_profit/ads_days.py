@@ -120,19 +120,14 @@ def add_income_topup(
     days: Mapping[date, DayAds], topup_by_day: Mapping[date, Decimal]
 ) -> dict[date, DayAds]:
     """E80: the ads top-up the income export took from order revenue ("Phí DVHT Nạp Tiền Tự Động")
-    is ads spend, never a platform fee. A day whose ads figure already holds the amount (spend at
-    least the top-up) keeps it: the top-up is then only how it was paid. Otherwise the top-up is
-    added to that day's spend (a day with no figure gets the top-up as its spend, source
-    ``income_topup``), so profit never counts it twice."""
+    is a wallet recharge, never a platform fee; the ads report is the actual spend. A day that HAS
+    an ads figure (any amount) keeps it: the top-up is only how it was paid. Only a day with NO
+    ads figure at all counts the top-up as its spend, with source ``income_topup`` so the gap is
+    visible. A top-up is never added on top of a day's ads report."""
     out = dict(days)
     for day, amount in topup_by_day.items():
-        if amount <= ZERO:
-            continue
-        have = out.get(day)
-        if have is None:
+        if amount > ZERO and day not in out:
             out[day] = DayAds(amount, ZERO, ZERO, SOURCE_INCOME_TOPUP, {})
-        elif have.spend < amount:
-            out[day] = DayAds(have.spend + amount, have.gmv, have.orders, have.source, have.by_type)
     return out
 
 
