@@ -740,19 +740,36 @@ async def test_da_lam_on_the_sample_shop_needs_no_voucher_code_and_reads_back(
     assert not tripwire.hits
 
 
-async def test_da_lam_off_the_sample_pin_still_needs_the_voucher_code(session, world):
-    """The real path is unchanged: a seller's "Đã làm" on a voucher without its code is refused."""
+async def test_da_lam_off_the_sample_pin_is_recorded_with_what_the_person_typed(session, world):
+    """The real path is unchanged: a seller's "Đã làm" on a voucher is recorded with the code they
+    typed (never as a numeric id) and a read-back is queued for it (batch-1123-a2 K1 / S-E118)."""
     _seller, sample, _sandbox, _reviewer_id, ids = world
     card_id = ids["min_spend_voucher"]
+    from juli_backend.models.card_events import CardEvent
     from juli_backend.models.shop_proposals import STATUS_APPROVED, ShopProposal
 
     p = await session.get(ShopProposal, card_id)
     assert p is not None
     p.status = STATUS_APPROVED
     await session.flush()
-    with pytest.raises(Exception) as refused:
-        await reco.mark_executed(session, sample.shop_id, card_id, now=utc_now_naive())
-    assert "voucher_id is required" in str(refused.value)
+    await reco.mark_executed(
+        session,
+        sample.shop_id,
+        card_id,
+        now=utc_now_naive(),
+        user_id=sample.user.id,
+        code="oryvab12c",
+    )
+    ev = (
+        await session.scalars(
+            select(CardEvent).where(
+                CardEvent.card_id == card_id, CardEvent.event_type == "executed"
+            )
+        )
+    ).first()
+    assert ev is not None
+    target = ev.payload["change"]["target"]
+    assert target["voucher_code"] == "ORYVAB12C" and "voucher_id" not in target
 
 
 async def test_approve_takes_any_card_kind_like_a_real_seller(session, world, tripwire):
