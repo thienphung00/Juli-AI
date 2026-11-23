@@ -141,7 +141,7 @@ async def test_a_combo_title_survives_the_what_if_recompute(session, shop):
     out = await _manual(session, seeded, env, _combo(10))
     cid = uuid.UUID(out["id"])
     title = out["card"]["title"]
-    assert title.startswith("Combo nhiều sản phẩm — ")
+    assert title.startswith("Combo Khuyến Mãi — ")
     again = await service.recompute(
         session, seeded.shop_id, cid, {"discount_value": 12}, now=NOW, actor="seller"
     )

@@ -402,14 +402,14 @@ _SIMPLE: dict[str, tuple[str, str, _Lever, _Lever | None]] = {
     ),
     "listing_hide": ("listing_hide", "Ẩn sản phẩm", ("views", ALL_SOURCES), None),
     "listing_relist": ("listing_relist", "Đăng lại sản phẩm", ("views", ALL_SOURCES), None),
-    "add_on": ("add_on", "Deal Sốc · Mua Kèm Deal Sốc", ("aov", ALL_SOURCES), None),
+    "add_on": ("add_on", "Mua Kèm Deal Sốc", ("aov", ALL_SOURCES), None),
     "variation_set": (
         "variation_set",
-        "Bộ / quy cách nhiều món",
+        "Phân loại hàng",
         ("aov", ALL_SOURCES),
         ("ctor", ALL_SOURCES),
     ),
-    "gift": ("gift", "Deal Sốc · Mua Để Nhận Quà", ("ctor", ALL_SOURCES), None),
+    "gift": ("gift", "Mua Để Nhận Quà", ("ctor", ALL_SOURCES), None),
 }
 
 

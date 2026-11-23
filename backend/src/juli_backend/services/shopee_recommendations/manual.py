@@ -53,6 +53,7 @@ MIN_VARIANTS, MAX_VARIANTS = 2, 4
 
 ERROR_BAD_VARIANT = "reco_manual_invalid"
 ERROR_BREACH = "reco_breach_not_acknowledged"
+ERROR_DUPLICATE = "reco_card_duplicate"
 ERROR_NO_DATA = "reco_no_data"
 
 #: change kinds a person may build by hand (the mega sale is a campaign of other cards)
@@ -119,13 +120,23 @@ def refusal(code: str) -> dict[str, str]:
     return {"code": code, "message": _REFUSAL_TEXT.get(head, code)}
 
 
+class DuplicateCard(ProposalError):
+    """The card repeats an open one (S4); ``existing_code`` names that card."""
+
+    def __init__(self, code: str | None) -> None:
+        super().__init__(ERROR_DUPLICATE, 409, duplicate_message(code))
+        self.existing_code = code
+
+
 class BreachNotAcknowledged(ProposalError):
     """The chosen variant breaks a floor or the spend cap and the request did not
     acknowledge it (owner decision 2026-11-04: breaches never block, they need a yes)."""
 
     def __init__(self, breaches: list[dict[str, Any]]) -> None:
         super().__init__(
-            ERROR_BREACH, 422, "the offer breaks a floor price or the spend cap; acknowledge it"
+            ERROR_BREACH,
+            422,
+            "Phương án vượt giá sàn hoặc mức chi tối đa: cần xác nhận để tiếp tục.",
         )
         self.breaches = breaches
 
@@ -459,6 +470,13 @@ def _brief(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def duplicate_message(code: str | None) -> str:
+    return (
+        f"Thẻ này trùng với thẻ {code or '(chưa có mã)'} đang mở: "
+        "cùng loại, cùng đối tượng và cùng thay đổi."
+    )
+
+
 async def create_manual(
     session: Any,
     shop_id: uuid.UUID,
@@ -497,7 +515,7 @@ async def create_manual(
     else:
         window_env = env or await load_env(session, shop_id, as_of=as_of, now=now)
         if window_env is None:
-            raise ProposalError(ERROR_NO_DATA, 409, "shop has no Shopee numbers")
+            raise ProposalError(ERROR_NO_DATA, 409, "Shop chưa có số liệu Shopee.")
         built = [build_variant(window_env, v, now=now) for v in variants]
     card, why = built[chosen]
     if card is None:
@@ -512,6 +530,10 @@ async def create_manual(
             "at": now.isoformat(),
             "breaches": breaches,
         }
+    skip = store.IMPORT_ORIGINS if origin in store.IMPORT_ORIGINS else ()
+    twin = await store.find_open_duplicate(session, shop_id, card, skip_origins=skip)
+    if twin is not None:  # S4: the same change is already open, whatever its origin
+        raise DuplicateCard(twin.code)
     order = [chosen, *[i for i in range(len(variants)) if i != chosen]]
     card["origin"] = origin
     card["created_by"] = actor.json()

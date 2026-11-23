@@ -62,7 +62,7 @@ async def compare_variants(
     try:
         env = await loader.load_env(session, shop_id, as_of=body.as_of, now=now)
         if env is None:
-            raise ProposalError(manual.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
+            raise ProposalError(manual.ERROR_NO_DATA, 409, "Shop chưa có số liệu Shopee.")
         out = manual.compare(env, [v.as_dict() for v in body.variants], now=now)
     except ProposalError as exc:
         raise refused(exc) from None

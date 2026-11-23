@@ -52,15 +52,15 @@ export const MAX_GIFT_QTY = 49;
 /** The 12 strategies, each with the driver metric(s) it is measured by (B-3, artboard `kinds`). */
 export const KINDS_92: readonly { readonly key: Kind92; readonly name: string; readonly drivers: string }[] = [
   { key: "voucher", name: "Voucher", drivers: "AOV · CTOR" },
-  { key: "combo", name: "Combo khuyến mãi", drivers: "AOV · CTOR" },
+  { key: "combo", name: "Combo Khuyến Mãi", drivers: "AOV · CTOR" },
   { key: "deal_soc", name: "Deal Sốc", drivers: "AOV · CTOR · đơn" },
   { key: "product_discount", name: "Chương Trình Của Shop", drivers: "CTOR · đơn" },
   { key: "price_flash", name: "Giá bán + Flash sale", drivers: "CTOR · đơn" },
-  { key: "variation_set", name: "Phân loại / set", drivers: "AOV · CTOR" },
+  { key: "variation_set", name: "Phân loại hàng", drivers: "AOV · CTOR" },
   { key: "ads", name: "Dịch vụ hiển thị", drivers: "chi · GMV · ROAS" },
-  { key: "title", name: "Tiêu đề", drivers: "lượt xem · CTR" },
+  { key: "title", name: "Tên sản phẩm", drivers: "lượt xem · CTR" },
   { key: "cover_image", name: "Ảnh bìa", drivers: "CTR" },
-  { key: "description_first_line", name: "Mô tả", drivers: "CTOR" },
+  { key: "description_first_line", name: "Mô tả sản phẩm", drivers: "CTOR" },
   { key: "affiliate", name: "Affiliate / KOL", drivers: "đơn affiliate" },
   { key: "price_display", name: "Hiển thị giá + listing", drivers: "CTR · CTOR · lượt xem" },
 ];
@@ -70,18 +70,18 @@ export const kindName92 = (k: string): string => KINDS_92.find((x) => x.key === 
 /** The kind the server knows for a form kind (some forms hold two). */
 export const SERVER_KIND_NAMES: Readonly<Record<string, string>> = {
   voucher: "Voucher",
-  combo: "Combo khuyến mãi",
+  combo: "Combo Khuyến Mãi",
   listing_combo: "Listing combo mới",
-  add_on: "Deal Sốc · Mua Kèm Deal Sốc",
-  gift: "Deal Sốc · Mua Để Nhận Quà",
+  add_on: "Mua Kèm Deal Sốc",
+  gift: "Mua Để Nhận Quà",
   product_discount: "Chương Trình Của Shop",
-  price: "Giá bán",
-  flash_sale: "Flash sale",
-  variation_set: "Phân loại / set",
+  price: "Giá",
+  flash_sale: "Flash Sale Của Shop",
+  variation_set: "Phân loại hàng",
   ads: "Dịch vụ hiển thị",
-  title: "Tiêu đề",
+  title: "Tên sản phẩm",
   cover_image: "Ảnh bìa",
-  description_first_line: "Mô tả",
+  description_first_line: "Mô tả sản phẩm",
   affiliate: "Affiliate / KOL",
   price_display: "Hiển thị giá",
   listing_hide: "Ẩn listing",
@@ -531,7 +531,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
           out.push({ ...vid(r.variationId), [p.mode === "pct" ? "change_pct" : "final_price"]: n });
         }
         if (out.length === 0) return no("Nhập giá mới cho ít nhất một phân loại.");
-        return { problem: null, version: { kind: "price", label: "Đổi giá niêm yết", item_id: id, variations: out } };
+        return { problem: null, version: { kind: "price", label: "Giá", item_id: id, variations: out } };
       }
       const { rows, problem } = varRows(p.rows, p.mode, "discount_pct", ctx.variations);
       if (problem) return no(problem);
@@ -540,7 +540,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       if (!Number.isInteger(units)) return no("Số lượng (suất): nhập số nguyên.");
       const hours = intIn(orDefault(p.slotHours, FORM_DEFAULTS.flashHours), 1, 72, "Số giờ của khung: từ 1 đến 72.");
       if (hours.problem) return no(hours.problem);
-      return { problem: null, version: { kind: "flash_sale", label: "Flash sale", item_id: id, variations: rows, units, ...(p.slotStart ? { slot_start: p.slotStart } : {}), slot_hours: hours.n ?? 2 } };
+      return { problem: null, version: { kind: "flash_sale", label: "Flash Sale Của Shop", item_id: id, variations: rows, units, ...(p.slotStart ? { slot_start: p.slotStart } : {}), slot_hours: hours.n ?? 2 } };
     }
     case "variation_set": {
       const out: Record<string, unknown>[] = [];
@@ -886,7 +886,7 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
           const at = (d: string, h: number | null) => (d ? `${h !== null ? `${String(h).padStart(2, "0")}:00 ` : ""}${dayText(d)}` : "…");
           add("dates", "Thời gian chạy Combo", `${at(s_(v["start"]), sh)}–${at(s_(v["end"]), eh)}`);
         } else dates();
-        return { type: "Combo khuyến mãi", facts };
+        return { type: "Combo Khuyến Mãi", facts };
       }
       // a combo saved as a fixed basket (before P97): kept readable
       const items = Array.isArray(v["items"]) ? (v["items"] as Record<string, unknown>[]) : [];
@@ -971,7 +971,7 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
         const pack = n_(r["pack_count"]);
         add(`n:${s_(r["name"])}`, s_(r["name"]), `${vnd(n_(r["price"]))}${pack !== null ? ` · ${fmt(pack)} cái` : ""}`);
       }
-      return { type: "Phân loại / set", facts };
+      return { type: "Phân loại hàng", facts };
     }
     case "ads": {
       const lever = s_(v["lever"]);
@@ -992,10 +992,10 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
     }
     case "title":
       add("text", "Tiêu đề", s_(v["title"]));
-      return { type: "Tiêu đề", facts };
+      return { type: "Tên sản phẩm", facts };
     case "description_first_line":
       add("text", "Dòng đầu mô tả", s_(v["first_line"]));
-      return { type: "Mô tả", facts };
+      return { type: "Mô tả sản phẩm", facts };
     case "cover_image": {
       const b = v["banner"] as BannerSpec | undefined;
       if (b && Array.isArray(b.banners)) {

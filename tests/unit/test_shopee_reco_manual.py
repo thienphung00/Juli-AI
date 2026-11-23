@@ -209,7 +209,7 @@ async def test_a_combo_card_is_built_by_the_card_builder_with_the_lift_model(sho
     assert c["aov_combo"] == c["buyer_pays"] and c["aov_shop_now"] is not None
     assert card["predicted"]["lift"]["metric"] == "aov"
     assert set(card["scope"]["product_ids"]) == {"1001", "1002"}
-    assert card["title"].startswith("Combo nhiều sản phẩm — ")
+    assert card["title"].startswith("Combo Khuyến Mãi — ")
     assert card["execution_sheet"]["steps"] and card["floor"]["ok"] is (not c["breaches"])
 
 

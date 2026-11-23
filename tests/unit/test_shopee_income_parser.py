@@ -363,3 +363,29 @@ def test_a_month_is_split_into_posts_of_at_most_a_thousand_orders(tmp_path):
     write_income(tmp_path, orders, fees=[])
     parsed = parse.parse_folder(tmp_path, order_ref_key=KEY)
     assert [len(p.body["rows"]) for p in parsed.posts] == [1000, 1]
+
+
+NEW_TOPUP = "Phí DVHT Nạp Tiền Tự Động (từ doanh thu đơn hàng)"
+OLD_TOPUP = "Phí dịch vụ hiển thị NTTD (từ doanh thu đơn hàng)"
+
+
+def test_the_renamed_ads_topup_column_loads_into_the_same_field(tmp_path):
+    """E80: Seller Centre's new header of the ads top-up taken from order revenue."""
+    header = [NEW_TOPUP if h == OLD_TOPUP else h for h in HEADER]
+    orders = [
+        order_row(
+            A,
+            **{"Giá sản phẩm": 100000, NEW_TOPUP: -3000, "Tổng tiền đã thanh toán": 97000},
+        )
+    ]
+    write_income(tmp_path, orders, fees=[(A, 0, 0)], header=header)
+    read = income.read_income(next(tmp_path.glob("Income*")), KEY)
+    assert _row(read, A)["fee_nttd"] == 3000
+    assert read.unreconciled == 0
+
+
+def test_the_old_ads_topup_header_still_loads(tmp_path):
+    orders = [order_row(A, **{"Giá sản phẩm": 100000, OLD_TOPUP: -3000})]
+    write_income(tmp_path, orders, fees=[(A, 0, 0)])
+    read = income.read_income(next(tmp_path.glob("Income*")), KEY)
+    assert _row(read, A)["fee_nttd"] == 3000
