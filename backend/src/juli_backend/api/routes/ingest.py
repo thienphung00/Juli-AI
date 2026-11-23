@@ -82,8 +82,9 @@ async def get_ingest_principal(
     session: AsyncSession = Depends(get_session),
 ) -> ingest_service.IngestPrincipal:
     """The live ingest token in ``Authorization: Bearer``, or 401. A Connector older than the
-    minimum version gets 426 ``connector_upgrade_required`` before anything is written; one that
-    names no version is let through."""
+    minimum version gets 426 ``connector_upgrade_required`` before anything is written, and so
+    does a Connector-paired token whose request names no version; a loader-script token that
+    names none is let through (C5a)."""
     scheme, _, token = (authorization or "").partition(" ")
     if scheme.lower() != "bearer" or not token.strip():
         raise _error(status.HTTP_401_UNAUTHORIZED, "missing_token")
@@ -92,7 +93,8 @@ async def get_ingest_principal(
         await session.rollback()
         raise _error(status.HTTP_401_UNAUTHORIZED, "invalid_token")
     await _rate_limited(f"shop:{principal.shop_id}", ingest_service.shop_limit())
-    if ingest_service.min_version.is_too_old(await _declared_version(request, x_connector_version)):
+    declared = await _declared_version(request, x_connector_version)
+    if ingest_service.min_version.refuses(declared, from_connector=principal.from_connector):
         await session.rollback()
         raise _error(
             status.HTTP_426_UPGRADE_REQUIRED,
