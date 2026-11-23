@@ -286,13 +286,28 @@ def _combo_tiers(inputs: dict[str, Any]) -> tuple[str, list[dict[str, int]]] | N
     return (dtype, tiers) if qtys == sorted(set(qtys)) else None
 
 
+def _hm(value: Any, limit: int, default: int) -> int:
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return default
+    return n if 0 <= n < limit else default
+
+
 def _combo_window(inputs: dict[str, Any], now: datetime) -> tuple[str, str]:
-    """The card's dates (``YYYY-MM-DD``) as Seller Centre's pickers show them: from 00:00 of the
-    start to 23:59 of the end. Anything missing, past or reversed becomes the default window."""
+    """The card's dates (``YYYY-MM-DD``) as Seller Centre's pickers show them: the start hour /
+    minute (default 00:00) to the end hour / minute (default 23:59). Anything missing, past or
+    reversed becomes the default window."""
     floor_start, default_end = voucher_window(now, config.VOUCHER_DAYS)
     try:
-        start = datetime.fromisoformat(str(inputs.get("start"))).replace(hour=0, minute=0)
-        end = datetime.fromisoformat(str(inputs.get("end"))).replace(hour=23, minute=59)
+        start = datetime.fromisoformat(str(inputs.get("start"))).replace(
+            hour=_hm(inputs.get("start_hour"), 24, 0),
+            minute=_hm(inputs.get("start_minute"), 60, 0),
+        )
+        end = datetime.fromisoformat(str(inputs.get("end"))).replace(
+            hour=_hm(inputs.get("end_hour"), 24, 23),
+            minute=_hm(inputs.get("end_minute"), 60, 59 if inputs.get("end_hour") is None else 0),
+        )
     except ValueError:
         return floor_start, default_end
     earliest = datetime.strptime(floor_start, "%H:%M %d-%m-%Y")
@@ -1079,7 +1094,37 @@ async def build_jobs(
         await _promo_jobs(
             session, shop_id, p.code, card, version, now, kind, given, scope_items, job
         )
+    if kind in ("voucher", "combo"):
+        await _add_product_names(session, shop_id, jobs)
     return jobs
+
+
+async def product_names_of(
+    session: AsyncSession | None, shop_id: uuid.UUID, ids: list[str]
+) -> list[str | None]:
+    """The catalogue name of each product id (same length and order; ``None`` when unknown)."""
+    if session is None or not ids:
+        return [None] * len(ids)
+    from juli_backend.models.platform_data import PlatformItem
+
+    names: dict[str, str] = {}
+    for row in await session.scalars(
+        select(PlatformItem).where(PlatformItem.shop_id == shop_id, PlatformItem.item_id.in_(ids))
+    ):
+        if row.name and row.item_id not in names:
+            names[row.item_id] = str(row.name)
+    return [names.get(i) for i in ids]
+
+
+async def _add_product_names(
+    session: AsyncSession | None, shop_id: uuid.UUID, jobs: list[dict[str, Any]]
+) -> None:
+    """E111: the Connector types the name into Shopee's product picker (it searches by name) and
+    highlights the row whose "Mã: <id>" matches: ``product_names`` lines up with ``product_ids``."""
+    for j in jobs:
+        ids = list((j.get("payload") or {}).get("product_ids") or [])
+        if ids:
+            j["payload"]["product_names"] = await product_names_of(session, shop_id, ids)
 
 
 _PROMO_KINDS = (
@@ -1538,7 +1583,7 @@ async def report(
             raise ProposalError(ERROR_JOB_LEASED, 409)
         j.claimed_by_token_id = token_id
         j.lease_until = moment + FILL_LEASE
-    if captured_ref is not None and not _REF.match(captured_ref):
+    if captured_ref is not None and not re.fullmatch(r"\d{1,20}", captured_ref):  # K2: Shopee's id
         raise ProposalError(ERROR_JOB_BAD, 422)
     allowed = set(_NEXT.get(j.status, set()))
     if j.kind == "readback" and j.status in (STATUS_QUEUED, STATUS_OPENED):

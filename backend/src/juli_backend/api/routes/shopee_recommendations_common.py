@@ -48,6 +48,10 @@ class ExecutedBody(BaseModel):
     executed_at: datetime | None = None
     #: the voucher's id in Seller Centre after creating it (needed to read the voucher back)
     voucher_id: str | None = Field(default=None, max_length=64)
+    #: K1: Shopee's numeric id of the saved object (a non-digit value is taken as ``code``)
+    id: str | None = Field(default=None, max_length=64)
+    #: K1: the code the person typed (a voucher code, with or without the shop prefix)
+    code: str | None = Field(default=None, max_length=64)
     evidence_ref: str | None = Field(default=None, max_length=500)
 
 

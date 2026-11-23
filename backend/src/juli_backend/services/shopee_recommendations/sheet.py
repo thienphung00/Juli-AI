@@ -55,7 +55,14 @@ def _day_text(raw: Any) -> str | None:
 def _period(inputs: dict[str, Any]) -> str | None:
     """The card's own dates as ``dd/mm/yyyy – dd/mm/yyyy``; None when it has none."""
     start, end = _day_text(inputs.get("start")), _day_text(inputs.get("end"))
-    return f"{start} – {end}" if start and end else None
+    if not (start and end):
+        return None
+    for side in ("start", "end"):  # the hour (and minute) the combo form carries
+        hour = inputs.get(f"{side}_hour")
+        if hour is not None:
+            at = f" {int(hour):02d}:{int(inputs.get(f'{side}_minute') or 0):02d}"
+            start, end = (start + at, end) if side == "start" else (start, end + at)
+    return f"{start} – {end}"
 
 
 def _start_text(inputs: dict[str, Any]) -> str:
