@@ -15,6 +15,7 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 import pytest_asyncio
@@ -24,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from juli_backend.core.config.runtime import async_database_url
 from juli_backend.models.shop_proposals import ShopProposal
 from juli_backend.models.shopee_metrics import ShopeeShopMetricsDaily
+from juli_backend.models.shopee_profit import ShopeeOrderIncome
 from juli_backend.models.stock_alert import ShopeeStockHistory
 from juli_backend.services.analytics_agent.cards_service import ServiceCardEngine
 from juli_backend.services.analytics_agent.chains import run_chain
@@ -297,3 +299,44 @@ async def test_entity_readers_run_on_the_real_schema_and_return_their_shapes(wor
         assert {"key", "name", "spend", "gmv", "roas", "break_even", "profit_after_ads"} <= set(c)
     p = await d.product_profit("1001", a, b)
     assert p is None or {"profit", "margin_pct", "coverage_pct", "gmv"} <= set(p)
+
+
+async def test_voucher_income_counts_only_income_rows_in_the_window(world: Any) -> None:
+    """`order_settlements` (the stored per-order income) filtered on `ordered_on`: voucher orders
+    are rows with seller_voucher_borne > 0, the cost is the sum, `income_to` the last order day
+    with an income row; a window with no income row is "no rows", never 0."""
+    sid, f = world
+
+    def row(ref: str, day: date, borne: str | None) -> ShopeeOrderIncome:
+        return ShopeeOrderIncome(
+            shop_id=sid,
+            platform="shopee",
+            order_ref=ref,
+            ordered_on=day,
+            seller_voucher_borne=None if borne is None else Decimal(borne),
+            source="file",
+            source_rank=3,
+            source_version="seller-centre-xlsx-1",
+        )
+
+    async with f() as s:
+        s.add_all(
+            [
+                row("SYN-INC-1", date(2026, 10, 2), "5000"),
+                row("SYN-INC-2", date(2026, 10, 3), "3000"),
+                row("SYN-INC-3", date(2026, 10, 4), "0"),  # an income row with no voucher
+                row("SYN-INC-4", date(2026, 10, 6), None),  # the export did not state it
+                row("SYN-INC-5", date(2026, 10, 20), "9000"),  # outside the window
+            ]
+        )
+        await s.commit()
+    d = ServiceData(f, sid)
+    got = await d.voucher_income(CUR_END - timedelta(days=6), CUR_END)
+    assert got["rows"] == 4  # the 20/10 row is outside
+    assert got["orders"] == 2  # only seller_voucher_borne > 0
+    assert got["cost"] == Decimal("8000")  # NULL adds nothing, the outside row is not in
+    assert got["income_to"] == date(2026, 10, 6)
+    assert got["gmv"] == 0  # synthetic refs match no order line
+    empty = await d.voucher_income(date(2026, 9, 1), date(2026, 9, 7))
+    assert empty["rows"] == 0 and empty["orders"] == 0 and empty["income_to"] is None
+    assert empty["cost"] is None  # no income row: not 0
