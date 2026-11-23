@@ -41,7 +41,8 @@ function hidden(el: Element): boolean {
 }
 
 const inPanel = (el: Element) => !!el.closest(`#${PANEL_ID}`);
-const usable = (el: Element) => !inPanel(el) && !hidden(el);
+/** Shown on the page and outside Juli's panel. */
+export const usable = (el: Element) => !inPanel(el) && !hidden(el);
 
 /** Why a control must never be highlighted as a step to press for the person (a save / confirm / send). */
 export function unsafePress(el: Element): string | null {

@@ -163,7 +163,8 @@ describe("F2.2 the voucher form", () => {
 });
 
 describe("F2.3 the new voucher's id after the person's save", () => {
-  it("sees the redirect to the list, says 'Đã lưu — bấm Đã làm', and reports captured with the id from the row's edit link", async () => {
+  // a2 K2: `saved` itself carries the id (captured_ref), read from the row the save landed on
+  it("sees the redirect to the list, says 'Đã lưu — bấm Đã làm', and reports saved with the id from the row's edit link", async () => {
     loadPage("voucher-live.html");
     listed("chosen");
     const h = harnessFor(productVoucher(asDrawn));
@@ -178,7 +179,7 @@ describe("F2.3 the new voucher's id after the person's save", () => {
       }
     };
     await runFillJob(h.deps);
-    expect(h.reports.map((r) => r[1])).toEqual(["opened", "filled", "saved", "captured"]);
+    expect(h.reports.map((r) => r[1])).toEqual(["opened", "filled", "saved"]);
     expect(h.refs.at(-1)).toBe("7700000000000001");
     expect(panelText()).toContain(BANNER_SAVED);
     expect(wire.forbidden).toEqual([]);
