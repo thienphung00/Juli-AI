@@ -324,6 +324,11 @@ export function findPressable(env: Env, text: string, within?: Element): HTMLEle
   return inner.length === 1 ? (inner[0] as HTMLElement) : null;
 }
 
+/** The page's buttons whose text matches `text` (found to READ their state, never pressed). */
+export function buttonsMatching(doc: Document, text: RegExp): HTMLButtonElement[] {
+  return Array.from(doc.querySelectorAll<HTMLButtonElement>("button,[role='button']")).filter((b) => !inPanel(b) && text.test(b.textContent ?? ""));
+}
+
 // -- product picker (modal) ----------------------------------------------------------------
 
 /** The open dialog that holds a search box (the product picker), or null. */

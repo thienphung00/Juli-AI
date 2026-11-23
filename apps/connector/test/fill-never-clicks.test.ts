@@ -147,6 +147,7 @@ describe("the source never presses anything", () => {
       "platforms/shopee/fill/job-run.ts",
       "platforms/shopee/fill/job-types.ts",
       "platforms/shopee/fill/labels.ts",
+      "platforms/shopee/fill/promos.ts",
       "platforms/shopee/fill/revert.ts",
       "platforms/shopee/fill/run.ts",
       "platforms/shopee/fill/saved.ts",

@@ -11,6 +11,7 @@ import type { CurrentRow, Env, FillOutcome } from "../../../core/fill/form";
 import { findControl, normalizeLabel } from "../../../core/fill/locate";
 import { readValue } from "../../../core/fill/write";
 import { controlWithText, holdsId } from "./controls";
+import { markProgrammeEnd, PROGRAMME_END_TODO, programmeRow, slotRowText } from "./promos";
 import type { EndTarget, FillJob } from "./job-types";
 
 export const END_TODO = "Bấm Kết thúc (hoặc Xóa) để hoàn tác";
@@ -55,7 +56,34 @@ export function endControl(row: Element): HTMLElement | null {
   return controlWithText(row, END_TEXTS);
 }
 
-const endTargetOf = (job: FillJob): EndTarget | null => (job.payload.kind === "voucher_end" || job.payload.kind === "combo_end" ? job.payload.end : null);
+const endTargetOf = (job: FillJob): EndTarget | null =>
+  job.payload.kind === "voucher_end" || job.payload.kind === "combo_end" || job.payload.kind === "discount_end" || job.payload.kind === "flash_sale_end" || job.payload.kind === "deal_end"
+    ? job.payload.end
+    : null;
+
+const PROGRAMME_WHAT: Record<string, string> = { discount_end: "Chương Trình Của Shop", flash_sale_end: "Flash Sale Của Shop", deal_end: "Deal Sốc" };
+
+/** The list row of a programme: by id, by its name (a leaf), or a Flash Sale slot's day and time. */
+function programmeRowOf(doc: Document, end: EndTarget): HTMLElement | null {
+  return programmeRow(doc, end, listRows(doc), (r) => leafTexts(r).includes(normalizeLabel(end.name ?? "")));
+}
+
+/**
+ * batch-1123-a F: the undo of a Chương Trình Của Shop / Flash Sale / Deal Sốc. The row's Kết thúc /
+ * Xóa is highlighted, else its "Thêm" menu and then the menu's "Kết thúc". Presses nothing.
+ */
+export async function fillProgrammeEnd(env: Env, job: FillJob): Promise<FillOutcome> {
+  const end = endTargetOf(job);
+  const what = PROGRAMME_WHAT[job.kind] ?? "chương trình";
+  const label = `Dòng của ${what} ${end?.name ?? (end?.slot ? slotRowText(end.slot) : end?.id ?? "")}`.trim();
+  const row = end ? await waitFor(env, () => programmeRowOf(env.doc, end), FILL_WAIT_MS) : null;
+  if (!row) return { steps: [{ label, ok: false, note: END_NO_ROW }], todo: [], notes: [END_NOTE] };
+  row.scrollIntoView?.({ block: "center" });
+  const marked = markProgrammeEnd(env, row);
+  if (!marked) return { steps: [{ label, ok: ENDED.test(row.textContent ?? ""), note: END_NO_CONTROL }], todo: [], notes: [END_NOTE] };
+  row.setAttribute(END_MARK, "1");
+  return { steps: [{ label: `${label}: nút «${marked}» đã được tô hồng`, ok: true }], todo: [PROGRAMME_END_TODO], notes: [END_NOTE] };
+}
 
 async function waitFor<T>(env: Env, find: () => T | null, ms: number): Promise<T | null> {
   const until = env.now() + ms;
@@ -102,7 +130,8 @@ export function endedNow(doc: Document, job: FillJob): boolean {
     (el) => !el.closest("[hidden]") && ENDED_TOAST.test(el.textContent ?? ""),
   );
   if (toast) return true;
-  const row = listRowOf(doc, end);
+  const programme = job.kind === "discount_end" || job.kind === "flash_sale_end" || job.kind === "deal_end";
+  const row = programme ? programmeRowOf(doc, end) : listRowOf(doc, end);
   return !!row && ENDED.test(row.textContent ?? "") && !endControl(row);
 }
 
@@ -172,7 +201,18 @@ export function savedOn(doc: Document, loc: { pathname: string }, job: FillJob):
       return FILL_JOB_PAGES.bundle_list.test(loc.pathname);
     case "voucher_end":
     case "combo_end":
+    case "discount_end":
+    case "flash_sale_end":
+    case "deal_end":
       return endedNow(doc, job);
+    // batch-1123-a F: the person's Xác nhận lands on the programme's list (assumed, E-case for the
+    // first E2E run); a Deal Sốc's step-1 Lưu does not count, only the list after Xác nhận
+    case "product_discount":
+    case "add_on":
+    case "gift":
+      return FILL_JOB_PAGES.discount_list.test(loc.pathname) || /^\/portal\/marketing\/add-on-deal\/list/.test(loc.pathname);
+    case "flash_sale":
+      return FILL_JOB_PAGES.flash_sale_list.test(loc.pathname);
     case "readback":
       return false;
     default:
