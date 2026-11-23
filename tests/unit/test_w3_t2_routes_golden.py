@@ -294,3 +294,25 @@ async def test_a_shopee_shop_keeps_its_profit_margin_and_ad_figures(session):
     assert matrix["products"][0]["profit"]["break_even_roas"] is not None
     assert split["kpis"]["profit"] is not None and split["kpis"]["roi"] is not None
     assert "unavailable" not in overview and "unavailable" not in split
+
+
+FLOOR_FIGURES = ("absolute", "operating", "max_discount_pct", "max_discount_amount", "breach")
+
+
+async def test_the_product_floor_and_per_unit_ads_are_none_on_tiktok(client):
+    """The price floor folds in the ads rate (zero when unknown): never a before-ads floor."""
+    body = (await client.get(f"{DEMO}/products/1001", params=PARAMS)).json()
+    skus = body["cost_and_floor"]["skus"]
+    assert skus
+    for sku in skus:
+        assert (sku.get("waterfall_per_unit") or {}).get("ads") is None
+        floor = sku.get("floor")
+        if floor is not None:
+            for key in (
+                "absolute",
+                "operating",
+                "max_discount_pct",
+                "max_discount_amount",
+                "breach",
+            ):
+                assert floor[key] is None, (key, floor[key])

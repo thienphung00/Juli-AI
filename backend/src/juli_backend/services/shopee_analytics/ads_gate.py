@@ -107,7 +107,12 @@ SPECS: dict[str, Spec] = {
         ("cost_and_floor.skus[].final_margin_rates", ("ads_pct",)),
         (
             "cost_and_floor.skus[].waterfall_per_unit",
-            ("contribution_before_ads", "profit", "margin_pct"),
+            ("ads", "contribution_before_ads", "profit", "margin_pct"),
+        ),
+        # The price floor folds in the ads rate (ZERO when unknown = a before-ads floor).
+        (
+            "cost_and_floor.skus[].floor",
+            ("absolute", "operating", "max_discount_pct", "max_discount_amount", "breach"),
         ),
     ),
     "channel_split": (
