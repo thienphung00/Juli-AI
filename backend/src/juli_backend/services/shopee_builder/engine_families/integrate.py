@@ -235,7 +235,15 @@ def _float(x: Decimal | None) -> float | None:
 
 
 def seed_of(payload: Any) -> int:
-    """A stable seed from a JSON-able payload (the version spec): same version, same numbers."""
+    """A stable seed from a JSON-able payload (the version spec): same version, same numbers.
+    The combo's optional minutes are left out while unset, so a spec that never carried them keeps
+    the seed (and the numbers) it had before the fields existed."""
+    if isinstance(payload, dict):
+        payload = {
+            k: v
+            for k, v in payload.items()
+            if not (k in ("start_minute", "end_minute") and v is None)
+        }
     text = json.dumps(payload, sort_keys=True, default=str, ensure_ascii=False)
     return int(hashlib.sha256(text.encode()).hexdigest()[:12], 16)
 

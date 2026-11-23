@@ -385,15 +385,14 @@ async def test_marking_done_writes_executed_events_with_the_change_for_the_read_
     assert (await seller.post(f"{DEMO}/{ids[2]}/executed", json={})).status_code == 409
 
 
-async def test_a_voucher_needs_its_id_to_be_read_back_and_a_price_change_is_a_price_event(
+async def test_a_voucher_is_done_by_id_or_code_and_a_price_change_is_a_price_event(
     session, shop, seller
 ):
     seeded, _, ids = shop
     await _publish(session, seeded)
     for i in (ids[0], ids[1]):
         await seller.post(f"{DEMO}/{i}/approve", json={})
-    assert (await seller.post(f"{DEMO}/{ids[1]}/executed", json={})).status_code == 422
-    await _fresh(session, seeded)
+    # S-E118: no id and no code is accepted too (a read-back by the card's name is queued)
     ok = await seller.post(f"{DEMO}/{ids[1]}/executed", json={"voucher_id": "9001"})
     assert ok.status_code == 201
     (v,) = await _events(session, seeded.shop_id, ids[1], "executed")

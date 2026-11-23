@@ -215,6 +215,19 @@ def _own(v: dict[str, Any]) -> dict[str, Any]:
     return (v.get("result") or {}).get("own") or {}
 
 
+#: kinds whose change is text or an image, not a number: they carry no estimate by nature
+NO_NUMBER_KINDS = frozenset({"title", "cover_image", "description_first_line"})
+
+
+def estimable(card: dict[str, Any], kind: str) -> bool:
+    """A draft needs the builder's numbers: at least one estimable version. A card with no
+    versions, or a text/image kind, has none to show and is not refused for it."""
+    vers = card.get("versions") or []
+    if not vers or kind in NO_NUMBER_KINDS:
+        return True
+    return any((v.get("result") or {}).get("estimable") for v in vers)
+
+
 def render_versions(engine_card: dict[str, Any], recommended: str | None) -> list[dict[str, Any]]:
     out = []
     for v in engine_card.get("versions") or []:
@@ -314,6 +327,9 @@ async def _engine_and_overlap(
         }.get(eng.get("reason", ""), "Juli chưa tạo được phương án cho đòn bẩy này.")
         return {}, (reason, None)
     card: dict[str, Any] = eng["card"]
+    if not estimable(card, kind):  # J9: a draft whose every option reads "Chưa đủ dữ liệu"
+        out.gates["G3"] = False
+        return {}, ("Juli chưa ước tính được loại thẻ này nên chưa tạo thẻ nháp.", None)
     open_cards = await data.open_cards()
     exact = [
         c

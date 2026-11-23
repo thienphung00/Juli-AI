@@ -426,6 +426,15 @@ async def run_create(
         )
         return "refused"
     card = built["card"]
+    custom = s.card_type in ("voucher", "product_discount")  # the seller's own numbers
+    if not custom and not cardstage.estimable(card, kind):
+        await emit(
+            {
+                "type": "no_card",
+                "reason_vi": "Juli chưa ước tính được loại thẻ này nên chưa tạo thẻ nháp.",
+            }
+        )
+        return "refused"
     for c in await data.open_cards():
         if _same_change(c, kind, s.item_id, card.get("title")) == "same":
             await emit(

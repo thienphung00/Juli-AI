@@ -118,7 +118,7 @@ def test_readback_specs_name_the_page_and_dataset():
     assert t["target"] == {"item_id": "9"}
     v = revert_fill._readback_of_change("voucher", {"voucher_id": "5"})
     assert v["key"] == "readback:voucher:5" and v["datasets"] == ["voucher_list"]
-    assert revert_fill._readback_of_change("combo", {"name": "x"}) is None
+    assert revert_fill._readback_of_change("combo", {"name": "x"}) is None  # no combo reader
 
 
 # ------------------------------------------------------------------------------ DB flow
@@ -526,3 +526,49 @@ async def test_the_voucher_payload_carries_the_smart_flag_default_off(session, s
     card["smart"] = True
     (job,) = await fill_queue.build_jobs(session, seeded.shop_id, p, card, 1, None, NOW)
     assert job["payload"]["smart"] is True
+
+
+# ------------------------------------------------------------ batch-1123-a2 Track S (K1 / K3 / K4)
+
+
+async def test_a_typed_code_is_kept_as_a_code_and_still_queues_a_readback(session, shop):
+    seeded, ids = shop
+    await _approve(session, seeded, ids[0])
+    await reco.mark_executed(
+        session, seeded.shop_id, ids[0], now=NOW, user_id=seeded.user.id, voucher_id="oryvab12c"
+    )
+    await session.commit()
+    ev = (
+        await session.scalars(
+            select(CardEvent).where(CardEvent.card_id == ids[0], CardEvent.event_type == "executed")
+        )
+    ).one()
+    target = ev.payload["change"]["target"]
+    assert "voucher_id" not in target
+    assert target["voucher_code"] == "ORYVAB12C" and target["code_suffix"] == "AB12C"
+    back = [j for j in await _jobs(session, seeded) if j.kind == "readback"]
+    assert len(back) == 1 and back[0].target["voucher_code"] == "ORYVAB12C"
+    assert back[0].payload["forward_kind"] == "voucher"
+
+
+async def test_marking_done_with_no_id_and_no_code_reads_back_by_the_card_name(session, shop):
+    seeded, ids = shop
+    await _approve(session, seeded, ids[0])
+    await reco.mark_executed(session, seeded.shop_id, ids[0], now=NOW, user_id=seeded.user.id)
+    await session.commit()  # S-E118: no 422 any more
+    (back,) = [j for j in await _jobs(session, seeded) if j.kind == "readback"]
+    assert back.target.get("name")
+
+
+async def test_the_card_detail_carries_the_current_job_and_the_done_button(session, shop):
+    seeded, ids = shop
+    await _approve(session, seeded, ids[0])
+    detail = await reco.card_detail(session, seeded.shop_id, ids[0], audience="seller")
+    assert detail["can_mark_done"] is True
+    job = detail["job"]
+    assert job["role"] == "forward" and job["kind"] == "voucher"
+    assert job["status_label"] == "Chờ điền" and job["open_path"]
+    assert job["readback"] == {"result": None, "diffs": []}
+    listing = await reco.list_cards(session, seeded.shop_id, audience="seller")
+    mine = next(c for c in listing["cards"] if c["id"] == str(ids[0]))
+    assert mine["job"]["job_id"] == job["job_id"] and mine["can_mark_done"] is True

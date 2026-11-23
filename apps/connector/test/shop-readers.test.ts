@@ -443,13 +443,27 @@ describe("per-order income", () => {
     ]);
   });
 
-  it("an order without its final amount yet is skipped (estimate only); all skipped = drift", () => {
+  // a2 C-A10 (prod 23/11): "all skipped = drift" paused order_income for 0.3.32 on orders not final yet
+  it("an order without its final amount yet is skipped (estimate only), never drift; an answer with no income line is", () => {
     const answers = [reply("order_income_components", INCOME("1AAAAAA", 100), { orderId: "1AAAAAA" }), reply("order_income_components", INCOME("2BBBBBB", null), { orderId: "2BBBBBB" })];
     expect(mapOrderIncome(answers, NOW).rows).toHaveLength(1);
     const none = mapOrderIncome([answers[1]!], NOW);
     expect(none.rows).toEqual([]);
-    expect(none.drift?.missing).toEqual(["components.final_amount"]);
+    expect(none.drift).toBeNull();
+    const reshaped = mapOrderIncome([reply("order_income_components", { code: 0, data: { order_id: "3CCCCCC", breakdown: { total: 1 } } }, { orderId: "3CCCCCC" })], NOW);
+    expect(reshaped.drift?.missing).toEqual(["components"]);
     expect(mapOrderIncome([], NOW).rows).toEqual([]);
+  });
+
+  it("a2 C-A10: the reader skips a not-final order, keeps going and says income_not_final", async () => {
+    const template: Template = { query: { order_id: "2611071ABC" }, lastResponse: INCOME("2611071ABC", null) };
+    const h = harness({ order_income_components: template }, (request) => ({ body: INCOME(new URL(request.url).searchParams.get("order_id")!, 90_000) }));
+    const outcome = await runReaderJob({ id: "order_income", orderIds: ["2611071ABC", "2611072DEF"] }, h.env);
+    expect(outcome).toMatchObject({ status: "done", detail: "income_not_final" });
+    expect(h.sent).toHaveLength(1);
+    const [income] = mapReaderJob({ id: "order_income" }, outcome.responses, NOW);
+    expect(income).toMatchObject({ drift: null });
+    expect(income!.rows.map((row) => row[RAW_ORDER_ID])).toEqual(["2611072DEF"]);
   });
 
   it("amounts sent x100 000 are read from their size", () => {

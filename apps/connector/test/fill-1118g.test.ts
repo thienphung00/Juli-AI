@@ -163,7 +163,8 @@ describe("F2.2 the voucher form", () => {
 });
 
 describe("F2.3 the new voucher's id after the person's save", () => {
-  it("sees the redirect to the list, says 'Đã lưu — bấm Đã làm', and reports captured with the id from the row's edit link", async () => {
+  // a2 K2: `saved` itself carries the id (captured_ref), read from the row the save landed on
+  it("sees the redirect to the list, says 'Đã lưu — bấm Đã làm', and reports saved with the id from the row's edit link", async () => {
     loadPage("voucher-live.html");
     listed("chosen");
     const h = harnessFor(productVoucher(asDrawn));
@@ -178,7 +179,7 @@ describe("F2.3 the new voucher's id after the person's save", () => {
       }
     };
     await runFillJob(h.deps);
-    expect(h.reports.map((r) => r[1])).toEqual(["opened", "filled", "saved", "captured"]);
+    expect(h.reports.map((r) => r[1])).toEqual(["opened", "filled", "saved"]);
     expect(h.refs.at(-1)).toBe("7700000000000001");
     expect(panelText()).toContain(BANNER_SAVED);
     expect(wire.forbidden).toEqual([]);
@@ -215,7 +216,7 @@ describe("F2.4 the combo form (live shape)", () => {
     afterPanel(h, () => document.getElementById("picker")!.removeAttribute("hidden"));
     await runFillJob(h.deps);
     expect(input("psearch").value).toBe("1001");
-    expect(panelText()).toContain("tìm theo Mã sản phẩm 1001");
+    expect(panelText()).toContain("đổi ô tìm sang «Mã sản phẩm», tìm 1001"); // a2 C-E111
     expect(document.getElementById("combo-products")!.textContent).toBe("");
   });
 });
@@ -413,7 +414,8 @@ describe("F3.1 revert jobs (contract B)", () => {
     expect(parseFillJob(voucherEnd())).toMatchObject({ kind: "voucher_end", mode: "revert", payload: { end: { id: "7700000000000001", code: "SHOPVGBB48" } } });
     expect(parseFillJob(voucherEnd({ mode: undefined }))).toBeNull();
     expect(parseFillJob(voucherEnd({ open_path: "/portal/marketing/vouchers/new" }))).toBeNull();
-    expect(parseFillJob(voucherEnd({ voucher_id: "x1", code: undefined, name: undefined }))).toBeNull();
+    // a2 C-K1 (E115): a code-like voucher_id ("x1") is now read as the code; only a non-code id is refused
+    expect(parseFillJob(voucherEnd({ voucher_id: "x-1", code: undefined, name: undefined }))).toBeNull();
     expect(parseFillJob(voucherJob({ mode: "revert" }))).toBeNull();
     expect(parseFillJob(affiliateJob({ mode: "revert" }))).toMatchObject({ mode: "revert" });
   });

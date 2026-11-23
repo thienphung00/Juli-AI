@@ -41,7 +41,7 @@ describe("Connector điền sẵn · danh sách trang", () => {
     const list = await screen.findByTestId("sd-fill-jobs");
     expect(f).toHaveBeenCalledWith("/v1/demo/shopee/fill-jobs?card_id=card-voucher", expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer t" }) }));
     const first = within(list).getByTestId("sd-fill-job-6f1c9a3e-1d2b-4c5d-8e7f-0a1b2c3d4e5f");
-    expect(first).toHaveTextContent("Tạo voucher");
+    expect(first).toHaveTextContent("Tạo Mã Giảm Giá");
     expect(first).toHaveTextContent("Chờ mở trang");
     // ONE page button, "Mở và điền": it opens the first open job for the Connector (only the job id in the address)
     const open = screen.getByTestId("sd-page-open");
@@ -50,7 +50,7 @@ describe("Connector điền sẵn · danh sách trang", () => {
     expect(open).toHaveAttribute("target", "_blank");
     expect(screen.queryByTestId("sd-fill-open")).toBeNull();
     const second = within(list).getByTestId("sd-fill-job-7f1c9a3e-1d2b-4c5d-8e7f-0a1b2c3d4e5f");
-    expect(second).toHaveTextContent("Sửa quảng cáo · Nhóm A");
+    expect(second).toHaveTextContent("Sửa Dịch vụ hiển thị · Nhóm A");
     expect(screen.getAllByText(/Juli không bấm Lưu thay bạn/)).toHaveLength(1);
   });
 
@@ -68,7 +68,7 @@ describe("Connector điền sẵn · danh sách trang", () => {
     const done = screen.getByRole("button", { name: "Đã làm" });
     expect(done).toBeEnabled();
     fireEvent.click(done);
-    await waitFor(() => expect(reco.calls.find((c) => c.name === "executed")?.args).toEqual(["card-voucher", { voucherId: null }]));
+    await waitFor(() => expect(reco.calls.find((c) => c.name === "executed")?.args).toEqual(["card-voucher", { id: "88001" }]));
   });
 
   it("without a captured id the voucher id is still typed by hand", async () => {

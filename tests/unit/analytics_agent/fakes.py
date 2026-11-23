@@ -297,6 +297,17 @@ class FakeEntityData(FakeData):
             "cost": sum(r["cost"] for r in sel) if sel or kind == "voucher" else None,
         }
 
+    async def voucher_income(self, a: date, b: date) -> dict[str, Any]:
+        """Synthetic `order_settlements` rows: only days that have an income row count."""
+        rows = [r for r in self.entity.get("voucher", []) if a <= r["day"] <= b]
+        return {
+            "rows": len(rows),
+            "orders": sum(r["orders"] for r in rows),
+            "gmv": sum(r["gmv"] for r in rows),
+            "cost": sum(r["cost"] for r in rows) if rows else None,
+            "income_to": max((r["day"] for r in rows), default=None),
+        }
+
     async def voucher_rows(self, a: date, b: date) -> list[dict[str, Any]]:
         return self.entity.get("voucher_codes", [])
 

@@ -3,7 +3,7 @@
 
 import { FillJobs as CoreFillJobs, type FillJobsDeps as CoreFillJobsDeps, jobUrl as coreJobUrl, senderMatchesJob as coreSenderMatchesJob } from "../../../core/jobs/fill-jobs";
 import { FILL_JOB_PAGES, type ReaderId, SELLER_CENTRE_ORIGIN, TRAFFIC_CHECK, trafficCheckUrl } from "../config";
-import { type FillJob, parseFillJob } from "../fill/job-types";
+import { type FillJob, malformedJobId, parseFillJob } from "../fill/job-types";
 
 export type FillJobsDeps = Omit<CoreFillJobsDeps<FillJob>, "pack">;
 
@@ -30,6 +30,7 @@ export function readbackPages(job: FillJob): ReaderId[] | "unsupported" | null {
 export const SHOPEE_JOBS = {
   origin: SELLER_CENTRE_ORIGIN,
   parseJob: parseFillJob,
+  malformedId: malformedJobId,
   blockedUrl: (url: string | undefined) => (trafficCheckUrl(url) ? TRAFFIC_CHECK : null),
   closeWhenDone: (job: FillJob) => job.kind === "readback",
 } as const;

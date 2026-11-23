@@ -28,6 +28,52 @@ def _fold(text_: str) -> str:
     return "".join(c for c in d if unicodedata.category(c) != "Mn")
 
 
+def merge_campaigns(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One row per campaign: rows with the same key, then rows with the same name (a campaign
+    split over several report segments), are summed; the latest name wins. ROAS and ROAS hoà vốn
+    are the registry's, evaluated on the sums. A campaign with no spend has no row."""
+    from decimal import Decimal
+
+    from juli_backend.services.analytics_agent.registry_reads import (
+        roas_break_even,
+        roas_direct,
+    )
+
+    groups: dict[str, dict[str, Any]] = {}
+    for r in raw:
+        gid = " ".join(str(r["name"]).casefold().split()) or str(r["key"])
+        g = groups.setdefault(
+            gid,
+            {"keys": [], "spend": Decimal(0), "gmv": Decimal(0), "before_ads": Decimal(0)},
+        )
+        g["keys"].append(r["key"])
+        g["name"] = r["name"]
+        g["spend"] += Decimal(str(r["spend"]))
+        g["gmv"] += Decimal(str(r["gmv"]))
+        g["before_ads"] = (
+            None
+            if g["before_ads"] is None or r["before_ads"] is None
+            else g["before_ads"] + Decimal(str(r["before_ads"]))
+        )
+    out = []
+    for g in groups.values():
+        if g["spend"] <= 0:
+            continue
+        before = g["before_ads"]
+        out.append(
+            {
+                "key": g["keys"][0],
+                "name": g["name"],
+                "spend": g["spend"],
+                "gmv": g["gmv"],
+                "roas": roas_direct(g["gmv"], g["spend"]),
+                "break_even": roas_break_even(g["gmv"], before) if before is not None else None,
+                "profit_after_ads": None if before is None else before - g["spend"],
+            }
+        )
+    return out
+
+
 class ServiceData:
     def __init__(self, factory: SessionFactory, shop_id: uuid.UUID) -> None:
         self._f, self.shop = factory, shop_id
@@ -313,6 +359,46 @@ class ServiceData:
             cost = comm[0]["c"]
         return {"orders": row["orders"], "gmv": row["gmv"], "cost": cost}
 
+    async def voucher_income(self, a: date, b: date) -> dict[str, Any]:
+        """Voucher orders and the voucher part of Ưu đãi from the stored per-order income
+        (`order_settlements`, the table the fee / profit loaders read): orders with
+        `seller_voucher_borne > 0`, the sum of `seller_voucher_borne`, and the GMV of those
+        orders from `order_lines`. Only orders that HAVE an income row count (a day without
+        income is not 0); `income_to` is the last order day the income holds in the window."""
+        head = (
+            await self._q(
+                """select count(*) as rows,
+                          count(*) filter (where seller_voucher_borne > 0) as orders,
+                          sum(seller_voucher_borne) as cost,
+                          max(ordered_on) as income_to
+                     from order_settlements
+                    where shop_id = :s and platform = 'shopee' and ordered_on between :a and :b""",
+                a=a,
+                b=b,
+            )
+        )[0]
+        gmv = (
+            await self._q(
+                f"""select coalesce(sum(deal_price * qty), 0) as gmv
+                      from order_lines
+                     where shop_id = :s and platform = 'shopee' and day between :a and :b
+                       and {self._sales_basis()}
+                       and order_ref in (select order_ref from order_settlements
+                                          where shop_id = :s and platform = 'shopee'
+                                            and ordered_on between :a and :b
+                                            and seller_voucher_borne > 0)""",  # nosec B608 — fragments are fixed literals (registry enum)
+                a=a,
+                b=b,
+            )
+        )[0]["gmv"]
+        return {
+            "rows": head["rows"],
+            "orders": head["orders"],
+            "gmv": gmv,
+            "cost": head["cost"],
+            "income_to": head["income_to"],
+        }
+
     async def voucher_rows(self, a: date, b: date) -> list[dict[str, Any]]:
         """One row per voucher code: orders, GMV, the voucher's cost."""
         return await self._q(
@@ -361,16 +447,12 @@ class ServiceData:
     async def campaign_rows(self, a: date, b: date) -> list[dict[str, Any]]:
         """Per ad campaign from the ads report (the analytics view): spend, direct GMV, profit
         before ads read by `shopee_recommendations.evaluate.campaign_profile`; ROAS and ROAS hoà
-        vốn come from the metric registry."""
+        vốn come from the metric registry. One row per campaign (`merge_campaigns`)."""
         from decimal import Decimal
 
-        from juli_backend.services.analytics_agent.registry_reads import (
-            roas_break_even,
-            roas_direct,
-        )
         from juli_backend.services.shopee_recommendations.evaluate import campaign_profile
 
-        out: list[dict[str, Any]] = []
+        raw: list[dict[str, Any]] = []
         async with self._f() as s:
             try:
                 env = await self._reco_env(s, a, b)
@@ -381,22 +463,21 @@ class ServiceData:
                     prof = campaign_profile(env, c.key)
                     if prof is None:
                         continue
-                    direct = prof["direct_per_day"] * days
-                    before_ads = prof["profit_before_ads_per_day"] * days
-                    out.append(
+                    raw.append(
                         {
                             "key": c.key,
                             "name": c.name or c.key,
                             "spend": c.spend,
-                            "gmv": direct,
-                            "roas": roas_direct(direct, c.spend),
-                            "break_even": roas_break_even(direct, before_ads),
-                            "profit_after_ads": before_ads - c.spend,
+                            "gmv": prof["direct_per_day"] * days,
+                            # NULL is not 0: no contribution rate = profit before ads unknown
+                            "before_ads": prof["profit_before_ads_per_day"] * days
+                            if prof["rate"] is not None
+                            else None,
                         }
                     )
             finally:
                 await s.rollback()
-        return out
+        return merge_campaigns(raw)
 
     async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]:
         """Per day: the shop's ad spend and its summed daily budget (None when a campaign has no

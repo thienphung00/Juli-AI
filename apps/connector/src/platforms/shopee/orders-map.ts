@@ -266,11 +266,15 @@ function collectOrders(responses: ReaderResponse[]): Map<string, CollectedOrder>
       const sn = idOf(order.order_sn);
       const api = idOf(order.order_id);
       const key = sn ?? api;
-      if (key !== undefined && !orders.has(key)) {
+      // a2 C-A2: an order's get_one_order answer replaces its card (it names the combo's lines)
+      if (key !== undefined && (!orders.has(key) || (detail && !orders.get(key)!.__detail))) {
         orders.set(key, { ...order, ...(api !== undefined ? { __api: api } : {}), ...(detail ? { __detail: true } : {}) });
       }
     }
   }
+  // a card keyed by order_id only and its detail keyed by order_sn are one order: the detail stays
+  const detailed = new Set([...orders.values()].filter((o) => o.__detail && o.__api !== undefined).map((o) => o.__api));
+  for (const [key, order] of orders) if (!order.__detail && order.__api !== undefined && detailed.has(order.__api)) orders.delete(key);
   return orders;
 }
 
@@ -499,6 +503,19 @@ const INCOME_LABELS: [RegExp, string][] = [
 ];
 /** The income answer's final amount, under the income call's label or the order page's (0.3.32). */
 const FINAL_AMOUNT = /^(so tien cuoi cung|doanh thu don hang)$/;
+/** a2 C-A10: an income answer (call or page) with its income lines but no final amount yet: the order is not final. */
+export function incomeNotFinal(responses: ReaderResponse[]): boolean {
+  return responses.some((r) => {
+    if (r.endpoint !== "order_income_components" || classify(r.status, r.body) !== "ok") return false;
+    const found = pairs(payloadOf(r.body));
+    return found.length > 0 && !found.some((p) => FINAL_AMOUNT.test(plain(p.label)));
+  });
+}
+
+/** a2 C-A10: the order page's income rows hold the final amount ("Doanh Thu Đơn Hàng"). */
+export function pageIncomeFinal(items: readonly { name: string }[]): boolean {
+  return items.some((i) => FINAL_AMOUNT.test(plain(i.name)));
+}
 /** A cost is stored as a positive amount the seller bore; these are signed as sent. */
 const SIGNED = new Set(["payout", "product_price"]);
 
@@ -569,8 +586,13 @@ export function mapOrderIncome(responses: ReaderResponse[], capturedAt: number):
       row[field] = SIGNED.has(field) ? vnd : Math.abs(vnd);
     }
     if (!("payout" in row)) {
-      if (!drift.missing.includes("components.final_amount")) drift.missing.push("components.final_amount");
-      continue; // "Ước tính" until the order completes: no final amount, nothing to post yet
+      // a2 C-A10 (prod 23/11: drift "components.final_amount" from 0.3.32's income CALL): an answer
+      // that has its income lines but no final amount is an order not final yet (in transit, not
+      // settled): skipped, the reader says `income_not_final`. Drift stops order_income for the
+      // whole version, so it is kept for an answer of another shape: no income line at all.
+      const structural = response.source !== "page" && pairs(payloadOf(response.body)).length === 0;
+      if (structural && !drift.missing.includes("components")) drift.missing.push("components");
+      continue;
     }
     rows.push(row);
   }
@@ -599,6 +621,34 @@ export interface PageItem {
 
 const hasSku = (item: Record<string, unknown>): boolean =>
   [item.item_sku, item.sku, item.model_sku, item.variation_sku].some((v) => typeof v === "string" && v.trim() !== "");
+
+/**
+ * batch-1123-a2 C-A2: the order ids (what get_one_order takes) of card-list orders with a line that
+ * names no SKU (a combo's parent row: posted as `sku:unknown`, 23/11) and no get_one_order answer
+ * yet. The reader reads each with get_one_order, which names the combo's own lines.
+ */
+export function cardOrdersWithoutSku(responses: ReaderResponse[]): string[] {
+  const detailed = new Set<string>();
+  for (const response of responses) {
+    if (response.endpoint !== "order_detail") continue;
+    const order = payloadOf(response.body);
+    const id = isRecord(order) ? idOf(order.order_id) : undefined;
+    if (id) detailed.add(id);
+    if (response.orderId) detailed.add(response.orderId);
+  }
+  const out: string[] = [];
+  for (const response of responses) {
+    if (response.endpoint !== "order_cards" || classify(response.status, response.body) !== "ok") continue;
+    for (const order of findList(payloadOf(response.body), isOrderRecord, 5)?.list ?? []) {
+      const flat = trimOrder(order);
+      const items = Array.isArray(flat.items) ? flat.items.filter(isRecord) : [];
+      const id = idOf(flat.order_id);
+      if (!id || items.length === 0 || linesOf(flat).every(hasSku) || detailed.has(id) || out.includes(id)) continue;
+      out.push(id);
+    }
+  }
+  return out;
+}
 
 /**
  * Orders whose get_one_order answer has a line that names no SKU (a combo's parent line: posted as

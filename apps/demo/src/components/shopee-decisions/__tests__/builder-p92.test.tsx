@@ -122,7 +122,7 @@ describe("P92 · chọn sản phẩm và phân loại", () => {
     expect(within(offer).getByText("AOV")).toHaveClass("p2-m--aov");
     expect(screen.getByTestId("p2-knext")).toBeDisabled();
     fireEvent.click(screen.getByTestId("p2-kind-voucher"));
-    expect(screen.getByTestId("p2-knext")).toHaveTextContent("Tiếp tục với Voucher");
+    expect(screen.getByTestId("p2-knext")).toHaveTextContent("Tiếp tục với Mã Giảm Giá");
   });
 
   it("a product opened from its page skips to the variation picker; 'So sánh phân loại' shows price and margin only", async () => {
@@ -380,7 +380,7 @@ describe("P92 · các loại khác", () => {
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "product_discount", item_id: P_ZIP, variations: [{ variation_id: "v3", discount_pct: 8 }] }));
     fireEvent.click(screen.getByRole("button", { name: "+ Thêm phương án" }));
     chooseKind("price_flash");
-    fireEvent.click(await screen.findByRole("radio", { name: "Flash sale của shop" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Flash Sale Của Shop" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Giảm · Combo 3 hộp" }), { target: { value: "13" } });
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "flash_sale", units: 50, slot_hours: 2 }));
   });

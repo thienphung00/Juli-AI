@@ -76,6 +76,7 @@ Before saying "Juli changed X", check the actor or source field of the row (Conn
 | **Kế hoạch nháp** | the shop's draft plan: cards accepted but not yet executed or sent to the team; their numbers add up there before the plan is confirmed. |
 | **Card origin** | where a card was created: **Tự tạo** = made by hand in the builder; **engine** = the backend rules; **agent** = Juli chat (draft sent with "Gửi vào Đề xuất"); **import** = an outside-Juli file. |
 | **Duplicate card** | a card with the same kind, same target (item / variation / campaign key), same changed field and same target value as one that is open (Đề xuất, Kế hoạch, Thực hiện). It is refused with a Vietnamese reason naming the existing card's code; a finished card or one in Đo lường does not block. |
+| **Shopee card names** | owner-approved Shopee names on every Juli screen (decision #3): **Mã Giảm Giá** (voucher; "· đơn tối thiểu" / "· không đơn tối thiểu"), **Combo Khuyến Mãi**, **Mua Kèm Deal Sốc** / **Mua Để Nhận Quà** (Deal Sốc types), **Chương Trình Của Shop**, **Flash Sale Của Shop** (a price change alone is **Giá**), **Phân loại hàng**, **Tên sản phẩm**, **Ảnh bìa**, **Mô tả sản phẩm**, **Dịch vụ hiển thị**. Import kinds: "Dịch vụ hiển thị · ROAS mục tiêu", "Dịch vụ hiển thị · Xoá sản phẩm khỏi chiến dịch", "Tiếp thị liên kết · Hoa hồng", "Tiếp thị liên kết · Chiến dịch mục tiêu". Stored keys do not change. |
 
 ## Juli Chat terms (batch-1123-a, owner 2026-11-23)
 | Term | Means |

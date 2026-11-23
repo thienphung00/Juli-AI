@@ -298,6 +298,8 @@ async def recommendation_executed(
             executed_at=body.executed_at,
             user_id=user.id,
             voucher_id=voucher_id,
+            code=body.code,
+            object_id=body.id,
             evidence_ref=body.evidence_ref,
             auto_plan=True,
         )

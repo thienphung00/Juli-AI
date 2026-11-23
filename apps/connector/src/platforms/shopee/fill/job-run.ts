@@ -4,7 +4,7 @@ import { type JobDeps as CoreJobDeps, type JobResult, runFillJob as runCoreFillJ
 import { dismissNotices } from "./controls";
 import { JOB_LABELS, SHOPEE_FORMS } from "./forms";
 import type { FillJob } from "./job-types";
-import { captureOn, savedOn } from "./revert";
+import { captureOn, capturesId, savedOn } from "./revert";
 import { TRAFFIC_CHECK } from "../config";
 
 export { TRAFFIC_CHECK, trafficCheckUrl } from "../config";
@@ -26,6 +26,6 @@ export function runFillJob(deps: JobDeps): Promise<JobResult> {
     labels: JOB_LABELS,
     dismiss: dismissNotices,
     blockedOn: trafficCheckPage,
-    saved: { detect: savedOn, capture: captureOn },
+    saved: { detect: savedOn, capture: captureOn, captures: capturesId },
   });
 }

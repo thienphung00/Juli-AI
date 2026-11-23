@@ -426,6 +426,8 @@ async def ops_executed(
                 executed_at=body.executed_at,
                 staff_id=ctx.staff.id,
                 voucher_id=body.voucher_id,
+                code=body.code,
+                object_id=body.id,
                 evidence_ref=body.evidence_ref,
                 auto_plan=True,
             )

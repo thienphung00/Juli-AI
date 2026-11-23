@@ -18,7 +18,12 @@ from juli_backend.services.analytics_agent.chains import (
     metric_value,
 )
 from juli_backend.services.analytics_agent.types import DataPort, LabelTable
-from juli_backend.services.analytics_agent.windows import anchor_for, build_windows, sale_days_vi
+from juli_backend.services.analytics_agent.windows import (
+    anchor_for,
+    build_windows,
+    clip_to_freshness,
+    sale_days_vi,
+)
 
 MISSING = "thiếu dữ liệu"
 
@@ -52,6 +57,7 @@ async def run_lookup(
         named_month=named_month,
         sale_aware=True,
     )
+    w = clip_to_freshness(w, latest)  # no sum past the day the footer names
     out: dict[str, Any] = {
         "type": "data_answer",
         "kind": kind,

@@ -563,6 +563,9 @@ export interface CardDetail extends CardSummary {
   readonly reverted?: { readonly by: string; readonly at: string; readonly note?: string | null } | null;
   /** F3.1: the Connector's revert jobs of an executed card; `ready` once the read-back shows the original value (null: no revert job yet). */
   readonly revert?: { readonly jobs: readonly FillJobRow[]; readonly ready: boolean } | null;
+  /** K3/K4: the card's current job (the revert job while an undo is queued) and whether Đã làm is offered. */
+  readonly job?: import("./card-job").CardJob | null;
+  readonly can_mark_done?: boolean;
 }
 
 export interface RevertFillResult {
@@ -758,6 +761,9 @@ export interface ExecutionCard {
   readonly measure_start: string | null;
   readonly measure_days: number | null;
   readonly open_job: { readonly id: string; readonly open_path: string } | null;
+  /** K3/K4: the card's current job (the revert job while an undo is queued) and whether Đã làm is offered. */
+  readonly job?: import("./card-job").CardJob | null;
+  readonly can_mark_done?: boolean;
   /** UI grill G14: the voucher code the Connector picked up after the seller saved (pre-fills the row). */
   readonly captured_voucher_id?: string | null;
   /** The person confirmed the change was undone in Seller Centre (state `hoan_tac`). */

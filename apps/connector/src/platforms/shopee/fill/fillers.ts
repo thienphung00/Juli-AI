@@ -157,10 +157,10 @@ export function period(env: Env, add: Add, label: string, startsAt: string, ends
   choice(add, end, `Kết thúc: ${endsAt}`, `Chọn ngày kết thúc ${dateText(endsAt)}`, ["ends_at"], PERIOD_NOTE);
 }
 
-export function picked(add: Add, p: PickResult, opener: string, ids: readonly string[]): void {
+export function picked(add: Add, p: PickResult, opener: string, ids: readonly string[], names: Readonly<Record<string, string>> = {}): void {
   if (p.done) add(`Sản phẩm: ${ids.length}/${ids.length} đã chọn`, true, { keys: ["product_ids"] });
   else if (p.reason) add(`Sản phẩm: 0/${ids.length}`, false, { keys: ["product_ids"], note: p.reason });
-  else add(pickStep(opener, ids), false, { keys: ["product_ids"], guide: true });
+  else add(pickStep(opener, ids, names), false, { keys: ["product_ids"], guide: true });
 }
 
 /** A box written now when it is on the page, else once the person's click reveals it. */
@@ -221,7 +221,7 @@ export async function fillVoucher(env: Env, v: VoucherPayload): Promise<FillOutc
   add(`Tổng lượt dùng ${v.usageTotal}`, setRowText(k("usage_total"), L.usageTotal, String(v.usageTotal)), { keys: ["usage_total"] });
   add(`Mỗi người mua ${v.perBuyer} lượt`, setRowText(k("per_buyer"), L.perBuyer, String(v.perBuyer)), { keys: ["per_buyer"] });
   choice(add, chooseRadio(k("display"), L.display, DISPLAY_ALIASES[v.display]), `Hiển thị: ${DISPLAY_OPTION[v.display]}`, `Chọn «${DISPLAY_OPTION[v.display]}» ở «Thiết lập hiển thị»`, ["display"]);
-  if (v.productIds.length > 0) picked(add, pickProducts(k("product_ids"), "Thêm sản phẩm", v.productIds), "Thêm sản phẩm", v.productIds);
+  if (v.productIds.length > 0) picked(add, pickProducts(k("product_ids"), "Thêm sản phẩm", v.productIds, v.productNames), "Thêm sản phẩm", v.productIds, v.productNames);
   return {
     steps,
     todo: [GUIDED_TODO, "Kiểm tra lại các ô được tô hồng, rồi bấm Xác nhận của Shopee để tạo voucher."],
@@ -259,6 +259,17 @@ const COMBO_TIER_TEXT = {
  * "Mua … sản phẩm …" and holds exactly two boxes (the live page, 2026-11-17).
  */
 export function tierRows(doc: Document): HTMLInputElement[][] {
+  // a2 C-E116 (capture c2/01, 23/11): the boxes are named tiers.<i>.minAmount and tiers.<i>.<value>
+  // (discountPercentage in % mode); the names win over the CSS-module classes
+  const named: HTMLInputElement[][] = [];
+  for (let i = 0; i < 20; i += 1) {
+    const qty = doc.querySelector<HTMLInputElement>(`input[name="tiers.${i}.minAmount"]`);
+    const own = new RegExp(`^tiers\\.${i}\\.[A-Za-z]+$`);
+    const value = Array.from(doc.querySelectorAll<HTMLInputElement>(`input[name^="tiers.${i}."]`)).find((el) => el !== qty && own.test(el.name) && !el.disabled && !el.readOnly);
+    if (!qty || !value) break;
+    named.push([qty, value]);
+  }
+  if (named.length > 0) return named;
   // live 2026-11-18: one table row per tier, the text split around the boxes; the boxes carry the
   // CSS-module names minAmount (N) and discountValue / discountInput (X)
   const live = Array.from(doc.querySelectorAll<HTMLElement>("tr,[class*='table-row']"))
@@ -307,7 +318,8 @@ export async function fillCombo(env: Env, c: ComboPayload): Promise<FillOutcome>
       continue;
     }
     if (!asked) {
-      const more = findPressable(env, L.addTier);
+      // capture c2/01: div.eds-react-table-footer > button "Thêm mức ưu đãi" (class `disabled` until the tier above is valid)
+      const more = findPressable(env, L.addTier) ?? addTierButton(env.doc);
       if (more) highlight((more.closest("button") as HTMLElement | null) ?? more);
       asked = true;
     }
@@ -321,9 +333,12 @@ export async function fillCombo(env: Env, c: ComboPayload): Promise<FillOutcome>
     add(`Bấm «${L.addTier}» rồi Juli điền: ${text}`, false, { keys, guide: true });
   }
   if (c.purchaseLimit !== undefined) {
-    add(`Giới hạn đặt hàng: ${c.purchaseLimit}`, setRowText(k("purchase_limit"), L.limit, String(c.purchaseLimit)), { keys: ["purchase_limit"] });
+    // a2 C-E116 (capture c2/01): the box is input[name="usageLimit"] (type numeric); the label is the fallback
+    const box = env.doc.querySelector<HTMLInputElement>('input[name="usageLimit"]');
+    const ok = box ? writeBox(k("purchase_limit"), box, String(c.purchaseLimit)) : setRowText(k("purchase_limit"), L.limit, String(c.purchaseLimit));
+    add(`Giới hạn đặt hàng: ${c.purchaseLimit}`, ok, { keys: ["purchase_limit"] });
   }
-  picked(add, pickProducts(k("product_ids"), L.products, c.productIds), L.products, c.productIds);
+  picked(add, pickProducts(k("product_ids"), L.products, c.productIds, c.productNames), L.products, c.productIds, c.productNames);
   return {
     steps,
     todo: [GUIDED_TODO, "Kiểm tra lại các ô được tô hồng, rồi bấm Xác nhận của Shopee để tạo combo."],
@@ -333,6 +348,12 @@ export async function fillCombo(env: Env, c: ComboPayload): Promise<FillOutcome>
 }
 
 export const TIER_MISSING = "Không thấy dòng «Mua … sản phẩm» của mức này";
+
+/** "Thêm mức ưu đãi" under the tier table (found to highlight, never pressed). */
+function addTierButton(doc: Document): HTMLElement | null {
+  const want = normalizeLabel(COMBO_LABELS.addTier);
+  return Array.from(doc.querySelectorAll<HTMLElement>('[class*="table-footer"] button')).find((b) => normalizeLabel(b.textContent ?? "") === want) ?? null;
+}
 
 // -- ads edit ------------------------------------------------------------------------------
 
