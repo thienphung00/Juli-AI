@@ -35,6 +35,7 @@ from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.shopee_connector import ShopeeConnectorTokenState
 from juli_backend.repositories import utc_now_naive
 from juli_backend.services import ingest as ingest_service
+from juli_backend.services.ingest import read_days
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +182,11 @@ async def get_shop_ingest_status(
     Centre change), the same entries the extension's popup reads with its own token."""
     platform = getattr(shop, "platform", None) or "shopee"
     datasets = await ingest_service.dataset_status(session, shop_id=shop.id, platform=platform)
+    if platform == "shopee":
+        # C2: the newest day held per daily dataset and, while behind, how far the read has got.
+        held = await read_days.progress(session, shop.id, platform)
+        for entry in datasets:
+            entry.update(held.get(entry["dataset"], {}))
     return {"platform": platform, "datasets": datasets}
 
 

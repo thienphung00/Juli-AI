@@ -151,3 +151,47 @@ async def test_flash_sale_days_are_judged_by_their_own_stored_row_not_by_other_p
         "2026-11-16" in sets["flash_sale"]["missing"]
     )  # another promotion type is not a flash read
     assert len(sets["flash_sale"]["missing"]) == 29
+
+
+def test_progress_is_the_newest_day_held_and_the_day_before_the_oldest_hole():
+    """C2: Ops shows the newest day Juli holds and, while the Connector has a hole, "Đang đọc
+    đến dd/mm" = the day before its oldest hole (holes are read oldest first)."""
+    days = read_days.window_days(TODAY)
+    full = set(days)
+    out = read_days.progress_of(
+        {"shop_overview": full, "order_income": set(days[:12]), "order_lines": full},
+        {"shop_overview": full, "order_income": set(), "order_lines": full - {days[20]}},
+        TODAY,
+    )
+    assert out["shop_overview"] == {"held_through": "2026-11-18", "reading_through": None}
+    # a file import holds days the Connector has not read itself: it still reads them
+    assert out["order_income"] == {"held_through": "2026-10-31", "reading_through": "2026-10-19"}
+    assert out["order_lines"] == {"held_through": "2026-11-18", "reading_through": "2026-11-08"}
+    assert out["ads_campaign_daily"] == {"held_through": None, "reading_through": "2026-10-19"}
+
+
+async def test_the_seller_status_carries_held_and_reading_days_per_daily_dataset(
+    session, monkeypatch
+):
+    from tests.support.api import authenticate, build_app
+
+    monkeypatch.setattr(read_days, "vietnam_today", lambda now=None: TODAY)
+    user, shop = await _shopee_tenant(session)
+    d = date
+    session.add_all(
+        [
+            _post(shop.id, "shop_overview", d(2026, 10, 20), d(2026, 11, 18)),
+            _post(shop.id, "order_income", d(2026, 10, 20), d(2026, 10, 31), source="file"),
+        ]
+    )
+    await session.commit()
+    app = build_app(session)
+    authenticate(app, user=user, shop=shop)
+    async with client_for(app) as seller:
+        res = await seller.get("/v1/ingest/shop-status")
+    assert res.status_code == 200, res.text
+    entries = {e["dataset"]: e for e in res.json()["datasets"]}
+    assert entries["shop_overview"]["held_through"] == "2026-11-18"
+    assert entries["shop_overview"]["reading_through"] is None
+    assert entries["order_income"]["held_through"] == "2026-10-31"
+    assert entries["order_income"]["reading_through"] == "2026-10-19"
