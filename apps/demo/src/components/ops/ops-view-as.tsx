@@ -23,6 +23,7 @@ import { SignedInPhanTich } from "../phan-tich/signed-in-phan-tich";
 import { resolveMeasureTab, QuyetDinhView } from "../quyet-dinh/quyet-dinh-view";
 import { REAL_QD_CLIENTS } from "../quyet-dinh/signed-in-quyet-dinh";
 import { SellerViewProvider } from "../seller-view-context";
+import { tiktokLegacyScreens, LEGACY_SCREENS_PARAM } from "../../lib/tiktok-screens";
 import { ShopeeHostProvider } from "../../lib/shopee-analytics/context";
 import { useOpsShopeeHost } from "../shopee-analytics/hosts";
 import { DashboardPage } from "../shopee-analytics/dashboard-pages";
@@ -114,14 +115,22 @@ export function OpsViewAs({
     },
     [router, base],
   );
-  const setTab = useCallback((next: Tab) => go(viewAsTabHref(shopId, next)), [go, shopId]);
   const current = pending && pending.base === base ? new URLSearchParams(pending.href.split("?")[1] ?? "") : new URLSearchParams(base);
+  // The one switch for a TikTok shop's old screens (W3.1 decision #28 Q1): `?adr108=1` on the page URL.
+  const legacyScreens = tiktokLegacyScreens(current);
+  const setTab = (next: Tab) => go(viewAsTabHref(shopId, next, legacyScreens ? new URLSearchParams({ [LEGACY_SCREENS_PARAM]: "1" }) : undefined));
   const read = readViewAsQuery(current);
   const { params: screenParams } = read;
   // A Shopee shop opens on Tổng quan, not on Quyết định (its nav has no Trang chủ).
-  const isShopee = platformOf(session?.shop.platform) === "shopee";
-  const tab: Tab = !current.has(VIEW_AS_PAGE_PARAM) && isShopee ? "overview" : read.tab;
-  const shopeeHost = useOpsShopeeHost(shopId, "view-as", session?.shop.shop_name, baseFetch);
+  const platform = platformOf(session?.shop.platform);
+  const isShopee = platform === "shopee";
+  // A TikTok shop is on the shared screens too (Trang chủ opens Tổng quan) unless `?adr108=1` keeps the old ones.
+  const tiktokShared = session !== null && !isShopee && !legacyScreens;
+  const tiktokOld = session !== null && !isShopee && legacyScreens;
+  const sharedScreens = isShopee || tiktokShared;
+  const tab: Tab =
+    !current.has(VIEW_AS_PAGE_PARAM) && isShopee ? "overview" : tiktokShared && (!current.has(VIEW_AS_PAGE_PARAM) || read.tab === "home") ? "overview" : read.tab;
+  const shopeeHost = useOpsShopeeHost(shopId, "view-as", session?.shop.shop_name, baseFetch, platform);
   // P92 B-8: the four read-only Ops pages, read through the Ops base (bearer only).
   const dashKind = DASHBOARD_TAB[tab] ?? null;
   const dashLinks = useMemo(() => viewAsShopeeLinks(shopId), [shopId]);
@@ -159,7 +168,7 @@ export function OpsViewAs({
   // It waits for the view session only to learn the platform.
   const platformKnown = session !== null;
   useEffect(() => {
-    if (!platformKnown || isShopee) return;
+    if (!platformKnown || !tiktokOld) return;
     let live = true;
     fetchShopAnalysis({ token, shopId, fetchImpl: viewFetch })
       .then((e) => live && setEnvelope(e))
@@ -167,7 +176,7 @@ export function OpsViewAs({
     return () => {
       live = false;
     };
-  }, [token, shopId, viewFetch, platformKnown, isShopee]);
+  }, [token, shopId, viewFetch, platformKnown, tiktokOld]);
 
   // P96b: an old `trang=xep-hang` link already shows Phân tích (readViewAsQuery); only its URL follows.
   const legacy = current.get(VIEW_AS_PAGE_PARAM);
@@ -264,13 +273,21 @@ export function OpsViewAs({
                     ["rules", "Quy tắc"],
                     ["exclusions", "Loại trừ"],
                   ]
-                : [
-                    ["home", "Trang chủ"],
-                    ["decisions", "Quyết định"],
-                    ["analytics", "Phân tích"],
-                    ["juli", "Juli"],
-                    ["rules", "Quy tắc"],
-                  ]) as readonly (readonly [Tab | "juli", string])[]
+                : tiktokShared
+                  ? [
+                      ["overview", "Tổng quan"],
+                      ["analytics", "Phân tích"],
+                      ["decisions", "Quyết định"],
+                      ["juli", "Juli"],
+                      ["rules", "Quy tắc"],
+                    ]
+                  : [
+                      ["home", "Trang chủ"],
+                      ["decisions", "Quyết định"],
+                      ["analytics", "Phân tích"],
+                      ["juli", "Juli"],
+                      ["rules", "Quy tắc"],
+                    ]) as readonly (readonly [Tab | "juli", string])[]
             ).map(([id, label]) => (
               <button
                 aria-current={tab === id ? "page" : undefined}
@@ -298,7 +315,7 @@ export function OpsViewAs({
             </div>
             <SellerViewProvider href={mapHref} readOnly>
             <div data-read-only-view="" data-testid="seller-view" onClick={onSellerClick} style={{ minWidth: 0 }}>
-              {isShopee && shopeeHost && (tab === "overview" || tab === "analytics" || tab === "products") ? (
+              {sharedScreens && shopeeHost && (tab === "overview" || tab === "analytics" || (isShopee && tab === "products")) ? (
                 <ShopeeHostProvider host={shopeeHost}>
                   <ShopeeScreenSwitch
                     params={screenParams}
@@ -310,7 +327,7 @@ export function OpsViewAs({
               {tab === "home" ? (
                 envelope ? <HomeOverview envelope={envelope} /> : envelope === null ? <p role="status">Shop chưa có báo cáo.</p> : <OpsSkeleton variant="cards" rows={3} />
               ) : null}
-              {tab === "analytics" && !isShopee ? (
+              {tab === "analytics" && !sharedScreens ? (
                 envelope ? (
                   <SignedInPhanTich
                     envelope={envelope}

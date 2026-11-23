@@ -121,8 +121,13 @@ const CHANNEL_KEY_SOURCE: Readonly<Record<string, SourceKey>> = {
   affiliate: "lien_ket",
 };
 
+/** The row that holds what the sources do not explain (a TikTok window with days lacking a breakdown). */
+const GAP_KEY = "chenh_lech_nguon";
+const GAP_LABEL = "Chênh lệch nguồn";
+
 /** Names of the channel-split rows of Tổng quan (`ChannelKey`). TikTok has no DVHT: its ad rows read Quảng cáo. */
 export function channelName(platform: NavPlatform, key: string): string {
+  if (key === GAP_KEY) return GAP_LABEL;
   if (key === "organic") return "Organic";
   if (key === "ads") return "Quảng cáo";
   if (key === "ads_product") return platform === "shopee" ? "DVHT Sản phẩm" : "Quảng cáo";
@@ -133,6 +138,7 @@ export function channelName(platform: NavPlatform, key: string): string {
 
 /** Names of the Phân tích `channel` values (the luồng a row opens); null when the key is not a channel. */
 export function channelLabel(platform: NavPlatform, key: string): string | null {
+  if (key === GAP_KEY) return GAP_LABEL;
   if (key === "ads_product" || key === "ads_shop") return channelName(platform, key);
   return isSourceKey(key) && key !== "all" && key !== "ads" ? sourceName(platform, key) : null;
 }
@@ -159,6 +165,8 @@ export function channelOutsideTotal(platform: NavPlatform, key: string): boolean
  * TikTok: every figure of Quảng cáo (no Business API scope yet); orders / CTOR / AOV of Tab cửa hàng.
  */
 export function channelCellBlank(platform: NavPlatform, key: string, cell: string): boolean {
+  // The gap row carries only what the sources leave out: GMV, orders and share; the rate cells are "—".
+  if (key === GAP_KEY) return !["gmv", "orders", "share"].includes(cell);
   const source = sourceOfChannelKey(key);
   if (source === null) return false;
   if (SOURCE_LABEL_TABLE[platform][source].unavailable) return true;
@@ -168,5 +176,9 @@ export function channelCellBlank(platform: NavPlatform, key: string, cell: strin
 /** Rows in display order: rows outside the total go last, standing alone (not children of Organic). */
 export function channelRowsForDisplay<R extends { readonly key: string; readonly parent: string | null }>(platform: NavPlatform, rows: readonly R[]): readonly R[] {
   const outside = rows.filter((r) => channelOutsideTotal(platform, r.key)).map((r) => ({ ...r, parent: null }) as R);
-  return [...rows.filter((r) => !channelOutsideTotal(platform, r.key)), ...outside];
+  const inTotal = rows.filter((r) => !channelOutsideTotal(platform, r.key));
+  // Chênh lệch nguồn closes the table (absent when the whole window has a breakdown), standing alone.
+  const body = inTotal.filter((r) => r.key !== GAP_KEY);
+  const gap = inTotal.filter((r) => r.key === GAP_KEY).map((r) => ({ ...r, parent: null }) as R);
+  return [...body, ...outside, ...gap];
 }

@@ -3,6 +3,7 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useMemo } from "react";
 
+import type { NavPlatform } from "../../lib/app-navigation";
 import { readAuthSession } from "../../lib/supabase-auth";
 import { useShopReport } from "../../lib/shop-report/shop-report-context";
 import { useShopPlatformState } from "../../lib/shopee-analytics/platform";
@@ -101,7 +102,13 @@ export function SellerShopeeProductPage() {
 // ── Juli Ops ─────────────────────────────────────────────────────────────
 
 /** The Ops host: bearer from the Ops session, the shop in the path, read-only. */
-export function useOpsShopeeHost(shopId: string, kind: "view-as" | "tab", shopName?: string, fetchImpl?: typeof fetch): ShopeeHost | null {
+export function useOpsShopeeHost(
+  shopId: string,
+  kind: "view-as" | "tab",
+  shopName?: string,
+  fetchImpl?: typeof fetch,
+  platform: NavPlatform = "shopee",
+): ShopeeHost | null {
   const token = readAuthSession()?.accessToken ?? null;
   return useMemo(
     () =>
@@ -112,13 +119,13 @@ export function useOpsShopeeHost(shopId: string, kind: "view-as" | "tab", shopNa
             builder: p92BuilderEnabled() ? createBuilderApi({ base: opsBuilderBase(shopId), token, fetchImpl }) : undefined,
             kol: kolEnabled() ? createKolApi({ base: opsShopeeBase(shopId), token, fetchImpl }) : undefined,
             links: kind === "view-as" ? viewAsShopeeLinks(shopId) : opsTabShopeeLinks(shopId),
-            platform: "shopee", // Ops views Shopee shops here (the tab is gated on the shop's platform)
-            shopKey: `ops:${shopId}`,
+            platform, // "shopee" unless the caller says otherwise (Xem như shop passes a TikTok shop's own platform)
+            shopKey: platform === "shopee" ? `ops:${shopId}` : `ops:${platform}:${shopId}`,
             shopName,
             readOnly: true,
           }
         : null,
-    [token, shopId, kind, shopName, fetchImpl],
+    [token, shopId, kind, shopName, fetchImpl, platform],
   );
 }
 

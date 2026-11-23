@@ -678,7 +678,7 @@ export interface ProductPage {
 }
 
 /** P100 Tổng quan: `GET …/channel-split` (backend `services/shopee_analytics/channel_split.py`). */
-export type ChannelKey = "organic" | "organic_card" | "organic_shop" | "organic_video" | "organic_live" | "ads" | "ads_product" | "ads_shop" | "affiliate";
+export type ChannelKey = "organic" | "organic_card" | "organic_shop" | "organic_video" | "organic_live" | "ads" | "ads_product" | "ads_shop" | "affiliate" | "chenh_lech_nguon";
 export type AdBase = "traffic_overview" | "ads_report";
 
 export interface ChannelRow {
