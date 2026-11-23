@@ -127,7 +127,7 @@ async def test_weekly_analysis_sections_from_a_free_question() -> None:
     assert res.stop_reasons == ["data_answer"]
     assert len(TEMPLATES) == 5  # no new template: the question is free text
     # 1. this week vs last week vs a NORMAL week (the sale week is not the baseline)
-    s1 = sections["Tuần này so với tuần trước và tuần thường"]
+    s1 = sections["16–22/11 so với 09–15/11 và tuần thường 02–08/11"]
     assert s1["window_vi"] == "16/11–22/11 so với 02/11–08/11"
     assert s1["sale_vi"].startswith("Ngày sale: 11/11")
     gmv = s1["rows"][0]

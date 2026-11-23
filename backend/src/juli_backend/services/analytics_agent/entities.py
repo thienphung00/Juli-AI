@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from datetime import date
+from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.analytics_agent import fmt
@@ -19,6 +20,7 @@ from juli_backend.services.analytics_agent.windows import (
     campaign_days,
     sale_days_vi,
 )
+from juli_backend.services.metrics.compute import raw_value
 
 NO_DATA_VI = "Juli chưa có số liệu này"
 _COST = re.compile(r"cost|spend|chi phí|commission|hoa hồng|discount|ưu đãi", re.I)
@@ -98,19 +100,33 @@ async def run_entity(
     if kind in ("voucher", "affiliate"):
         now = await data.entity_totals(kind, w.cur[0], w.cur[1], item_id)
         before = await data.entity_totals(kind, w.prev[0], w.prev[1], item_id) if w.prev else None
-        label = "voucher" if kind == "voucher" else "Tiếp thị liên kết"
-        use_cost = bool(_COST.search(blob))
-        if use_cost:
-            key, mkey = "cost", "gmv"
-            title = (
-                "Chi phí voucher (Ưu đãi)" if kind == "voucher" else "Hoa hồng Tiếp thị liên kết"
-            )
-            if now["cost"] is None:
-                return []
-        else:
-            key, mkey = "orders", "orders"
-            title = f"Đơn dùng {label}" if kind == "voucher" else "Đơn từ Tiếp thị liên kết"
-        n, b0 = _f(now[key]), _f(before[key]) if before else None
+        want = "cost" if _COST.search(blob) else (metric or "orders")
+        if want not in ("orders", "gmv", "aov", "cost"):
+            return []  # this entity has no such metric: never another metric under its label
+        who = "dùng voucher" if kind == "voucher" else "từ Tiếp thị liên kết"
+        title = {
+            "orders": f"Đơn {who}",
+            "gmv": f"GMV đơn {who}",
+            "aov": f"AOV đơn {who}",
+            "cost": "Chi phí voucher (Ưu đãi)"
+            if kind == "voucher"
+            else "Hoa hồng Tiếp thị liên kết",
+        }[want]
+        if want == "cost" and now["cost"] is None:
+            return []
+
+        def value_of(t: dict[str, Any] | None) -> float | None:
+            if t is None:
+                return None
+            if want == "aov":
+                raw = raw_value(
+                    "aov", {"gmv": Decimal(str(t["gmv"])), "orders": Decimal(str(t["orders"]))}
+                )
+                return float(raw) if isinstance(raw, Decimal) else None
+            return _f(t[want])
+
+        mkey = {"orders": "orders", "gmv": "gmv", "aov": "aov", "cost": "gmv"}[want]
+        n, b0 = value_of(now), value_of(before)
         out = [
             _answer(
                 "metric_total",

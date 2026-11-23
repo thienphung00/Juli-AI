@@ -9,7 +9,7 @@ from juli_backend.services.analytics_agent import routing
 from juli_backend.services.analytics_agent.labels import shopee_labels
 from tests.unit.analytics_agent.fakes import FakeData, FakeJev, FakeLLM
 
-TODAY = date(2026, 10, 26)
+TODAY = date(2026, 11, 9)
 
 
 def intent(**kw: Any) -> dict[str, Any]:
@@ -191,9 +191,9 @@ def test_needs_choice_event_has_real_dates_and_resume_runs_in_code() -> None:
     dec = routing.decide(
         intent(), ans(window=ch("last_7d_vs_prev_7d", 0.55, "last_30d_vs_prev_30d"))
     )
-    ev = routing.needs_choice_event(dec, intent(), shopee_labels(), date(2026, 10, 25))
+    ev = routing.needs_choice_event(dec, intent(), shopee_labels(), date(2026, 11, 8))
     assert (
-        ev["item"] == "window" and ev["options"][0]["label_vi"] == "19/10–25/10 so với 12/10–18/10"
+        ev["item"] == "window" and ev["options"][0]["label_vi"] == "02/11–08/11 so với 26/10–01/11"
     )
     assert ev["question_vi"]
     dec2 = routing.resume(ev["pending"], {"item": "window", "value": "last_30d_vs_prev_30d"})
@@ -213,11 +213,11 @@ def test_max_two_clarifying_turns_then_go() -> None:
             scope=ch("product", 0.5, "shop"),
         ),
     )
-    ev = routing.needs_choice_event(dec, intent(), shopee_labels(), date(2026, 10, 25))
+    ev = routing.needs_choice_event(dec, intent(), shopee_labels(), date(2026, 11, 8))
     d1 = routing.resume(ev["pending"], {"item": "chain", "value": "gmv_change"})
     assert d1["outcome"] == "needs_choice"
     ev2 = routing.needs_choice_event(
-        d1, intent(), shopee_labels(), date(2026, 10, 25), turns=d1["turns"]
+        d1, intent(), shopee_labels(), date(2026, 11, 8), turns=d1["turns"]
     )
     assert (
         routing.resume(ev2["pending"], {"item": "window", "value": "last_7d_vs_prev_7d"})["outcome"]

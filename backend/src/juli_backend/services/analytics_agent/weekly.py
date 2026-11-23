@@ -43,6 +43,12 @@ def _sum(rows: list[dict[str, Any]], key: str, win: tuple[date, date]) -> float 
     return float(sum(vals)) if vals else None
 
 
+def rng(win: tuple[date, date]) -> str:
+    """ "16–22/11" or "30/10–05/11": a date range, never a relative word."""
+    a, b = win
+    return f"{a:%d}–{b:%d/%m}" if (a.month, a.year) == (b.month, b.year) else f"{a:%d/%m}–{b:%d/%m}"
+
+
 def _f(v: Any) -> float | None:
     return None if v is None else float(v)
 
@@ -83,7 +89,7 @@ def _same_change(open_card: dict[str, Any], kind: str, item: str | None, title: 
         return ""
     if (open_card.get("item_id") or None) != (item or None):
         return ""
-    same = open_card["kind"] == kind and title and open_card.get("change_after") == title
+    same = open_card["kind"] == kind and bool(title) and open_card.get("change_after") == title
     return "same" if same else "kind"
 
 
@@ -126,9 +132,9 @@ async def run_weekly(
         ("roas", "ROAS"),
     ):
         now, lw, nw = val(m, w.cur), val(m, last_week), val(m, w.prev)
-        detail = f"tuần trước {fmt.value(m, lw)}"
+        detail = f"{rng(last_week)} {fmt.value(m, lw)}"
         if w.sale_prev:
-            detail += f" (có ngày sale) · tuần thường {fmt.value(m, nw)}"
+            detail += f" (có ngày sale) · {rng(w.prev)} {fmt.value(m, nw)}"
         table.append(
             {
                 "label_vi": label,
@@ -137,7 +143,10 @@ async def run_weekly(
                 "delta": fmt.delta(m, now, nw),
             }
         )
-    events.append(_section(w, latest, "Tuần này so với tuần trước và tuần thường", table))
+    title = f"{rng(w.cur)} so với {rng(last_week)}"
+    if w.sale_prev:
+        title += f" và tuần thường {rng(w.prev)}"
+    events.append(_section(w, latest, title, table))
 
     # 2. ads ROAS vs ROAS hoà vốn (registry), per campaign
     camps = await data.campaign_rows(*w.cur)
@@ -290,8 +299,8 @@ async def run_weekly(
         if engine is not None:
             eng = await engine.engine_card(kind, item, as_of)
             card = eng.get("card") or {} if eng.get("ok") else {}
-        title = card.get("title")
-        match = [(c, _same_change(c, kind, item, title)) for c in open_cards]
+        card_title = card.get("title")
+        match = [(c, _same_change(c, kind, item, card_title)) for c in open_cards]
         match = [(c, m) for c, m in match if m]
         same = next((c for c, m in match if m == "same"), None)
         if same is not None:

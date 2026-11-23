@@ -10,7 +10,7 @@ from typing import Any
 
 from juli_backend.services.analytics_agent.types import Usage
 
-AS_OF = date(2026, 10, 25)  # no Shopee double day in the 14 days before
+AS_OF = date(2026, 11, 8)  # no sale day (double day, 15th, 25th) in the 14 days before
 SPLIT = AS_OF - timedelta(days=7)  # last day of the comparison window
 
 

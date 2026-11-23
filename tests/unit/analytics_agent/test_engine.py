@@ -163,7 +163,7 @@ async def test_needs_choice_then_resume_from_pending_without_a_new_routing_call(
     sink, res = await go(req(text="q"), llm=llm, jev=jev, data=data_orders())
     nc = sink.of("needs_choice")[0]
     assert nc["item"] == "window" and res.stop_reasons == ["needs_choice"] and not sink.of("card")
-    assert nc["options"][0]["label_vi"] == "19/10–25/10 so với 12/10–18/10"
+    assert nc["options"][0]["label_vi"] == "02/11–08/11 so với 26/10–01/11"
     n_before = len(jev.calls)
     llm2 = FakeLLM(None, text=TEXT)
     jev2 = FakeJev(lambda s, q: full())

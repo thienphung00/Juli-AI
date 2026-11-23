@@ -148,7 +148,7 @@ async def test_g1_blocks_within_noise_and_stock_only_events() -> None:
             chains=[c], data=d, engine=FakeCardEngine(), jev=jev_ok(), labels=L, as_of=AS_OF
         )
     ).events[0]["type"] == "no_card"
-    c.events = [{"kind": "ads_spend_drop", "day": "2026-10-24"}]  # unexplained + actionable event
+    c.events = [{"kind": "ads_spend_drop", "day": "2026-11-07"}]  # unexplained + actionable event
     assert (
         await cards.card_stage(
             chains=[c], data=d, engine=FakeCardEngine(), jev=jev_ok(), labels=L, as_of=AS_OF

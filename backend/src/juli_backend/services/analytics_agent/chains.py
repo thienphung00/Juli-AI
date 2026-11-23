@@ -244,7 +244,7 @@ async def run_chain(
         "item_name": names.get(item_id) if item_id else None,
     }
     if latest is None:
-        w = build_windows(preset, as_of)
+        w = build_windows(preset, as_of, sale_aware=True)
         return ChainResult(
             chain,
             metric,
@@ -256,7 +256,7 @@ async def run_chain(
             item_name=res_kw["item_name"],
         )
     anchor = anchor_for(preset, as_of, latest)
-    w = build_windows(preset, anchor, explicit=explicit, named_month=named_month)
+    w = build_windows(preset, anchor, explicit=explicit, named_month=named_month, sale_aware=True)
     steps = [f"step0: latest complete day {latest}; window {w.label()} ({w.preset})"]
     if preset == "yesterday_vs_same_weekday" and latest < as_of:
         return ChainResult(

@@ -111,7 +111,7 @@ def test_named_metric_and_window_phrase_skip_the_pickers() -> None:
     [
         ({"entity_phrase": "đơn dùng voucher"}, "voucher"),
         ({"source_phrase": "Tiếp thị liên kết"}, "affiliate"),
-        ({"entity_phrase": "chiến dịch A"}, "campaign"),
+        ({"entity_phrase": "chiến dịch quảng cáo A"}, "campaign"),
         ({"metric_phrase": "revenue"}, None),
     ],
 )
@@ -228,7 +228,7 @@ async def test_campaign_rows_show_roas_against_break_even_and_loss_filter() -> N
     data = FakeEntityData(_shop(), entity={"campaigns": CAMPS})
     sink, _ = await _ask(
         data,
-        intent(question_type="status", entity_phrase="campaign", metric_phrase="roas"),
+        intent(question_type="status", entity_phrase="ad campaign", metric_phrase="roas"),
         _lookup_jev("roas"),
     )
     rows = sink.of("data_answer")[0]["rows"]
@@ -238,7 +238,7 @@ async def test_campaign_rows_show_roas_against_break_even_and_loss_filter() -> N
         data,
         intent(
             question_type="status",
-            entity_phrase="campaign",
+            entity_phrase="ad campaign",
             metric_phrase="which campaigns lose money",
         ),
         _lookup_jev("roas"),
@@ -252,7 +252,7 @@ async def test_entity_without_data_is_refused_never_the_shop_total() -> None:
     data = FakeEntityData(_shop(), entity={})  # no campaign rows
     sink, res = await _ask(
         data,
-        intent(question_type="status", entity_phrase="campaign", metric_phrase="roas"),
+        intent(question_type="status", entity_phrase="ad campaign", metric_phrase="roas"),
         _lookup_jev("roas"),
     )
     assert sink.of("label")[0]["text_vi"] == "Juli chưa có số liệu này"
@@ -284,7 +284,6 @@ async def test_product_profit_is_that_products_profit_or_refused() -> None:
             "gmv": 40000.0,
         },
     }
-    data = FakeEntityData(_shop(), names={"p1": "Sản phẩm A"}, entity={"product_profit": pp})
     it = intent(question_type="status", metric_phrase="profit", product_phrase="Sản phẩm A")
     jev = FakeJev(
         lambda s, q: full(
@@ -322,7 +321,6 @@ async def test_product_profit_is_that_products_profit_or_refused() -> None:
     assert sink2.of("label")[0]["text_vi"] == "Juli chưa có số liệu này" and not sink2.of(
         "data_answer"
     )
-    assert data is not None
 
 
 async def test_window_chosen_is_the_window_run_and_freshness_is_the_newest_complete_day() -> None:

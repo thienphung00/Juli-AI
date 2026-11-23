@@ -100,6 +100,7 @@ METRIC_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
         (r"roas", "roas"),
         (r"biên|margin", "margin"),
         (r"lợi nhuận|profit", "profit"),
+        (r"average order value|\baov\b|giá trị đơn trung bình|đơn trung bình", "aov"),
         (r"doanh thu|\bgmv\b|revenue|sales value", "gmv"),
         (r"đơn hàng|số đơn|\borders?\b", "orders"),
         (r"\bctor\b|chuyển đổi|conversion", "ctor"),
@@ -109,23 +110,33 @@ METRIC_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
 )
 DECLINE_WORDS = re.compile(
     r"biggest (decline|drop|fall)|fell (the )?most|declin|(dropped|fallen|falling) (the )?most|"
-    r"giảm (mạnh|nhiều) nhất|giảm mạnh|worst",
+    r"giảm (mạnh|nhiều) nhất|giảm mạnh|tụt (mạnh|nhiều)|tụt nhất|worst",
     re.I,
 )
 LIST_LOOKUPS = ("top_products", "top_decliners")
 METRIC_CHAIN = {m: c for c, m in CHAIN_METRIC.items()}
-METRIC_CHAIN.update(roas="ads_change", ads_spend="ads_change", margin="profit_change")
+METRIC_CHAIN.update(
+    roas="ads_change", ads_spend="ads_change", margin="profit_change", aov="gmv_change"
+)
 
 # An entity the seller names (Q17): the answer must be filtered to it or refused, never a shop
 # number under the entity's label.
 ENTITY_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
     (re.compile(rx, re.I), k)
     for rx, k in (
-        (r"voucher|mã giảm giá|khuyến mãi|promotion", "voucher"),
-        (r"affiliate|tiếp thị liên kết|\bttlk\b|\bkol\b|hoa hồng", "affiliate"),
-        (r"campaign|chiến dịch", "campaign"),
+        # a Shopee programme named as the seller sees it: no reader filters by it -> refusal
+        (
+            r"chương trình của shop|flash sale của shop|combo khuyến mãi|mua kèm deal sốc|"
+            r"mua để nhận quà",
+            "program",
+        ),
+        (r"voucher|mã giảm giá", "voucher"),
+        # "phí hoa hồng" / "phí cố định" are Shopee fees, never affiliate commission
+        (r"affiliate|tiếp thị liên kết|\bttlk\b|\bkoc\b|\bkol\b|hoa hồng tiếp thị", "affiliate"),
     )
 )
+_AD_WORDS = re.compile(r"quảng cáo|\bqc\b|dvht|dịch vụ hiển thị|\bads?\b|advertis", re.I)
+_CAMPAIGN = re.compile(r"campaign|chiến dịch", re.I)
 
 
 def metric_from_phrase(phrase: str | None) -> str | None:
@@ -136,14 +147,17 @@ def metric_from_phrase(phrase: str | None) -> str | None:
 
 
 def entity_kind(intent: dict[str, Any]) -> str | None:
-    """voucher | affiliate | campaign when the question names one (not a product: that is
-    `scope`)."""
+    """voucher | affiliate | campaign | program when the question names one (not a product: that
+    is `scope`). Scans the seller's own words (`raw_text`) as well as the parsed phrases."""
     blob = " ".join(
-        str(intent.get(k) or "") for k in ("entity_phrase", "metric_phrase", "source_phrase")
+        str(intent.get(k) or "")
+        for k in ("entity_phrase", "metric_phrase", "source_phrase", "raw_text")
     )
     for rx, k in ENTITY_WORDS:
         if rx.search(blob):
             return k
+    if _CAMPAIGN.search(blob) and _AD_WORDS.search(blob):  # a campaign means an ad campaign
+        return "campaign"
     return None
 
 
@@ -385,8 +399,10 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
             okl, infol = choice_ok(answers["lookup"])
             dec["checks"]["lookup"] = infol
             dec["lookup"] = infol["pick"] if okl else "metric_total"
-            if DECLINE_WORDS.search(str(intent.get("metric_phrase") or "")) and re.search(
-                r"product|sản phẩm|sp\b|item", str(intent.get("metric_phrase") or ""), re.I
+            if dec["lookup"] in ("top_products", "metric_total", "top_decliners") and (
+                DECLINE_WORDS.search(
+                    f"{intent.get('metric_phrase') or ''} {intent.get('raw_text') or ''}"
+                )
             ):
                 dec["lookup"] = "top_decliners"  # "giảm mạnh nhất" is a decline, not top by GMV
     for k in ("chain", "metric", "window", "scope"):
@@ -474,6 +490,7 @@ QUESTION_VI = {
     "product": "Bạn muốn nói sản phẩm nào?",
 }
 NO_FULL_DAY_VI = "Tuần này chưa có ngày nào đủ số liệu. Xem tuần trước?"
+NO_FULL_MONTH_DAY_VI = "Tháng này chưa có ngày nào đủ số liệu. Xem tháng trước?"
 CHAIN_VI = {
     "orders_change": "Đơn hàng",
     "ctr_change": "CTR",
@@ -531,9 +548,7 @@ def needs_choice_event(
         "type": "needs_choice",
         "item": item,
         "question_vi": QUESTION_VI[item],
-        "options": options_vi(
-            item, values, labels, as_of, names, latest, dec.get("mode") == "lookup"
-        ),
+        "options": options_vi(item, values, labels, as_of, names, latest, True),
         "pending": pending,
     }
 

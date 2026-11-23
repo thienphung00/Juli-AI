@@ -66,6 +66,11 @@ CALENDAR_PRESETS = frozenset(
         "last_full_week_vs_week_before",
         "this_week_vs_same_days_last_week",
         "last_7d_vs_prev_7d",
+        "yesterday_vs_same_weekday",
+        "last_30d_vs_prev_30d",
+        "mtd_vs_same_days_last_month",
+        "last_month_vs_month_before",
+        "named_month_vs_previous",
     }
 )
 
@@ -98,6 +103,13 @@ def this_week_empty(as_of: date) -> bool:
     return (as_of + timedelta(days=1)).weekday() == 0
 
 
+def this_period_empty(preset: str, as_of: date) -> bool:
+    """ "Tuần này" on a Monday, "tháng này" on the 1st: no complete day of the period yet."""
+    if preset == "this_week_vs_same_days_last_week":
+        return this_week_empty(as_of)
+    return preset == "mtd_vs_same_days_last_month" and (as_of + timedelta(days=1)).day == 1
+
+
 # One phrase -> one window (J2): the model never decides what "last week" means.
 _PHRASES: tuple[tuple[re.Pattern[str], str], ...] = (
     (
@@ -105,6 +117,16 @@ _PHRASES: tuple[tuple[re.Pattern[str], str], ...] = (
         "last_full_week_vs_week_before",
     ),
     (re.compile(r"tuần\s+này|this\s+week", re.I), "this_week_vs_same_days_last_week"),
+    (re.compile(r"hôm\s+qua|yesterday", re.I), "yesterday_vs_same_weekday"),
+    (
+        re.compile(r"tháng\s+trước|last\s+month|previous\s+month", re.I),
+        "last_month_vs_month_before",
+    ),
+    (re.compile(r"tháng\s+này|this\s+month", re.I), "mtd_vs_same_days_last_month"),
+    (
+        re.compile(r"30\s*ngày\s*(qua|gần nhất|vừa rồi)|(last|past)\s+30\s+days", re.I),
+        "last_30d_vs_prev_30d",
+    ),
     (
         re.compile(r"7\s*ngày\s*(qua|gần nhất|vừa rồi)|(last|past)\s+7\s+days", re.I),
         "last_7d_vs_prev_7d",

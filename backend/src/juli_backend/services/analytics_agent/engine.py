@@ -227,6 +227,8 @@ async def _run(
             return
         restated = parsed["restated"]
         intents = parsed["intents"][: max_intents or routing.MAX_INTENTS]
+        if len(parsed["intents"]) == 1:  # the seller's own words, for entity / decline words
+            intents[0]["raw_text"] = req.text or ""
         more = parsed["more"] + parsed["intents"][max_intents or routing.MAX_INTENTS :]
         # one Jev routing request per intent, in parallel
         replies = await asyncio.gather(
@@ -261,25 +263,33 @@ async def _run(
         if dec["outcome"] == "unsupported":
             await _unsupported(out, result, req.platform, _other_platform(intent, req.platform))
             continue
-        if (
-            dec.get("window") == "this_week_vs_same_days_last_week"
-            and windows.this_week_empty(as_of)
-            and not (intent.get("explicit_from") and intent.get("explicit_to"))
+        if windows.this_period_empty(str(dec.get("window")), as_of) and not (
+            intent.get("explicit_from") and intent.get("explicit_to")
         ):  # Monday: no complete day this week; offer last week, never a one-day window
+            month = dec.get("window") == "mtd_vs_same_days_last_month"
             dec = {
                 **dec,
                 "outcome": "needs_choice",
-                "remaining": [("window", ["last_full_week_vs_week_before"])],
+                "remaining": [
+                    (
+                        "window",
+                        [
+                            "last_month_vs_month_before"
+                            if month
+                            else "last_full_week_vs_week_before"
+                        ],
+                    )
+                ],
             }
-            no_day = True
+            no_day = routing.NO_FULL_MONTH_DAY_VI if month else routing.NO_FULL_DAY_VI
         else:
-            no_day = False
+            no_day = ""
         if dec["outcome"] == "needs_choice":
             ev = routing.needs_choice_event(
                 dec, intent, labels, as_of, dec.get("turns", 0), latest=latest
             )
             if no_day:
-                ev["question_vi"] = routing.NO_FULL_DAY_VI
+                ev["question_vi"] = no_day
             ev["pending"]["anchor"] = as_of.isoformat()
             ev["pending"]["restated"] = restated
             ev["pending"]["more"] = more
