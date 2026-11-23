@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { seedShopPlatform } from "../lib/shopee-analytics/__tests__/platform-test-helpers";
 import { resolve } from "node:path";
 
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -19,6 +20,10 @@ import { ACTIVE_SHOP_STORAGE_KEY } from "../lib/shop-session";
 import { buildHomeOverview } from "../lib/shop-report/home-metrics";
 import { ShopReportProvider } from "../lib/shop-report/shop-report-context";
 import { AUTH_SESSION_STORAGE_KEY } from "../lib/supabase-auth";
+
+// W3 U-4: these tests exercise the ADR-108 TikTok screens, reachable only with `?adr108=1` (decision #8).
+window.history.replaceState(null, "", "/?adr108=1");
+await seedShopPlatform("shop-1", "tiktok");
 
 /**
  * P13 (owner, 2026-10-10): a signed-in seller with no TikTok Shop connected

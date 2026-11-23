@@ -31,7 +31,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
-from juli_backend.services.shopee_analytics.fmt import num, pct, ratio
+from juli_backend.services.shopee_analytics.fmt import num, pct, platform_name, ratio
 from juli_backend.services.shopee_analytics.funnel import (
     BASIS_SOURCES,
     CTOR_NOTE,
@@ -164,12 +164,12 @@ class ShopMetrics:
         return None if s is None else s.gmv
 
     # --------------------------------------------------------------------- json
-    def json(self) -> dict[str, Any]:
+    def json(self, platform: str = "shopee") -> dict[str, Any]:
         return {
             "window": self.window.json(),
             "anchor": None if self.anchor is None else self.anchor.json(),
             "gmv": num(self.gmv),
-            "gmv_label": GMV_LABEL,
+            "gmv_label": GMV_LABEL.replace("Shopee", platform_name(platform)),
             "gmv_basis": self.gmv_basis,
             "orders": self.orders,
             "aov": num(self.aov),

@@ -33,7 +33,7 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
 
-DERIVATION_VERSION = "2026-11-15.1"
+DERIVATION_VERSION = "2026-11-23.1"
 
 #: an expression: a bare id, or ``(operator, *operands)``
 Expr = str | tuple[Any, ...]
@@ -122,6 +122,12 @@ class OrderBasis(StrEnum):
 class Platform(StrEnum):
     shopee = "shopee"
     tiktok = "tiktok"
+
+
+#: The platform's name as a screen says it (one place; page builders still write "Shopee")
+PLATFORM_NAMES: Mapping[Platform, str] = MappingProxyType(
+    {Platform.shopee: "Shopee", Platform.tiktok: "TikTok Shop"}
+)
 
 
 @dataclass(frozen=True)
@@ -233,22 +239,20 @@ def _src(dataset: str, basis: OrderBasis, fld: str | None = None, note: str = ""
 _SHOPEE_ONLY = frozenset({Platform.shopee})
 _BOTH = frozenset(Platform)
 
-#: Traffic sources (the funnel splits of ``views`` / ``clicks`` / ``ads_*``). TikTok has only
-#: video, LIVE and the product card (the Shopee ``the_san_pham_khac`` slot); no affiliate or ads
-#: split and no shop page / residual lines.
+#: Traffic sources (the funnel splits of ``views`` / ``clicks`` / ``ads_*``). TikTok (W3 decision
+#: #7, A-34): Thẻ sản phẩm, Video, LIVE (Organic) and Tiếp thị liên kết (TTLK) are the shop total;
+#: Tab cửa hàng (``trang_shop``) is its own row, excluded from every sum (:func:`counts_in_total`),
+#: with no orders / CTOR / AOV (:data:`SOURCE_METRIC_GAPS`). Quảng cáo is "—" until the Business
+#: API scope exists and the Shopee residual has no TikTok counterpart (:data:`SOURCE_REASONS`).
 TRAFFIC_SOURCES: Mapping[str, SourceSpec] = MappingProxyType(
     {
         "the_san_pham_khac": SourceSpec(
             "traffic_overview", OrderBasis.none, "views", "product card", _BOTH
         ),
-        "trang_shop": SourceSpec(
-            "traffic_overview", OrderBasis.none, "views", "shop page", _SHOPEE_ONLY
-        ),
+        "trang_shop": SourceSpec("traffic_overview", OrderBasis.none, "views", "shop page", _BOTH),
         "live": SourceSpec("traffic_overview", OrderBasis.none, "views", "LIVE", _BOTH),
         "video": SourceSpec("traffic_overview", OrderBasis.none, "views", "video", _BOTH),
-        "lien_ket": SourceSpec(
-            "traffic_overview", OrderBasis.none, "views", "affiliate", _SHOPEE_ONLY
-        ),
+        "lien_ket": SourceSpec("traffic_overview", OrderBasis.none, "views", "affiliate", _BOTH),
         "ads": SourceSpec("traffic_overview", OrderBasis.none, "ads_views", "ads", _SHOPEE_ONLY),
         "chenh_lech_nguon": SourceSpec(
             "traffic_overview", OrderBasis.none, "views", "source residual", _SHOPEE_ONLY
@@ -256,10 +260,60 @@ TRAFFIC_SOURCES: Mapping[str, SourceSpec] = MappingProxyType(
     }
 )
 
+#: Reason codes of a "—" (a ``None`` value, never 0); the screens map a code to its words.
+REASON_ADS_SCOPE_MISSING = "ads_scope_missing"
+REASON_SOURCE_NOT_ON_PLATFORM = "source_not_on_platform"
+REASON_TAB_REPORTS_NO_ORDERS = "tab_reports_no_orders"
+
+#: (platform, source) -> why the whole source is "—" there
+SOURCE_REASONS: Mapping[tuple[Platform, str], str] = MappingProxyType(
+    {
+        (Platform.tiktok, "ads"): REASON_ADS_SCOPE_MISSING,
+        (Platform.tiktok, "chenh_lech_nguon"): REASON_SOURCE_NOT_ON_PLATFORM,
+    }
+)
+
+#: (platform, source) -> metric ids that are "—" inside an available source, with the reason
+SOURCE_METRIC_GAPS: Mapping[tuple[Platform, str], tuple[frozenset[str], str]] = MappingProxyType(
+    {
+        (Platform.tiktok, "trang_shop"): (
+            frozenset({"orders", "ctor", "aov"}),
+            REASON_TAB_REPORTS_NO_ORDERS,
+        )
+    }
+)
+
+#: (platform, source) -> the source is shown but never added into the shop total
+SOURCES_OUTSIDE_TOTAL: frozenset[tuple[Platform, str]] = frozenset(
+    {(Platform.tiktok, "trang_shop")}
+)
+
 
 def source_available(platform: Platform, source: str) -> bool:
     """Is ``source`` a traffic split on ``platform``? An unknown source raises ``KeyError``."""
     return platform in TRAFFIC_SOURCES[source].available_on
+
+
+def counts_in_total(platform: Platform, source: str) -> bool:
+    """Is ``source`` added into ``platform``'s shop total? Tab cửa hàng on TikTok is not."""
+    return source_available(platform, source) and (platform, source) not in SOURCES_OUTSIDE_TOTAL
+
+
+def source_reason(platform: Platform, source: str) -> str | None:
+    """The reason code when the whole source is "—" on ``platform``, else ``None``."""
+    if source_available(platform, source):
+        return None
+    return SOURCE_REASONS.get((platform, source), REASON_SOURCE_NOT_ON_PLATFORM)
+
+
+def metric_reason(platform: Platform, source: str, metric_id: str) -> str | None:
+    """The reason code when ``metric_id`` is "—" for ``source`` on ``platform``, else ``None``
+    (the value is then whatever the data says, possibly missing for a data reason)."""
+    whole = source_reason(platform, source)
+    if whole is not None:
+        return whole
+    gap = SOURCE_METRIC_GAPS.get((platform, source))
+    return gap[1] if gap is not None and metric_id in gap[0] else None
 
 
 SHOP_LEVELS = (Level.shop, Level.product, Level.sku)

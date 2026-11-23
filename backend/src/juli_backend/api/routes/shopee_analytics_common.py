@@ -16,6 +16,7 @@ from urllib.parse import quote
 from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse, Response
 
+from juli_backend.services.metrics import Platform
 from juli_backend.services.shopee_analytics import (
     InvalidWindow,
     NoShopeeData,
@@ -40,14 +41,33 @@ MonthQ = Annotated[
 DateQ = Annotated[date | None, Query()]
 
 
-def refusal(exc: Exception) -> HTTPException:
+NO_DATA_BY_PLATFORM: dict[str, dict[str, str]] = {
+    "shopee": {"code": "no_shopee_data", "message": "Shop chưa có dữ liệu Shopee."},
+    "tiktok": {"code": "no_tiktok_data", "message": "Shop chưa có dữ liệu TikTok Shop."},
+}
+
+
+def stamped(body: dict[str, Any], platform: str, kind: str | None = None) -> dict[str, Any]:
+    """Sets the ``platform`` key of a page payload for a non-Shopee shop (the builders write the
+    platform's name themselves) and, given the payload ``kind``, applies ``ads_gate`` (profit needs
+    ads). A Shopee payload is returned as it is."""
+    from juli_backend.services.shopee_analytics import ads_gate
+
+    if platform == Platform.shopee:
+        return body
+    if "platform" in body:
+        body["platform"] = platform
+    return body if kind is None else ads_gate.apply(body, kind, platform)
+
+
+def refusal(exc: Exception, platform: str = "shopee") -> HTTPException:
     if isinstance(exc, RowsNotMaterialized):
         # P99b: a window without stored daily rows shows this state, never numbers
         return HTTPException(status.HTTP_409_CONFLICT, detail=exc.json())
     if isinstance(exc, NoShopeeData):
         return HTTPException(
             status.HTTP_409_CONFLICT,
-            detail={"code": "no_shopee_data", "message": "Shop chưa có dữ liệu Shopee."},
+            detail=dict(NO_DATA_BY_PLATFORM.get(platform, NO_DATA_BY_PLATFORM["shopee"])),
         )
     if isinstance(exc, ProductNotFound):
         return HTTPException(

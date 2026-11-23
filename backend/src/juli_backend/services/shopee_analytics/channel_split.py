@@ -50,6 +50,7 @@ Rules (the owner's, ORY 11/10-09/11 as the sanity shape):
 
 from __future__ import annotations
 
+import logging
 import statistics
 import uuid
 from collections.abc import Mapping, Sequence
@@ -62,6 +63,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import IngestDatasetStatus
+from juli_backend.services.metrics.registry import (
+    Platform,
+    counts_in_total,
+    metric_reason,
+)
 from juli_backend.services.shopee_analytics import funnel, loaders, service
 from juli_backend.services.shopee_analytics.catalog import UNMATCHED_LABEL, Catalog
 from juli_backend.services.shopee_analytics.compute import PeriodView
@@ -79,6 +85,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
 from juli_backend.services.shopee_profit import shop_profit
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 
+LOG = logging.getLogger(__name__)
 SHOP_PLUS_KIND = "ads_shop"
 CARD, SHOP_PAGE, LIVE, VIDEO, AFFILIATE = (
     "the_san_pham_khac",
@@ -91,6 +98,18 @@ PLAN_PERIOD = "plan"
 MIN_PRODUCTS_FOR_MEDIAN = 3
 MAX_PRODUCTS = 200
 _METRICS = ("views", "ctr", "ctor", "aov")
+_CELL_METRICS = ("views", "clicks", "ctr", "ctor", "aov", "gmv", "orders")
+#: row key -> the traffic source it stands for (reason codes of a "—", W3 R-2)
+_ROW_SOURCE = {
+    "organic_card": CARD,
+    "organic_shop": SHOP_PAGE,
+    "organic_video": VIDEO,
+    "organic_live": LIVE,
+    "ads": "ads",
+    "ads_product": "ads",
+    "ads_shop": "ads",
+    "affiliate": AFFILIATE,
+}
 
 
 # -- pure arithmetic ------------------------------------------------------------------------
@@ -227,6 +246,46 @@ def overlay_cells(
     return organic, (ad_views, ad_clicks, a.orders, a.gmv)
 
 
+def total_base(base: FunnelBase, platform: str = "shopee") -> FunnelBase:
+    """The base whose sums are the shop (or product) total: on TikTok without the sources the
+    registry keeps out of it (Tab cửa hàng overlaps the others, decision #7). Shopee: ``base``.
+    A source the registry does not know is left out of the total and logged, never an error."""
+    if platform == Platform.shopee:
+        return base
+    plat = Platform(platform)
+
+    def counts(source: str) -> bool:
+        try:
+            return counts_in_total(plat, source)
+        except KeyError:
+            LOG.warning("unknown traffic source %r left out of the %s total", source, platform)
+            return False
+
+    return replace(base, sources=tuple(s for s in base.sources if counts(str(s.source))))
+
+
+def with_reasons(rows: list[dict[str, Any]], platform: str) -> list[dict[str, Any]]:
+    """R-2: a cell the platform does not give is ``None`` and the row names why
+    (``unavailable``: metric -> registry reason code). Shopee rows are left untouched."""
+    if platform == Platform.shopee:
+        return rows
+    plat = Platform(platform)
+    for r in rows:
+        source = _ROW_SOURCE.get(r["key"])
+        if source is None:
+            continue
+        gaps = {
+            m: reason
+            for m in _CELL_METRICS
+            if (reason := metric_reason(plat, source, m)) is not None
+        }
+        if gaps:
+            for m in gaps:
+                r[m] = None
+            r["unavailable"] = gaps
+    return rows
+
+
 def split_rows(
     base: FunnelBase,
     *,
@@ -234,8 +293,13 @@ def split_rows(
     ads_known: bool = True,
     ads_fallback: Mapping[str, Decimal] | None = None,
     affiliate_fallback: Mapping[str, Decimal] | None = None,
+    platform: str = "shopee",
 ) -> list[dict[str, Any]]:
     """The channel table rows for ``base`` (the shop, or one product).
+
+    ``platform`` "tiktok" (W3, decision #7): Organic = Thẻ sản phẩm + Video + LIVE (no ads to
+    take off, Tab cửa hàng shown but outside the sum, its orders / CTOR / AOV "—"), Quảng cáo
+    "—" with its reason code. The default is the unchanged Shopee arithmetic.
 
     ``ads_fallback`` / ``affiliate_fallback`` (product level): ``{"gmv", "orders"?}`` taken from
     the ads report / the order lines when the product's funnel rows carry no ad overlay or no
@@ -243,6 +307,8 @@ def split_rows(
 
     ``ad_types``: the ads report by type (shop level only). ``ads_known`` (product level): the
     shop has ad data at all, so a product without an ad figure has 0 ads instead of "no data"."""
+    if platform != Platform.shopee:
+        return _split_rows_tiktok(base, platform)
     src = _by_source(base)
     product_level = base.scope == "products"
     card, shop_page, aff = src.get(CARD), src.get(SHOP_PAGE), src.get(AFFILIATE)
@@ -333,6 +399,69 @@ def split_rows(
     if product_level:
         _partition_product_rows(rows, base.total("gmv"))
     return with_share(rows, base.total("gmv"))
+
+
+def _split_rows_tiktok(base: FunnelBase, platform: str) -> list[dict[str, Any]]:
+    """The TikTok channel table (decision #7): the four A-34 sources add up to the total, Tab cửa
+    hàng is a row beside them, Quảng cáo is "—". No ads overlay, residual or fallback exists."""
+    src = _by_source(base)
+    product_level = base.scope == "products"
+    total = total_base(base, platform)
+
+    def child(key: str, s: SourceFunnel | None) -> dict[str, Any]:
+        return _row(
+            key,
+            "organic",
+            s.views if s else None,
+            s.clicks if s else None,
+            s.orders if s else None,
+            s.gmv if s else None,
+        )
+
+    org_card = child("organic_card", src.get(CARD))
+    org_shop = child("organic_shop", src.get(SHOP_PAGE))
+    org_video = child("organic_video", src.get(VIDEO))
+    org_live = child("organic_live", src.get(LIVE))
+    in_sum = (org_card, org_video, org_live)
+
+    def organic(field: str) -> Decimal | None:
+        values = [None if k[field] is None else Decimal(str(k[field])) for k in in_sum]
+        return None if org_card[field] is None else _sum(values)
+
+    aff = src.get(AFFILIATE)
+    rows = [
+        _row(
+            "organic",
+            None,
+            organic("views"),
+            organic("clicks"),
+            organic("orders"),
+            organic("gmv"),
+        ),
+        org_card,
+    ]
+    if not product_level or SHOP_PAGE in src:
+        rows.append(org_shop)
+    if not product_level or VIDEO in src:
+        rows.append(org_video)
+    if not product_level or LIVE in src:
+        rows.append(org_live)
+    base_name = "ads_report" if product_level else "traffic_overview"
+    rows.append(_row("ads", None, None, None, None, None, base_name))
+    if not product_level:
+        rows.append(_ad_row("ads_product", None))
+        rows.append(_ad_row("ads_shop", None))
+    rows.append(
+        _row(
+            "affiliate",
+            None,
+            aff.views if aff else None,
+            aff.clicks if aff else None,
+            aff.orders if aff else None,
+            aff.gmv if aff else None,
+        )
+    )
+    return with_reasons(with_share(rows, total.total("gmv")), platform)
 
 
 def _partition_product_rows(rows: list[dict[str, Any]], total: Decimal | None) -> None:
@@ -467,9 +596,9 @@ async def _load(
     end: date | None,
     as_of: date | None,
 ) -> tuple[Any, PeriodView, Window] | None:
-    from juli_backend.services.shopee_analytics.queries import NoShopeeData
+    from juli_backend.services.shopee_analytics.queries import NoShopeeData, resolve_window
 
-    window = await service.resolve(
+    window = await resolve_window(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     if window is None:
@@ -554,7 +683,10 @@ def kpis_of(
     }
 
 
-def _kpis(view: PeriodView, base: FunnelBase, product_id: str | None) -> dict[str, Any]:
+def _kpis(
+    view: PeriodView, base: FunnelBase, product_id: str | None, platform: str = "shopee"
+) -> dict[str, Any]:
+    base = total_base(base, platform)
     if product_id is None:
         profit = shop_profit_of(view).profit
         ads_cost: Decimal | None = view.profit.total_ad_spend
@@ -631,6 +763,7 @@ async def _figures(
     view: PeriodView,
     window: Window,
     product_id: str | None,
+    platform: str = "shopee",
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows = view.data.funnel
     if rows is None:
@@ -646,8 +779,9 @@ async def _figures(
         ads_known=ads_known,
         ads_fallback=_product_ads(view, product_id, ads_known),
         affiliate_fallback=_product_affiliate(view, product_id),
+        platform=platform,
     )
-    return body, _kpis(view, base, product_id)
+    return body, _kpis(view, base, product_id, platform)
 
 
 async def split_figures(
@@ -656,10 +790,11 @@ async def split_figures(
     view: PeriodView,
     window: Window,
     product_id: str | None = None,
+    platform: str = "shopee",
 ) -> dict[str, Any]:
     """``{"rows", "kpis"}`` of ``channel_split`` for a view the caller already loaded (no second
     read of the window, no previous period, no plan block): what a per-product loop needs."""
-    body_rows, kpis = await _figures(session, shop_id, view, window, product_id)
+    body_rows, kpis = await _figures(session, shop_id, view, window, product_id, platform)
     return {"rows": body_rows, "kpis": kpis}
 
 
@@ -676,6 +811,7 @@ async def channel_split(
     end: date | None = None,
     as_of: date | None = None,
     product_id: str | None = None,
+    platform: str = "shopee",
 ) -> dict[str, Any]:
     from juli_backend.services.shopee_recommendations import month_plan
 
@@ -684,7 +820,9 @@ async def channel_split(
     plan_last: date | None = None
     if period == PLAN_PERIOD:
         # "Cả kế hoạch": the running cards' span, cut at the newest data day (no rows beyond it)
-        anchor = as_of or await loaders.default_as_of(session, shop_id)
+        from juli_backend.services.shopee_analytics.queries import default_anchor
+
+        anchor = as_of or await default_anchor(session, shop_id)
         if span is not None and anchor is not None and span[0] <= anchor:
             period, start, end, plan_last = "custom", span[0], min(span[1], anchor), span[1]
         else:
@@ -694,13 +832,15 @@ async def channel_split(
     )
     assert loaded is not None
     ctx, view, window = loaded
-    body_rows, kpis = await _figures(session, shop_id, view, window, product_id)
+    body_rows, kpis = await _figures(session, shop_id, view, window, product_id, platform)
     prev_rows: dict[str, dict[str, Any]] = {}
     prev_kpis: dict[str, Any] | None = None
     prev_window = window.previous()
     try:
         prev_view = await service.load_view(session, shop_id, ctx, prev_window, funnel=True)
-        p_rows, prev_kpis = await _figures(session, shop_id, prev_view, prev_window, product_id)
+        p_rows, prev_kpis = await _figures(
+            session, shop_id, prev_view, prev_window, product_id, platform
+        )
         prev_rows = {r["key"]: r for r in p_rows}
     except RowsNotMaterialized:
         prev_kpis = None
@@ -741,6 +881,7 @@ async def channel_split_products(
     start: date | None = None,
     end: date | None = None,
     as_of: date | None = None,
+    platform: str = "shopee",
 ) -> dict[str, Any]:
     """The product picker: each product with GMV, margin, its GMV by channel and the weakest
     funnel metric (:func:`weakest_metric`), biggest GMV first."""
@@ -788,12 +929,24 @@ async def channel_split_products(
             aff_fb = _product_affiliate(view, item)
             if aff_fb is not None:
                 aff_gmv = aff_fb["gmv"]
+        if platform != Platform.shopee:
+            # decision #7: card + video + LIVE + affiliate are the total; no ads (None, reason in
+            # the registry); Tab cửa hàng is not a channel here
+            total = total_base(b, platform).total("gmv")
+            ads_gmv = None
+            tiktok_aff = aff.gmv if aff is not None else None
+            organic_gmv = _sum(
+                [x.gmv for k in (CARD, VIDEO, LIVE) if (x := src.get(k)) is not None]
+            )
         margin = shop_profit.scope_margin_pct(view.profit, (item,))
         header = snaps[item].header if item in snaps else None
         images = list(header.image_urls) if header and header.image_urls else []
         # C4: the three channels partition the product's GMV (sum = GMV, 100 %). The ads report
         # is a placed-order overlay, so it is capped at the GMV; the raw figure stays in ads_overlay
-        ads_part, aff_part, organic_part = partition_channels(total, ads_gmv, aff_gmv)
+        if platform != Platform.shopee:
+            ads_part, aff_part, organic_part = None, tiktok_aff, organic_gmv
+        else:
+            ads_part, aff_part, organic_part = partition_channels(total, ads_gmv, aff_gmv)
         products.append(
             {
                 "product_id": item,

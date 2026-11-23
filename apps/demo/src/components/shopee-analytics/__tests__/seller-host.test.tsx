@@ -25,6 +25,7 @@ beforeEach(() => {
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      if (url === "/v1/shops/me") return new Response(JSON.stringify({ platform: "shopee" }), { status: 200 });
       calls.push({ url, headers: Object.fromEntries(new Headers(init?.headers).entries()) });
       const path = url.split("?")[0]!;
       const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200 });

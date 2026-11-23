@@ -16,6 +16,19 @@ ADS_BASIS = {"key": "placed", "label": "đơn đã đặt"}
 ADS_BASIS_NOTE = (
     "Quảng cáo tính theo đơn đã đặt (cách Shopee báo cáo); không cộng vào tổng đơn đã xác nhận."
 )
+
+
+def platform_name(platform: str = "shopee") -> str:
+    """The platform's name as a screen says it: the registry's one table."""
+    from juli_backend.services.metrics.registry import PLATFORM_NAMES, Platform
+
+    return PLATFORM_NAMES[Platform(platform)]
+
+
+def ads_basis_note(platform: str = "shopee") -> str:
+    return ADS_BASIS_NOTE.replace("Shopee", platform_name(platform))
+
+
 ASSUMED_COST_LABEL = "giá vốn giả định (1/3 giá)"
 
 

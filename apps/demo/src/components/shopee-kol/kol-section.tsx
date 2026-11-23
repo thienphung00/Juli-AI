@@ -1,5 +1,6 @@
 "use client";
 
+import { TERM_LABEL_TABLE } from "../../lib/platform-labels";
 import Link from "next/link";
 
 import { inMode, type ValueMode } from "../../lib/metrics";
@@ -30,9 +31,9 @@ export function KolSection({
     return fmt(x, mode === "avg" && (x ?? 0) < 100 ? 1 : 0);
   };
   return (
-    <section aria-label="Tiếp thị liên kết theo KOL" className="sa-card jp-section" data-testid="pt-kol">
+    <section aria-label={TERM_LABEL_TABLE.shopee.kol} className="sa-card jp-section" data-testid="pt-kol">
       <div className="jp-section__head">
-        <h2 className="sa-h2">Tiếp thị liên kết theo KOL</h2>
+        <h2 className="sa-h2">{TERM_LABEL_TABLE.shopee.kol}</h2>
         <div className="jp-kol-totals" data-testid="pt-kol-totals">
           <span>
             <span className="jp-dim">Lượt nhấp</span> <b>{count(t.clicks)}</b>

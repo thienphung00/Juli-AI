@@ -35,17 +35,20 @@ interface RailEntry {
   /** The entry's route per platform; `null` leaves the entry off that platform's rail. */
   readonly href: Readonly<Record<NavPlatform, string | null>>;
   readonly alsoActive?: Partial<Readonly<Record<NavPlatform, readonly string[]>>>;
+  /** W3 U-4: the ADR-108 route a TikTok shop keeps behind the `tiktokLegacyScreens` switch. */
+  readonly legacyTiktok?: string;
 }
 
 /** The single rail, in order. */
 const RAIL: readonly RailEntry[] = [
-  { key: "overview", label: "Tổng quan", href: { tiktok: "/", shopee: "/tong-quan" } },
+  { key: "overview", label: "Tổng quan", href: { tiktok: "/tong-quan", shopee: "/tong-quan" }, legacyTiktok: "/" },
   // P96b: /xep-hang redirects to /phan-tich (its product table); the entry stays lit for an old link.
   {
     key: "analytics",
     label: "Phân tích",
-    href: { tiktok: "/analytics", shopee: "/phan-tich" },
-    alsoActive: { shopee: ["/xep-hang"] },
+    href: { tiktok: "/phan-tich", shopee: "/phan-tich" },
+    alsoActive: { shopee: ["/xep-hang"], tiktok: ["/xep-hang"] },
+    legacyTiktok: "/analytics",
   },
   { key: "decisions", label: ACTIONS_DESTINATION_LABEL, href: { tiktok: "/decisions", shopee: "/decisions" } },
   // Fourth on both platforms; shown only where `GET /v1/demo/juli/enabled` says so (see `destinationsFor`).
@@ -59,23 +62,28 @@ const RAIL: readonly RailEntry[] = [
   },
 ];
 
-function railFor(platform: NavPlatform, withJuli: boolean): readonly AppDestination[] {
+function railFor(platform: NavPlatform, withJuli: boolean, legacyTiktok = false): readonly AppDestination[] {
   return RAIL.flatMap((entry) => {
-    const href = entry.href[platform];
+    const legacy = legacyTiktok && platform === "tiktok" ? entry.legacyTiktok : undefined;
+    const href = legacy ?? entry.href[platform];
     if (href === null || (entry.key === "juli" && !withJuli)) return [];
-    const alsoActive = entry.alsoActive?.[platform];
+    const alsoActive = legacy ? undefined : entry.alsoActive?.[platform];
     return [{ key: entry.key, label: entry.label, icon: entry.key, href, locked: false, ...(alsoActive ? { alsoActive } : {}) }];
   });
 }
 
-/** A TikTok shop's rail (Juli not on). */
-export const APP_DESTINATIONS: readonly AppDestination[] = railFor("tiktok", false);
+/** A TikTok shop's rail (Juli not on): the shared Tổng quan / Phân tích screens (W3). */
+export const SHARED_TIKTOK_DESTINATIONS: readonly AppDestination[] = railFor("tiktok", false);
+export const SHARED_TIKTOK_DESTINATIONS_WITH_JULI: readonly AppDestination[] = railFor("tiktok", true);
+
+/** A TikTok shop's ADR-108 rail (Trang chủ `/`, Phân tích `/analytics`), behind `tiktokLegacyScreens` (decision #8). */
+export const APP_DESTINATIONS: readonly AppDestination[] = railFor("tiktok", false, true);
 
 /** A Shopee shop's rail (ADR-120 decision 2; its routes are unchanged; Juli not on). */
 export const SHOPEE_DESTINATIONS: readonly AppDestination[] = railFor("shopee", false);
 
 /** The same rails with the Juli entry, for a shop where the Juli tab is enabled. */
-export const APP_DESTINATIONS_WITH_JULI: readonly AppDestination[] = railFor("tiktok", true);
+export const APP_DESTINATIONS_WITH_JULI: readonly AppDestination[] = railFor("tiktok", true, true);
 export const SHOPEE_DESTINATIONS_WITH_JULI: readonly AppDestination[] = railFor("shopee", true);
 
 /**
@@ -98,10 +106,13 @@ const SAMPLE_SHOP_DESTINATIONS_WITH_JULI: readonly AppDestination[] = SHOPEE_DES
 /** `juliEnabled`: the shop's `/v1/demo/juli/enabled` answer; the Juli entry is shown only when true. */
 export function destinationsFor(
   platform: NavPlatform,
-  options: { readonly sampleShop?: boolean; readonly juliEnabled?: boolean } = {},
+  options: { readonly sampleShop?: boolean; readonly juliEnabled?: boolean; readonly tiktokLegacy?: boolean } = {},
 ): readonly AppDestination[] {
   const juli = options.juliEnabled === true;
-  if (platform !== "shopee") return juli ? APP_DESTINATIONS_WITH_JULI : APP_DESTINATIONS;
+  if (platform !== "shopee") {
+    if (options.tiktokLegacy) return juli ? APP_DESTINATIONS_WITH_JULI : APP_DESTINATIONS;
+    return juli ? SHARED_TIKTOK_DESTINATIONS_WITH_JULI : SHARED_TIKTOK_DESTINATIONS;
+  }
   if (options.sampleShop) return juli ? SAMPLE_SHOP_DESTINATIONS_WITH_JULI : SAMPLE_SHOP_DESTINATIONS;
   return juli ? SHOPEE_DESTINATIONS_WITH_JULI : SHOPEE_DESTINATIONS;
 }

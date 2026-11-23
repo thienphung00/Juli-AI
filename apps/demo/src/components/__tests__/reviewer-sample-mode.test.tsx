@@ -15,6 +15,9 @@ import { DecisionsPageClient } from "../decisions-page-client";
 import { DemoShell } from "../demo-shell";
 import { PartnerSignIn } from "../partner-sign-in";
 
+// W3 U-4: these tests exercise the ADR-108 TikTok screens, reachable only with `?adr108=1` (decision #8).
+window.history.replaceState(null, "", "/?adr108=1");
+
 /**
  * P32-D (D42 amendment, owner 2026-10-15): with `REVIEWER_SHOP_ID` unset the
  * API answers `/v1/reviewer/me` with `shop: null`, and the partner trial

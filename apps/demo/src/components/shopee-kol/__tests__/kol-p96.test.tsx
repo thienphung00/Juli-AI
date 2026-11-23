@@ -9,7 +9,7 @@ import { rowText } from "../../../lib/shopee-kol/model";
 import { KolView } from "../kol-view";
 
 function host(over: Partial<ShopeeHost> = {}): ShopeeHost {
-  return { api: fakeApi({ product: product(), critical: critical() }), kol: fakeKol(), links: sellerLinks, shopKey: "shop-1", shopName: "Shop gia dụng", ...over };
+  return { api: fakeApi({ product: product(), critical: critical() }), kol: fakeKol(), links: sellerLinks, platform: "shopee", shopKey: "shop-1", shopName: "Shop gia dụng", ...over };
 }
 
 describe("KOL tab from Juli Connector (P96, 2026-11-06)", () => {

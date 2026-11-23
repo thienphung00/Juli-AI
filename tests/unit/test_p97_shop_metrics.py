@@ -210,9 +210,10 @@ async def test_the_ingest_hook_rebuilds_the_written_days_and_ignores_period_file
         CUR_END,
     ]
     await materialize.after_ingest(
-        session, seeded.shop_id, platform="tiktok", dataset="traffic_overview",
+        session, seeded.shop_id, platform="lazada", dataset="traffic_overview",
         start=PREV_START, end=PREV_START,
     )  # fmt: skip
+    # P101 W3: TikTok is materialized too; a platform outside MATERIALIZED_PLATFORMS is not
     assert len(await _shop_rows(session, seeded.shop_id)) == 2
 
 

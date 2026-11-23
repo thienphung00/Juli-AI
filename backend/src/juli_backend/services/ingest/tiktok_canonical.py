@@ -26,7 +26,7 @@ Who calls what:
 Idempotent: a re-run for the same window writes nothing (the writer counts only rows it changes,
 S-3) and touches no day. A changed row marks its VN day (and the stored day, if the order moved)
 for rebuild: :func:`record_touched_days` calls the analytics hook ``after_ingest`` per run of
-consecutive days (a no-op for TikTok until W3 builds TikTok layer-4 rows) and logs
+consecutive days (W3: it rebuilds the TikTok layer-4 rows of those days) and logs
 ``tiktok_canonical_days_touched``. No buyer field is read or stored (the mapper reads none).
 
 A failed canonical write never fails the raw path that called it: it runs in a savepoint, is
@@ -72,6 +72,8 @@ DEFAULT_REFETCH_PER_CYCLE = 100
 _READ_CHUNK = 500
 #: The dataset name the day hook is called with.
 HOOK_DATASET = "order_lines"
+#: W3: the dataset name for days whose daily product analytics just landed.
+ANALYTICS_DATASET = "analytics"
 
 
 def enabled() -> bool:
@@ -150,13 +152,18 @@ def _day_runs(days: Iterable[date]) -> list[tuple[date, date]]:
 
 
 async def record_touched_days(
-    session: AsyncSession, shop_id: uuid.UUID, days: frozenset[date]
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    days: frozenset[date],
+    *,
+    dataset: str = HOOK_DATASET,
 ) -> None:
     """Mark the VN days whose canonical rows changed for rebuild (S-4).
 
     Calls the analytics after-ingest hook once per run of consecutive days, so a late cancel on
-    day D asks for day D only. For ``tiktok`` that hook is a no-op until W3 builds TikTok's
-    layer-4 rows; the log line is the record until then."""
+    day D asks for day D only; the hook rebuilds TikTok's layer-4 rows for those days (W3).
+    ``dataset`` = :data:`ANALYTICS_DATASET` when the days are the ones the analytics pass (or
+    the A-34 blocks re-read) just landed (W3: the poll calls it after its analytics step)."""
     if not days:
         return
     from juli_backend.services.shopee_analytics.materialize import after_ingest
@@ -173,7 +180,7 @@ async def record_touched_days(
     )
     for start, end in _day_runs(ordered):
         await after_ingest(
-            session, shop_id, platform=PLATFORM, dataset=HOOK_DATASET, start=start, end=end
+            session, shop_id, platform=PLATFORM, dataset=dataset, start=start, end=end
         )
 
 

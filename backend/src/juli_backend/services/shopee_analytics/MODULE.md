@@ -139,3 +139,44 @@ carries the same facts for the KOL cards. Entry points `queries.kol_table` / `qu
   (picker returns them as `unmatched`, `selectable: false`). Product channel GMV partitions the product
   GMV via `channel_split.partition_channels` (ads capped at GMV as a placed-order overlay, TTLK next,
   Organic the rest); the raw ads figure stays as `ads_overlay_gmv` / `overlay_gmv`.
+
+## TikTok days in layer 4 (P101 W3 t1)
+
+- `materialize.rebuild_days` builds TikTok days with the same one-day view (canonical order lines
+  + settlements → profit, both margin terms, cost coverage; delivered-only, refund cost rule, no
+  tax). `tiktok_days.overlay` then puts the A-34 analytics on the rows of a day they cover:
+  headline GMV / đơn / units = the shop-grain analytics row (one đơn per order), views / clicks =
+  the products' A-34 totals (sources `analytics`, `complete` True); product rows = each product's
+  A-34 total (the residual row holds the gap to the shop total); source rows from the
+  channel blocks the poll keeps (`traffic_breakdown.A34_BLOCKS`, read via
+  `shop_diagnosis.channels`): Thẻ sản phẩm / Video / LIVE / Tiếp thị liên kết split by
+  `split_sources` over the shop total (the gap to it in `chenh_lech_nguon`); `trang_shop` (Tab cửa
+  hàng) stored with its own views / clicks / GMV, orders 0 (NOT NULL column;
+  `detail.trang_shop_orders_known` False, routes return None), in no sum. Ads stay NULL.
+- A day without a shop-grain row (lag), or all-zero analytics beside order lines, keeps the order-line
+  numbers and stores `detail.analytics_through` (the newest covered day before it).
+- Profit for `tiktok_days.SETTLEMENT_ONLY_PLATFORMS` shops: no fee formula rows reach the view;
+  a day with a delivered order that has no settlement has profit / margin terms NULL (its products
+  and sources too), never a formula estimate. Owner W3-Q5 = a: while such a shop has no ads spend
+  source (TikTok before the Business API scope) its stored profit / margin_profit (shop, product,
+  source) are NULL with `detail.profit_reason = "ads_scope_missing"`; the before-ads figures sit in
+  `detail.profit_before_ads` / `margin_profit_before_ads` and the components (`buyer_paid_known`,
+  `cogs_coverage`, `line_gmv`) stay.
+- Shops without analytics rows (every Shopee shop) are unchanged byte for byte
+  (`tests/unit/test_w3_t1_shopee_unchanged.py`). `rebuild_recent` is the nightly rebuild
+  (`tiktok-layer4-rebuild` beat); the TikTok day hook (`record_touched_days`) runs `after_ingest`
+  for platform `tiktok` (`MATERIALIZED_PLATFORMS`).
+- The engine sees a TikTok shop's lines once `repositories.shopee_analytics` reads the shop's
+  own platform (t2, `own_platform(shop_id, table)`: the shop's platform when it holds rows of it in
+  that table, else `shopee`, so a Shopee read never changes); the W3 tests stand in for it.
+
+## TikTok on the seller routes (W3 t2)
+
+The seller analytics routes (`/demo/shopee/overview` ... `kol-section`, not the two exports) are open
+to TikTok shops (`capability_gate.ANALYTICS_DATA_PLATFORMS`) and read the platform-neutral layer-4
+rows. A shop with no raw anchor anchors on its newest complete layer-4 day (`queries.resolve_window`,
+`queries.default_anchor`; a Shopee shop resolves as before). `channel_split` / `metric_view` take
+`platform`: on TikTok the shop total leaves out Tab cửa hàng (`channel_split.total_base`), Organic =
+Thẻ sản phẩm + Video + LIVE, Quảng cáo is `None`, and a row / luồng whose cell is missing carries
+`unavailable` (metric -> registry reason code). Shopee payloads gain no field. No data answers 409
+`no_tiktok_data` (Shopee: `no_shopee_data`).

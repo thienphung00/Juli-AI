@@ -15,9 +15,11 @@ from __future__ import annotations
 import uuid
 from collections.abc import Collection, Sequence
 from datetime import date, datetime
+from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, and_, case, func, select
 
+from juli_backend.database import Shop
 from juli_backend.models.ingest import PlatformDailyMetric
 from juli_backend.models.market import MarketKeywordMetric, MarketListingSnapshot
 from juli_backend.models.platform_data import (
@@ -39,6 +41,24 @@ from juli_backend.repositories._base import SessionRepo, ShopScopedRepo
 PLATFORM_SHOPEE = "shopee"
 
 
+def own_platform(shop_id: uuid.UUID, table: Any) -> ColumnElement[str]:
+    """The platform whose rows ``shop_id`` reads from the canonical (platform-neutral) ``table``.
+
+    A TikTok shop reads its TikTok rows; every other read is the Shopee read exactly as before.
+    A shop whose ``shops.platform`` is not ``shopee`` but that holds no own-platform row in
+    ``table`` (Shopee data fed through the ingest gateway to a shop row still on the column
+    default) keeps reading its Shopee rows, and a shop the session cannot see (RLS) keeps the
+    Shopee default -- so no Shopee read changes."""
+    found = select(Shop.platform).where(Shop.id == shop_id).scalar_subquery()
+    has_own = (
+        select(table.shop_id)
+        .where(table.shop_id == shop_id, table.platform == found)
+        .limit(1)
+        .exists()
+    )
+    return case((and_(found != PLATFORM_SHOPEE, has_own), found), else_=PLATFORM_SHOPEE)
+
+
 class ShopeeOrderLinesRepo(ShopScopedRepo[ShopeeOrderLine]):
     _model = ShopeeOrderLine
 
@@ -47,7 +67,7 @@ class ShopeeOrderLinesRepo(ShopScopedRepo[ShopeeOrderLine]):
         return await self._all(
             self._scoped(
                 shop_id,
-                ShopeeOrderLine.platform == PLATFORM_SHOPEE,
+                ShopeeOrderLine.platform == own_platform(shop_id, ShopeeOrderLine),
                 ShopeeOrderLine.day >= start,
                 ShopeeOrderLine.day <= end,
             ).order_by(
@@ -56,9 +76,9 @@ class ShopeeOrderLinesRepo(ShopScopedRepo[ShopeeOrderLine]):
         )
 
     async def day_bounds(self, shop_id: uuid.UUID) -> tuple[date, date] | None:
-        stmt = self._scoped(shop_id, ShopeeOrderLine.platform == PLATFORM_SHOPEE).with_only_columns(
-            func.min(ShopeeOrderLine.day), func.max(ShopeeOrderLine.day)
-        )
+        stmt = self._scoped(
+            shop_id, ShopeeOrderLine.platform == own_platform(shop_id, ShopeeOrderLine)
+        ).with_only_columns(func.min(ShopeeOrderLine.day), func.max(ShopeeOrderLine.day))
         first, last = (await self._session.execute(stmt)).one()
         if first is None:
             return None
@@ -71,7 +91,7 @@ class ShopeeOrderLinesRepo(ShopScopedRepo[ShopeeOrderLine]):
         return await self._all(
             self._scoped(
                 shop_id,
-                ShopeeOrderLine.platform == PLATFORM_SHOPEE,
+                ShopeeOrderLine.platform == own_platform(shop_id, ShopeeOrderLine),
                 ShopeeOrderLine.kol_key == kol_key,
                 ShopeeOrderLine.item_id == item_id,
                 ShopeeOrderLine.day >= start,
@@ -83,7 +103,7 @@ class ShopeeOrderLinesRepo(ShopScopedRepo[ShopeeOrderLine]):
         """Calendar (GMT+7) days in the window that have at least one order line."""
         stmt = self._scoped(
             shop_id,
-            ShopeeOrderLine.platform == PLATFORM_SHOPEE,
+            ShopeeOrderLine.platform == own_platform(shop_id, ShopeeOrderLine),
             ShopeeOrderLine.day >= start,
             ShopeeOrderLine.day <= end,
         ).with_only_columns(ShopeeOrderLine.day.distinct())
@@ -106,7 +126,7 @@ class ShopeeOrderIncomeRepo(ShopScopedRepo[ShopeeOrderIncome]):
                 await self._all(
                     self._scoped(
                         shop_id,
-                        ShopeeOrderIncome.platform == PLATFORM_SHOPEE,
+                        ShopeeOrderIncome.platform == own_platform(shop_id, ShopeeOrderIncome),
                         ShopeeOrderIncome.order_ref.in_(part),
                     )
                 )
@@ -117,7 +137,7 @@ class ShopeeOrderIncomeRepo(ShopScopedRepo[ShopeeOrderIncome]):
         """Income rows whose order was placed on a day in ``[start, end]``."""
         stmt = self._scoped(
             shop_id,
-            ShopeeOrderIncome.platform == PLATFORM_SHOPEE,
+            ShopeeOrderIncome.platform == own_platform(shop_id, ShopeeOrderIncome),
             ShopeeOrderIncome.ordered_on >= start,
             ShopeeOrderIncome.ordered_on <= end,
         ).with_only_columns(func.count())
@@ -143,7 +163,7 @@ class PlatformDailyMetricsRepo(ShopScopedRepo[PlatformDailyMetric]):
         ``any_item`` asks for shop and item rows alike."""
         stmt = self._scoped(
             shop_id,
-            PlatformDailyMetric.platform == PLATFORM_SHOPEE,
+            PlatformDailyMetric.platform == own_platform(shop_id, PlatformDailyMetric),
             PlatformDailyMetric.dataset.in_(list(datasets)),
             PlatformDailyMetric.day >= start,
             PlatformDailyMetric.day <= end,
@@ -159,7 +179,7 @@ class PlatformDailyMetricsRepo(ShopScopedRepo[PlatformDailyMetric]):
     async def latest_day(self, shop_id: uuid.UUID, dataset: str) -> date | None:
         stmt = self._scoped(
             shop_id,
-            PlatformDailyMetric.platform == PLATFORM_SHOPEE,
+            PlatformDailyMetric.platform == own_platform(shop_id, PlatformDailyMetric),
             PlatformDailyMetric.dataset == dataset,
         ).with_only_columns(func.max(PlatformDailyMetric.day))
         return (await self._session.execute(stmt)).scalar_one_or_none()
@@ -167,7 +187,9 @@ class PlatformDailyMetricsRepo(ShopScopedRepo[PlatformDailyMetric]):
     async def latest_days(self, shop_id: uuid.UUID) -> dict[str, date]:
         """The newest ``day`` of every dataset the shop has day rows for."""
         stmt = (
-            self._scoped(shop_id, PlatformDailyMetric.platform == PLATFORM_SHOPEE)
+            self._scoped(
+                shop_id, PlatformDailyMetric.platform == own_platform(shop_id, PlatformDailyMetric)
+            )
             .with_only_columns(PlatformDailyMetric.dataset, func.max(PlatformDailyMetric.day))
             .group_by(PlatformDailyMetric.dataset)
         )
@@ -192,7 +214,7 @@ class PlatformPeriodMetricsRepo(ShopScopedRepo[PlatformPeriodMetric]):
         periods overlap each other and are never added blindly)."""
         stmt = self._scoped(
             shop_id,
-            PlatformPeriodMetric.platform == PLATFORM_SHOPEE,
+            PlatformPeriodMetric.platform == own_platform(shop_id, PlatformPeriodMetric),
             PlatformPeriodMetric.dataset.in_(list(datasets)),
             PlatformPeriodMetric.period_start <= end,
             PlatformPeriodMetric.period_end >= start,
@@ -206,7 +228,10 @@ class PlatformPeriodMetricsRepo(ShopScopedRepo[PlatformPeriodMetric]):
     async def latest_ends(self, shop_id: uuid.UUID) -> dict[str, date]:
         """The newest ``period_end`` of every dataset the shop has period rows for."""
         stmt = (
-            self._scoped(shop_id, PlatformPeriodMetric.platform == PLATFORM_SHOPEE)
+            self._scoped(
+                shop_id,
+                PlatformPeriodMetric.platform == own_platform(shop_id, PlatformPeriodMetric),
+            )
             .with_only_columns(
                 PlatformPeriodMetric.dataset, func.max(PlatformPeriodMetric.period_end)
             )
@@ -219,7 +244,9 @@ class PlatformItemsRepo(ShopScopedRepo[PlatformItem]):
     _model = PlatformItem
 
     async def all_items(self, shop_id: uuid.UUID) -> list[PlatformItem]:
-        return await self._all(self._scoped(shop_id, PlatformItem.platform == PLATFORM_SHOPEE))
+        return await self._all(
+            self._scoped(shop_id, PlatformItem.platform == own_platform(shop_id, PlatformItem))
+        )
 
 
 class PlatformItemSnapshotsRepo(ShopScopedRepo[PlatformItemSnapshot]):
@@ -230,7 +257,10 @@ class PlatformItemSnapshotsRepo(ShopScopedRepo[PlatformItemSnapshot]):
     ) -> list[PlatformItemSnapshot]:
         """The newest snapshot of every (item, variation)."""
         newest = (
-            self._scoped(shop_id, PlatformItemSnapshot.platform == PLATFORM_SHOPEE)
+            self._scoped(
+                shop_id,
+                PlatformItemSnapshot.platform == own_platform(shop_id, PlatformItemSnapshot),
+            )
             .with_only_columns(
                 PlatformItemSnapshot.item_id.label("item_id"),
                 PlatformItemSnapshot.variation_id.label("variation_id"),
@@ -239,7 +269,9 @@ class PlatformItemSnapshotsRepo(ShopScopedRepo[PlatformItemSnapshot]):
             .group_by(PlatformItemSnapshot.item_id, PlatformItemSnapshot.variation_id)
             .subquery()
         )
-        stmt = self._scoped(shop_id, PlatformItemSnapshot.platform == PLATFORM_SHOPEE).join(
+        stmt = self._scoped(
+            shop_id, PlatformItemSnapshot.platform == own_platform(shop_id, PlatformItemSnapshot)
+        ).join(
             newest,
             (PlatformItemSnapshot.item_id == newest.c.item_id)
             & (PlatformItemSnapshot.variation_id == newest.c.variation_id)
@@ -256,7 +288,7 @@ class PlatformItemSnapshotsRepo(ShopScopedRepo[PlatformItemSnapshot]):
         stmt = (
             self._scoped(
                 shop_id,
-                PlatformItemSnapshot.platform == PLATFORM_SHOPEE,
+                PlatformItemSnapshot.platform == own_platform(shop_id, PlatformItemSnapshot),
                 PlatformItemSnapshot.item_id == item_id,
                 PlatformItemSnapshot.variation_id == "",
             )
@@ -267,7 +299,7 @@ class PlatformItemSnapshotsRepo(ShopScopedRepo[PlatformItemSnapshot]):
 
     async def latest_capture(self, shop_id: uuid.UUID) -> datetime | None:
         stmt = self._scoped(
-            shop_id, PlatformItemSnapshot.platform == PLATFORM_SHOPEE
+            shop_id, PlatformItemSnapshot.platform == own_platform(shop_id, PlatformItemSnapshot)
         ).with_only_columns(func.max(PlatformItemSnapshot.captured_at))
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
@@ -286,7 +318,7 @@ class PlatformPromotionsRepo(ShopScopedRepo[PlatformPromotion]):
     ) -> list[PlatformPromotion]:
         stmt = self._scoped(
             shop_id,
-            PlatformPromotion.platform == PLATFORM_SHOPEE,
+            PlatformPromotion.platform == own_platform(shop_id, PlatformPromotion),
             PlatformPromotion.promo_type.in_(list(promo_types)),
             PlatformPromotion.period_start <= end,
             PlatformPromotion.period_end >= start,
@@ -317,7 +349,7 @@ class ShopKeywordSeedsReadRepo(ShopScopedRepo[ShopKeywordSeed]):
         return await self._all(
             self._scoped(
                 shop_id,
-                ShopKeywordSeed.platform == PLATFORM_SHOPEE,
+                ShopKeywordSeed.platform == own_platform(shop_id, ShopKeywordSeed),
                 ShopKeywordSeed.enabled.is_(True),
                 ShopKeywordSeed.role.is_not(None),
             )
@@ -330,9 +362,9 @@ class AdCampaignPurposesReadRepo(ShopScopedRepo[AdCampaignPurpose]):
     async def latest(self, shop_id: uuid.UUID) -> list[AdCampaignPurpose]:
         """The newest purpose row of each campaign key."""
         rows = await self._all(
-            self._scoped(shop_id, AdCampaignPurpose.platform == PLATFORM_SHOPEE).order_by(
-                AdCampaignPurpose.campaign_key, AdCampaignPurpose.set_at.desc()
-            )
+            self._scoped(
+                shop_id, AdCampaignPurpose.platform == own_platform(shop_id, AdCampaignPurpose)
+            ).order_by(AdCampaignPurpose.campaign_key, AdCampaignPurpose.set_at.desc())
         )
         seen: set[str] = set()
         out: list[AdCampaignPurpose] = []

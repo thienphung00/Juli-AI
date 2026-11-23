@@ -81,7 +81,7 @@ describe("Settings — visitor disabled placeholder", () => {
       </DemoShell>,
     );
 
-    await user.click(screen.getByRole("tab", { name: "Ngưỡng" }));
+    await user.click(await screen.findByRole("tab", { name: "Ngưỡng" }));
 
     expect(
       screen.getByRole("status", { name: "Phản hồi của Juli" }),

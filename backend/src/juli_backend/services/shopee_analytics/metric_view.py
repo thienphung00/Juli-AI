@@ -43,12 +43,13 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.services.metrics.registry import Platform, metric_reason
 from juli_backend.services.shopee_analytics import channel_split, funnel, kol, loaders, service
 from juli_backend.services.shopee_analytics import kol_labels as labels
 from juli_backend.services.shopee_analytics.catalog import Catalog
 from juli_backend.services.shopee_analytics.data_through import ads_last_day, data_through
 from juli_backend.services.shopee_analytics.fmt import frac, num
-from juli_backend.services.shopee_analytics.queries import NoShopeeData
+from juli_backend.services.shopee_analytics.queries import NoShopeeData, resolve_window
 from juli_backend.services.shopee_analytics.stored import RowsNotMaterialized
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_builder.engine.contract import AdShare, FunnelBase, SourceFunnel
@@ -238,31 +239,46 @@ def channel_cell(
     *,
     ads_known: bool = True,
     product_ads: Report | None = None,
+    platform: str = "shopee",
 ) -> Cell | None:
     """A base's cell for one luồng, or all of it (``channel`` None / "all"). ``product_ads``:
-    the shop's DVHT Sản phẩm report figures (shop level), for the one-basis ads rule."""
+    the shop's DVHT Sản phẩm report figures (shop level), for the one-basis ads rule.
+    ``platform`` "tiktok": the totals leave out Tab cửa hàng, Thẻ sản phẩm has no ads to take
+    off and Quảng cáo is ``None`` (decision #7); Shopee is unchanged."""
+    whole = channel_split.total_base(base, platform)
     if channel in (None, "all"):
         return Cell(
-            funnel.known_total(base, "views"),
-            funnel.known_total(base, "clicks"),
-            base.total("orders"),
-            base.total("gmv"),
+            funnel.known_total(whole, "views"),
+            funnel.known_total(whole, "clicks"),
+            whole.total("orders"),
+            whole.total("gmv"),
         )
+    if platform != Platform.shopee:
+        if channel in ("ads", "ads_product", "ads_shop"):
+            return None
+        if channel == "the_san_pham":
+            return _src_cell(_by_source(base).get(channel_split.CARD))
     if channel == "the_san_pham":
         return card_organic(base, ads_known=ads_known, product_ads=product_ads)
     src = _by_source(base)
     if channel in _SOURCE_OF_CHANNEL:
         cell = _src_cell(src.get(_SOURCE_OF_CHANNEL[channel]))
-        if channel == "lien_ket" and cell is not None:
+        if channel == "lien_ket" and cell is not None and platform == Platform.shopee:
             return replace(cell, views=None)
+        if (
+            platform != Platform.shopee
+            and cell is not None
+            and metric_reason(Platform(platform), _UNAVAILABLE_SOURCE[channel], "orders")
+        ):
+            return replace(cell, orders=None)  # Tab cửa hàng on TikTok: no orders (CTOR, AOV)
         return cell
     if channel == "ads":
         return _overlay(base, ads_known=False, product_ads=product_ads)[1]
     return Cell(
-        funnel.known_total(base, "views"),
-        funnel.known_total(base, "clicks"),
-        base.total("orders"),
-        base.total("gmv"),
+        funnel.known_total(whole, "views"),
+        funnel.known_total(whole, "clicks"),
+        whole.total("orders"),
+        whole.total("gmv"),
     )
 
 
@@ -283,6 +299,18 @@ def _ad_cell(cell: Report | None) -> Cell | None:
 
 
 # -- cards ---------------------------------------------------------------------------------
+
+
+#: luồng key -> the registry traffic source it stands for
+_UNAVAILABLE_SOURCE = {
+    "the_san_pham": "the_san_pham_khac",
+    "trang_shop": "trang_shop",
+    "video": "video",
+    "live": "live",
+    "lien_ket": "lien_ket",
+    "ads_product": "ads",
+    "ads_shop": "ads",
+}
 
 
 def metric_of_ref(ref: CardRef) -> str:
@@ -327,6 +355,7 @@ def assemble(
     names: Mapping[str, str],
     margin_now: Mapping[str, Decimal | None],
     margin_before: Mapping[str, Decimal | None],
+    platform: str = "shopee",
     refs: Sequence[CardRef] = (),
     channel: str | None = None,
     product_id: str | None = None,
@@ -348,8 +377,12 @@ def assemble(
     # the shop's DVHT Sản phẩm report figures: the one-basis ads rule at shop level only
     pn, sn = (None, None) if product_id else channel_split._ad_report(ad_types_now)
     pb, sb = (None, None) if product_id else channel_split._ad_report(ad_types_before)
-    kw_now: dict[str, Any] = {"ads_known": ads_known_now, "product_ads": pn}
-    kw_before: dict[str, Any] = {"ads_known": ads_known_before, "product_ads": pb}
+    kw_now: dict[str, Any] = {
+        "ads_known": ads_known_now, "product_ads": pn, "platform": platform,
+    }  # fmt: skip
+    kw_before: dict[str, Any] = {
+        "ads_known": ads_known_before, "product_ads": pb, "platform": platform,
+    }  # fmt: skip
     for key in ("the_san_pham", "trang_shop", "video", "live"):
         channels.append(
             row_of(
@@ -394,8 +427,8 @@ def assemble(
     for item in item_ids:
         pn_base = funnel.base_from_rows(now, shop_key, item_ids=(item,))
         pb_base = funnel.base_from_rows(before, shop_key, item_ids=(item,))
-        cn = channel_cell(pn_base, channel, ads_known=ads_known_now)
-        cb = channel_cell(pb_base, channel, ads_known=ads_known_before)
+        cn = channel_cell(pn_base, channel, ads_known=ads_known_now, platform=platform)
+        cb = channel_cell(pb_base, channel, ads_known=ads_known_before, platform=platform)
         if cn is not None:
             cn = replace(cn, margin=margin_now.get(item))
         if cb is not None:
@@ -549,7 +582,7 @@ async def _window(
     end: date | None,
     as_of: date | None,
 ) -> Window:
-    window = await service.resolve(
+    window = await resolve_window(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     if window is None:
@@ -570,6 +603,7 @@ async def metric_view(
     as_of: date | None = None,
     channel: str | None = None,
     product_id: str | None = None,
+    platform: str = "shopee",
 ) -> dict[str, Any]:
     if metric not in METRICS:
         raise ValueError(f"metric must be one of {list(METRICS)}")
@@ -614,13 +648,28 @@ async def metric_view(
         names=names,
         margin_now=margins_now,
         margin_before=margins_before,
+        platform=platform,
         refs=refs,
         channel=channel,
         product_id=product_id,
     )
+    if platform != Platform.shopee:
+        body["unavailable"] = unavailable_channels(platform, metric)
     # P100 B.5: "Số liệu đến dd/mm" per section (channels / products)
     body["data_through"] = {k: through[k] for k in ("channels", "products")}
     return body
+
+
+def unavailable_channels(platform: str, metric: str) -> dict[str, str]:
+    """R-2: luồng key -> registry reason code, for the luồng whose ``metric`` the platform does
+    not give (their cells are ``None``, never 0)."""
+    plat = Platform(platform)
+    out: dict[str, str] = {}
+    for key, source in _UNAVAILABLE_SOURCE.items():
+        reason = metric_reason(plat, source, metric)
+        if reason is not None:
+            out[key] = reason
+    return out
 
 
 def _margins(view: Any) -> dict[str, Decimal | None]:

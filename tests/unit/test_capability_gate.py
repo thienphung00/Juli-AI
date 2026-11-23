@@ -115,6 +115,27 @@ GATED_MODULES = (
 )
 
 
+#: W3 (R-1): the seller analytics routes now answer a TikTok shop (``requires_data_on`` widened);
+#: they are covered by ``test_w3_t2_routes.py``, so the TikTok-refusal sweep skips them.
+WIDENED_ANALYTICS = frozenset(
+    "/demo/shopee/" + p
+    for p in (
+        "overview",
+        "matrix",
+        "critical",
+        "ranking",
+        "products/{item_id}",
+        "kols",
+        "kols/compare",
+        "products/{item_id}/kols",
+        "channel-split",
+        "channel-split/products",
+        "metric-view",
+        "kol-section",
+    )
+)
+
+
 def _all_routes(_app: Any) -> list[APIRoute]:
     """The routes of the 26 route files, from their own routers (paths carry the router prefix)."""
     found: list[APIRoute] = []
@@ -183,10 +204,13 @@ async def test_every_gated_handler_still_refuses_a_tiktok_shop(
     app.dependency_overrides[get_session] = session
 
     wrong: list[tuple[str, int, Any]] = []
-    checked = 0
+    checked = skipped = 0
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         for kind, routes in _routes_by_kind(app).items():
             for route in routes:
+                if route.path in WIDENED_ANALYTICS:
+                    skipped += 1
+                    continue
                 path = "/v1" + route.path_format
                 for name in route.dependant.path_params:
                     path = path.replace("{" + name.name + "}", str(uuid.uuid4()))
@@ -199,5 +223,6 @@ async def test_every_gated_handler_still_refuses_a_tiktok_shop(
                 if response.status_code != 409 or detail != BODY:
                     wrong.append((f"{kind} {method} {route.path}", response.status_code, detail))
     app.dependency_overrides.clear()
-    assert checked == SELLER_GATED + OPS_GATED
+    assert skipped == len(WIDENED_ANALYTICS)
+    assert checked + skipped == SELLER_GATED + OPS_GATED
     assert wrong == []

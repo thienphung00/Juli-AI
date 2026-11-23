@@ -151,7 +151,7 @@ def test_comparisons_are_an_enum_not_metrics() -> None:
 
 
 def test_derivation_version_is_dated() -> None:
-    assert DERIVATION_VERSION == "2026-11-15.1"
+    assert DERIVATION_VERSION == "2026-11-23.1"
 
 
 @pytest.mark.parametrize("metric_id", sorted(METRICS))
@@ -506,7 +506,8 @@ SHOPEE_SOURCES = (
     "ads",
     "chenh_lech_nguon",
 )
-TIKTOK_SOURCES = ("the_san_pham_khac", "live", "video")
+# W3 decision #7: the product card, shop tab, video, LIVE and affiliate (A-34 blocks)
+TIKTOK_SOURCES = ("the_san_pham_khac", "trang_shop", "live", "video", "lien_ket")
 
 
 def test_source_availability_matrix() -> None:
@@ -518,12 +519,12 @@ def test_source_availability_matrix() -> None:
 
 def test_unavailable_source_is_none_never_zero() -> None:
     comps = {"views": D(100), "clicks": D(10)}
-    gated = gate_source(Platform.tiktok, "lien_ket", comps)
+    gated = gate_source(Platform.tiktok, "ads", comps)
     assert gated == {"views": None, "clicks": None}
     assert evaluate("ctr", gated).value is None
     assert evaluate("views", gated).value is None
     assert evaluate("views", gate_source(Platform.tiktok, "video", comps)).value == D(100)
-    assert gate_source(Platform.shopee, "lien_ket", comps) == comps
+    assert gate_source(Platform.shopee, "ads", comps) == comps
 
 
 def test_offers_fallback_to_the_seller_lump_on_tiktok() -> None:

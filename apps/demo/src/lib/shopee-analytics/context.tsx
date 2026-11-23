@@ -2,6 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 
+import type { NavPlatform } from "../app-navigation";
 import type { ShopeeApi } from "./client";
 import type { BuilderApi } from "../shopee-decisions/builder-api";
 import type { RecoApi } from "../shopee-decisions/client";
@@ -19,6 +20,8 @@ export interface ShopeeHost {
   /** Stable id of the API's shop, part of every request key. */
   readonly shopKey: string;
   readonly shopName?: string;
+  /** The shop's marketplace; picks the label table. Required: a host never defaults to a marketplace. */
+  readonly platform: NavPlatform;
   /** Juli Ops: reading only (no copy-to-seller actions). */
   readonly readOnly?: boolean;
   /** P91: the shop's recommendation cards, for the product page's "Đề xuất" tab; absent = the tab is not shown. */
@@ -41,4 +44,9 @@ export function useShopee(): ShopeeHost {
   const host = useContext(Ctx);
   if (!host) throw new Error("useShopee must be used inside ShopeeHostProvider");
   return host;
+}
+
+/** The marketplace of the enclosing host, or null outside a host (labels then stay neutral). */
+export function useHostPlatform(): NavPlatform | null {
+  return useContext(Ctx)?.platform ?? null;
 }

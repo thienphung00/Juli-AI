@@ -312,6 +312,9 @@ _ENDPOINT_STATE_KEYS: dict[str, str] = {
     "bestselling_products": "bestselling_products_last_sync_at",
     "bestselling_videos": "bestselling_videos_last_sync_at",
     "promotion_activity": "promotion_activity_last_sync_at",
+    # W3: the one 90-day re-read of the A-34 channel blocks (``polling.analytics_range``);
+    # the value is the ordinal of the oldest day re-read, not a timestamp.
+    "shop_product_blocks_reread": "shop_product_blocks_reread_through",
 }
 _STATE_KEY_ENDPOINTS = {state_key: endpoint for endpoint, state_key in _ENDPOINT_STATE_KEYS.items()}
 

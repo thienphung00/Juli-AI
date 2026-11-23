@@ -26,12 +26,15 @@ from juli_backend.models.shopee_metrics import (
     ShopeeShopMetricsDaily,
 )
 from juli_backend.models.shopee_profit import ShopeeOrderLine
+from juli_backend.services.shopee_analytics import tiktok_days
 from juli_backend.services.shopee_analytics.windows import Window
 
 ORDER_TYPE = "confirmed"
 ZERO = Decimal(0)
 #: the daily Shopee datasets a day's row is built from (``materialize.DAILY_DATASETS``)
 DAILY_DATASETS = ("shop_overview", "traffic_overview", "shop_traffic")
+#: = ``materialize.MATERIALIZED_PLATFORMS`` (P101 W3; the days a rebuild writes)
+MATERIALIZED_PLATFORMS = frozenset({"shopee", "tiktok"})
 ROWS_MISSING_CODE = "rows_not_materialized"
 ROWS_MISSING_TEXT = "Chưa có số liệu theo ngày cho khoảng này — đang tính lại."
 
@@ -242,8 +245,9 @@ def capped(orders: int, gmv: Decimal, shop: ShopeeShopMetricsDaily) -> tuple[int
 async def data_days_in(
     session: AsyncSession, shop_id: uuid.UUID, window: Window
 ) -> frozenset[date]:
-    """The days of ``window`` the shop has order lines or daily Shopee rows for -- the days the
-    metrics rebuild writes a stored row for (``materialize.data_days``)."""
+    """The days of ``window`` the shop has order lines, daily Shopee rows or (TikTok) daily
+    product analytics for -- the days the metrics rebuild writes a stored row for
+    (``materialize.data_days``)."""
     lines = await session.execute(
         select(ShopeeOrderLine.day)
         .where(
@@ -258,7 +262,7 @@ async def data_days_in(
         select(PlatformDailyMetric.day)
         .where(
             PlatformDailyMetric.shop_id == shop_id,
-            PlatformDailyMetric.platform == "shopee",
+            PlatformDailyMetric.platform.in_(MATERIALIZED_PLATFORMS),
             PlatformDailyMetric.dataset.in_(DAILY_DATASETS),
             PlatformDailyMetric.day >= window.start,
             PlatformDailyMetric.day <= window.end,
@@ -266,6 +270,12 @@ async def data_days_in(
         .distinct()
     )
     out.update(daily.scalars().all())
+    # P101 W3: a TikTok shop's days with daily product analytics (none for a Shopee shop)
+    out.update(
+        d
+        for d in await tiktok_days.analytics_days(session, shop_id)
+        if window.start <= d <= window.end
+    )
     return frozenset(out)
 
 

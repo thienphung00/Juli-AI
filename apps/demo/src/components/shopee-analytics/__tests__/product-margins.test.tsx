@@ -79,7 +79,7 @@ describe("So sánh phân loại: Biên cuối (W2-G's final_margin_pct)", () => 
 
   it("is null-safe: without the field only today's margin shows", async () => {
     render(
-      <ShopeeHostProvider host={{ api: fakeApi({ product: product() }), links: sellerLinks, shopKey: "shop-1", builder: fakeBuilder() }}>
+      <ShopeeHostProvider host={{ api: fakeApi({ product: product() }), links: sellerLinks, platform: "shopee", shopKey: "shop-1", builder: fakeBuilder() }}>
         <ProductPageView id="BEP-S5" params={new URLSearchParams("tab=ng&cmp=1")} />
       </ShopeeHostProvider>,
     );

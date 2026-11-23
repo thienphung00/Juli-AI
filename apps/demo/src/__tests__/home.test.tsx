@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import { seedShopPlatform } from "../lib/shopee-analytics/__tests__/platform-test-helpers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "../app/page";
@@ -12,6 +13,11 @@ import { buildHomeOverview, windowLengthDays } from "../lib/shop-report/home-met
 import { ShopReportProvider } from "../lib/shop-report/shop-report-context";
 import { AUTH_SESSION_STORAGE_KEY } from "../lib/supabase-auth";
 import { vnClock, vnWeekdayDate } from "../lib/vn-format";
+
+// W3 U-4: these tests exercise the ADR-108 TikTok Home, reachable only with `?adr108=1` (decision #8).
+window.history.replaceState(null, "", "/?adr108=1");
+await seedShopPlatform("shop-1", "tiktok");
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), usePathname: () => "/" }));
 
 /**
  * Trang chủ (AC-8.5, ADR-109 decision 3): GMV / Đơn / AOV cards and the
@@ -258,6 +264,7 @@ describe("/ — anonymous and signed-in doors", () => {
   });
 
   it("a Shopee shop never calls the TikTok-only analysis read", async () => {
+    window.localStorage.removeItem(ACTIVE_SHOP_STORAGE_KEY); // a fresh shop: its platform is read from shops/me, not seeded
     window.sessionStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({ accessToken: "token-1", tokenType: "bearer" }));
     window.sessionStorage.setItem(ACTIVE_SHOP_STORAGE_KEY, JSON.stringify({ id: "shop-shopee-1", name: "Shop Shopee" }));
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ platform: "shopee" }), { status: 200, headers: { "Content-Type": "application/json" } }));

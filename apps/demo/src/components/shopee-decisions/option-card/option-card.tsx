@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { sourceFunnelName } from "../../../lib/platform-labels";
 import { DASH, fmt, pp, vnCount, vnd } from "../../../lib/shopee-analytics/format";
 import type { VersionDates } from "../../../lib/shopee-decisions/builder-api";
 import { roiLabel, type AdsEditFacts, type FunnelColumn, type OptionResult } from "../../../lib/shopee-decisions/option-result";
@@ -193,14 +194,10 @@ const METRICS: readonly { readonly key: keyof FunnelColumn; readonly label: stri
   { key: "profit", label: "Lợi nhuận", fmt: (n) => vnd(n) },
 ];
 
-export const SOURCE_LABELS: Readonly<Record<string, string>> = {
-  the_san_pham_khac: "Thẻ sản phẩm (ngoài Trang shop)",
-  trang_shop: "Trang shop",
-  live: "Live",
-  video: "Video",
-  lien_ket: "Liên kết",
-  chenh_lech_nguon: "Chênh lệch nguồn",
-};
+/** Shopee's funnel-row source names (kept for tests); the card itself reads the host's platform table. */
+export const SOURCE_LABELS: Readonly<Record<string, string>> = Object.fromEntries(
+  ["the_san_pham_khac", "trang_shop", "live", "video", "lien_ket", "chenh_lech_nguon"].map((k) => [k, sourceFunnelName("shopee", k) ?? k]),
+);
 
 function columns(r: OptionResult): readonly { readonly name: string; readonly col: FunnelColumn | null }[] {
   return [
@@ -250,7 +247,7 @@ export function OptionDetail({ result: r }: { readonly result: OptionResult }) {
               <tbody>
                 {sources.map((s) => (
                   <tr key={s}>
-                    <th scope="row">{SOURCE_LABELS[s] ?? s}</th>
+                    <th scope="row">{sourceFunnelName("shopee", s) ?? s}</th>
                     {cols.map((c) => {
                       const row = c.col?.by_source[s];
                       return (

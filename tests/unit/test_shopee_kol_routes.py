@@ -90,7 +90,8 @@ async def test_a_shop_not_on_shopee_or_without_numbers_is_refused(session):
     async with client_for(app) as client:
         refused = await client.get(f"{DEMO}/kols")
     app.dependency_overrides.clear()
-    assert refused.status_code == 409 and refused.json()["detail"]["code"] == "not_a_shopee_shop"
+    # W3 (R-1): the KOL routes are open to TikTok; a TikTok shop without its own rows is refused
+    assert refused.status_code == 409 and refused.json()["detail"]["code"] == "no_tiktok_data"
     other = await make_user(session)
     empty = await make_shop(session, other, platform="shopee")
     app = build_app(session)

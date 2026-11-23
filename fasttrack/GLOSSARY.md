@@ -7,6 +7,7 @@ Every term here was misread by an agent at least once and then corrected by the 
 |---|---|---|
 | **Shop** (level / view) | all products of the shop together, the whole shop. This is the default view. | the Shop tab |
 | **Shop tab** (Trang shop) | one traffic surface inside Shopee: the shop's own page | the whole shop |
+| **Tab cửa hàng** (TikTok) | TikTok's shop-tab surface (A-34 `shop_tab_performance`, stored under the `trang_shop` key). It overlaps the other TikTok sources, so it sits **outside the shop total**; TikTok gives no orders for it, so its đơn / CTOR / AOV are "—" (owner 2026-11-23, decision #7). | a source that adds into the total; Shopee's Trang shop |
 | **Shop+** / **DVHT Shop+** | the same entity as the Shop (tab) surface. Ads on it land on the Shop tab. | a separate shop or a separate builder |
 | **shop-level** | scoped to the whole shop | scoped to the Shop tab |
 | **Sản phẩm** (level) | one product, picked with the product picker. There is no Shop+ at this level. | |

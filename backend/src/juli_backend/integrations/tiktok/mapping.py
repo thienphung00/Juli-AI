@@ -780,9 +780,47 @@ def expand_analytics_product_list_item(
             "ctr": _optional_rate(total.get("ctr")),
             "click_order_rate": _optional_rate(total.get("click_order_rate")),
             "conversion_rate": _optional_rate(total.get("click_order_rate")),
-            "traffic_breakdown": _a34_total_block(total),
+            "traffic_breakdown": _a34_breakdown(item, total),
         },
     )
+
+
+#: W3 (owner W3-Q4 = D): the ``traffic_breakdown`` key that keeps the A-34 202605 channel
+#: blocks of the product-day as TikTok sent them (``seller_product_card_performance``,
+#: ``shop_tab_performance``, ``seller_video_performance``, ``seller_live_performance``,
+#: ``affiliate_{total,video,live}_performance``, ``total_performance``), so layer 4 reads the
+#: sources through ``shop_diagnosis.channels`` (its one field map). Money is the amount
+#: string; ``unique_*`` fields are not kept (never read, ADR-108 d.1).
+A34_BLOCKS_KEY = "A34_BLOCKS"
+_BLOCK_SUFFIX = "_performance"
+
+
+def _a34_blocks(item: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for name, block in item.items():
+        if not (isinstance(name, str) and name.endswith(_BLOCK_SUFFIX)):
+            continue
+        if not isinstance(block, dict):
+            continue
+        kept: dict[str, Any] = {}
+        for key, value in block.items():
+            if key.startswith("unique_"):
+                continue
+            if isinstance(value, dict):
+                value = value.get("amount")
+            if value is None or isinstance(value, (dict, list)):
+                continue
+            kept[key] = value
+        out[name] = kept
+    return out
+
+
+def _a34_breakdown(item: dict[str, Any], total: dict[str, Any]) -> dict[str, Any] | None:
+    breakdown = dict(_a34_total_block(total) or {})
+    blocks = _a34_blocks(item)
+    if blocks:
+        breakdown[A34_BLOCKS_KEY] = blocks
+    return breakdown or None
 
 
 #: ``traffic_breakdown`` key for the A-34 list row's own totals. Kept apart from

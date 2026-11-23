@@ -15,7 +15,7 @@ import { KolView } from "../kol-view";
 import { KolSamplesPanel } from "../samples-panel";
 
 function host(over: Partial<ShopeeHost> = {}): ShopeeHost {
-  return { api: fakeApi({ product: product(), critical: critical() }), kol: fakeKol(), links: sellerLinks, shopKey: "shop-1", shopName: "Shop gia dụng", ...over };
+  return { api: fakeApi({ product: product(), critical: critical() }), kol: fakeKol(), links: sellerLinks, platform: "shopee", shopKey: "shop-1", shopName: "Shop gia dụng", ...over };
 }
 
 describe("Phân tích › KOL (PhanTichKOL.dc.html)", () => {
