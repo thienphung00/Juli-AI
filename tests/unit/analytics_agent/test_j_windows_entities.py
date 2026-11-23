@@ -498,3 +498,52 @@ async def test_every_intent_is_answered_even_after_a_clarifying_choice() -> None
     sink2, _ = await go(r2, llm=FakeLLM(None), jev=FakeJev(lambda s, q: full()), data=data)
     titles = [a["title_vi"] for a in sink2.of("data_answer")]
     assert len(titles) == 2 and titles[0] != titles[1]
+
+
+def test_j9_cost_ratio_is_a_percent_and_money_rows_are_not_points() -> None:
+    from juli_backend.services.analytics_agent import facts, fmt, present, shopee_labels, writer
+    from juli_backend.services.analytics_agent.chains import ChainResult, Finding
+
+    assert fmt.value("cost_ratio", 0.274) == "27,4%"  # was "0 → 0"
+    chain = ChainResult(
+        "cost_change",
+        "cost_ratio",
+        windows.build_windows("last_full_week_vs_week_before", YDAY),
+        "explained",
+        [
+            Finding("shop", "cost_ratio", 0.30, 0.25),
+            Finding(
+                "product", "Sản phẩm A", 39_139_569.0, 1_000_000.0, 55.0, evidence_ref="product:p1"
+            ),
+        ],
+        [],
+        0.8,
+    )
+    labels = shopee_labels()
+    steps = present.path_steps(chain, labels)
+    assert steps[0]["value_vi"] == "30,0%" and "điểm %" in steps[0]["delta"]["text_vi"]
+    assert steps[1]["value_vi"] == "39.139.569đ" and "điểm" not in steps[1]["delta"]["text_vi"]
+    text = writer.template_text("Đang tìm hiểu: chi phí", chain.json(labels), labels)
+    assert "30,0%" in text and "mức thay đổi" not in text and "Kết luận" not in text
+    assert facts._metric_of(chain.json(labels)["findings"][1], "cost_ratio") == "cost_total"
+
+
+async def test_j9_existing_card_without_a_code_never_blocks_and_a_star_always_lands() -> None:
+    from juli_backend.services.analytics_agent import cards, shopee_labels
+    from tests.unit.analytics_agent.fakes import AS_OF, FakeCardEngine
+    from tests.unit.analytics_agent.test_cards import explained_chain, jev_ok
+
+    d, c = await explained_chain()
+    d.cards = [{"kind": "product_discount", "item_id": "p1", "status": "sent", "change_after": "x"}]
+    out = await cards.card_stage(
+        chains=[c],
+        data=d,
+        engine=FakeCardEngine(),
+        jev=jev_ok(version="Nhãn không có"),  # Jev names no real version: the best estimable wins
+        labels=shopee_labels(),
+        as_of=AS_OF,
+    )
+    ev = out.events[0]
+    assert ev["type"] == "card"  # "Đã có thẻ" is shown only with the card's code
+    stars = [v["label_vi"] for v in ev["versions"] if v["recommended"]]
+    assert stars == ["Vừa"] and "Vừa" in ev["recommendation_vi"]

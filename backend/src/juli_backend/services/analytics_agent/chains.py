@@ -1028,7 +1028,7 @@ async def _cost_chain(
         if l1.get(k) is not None and l0.get(k) is not None:
             line_d[k] = float(l1[k]) - float(l0[k])
     for k, d in sorted(line_d.items(), key=lambda kv: -abs(kv[1])):
-        if d_cost and abs(d / d_cost) >= FOLLOW_SHARE:
+        if d_cost and d * d_cost > 0 and abs(d / d_cost) >= FOLLOW_SHARE:  # same direction only
             findings.append(
                 Finding(
                     "line",
@@ -1075,7 +1075,7 @@ async def _cost_chain(
                 pd[k] = (q1, q0)
         pn = await data.item_names(list(pd))
         for k, (q1, q0) in sorted(pd.items(), key=lambda kv: -abs(kv[1][0] - kv[1][1])):
-            if d_cost and abs((q1 - q0) / d_cost) >= FOLLOW_SHARE:
+            if d_cost and (q1 - q0) * d_cost > 0 and abs((q1 - q0) / d_cost) >= FOLLOW_SHARE:
                 findings.append(
                     Finding(
                         "product",

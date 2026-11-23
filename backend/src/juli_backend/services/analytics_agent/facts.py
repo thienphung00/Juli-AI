@@ -79,6 +79,8 @@ def _change(
 
 
 def _metric_of(f: dict[str, Any], chain_metric: str) -> str:
+    if chain_metric == "cost_ratio" and f["level"] in ("product", "endpoint.product", "line"):
+        return "cost_total"
     sub = f["node"].partition(".")[2]
     for cand in (sub, f["node"]):
         if cand in KNOWN:

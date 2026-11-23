@@ -318,7 +318,9 @@ async def _engine_and_overlap(
     exact = [
         c
         for c in open_cards
-        if coarse(c["kind"]) == coarse(kind) and (c.get("item_id") or None) == (item or None)
+        if coarse(c["kind"]) == coarse(kind)
+        and (c.get("item_id") or None) == (item or None)
+        and c.get("code")  # never "Đã có thẻ" without the card to show
     ]
     if exact:
         out.gates["G4"] = False
