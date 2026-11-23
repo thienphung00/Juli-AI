@@ -280,7 +280,7 @@ describe("planning", () => {
   const allRead = ["2026-11-05", "2026-11-04", "2026-11-03", "2026-11-02"];
 
   it("the list is re-read once a day for its settings even when every ads day is posted", () => {
-    expect(planJobs({ ...base, adsDone: allRead, adsSettingsDay: "2026-11-05" }).find((j) => j.id === "ads")).toEqual({ id: "ads", days: [] });
+    expect(planJobs({ ...base, adsDone: allRead, adsSettingsDay: "2026-11-05" }).find((j) => j.id === "ads")).toEqual({ id: "ads" }); // 0.3.31: no empty `days` (the reader reads none)
     expect(planJobs({ ...base, adsDone: allRead, adsSettingsDay: TODAY }).find((j) => j.id === "ads")).toBeUndefined();
   });
 

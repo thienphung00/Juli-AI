@@ -32,9 +32,11 @@ from juli_backend.api.dependencies import get_active_shop
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.database.tenant_context import with_shop_scope
-from juli_backend.models.shopee_connector import ShopeeConnectorTokenState
+from juli_backend.models.shopee_connector import ShopeeConnectorState, ShopeeConnectorTokenState
 from juli_backend.repositories import utc_now_naive
 from juli_backend.services import ingest as ingest_service
+from juli_backend.services.ingest import read_days
+from juli_backend.services.shopee_recommendations import connector_state
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +84,9 @@ async def get_ingest_principal(
     session: AsyncSession = Depends(get_session),
 ) -> ingest_service.IngestPrincipal:
     """The live ingest token in ``Authorization: Bearer``, or 401. A Connector older than the
-    minimum version gets 426 ``connector_upgrade_required`` before anything is written; one that
-    names no version is let through."""
+    minimum version gets 426 ``connector_upgrade_required`` before anything is written, and so
+    does a Connector-paired token whose request names no version; a loader-script token that
+    names none is let through (C5a)."""
     scheme, _, token = (authorization or "").partition(" ")
     if scheme.lower() != "bearer" or not token.strip():
         raise _error(status.HTTP_401_UNAUTHORIZED, "missing_token")
@@ -92,7 +95,8 @@ async def get_ingest_principal(
         await session.rollback()
         raise _error(status.HTTP_401_UNAUTHORIZED, "invalid_token")
     await _rate_limited(f"shop:{principal.shop_id}", ingest_service.shop_limit())
-    if ingest_service.min_version.is_too_old(await _declared_version(request, x_connector_version)):
+    declared = await _declared_version(request, x_connector_version)
+    if ingest_service.min_version.refuses(declared, from_connector=principal.from_connector):
         await session.rollback()
         raise _error(
             status.HTTP_426_UPGRADE_REQUIRED,
@@ -179,6 +183,16 @@ async def get_shop_ingest_status(
     Centre change), the same entries the extension's popup reads with its own token."""
     platform = getattr(shop, "platform", None) or "shopee"
     datasets = await ingest_service.dataset_status(session, shop_id=shop.id, platform=platform)
+    if platform == "shopee":
+        # C2: the newest day held per daily dataset and, while behind, how far the read has got.
+        held = await read_days.progress(session, shop.id, platform)
+        state = await session.get(ShopeeConnectorState, shop.id)
+        blocked = read_days.blocked_by_dataset(
+            state.reader_blocks if state else None, connector_state.READER_DATASETS
+        )
+        for entry in datasets:
+            entry.update(held.get(entry["dataset"], {}))
+            entry["blocked"] = blocked.get(entry["dataset"])
     return {"platform": platform, "datasets": datasets}
 
 

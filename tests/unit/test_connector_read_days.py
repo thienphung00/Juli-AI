@@ -9,6 +9,7 @@ from decimal import Decimal
 import pytest
 
 from juli_backend.models.ingest import IngestRawPayload, PlatformDailyMetric
+from juli_backend.models.shopee_connector import ShopeeConnectorState
 from juli_backend.services.ingest import read_days
 from juli_backend.services.ingest.rate_limit import InMemoryRateGate, set_ingest_rate_gate
 from tests.support.api import client_for
@@ -151,3 +152,145 @@ async def test_flash_sale_days_are_judged_by_their_own_stored_row_not_by_other_p
         "2026-11-16" in sets["flash_sale"]["missing"]
     )  # another promotion type is not a flash read
     assert len(sets["flash_sale"]["missing"]) == 29
+
+
+def test_progress_is_the_newest_day_held_and_the_day_before_the_oldest_hole():
+    """C2: Ops shows the newest day Juli holds and, while the Connector has a hole, "Đang đọc
+    đến dd/mm" = the day before its oldest hole (holes are read oldest first)."""
+    days = read_days.window_days(TODAY)
+    full = set(days)
+    out = read_days.progress_of(
+        {"shop_overview": full, "order_income": set(days[:12]), "order_lines": full},
+        {"shop_overview": full, "order_income": set(), "order_lines": full - {days[20]}},
+        TODAY,
+    )
+    assert out["shop_overview"] == {"held_through": "2026-11-18", "reading_through": None}
+    # a file import holds days the Connector has not read itself: it still reads them
+    assert out["order_income"] == {"held_through": "2026-10-31", "reading_through": "2026-10-19"}
+    assert out["order_lines"] == {"held_through": "2026-11-18", "reading_through": "2026-11-08"}
+    assert out["ads_campaign_daily"] == {"held_through": None, "reading_through": "2026-10-19"}
+
+
+async def test_the_seller_status_carries_held_and_reading_days_per_daily_dataset(
+    session, monkeypatch
+):
+    from tests.support.api import authenticate, build_app
+
+    monkeypatch.setattr(read_days, "vietnam_today", lambda now=None: TODAY)
+    user, shop = await _shopee_tenant(session)
+    d = date
+    session.add_all(
+        [
+            _post(shop.id, "shop_overview", d(2026, 10, 20), d(2026, 11, 18)),
+            _post(shop.id, "order_income", d(2026, 10, 20), d(2026, 10, 31), source="file"),
+            ShopeeConnectorState(
+                shop_id=shop.id,
+                reader_blocks=[
+                    {"reason": "login", "readers": ["item_traffic"], "section": "phan_tich"},
+                    {"reason": "password_recheck", "readers": ["shop_totals"], "section": "pt"},
+                ],
+            ),
+        ]
+    )
+    await session.commit()
+    app = build_app(session)
+    authenticate(app, user=user, shop=shop)
+    async with client_for(app) as seller:
+        res = await seller.get("/v1/ingest/shop-status")
+    assert res.status_code == 200, res.text
+    entries = {e["dataset"]: e for e in res.json()["datasets"]}
+    assert entries["item_traffic_sources"]["blocked"] == "login"  # 1(a): the block, per dataset
+    assert entries["shop_overview"]["blocked"] == "password_recheck"
+    assert entries["order_lines"]["blocked"] is None
+    assert entries["item_traffic_sources"]["reading_through"] == "2026-10-19"
+    assert entries["shop_overview"]["held_through"] == "2026-11-18"
+    assert entries["shop_overview"]["reading_through"] is None
+    assert entries["order_income"]["held_through"] == "2026-10-31"
+    assert entries["order_income"]["reading_through"] == "2026-10-19"
+
+
+async def test_a_day_with_lines_that_name_no_item_is_read_again(session, monkeypatch):
+    """C1: the triggered re-read of ``sku:unknown`` lines -- the day goes back on the hole list
+    until a read names the items (the order reader then opens each order's detail)."""
+    from tests.unit.test_ingest_composed_precedence import T1, T2, _catalogue, _write
+
+    monkeypatch.setattr(read_days, "vietnam_today", lambda now=None: TODAY)
+    _, shop = await _shopee_tenant(session)
+    await _catalogue(session, shop.id)
+    session.add(_post(shop.id, "order_lines", date(2026, 10, 20), date(2026, 11, 18)))
+    await session.flush()
+    at = datetime(2026, 11, 10, 3, 0)
+    await _write(session, shop.id, "extension", 3, T1, sku=None, ordered_at=at)
+    covered = await read_days.covered_days(session, shop.id, "shopee", TODAY)
+    missing = read_days.missing_by_dataset(covered, TODAY)
+    assert missing["order_lines"] == {"missing": ["2026-11-10"]}
+    held = await read_days.covered_days(session, shop.id, "shopee", TODAY, extension_only=False)
+    assert date(2026, 11, 10) in held["order_lines"]  # still held, only read again
+    await _write(session, shop.id, "extension", 3, T2, ordered_at=at)  # the detail read
+    covered = await read_days.covered_days(session, shop.id, "shopee", TODAY)
+    assert "order_lines" not in read_days.missing_by_dataset(covered, TODAY)
+
+
+def test_blocks_name_the_datasets_of_their_readers():
+    blocks = [
+        {"reason": "login", "readers": ["item_traffic", "traffic"], "section": "a"},
+        {"reason": "captcha", "readers": ["traffic"], "section": "a"},
+        {"reason": 3, "readers": ["orders"]},
+    ]
+    got = read_days.blocked_by_dataset(
+        blocks, {"item_traffic": ("item_traffic_sources",), "traffic": ("traffic_overview",)}
+    )
+    assert got == {"item_traffic_sources": "login", "traffic_overview": "login"}
+    assert read_days.blocked_by_dataset(None, {}) == {}
+
+
+@pytest.mark.parametrize(
+    "dataset",
+    [
+        "affiliate_content_period",
+        "affiliate_partner_period",
+        "affiliate_product_period",
+        "affiliate_commission_period",
+    ],
+)
+async def test_an_empty_affiliate_day_is_accepted_and_counts_as_read(session, dataset):
+    """C3 (Connector 0.3.32): an empty affiliate page day (KOL content, partners, products,
+    commissions) is posted with 0 rows; Juli keeps the post, so read-days no longer lists it."""
+    from tests.unit.test_shopee_file_datasets import _body, _ingest, _shop
+
+    shop = await _shop(session)
+    body = _body(
+        [],
+        source="extension",
+        source_version="0.3.32",
+        period={"start": "2026-10-28", "end": "2026-10-28", "granularity": "period"},
+        order_type=None,  # the Connector sends none for the affiliate pages
+    )
+    result = await _ingest(session, shop, dataset, body)
+    assert result.rows == 0
+    covered = await read_days.covered_days(session, shop.id, "shopee", date(2026, 10, 30))
+    assert date(2026, 10, 28) in covered[dataset]
+
+
+async def test_an_unresolved_item_day_is_not_handed_out_again_but_stays_a_hole_in_c2(
+    session, monkeypatch, caplog
+):
+    """Connector 0.3.32: after 3 page reads that could not name a line, the Connector posts it as
+    ``unresolved_item``: the day leaves the re-read hand-out (no budget spent on it daily) but the
+    C2 status still shows the day as a hole; the write is logged."""
+    from tests.unit.test_ingest_composed_precedence import T1, T2, _catalogue, _write
+
+    monkeypatch.setattr(read_days, "vietnam_today", lambda now=None: TODAY)
+    _, shop = await _shopee_tenant(session)
+    await _catalogue(session, shop.id)
+    session.add(_post(shop.id, "order_lines", date(2026, 10, 20), date(2026, 11, 18)))
+    await session.flush()
+    at = datetime(2026, 11, 10, 3, 0)
+    await _write(session, shop.id, "extension", 3, T1, sku=None, ordered_at=at)
+    with caplog.at_level("INFO"):
+        await _write(session, shop.id, "extension", 3, T2, sku="unresolved_item", ordered_at=at)
+    assert any(r.getMessage() == "order_line_unresolved_item" for r in caplog.records)
+    covered = await read_days.covered_days(session, shop.id, "shopee", TODAY)
+    assert "order_lines" not in read_days.missing_by_dataset(covered, TODAY)
+    progress = await read_days.progress(session, shop.id, "shopee")
+    assert progress["order_lines"]["reading_through"] == "2026-11-09"

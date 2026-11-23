@@ -26,6 +26,8 @@ import {
   stockDueAt,
   type TickReport,
   ReaderScheduler,
+  mergeOutcome,
+  outcomeRank,
   planJobs,
   type SchedulerAlarms,
   type SchedulerTabs,
@@ -175,6 +177,34 @@ async function finishPage(
   expect(await ctx.scheduler.onResult(tab.id, { job: job?.id, status, responses: answers })).toBe(true);
 }
 
+/** 0.3.31: the run's remaining pages (backfill jobs after today's: the ads history), finished one by one. */
+async function finishRunPages(ctx: ReturnType<typeof setup>): Promise<void> {
+  for (let n = 0; n < 20 && (await ctx.read())?.run; n += 1) {
+    ctx.clock.now += GAP;
+    if ((await ctx.scheduler.tick()) !== "opened") continue;
+    await finishPage(ctx);
+  }
+}
+
+/** 0.3.32: drive the run's order pages one by one (one order per page), answering each by its order id. */
+async function driveOrderPages(
+  ctx: ReturnType<typeof setup>,
+  answer: (orderId: string) => { responses: ReaderResponse[]; detail?: string },
+): Promise<void> {
+  await ctx.scheduler.tick();
+  for (let n = 0; n < 200; n += 1) {
+    const state = await ctx.read();
+    const job = state?.run?.jobs[state.run.index ?? 0];
+    if (!state?.run || job?.id !== "order_income") return;
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    const { responses, detail } = answer(job.orderIds?.[0] ?? "");
+    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", ...(detail ? { detail } : {}), responses });
+    ctx.clock.now += GAP;
+    await ctx.scheduler.tick();
+  }
+}
+
 /** An income answer with its final amount ("Số tiền cuối cùng"), as the income reader keeps it. */
 function incomeAnswer(orderId: string): ReaderResponse {
   return {
@@ -209,8 +239,12 @@ function productList(ids: string[], page: number, tag?: "unlist") {
 describe("planJobs", () => {
   const base = { shopId: PILOT, nowMs: T0, stopped: new Set<never>(), adsDone: [] as string[], readers: CORE_READERS };
 
-  it("by default the affiliate pages are planned too, before item_traffic (which stays last)", () => {
+  it("by default the affiliate pages are planned too, before item_traffic (last of today's pages); backfill after", () => {
+    // 0.3.31: the once-per-shop affiliate history is a backfill job, after today's pages;
+    // 0.3.32: Phân tích Nội dung only from 13:35 GMT+7 (T0 is 10:00)
     const ids = planJobs({ ...base, readers: undefined }).map((j) => j.id);
+    const afternoon = planJobs({ ...base, readers: undefined, nowMs: T0 + 4 * 3_600_000 }).map((j) => j.id);
+    expect(afternoon.filter((id) => !ids.includes(id))).toEqual(["affiliate_content"]);
     expect(ids).toEqual([
       "products",
       "orders",
@@ -223,15 +257,14 @@ describe("planJobs", () => {
       "shop_totals",
       "traffic",
       "product_period",
-      "affiliate",
       "affiliate_dashboard",
       "affiliate_kols",
       "affiliate_products",
       "affiliate_campaigns",
       "affiliate_commissions",
-      "affiliate_content",
       "affiliate_bills",
       "item_traffic",
+      "affiliate",
     ]);
   });
 
@@ -419,6 +452,8 @@ describe("a daily run", () => {
     });
     expect(ctx.posted.at(-1)?.job).toEqual({ id: "item_traffic", days, itemIds: ["11", "12"] });
     expect((await ctx.read())?.trafficDone).toEqual(["2026-11-02"]);
+    // 0.3.31: the backfill pages (the ads history) come after today's: the run ends with them
+    await finishRunPages(ctx);
     // the next day: yesterday plus the three earlier days not yet read (11-01, 10-31, 10-30)
     ctx.clock.now += 24 * 3_600_000;
     await ctx.scheduler.tick();
@@ -445,6 +480,8 @@ describe("a daily run", () => {
     expect(tab.url).toBe(`${SC}/datacenter/product/traffic`);
     await ctx.scheduler.onTabReady(tab.id, tab.url);
     await ctx.scheduler.onResult(tab.id, { job: "item_traffic", status: "blocked_password_recheck", detail: "password_modal", responses: [] });
+    // 0.3.31: the ads history (a backfill page) still runs after it; the block stops item_traffic only
+    await finishRunPages(ctx);
     const state = await ctx.read();
     expect(state?.blocked).toBeUndefined();
     expect(state?.run).toBeUndefined();
@@ -833,9 +870,12 @@ describe("P97: the day's flow, income queue and bookkeeping", () => {
     await ctx.scheduler.tick();
     const tab = ctx.tabs.current;
     await ctx.scheduler.onTabReady(tab.id, tab.url);
+    // 0.3.32: the order page is read as shown, one order per page: 100 page jobs, oldest first
     const job = (ctx.tabs.sent.at(-1)?.message as { job: { orderIds: string[] } }).job;
-    expect(job.orderIds).toHaveLength(100);
-    expect(job.orderIds[0]).toBe("261101000");
+    expect(job.orderIds).toEqual(["261101000"]);
+    const jobs = (await ctx.read())?.run?.jobs ?? [];
+    expect(jobs.filter((j) => j.id === "order_income")).toHaveLength(100);
+    expect(jobs[99]?.orderIds).toEqual(["261101099"]);
   });
 });
 
@@ -1212,16 +1252,29 @@ describe("0.3.19: the 90-day ads history", () => {
     expect(await ctx.scheduler.tick()).toBe("opened");
     const tab = ctx.tabs.current;
     await ctx.scheduler.onTabReady(tab.id, tab.url);
-    return { tab, job: (ctx.tabs.sent.at(-1)?.message as { job: { days: string[]; historyDays?: string[]; budget: number } }).job };
+    return { tab, job: (ctx.tabs.sent.at(-1)?.message as { job: { days?: string[]; historyDays?: string[]; budget: number } }).job };
   }
+  /** 0.3.31: today's ads days are their own job; the history days are a backfill job after today's pages. */
+  async function adsHistoryJob(ctx: ReturnType<typeof setup>) {
+    const today = await adsJob(ctx);
+    await ctx.scheduler.onResult(today.tab.id, { job: "ads", status: "done", responses: adsReplies(today.job.days) });
+    ctx.clock.now += GAP;
+    const history = await adsJob(ctx);
+    return { today: today.job, tab: history.tab, job: history.job };
+  }
+  const planned = async (ctx: ReturnType<typeof setup>) => {
+    await ctx.scheduler.tick();
+    return (await ctx.read())?.run?.jobs.filter((j) => j.id === "ads") ?? [];
+  };
 
   it("plans the 90 finished days before today's, newest first, 10 a run after the regular days", async () => {
     const ctx = setup({ readers: ["ads"] });
-    const { job } = await adsJob(ctx);
-    expect(job.days).toEqual(["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"]);
+    const { today, job } = await adsHistoryJob(ctx);
+    expect(today.days).toEqual(["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"]);
+    expect(today.historyDays).toBeUndefined();
     expect(job.historyDays).toEqual(["2026-10-29", "2026-10-28", "2026-10-27", "2026-10-26", "2026-10-25", "2026-10-24", "2026-10-23", "2026-10-22", "2026-10-21", "2026-10-20"]);
     const plan = (await ctx.read())?.adsHistory;
-    expect(plan).toMatchObject({ shopId: PILOT, status: "running", done: [] });
+    expect(plan).toMatchObject({ shopId: PILOT, status: "running" });
     expect(plan?.days).toHaveLength(90);
     expect(plan?.days[0]).toBe("2026-11-02");
     expect(plan?.days[89]).toBe("2026-08-05");
@@ -1229,15 +1282,15 @@ describe("0.3.19: the 90-day ads history", () => {
 
   it("is resumable: read days are done, the next run takes the next ten, a day that did not post stays", async () => {
     const ctx = setup({ readers: ["ads"] });
-    const { tab, job } = await adsJob(ctx);
+    const { tab, job } = await adsHistoryJob(ctx);
     const readNow = (job.historyDays ?? []).filter((d) => d !== "2026-10-25");
-    await ctx.scheduler.onResult(tab.id, { job: "ads", status: "done", responses: [...adsReplies(job.days), ...history(readNow)] });
+    await ctx.scheduler.onResult(tab.id, { job: "ads", status: "done", responses: history(readNow) });
     const after = (await ctx.read())?.adsHistory;
     expect(after?.done).toHaveLength(4 + 9);
     expect(after?.done).not.toContain("2026-10-25");
     expect(after?.earliest).toBe("2026-10-20");
     ctx.clock.now += 24 * 3_600_000;
-    const next = await adsJob(ctx);
+    const next = await adsHistoryJob(ctx);
     expect(next.job.historyDays?.[0]).toBe("2026-10-25");
     expect(next.job.historyDays).toHaveLength(10);
   });
@@ -1245,46 +1298,51 @@ describe("0.3.19: the 90-day ads history", () => {
   it("stays inside the backfill's part of the budget: nothing when only today's reserve is left", async () => {
     const ctx = setup({ readers: ["ads"] });
     ctx.storage.data.budget = { day: "2026-11-03", used: DAILY_REQUEST_BUDGET - TODAY_REQUEST_RESERVE - 2 * ADS_HISTORY_DAY_COST };
-    const { job } = await adsJob(ctx);
-    expect(job.historyDays).toHaveLength(2);
+    expect((await planned(ctx)).find((j) => j.historyDays)?.historyDays).toHaveLength(2);
     const spent = setup({ readers: ["ads"] });
     spent.storage.data.budget = { day: "2026-11-03", used: DAILY_REQUEST_BUDGET - TODAY_REQUEST_RESERVE };
-    expect((await adsJob(spent)).job.historyDays).toBeUndefined();
+    expect((await planned(spent)).some((j) => j.historyDays)).toBe(false);
   });
 
   it("the first day Shopee refuses ends it: that limit and the earliest day read are kept, older days never asked", async () => {
     const ctx = setup({ readers: ["ads"] });
-    const { tab, job } = await adsJob(ctx);
+    const { tab, job } = await adsHistoryJob(ctx);
     const [d1, d2, d3] = job.historyDays ?? [];
-    await ctx.scheduler.onResult(tab.id, { job: "ads", status: "done", responses: [...adsReplies(job.days), ...history([d1!, d2!]), refused(d3!)] });
+    await ctx.scheduler.onResult(tab.id, { job: "ads", status: "done", responses: [...history([d1!, d2!]), refused(d3!)] });
     const after = (await ctx.read())?.adsHistory;
     expect(after).toMatchObject({ status: "done", earliest: d2, limit: { day: d3, code: "code_10006" } });
     ctx.clock.now += 24 * 3_600_000;
-    const next = await adsJob(ctx);
-    expect(next.job.historyDays).toBeUndefined();
-    expect(next.job.days).toEqual(["2026-11-03"]);
+    const next = await planned(ctx);
+    expect(next.some((j) => j.historyDays)).toBe(false);
+    expect(next[0]?.days).toEqual(["2026-11-03"]);
   });
 
   it("done for the shop once every planned day is read; a new shop starts its own", async () => {
     const ctx = setup({ readers: ["ads"] });
     const days = lastFinishedDays(T0, 90);
     ctx.storage.data.readers = { adsDone: [], trafficDone: [], adsHistory: { shopId: PILOT, createdAt: "x", days, done: days.slice(0, 89), status: "running" } };
-    const { tab, job } = await adsJob(ctx);
+    const { tab, job } = await adsHistoryJob(ctx);
     expect(job.historyDays).toEqual([days[89]]);
-    await ctx.scheduler.onResult(tab.id, { job: "ads", status: "done", responses: [...adsReplies(job.days), ...history([days[89]!])] });
+    await ctx.scheduler.onResult(tab.id, { job: "ads", status: "done", responses: history([days[89]!]) });
     expect((await ctx.read())?.adsHistory).toMatchObject({ status: "done", earliest: days[89] });
     expect((await ctx.read())?.adsHistory?.limit).toBeUndefined();
   });
 });
 
 describe("0.3.20: the ads page gets a longer wait and one reload", () => {
-  it("waits twice the general cap, reloads once without the history days, then gives up", async () => {
+  // 0.3.31: the ads history is a backfill job of its own; these runs have none (the history is done)
+  const noHistory = (ctx: ReturnType<typeof setup>) => {
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], adsHistory: { shopId: PILOT, createdAt: "x", days: [], done: [], status: "done" } };
+  };
+
+  it("waits twice the general cap, reloads once, then gives up", async () => {
     const ctx = setup({ readers: ["ads"] });
+    noHistory(ctx);
     expect(await ctx.scheduler.tick()).toBe("opened");
     const first = ctx.tabs.current;
     await ctx.scheduler.onTabReady(first.id, first.url);
-    const planned = (ctx.tabs.sent.at(-1)?.message as { job: { historyDays?: string[] } }).job;
-    expect(planned.historyDays?.length).toBeGreaterThan(0);
+    const planned = (ctx.tabs.sent.at(-1)?.message as { job: { days?: string[] } }).job;
+    expect(planned.days?.length).toBeGreaterThan(0);
     ctx.clock.now += READER_JOB_TIMEOUT_MS + 1;
     expect(await ctx.scheduler.tick()).toBe("waiting"); // past the general cap: the ads page still loads
     const usedBefore = (ctx.storage.data.budget as { used: number }).used;
@@ -1306,8 +1364,25 @@ describe("0.3.20: the ads page gets a longer wait and one reload", () => {
     expect(ctx.tabs.opened).toHaveLength(2);
   });
 
+  it("the history job's reload drops its history days", async () => {
+    const ctx = setup({ readers: ["ads"] });
+    expect(await ctx.scheduler.tick()).toBe("opened");
+    await finishPage(ctx); // today's ads days
+    ctx.clock.now += GAP;
+    expect(await ctx.scheduler.tick()).toBe("opened");
+    const first = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(first.id, first.url);
+    expect((ctx.tabs.sent.at(-1)?.message as { job: { historyDays?: string[] } }).job.historyDays?.length).toBeGreaterThan(0);
+    ctx.clock.now += ADS_JOB_TIMEOUT_MS + 1;
+    expect(await ctx.scheduler.tick()).toBe("reopened");
+    const second = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(second.id, second.url);
+    expect((ctx.tabs.sent.at(-1)?.message as { job: { historyDays?: string[] } }).job.historyDays).toBeUndefined();
+  });
+
   it("the reloaded page's answer is posted like any other", async () => {
     const ctx = setup({ readers: ["ads"] });
+    noHistory(ctx);
     await ctx.scheduler.tick();
     await ctx.scheduler.onTabReady(ctx.tabs.current.id, ctx.tabs.current.url);
     ctx.clock.now += ADS_JOB_TIMEOUT_MS + 1;
@@ -1354,19 +1429,13 @@ describe("0.3.20: the orders outcome is truthful", () => {
       ],
     };
     const refused: ReaderResponse = { endpoint: "order_income_components", url: "u", status: 200, body: { code: 7 }, capturedAt: T0, source: "replay", orderId: "26110002" };
-    const run = async (responses: ReaderResponse[]) => {
-      await ctx.scheduler.tick();
-      const tab = ctx.tabs.current;
-      await ctx.scheduler.onTabReady(tab.id, tab.url);
-      await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", responses });
-    };
-    // read: 0001; refused: 0002 (first failed day) and 0003 (third failed day: dropped)
-    await run([incomeAnswer("26110001"), refused, { ...refused, orderId: "26110003" }]);
+    // read: 0001; refused: 0002 (first failed day) and 0003 (third failed day: dropped); one page each (0.3.32)
+    await driveOrderPages(ctx, (id) => ({ responses: id === "26110001" ? [incomeAnswer(id)] : [{ ...refused, orderId: id }] }));
     expect((await ctx.read())?.incomeQueue).toEqual([{ id: "26110002", completedAt: T0 - 2000, failedDays: 1, failedDay: "2026-11-03" }]);
     // a second run the same day (a manual sync) does not count another failed day
     ctx.storage.data.readers = { ...(await ctx.read())!, incomeDay: undefined, lastRunDay: undefined, run: undefined };
-    await run([]);
-    expect(ctx.posted.filter((p) => p.job.id === "order_income")).toHaveLength(2);
+    await driveOrderPages(ctx, () => ({ responses: [] }));
+    expect(ctx.posted.filter((p) => p.job.id === "order_income")).toHaveLength(4);
     expect((await ctx.read())?.incomeQueue).toEqual([{ id: "26110002", completedAt: T0 - 2000, failedDays: 1, failedDay: "2026-11-03" }]);
   });
 
@@ -1379,10 +1448,7 @@ describe("0.3.20: the orders outcome is truthful", () => {
     ctx.storage.data.readers = { adsDone: [], trafficDone: [], incomeQueue: queue };
     // no answer, no row: what the Connector's postReader gives for an income read with nothing in it
     (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async () => ({ order_income: "ignored" });
-    await ctx.scheduler.tick();
-    const tab = ctx.tabs.current;
-    await ctx.scheduler.onTabReady(tab.id, tab.url);
-    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", detail: "no_order_key", responses: [] });
+    await driveOrderPages(ctx, () => ({ responses: [], detail: "no_order_key" }));
     expect((await ctx.read())?.incomeQueue).toEqual(queue);
     expect((await ctx.read())?.lastRun?.outcomes.order_income).toBe("error:order_income:0_rows:no_order_key");
   });
@@ -1704,5 +1770,86 @@ describe("0.3.27 (contract C): a read-back's pages", () => {
     ctx.clock.now += GAP;
     expect(await ctx.scheduler.tick()).toBe("opened");
     expect((await ctx.read())?.run?.jobs.length).toBeGreaterThan(1);
+  });
+});
+
+
+describe("0.3.32: one outcome per reader in a run (C2)", () => {
+  it("the worst status leads (error > blocked > empty > ok) and every job's outcome is kept", () => {
+    expect(outcomeRank("done:order_income=posted")).toBe(0);
+    expect(outcomeRank("done:order_lines=empty")).toBe(1);
+    expect(outcomeRank("no_orders")).toBe(1);
+    expect(outcomeRank("blocked:login")).toBe(2);
+    expect(outcomeRank("waiting_budget")).toBe(2);
+    expect(outcomeRank("done:ads_campaign_daily:2026-11-02=rejected")).toBe(3);
+    expect(outcomeRank("timeout")).toBe(3);
+    expect(mergeOutcome(undefined, "done:a=posted")).toBe("done:a=posted");
+    expect(mergeOutcome("done:a=posted", "timeout")).toBe("timeout|done:a=posted");
+    expect(mergeOutcome("timeout|done:a=posted", "blocked:login")).toBe("timeout|done:a=posted|blocked:login");
+    expect(mergeOutcome("no_orders", "done:a=posted")).toBe("no_orders|done:a=posted");
+    expect(mergeOutcome("done:a=posted", "done:a=posted")).toBe("done:a=posted");
+    expect(mergeOutcome("x".repeat(158), "timeout")).toHaveLength(160); // the backend's cap
+  });
+
+  it("ads today + ads history in one run: the history's failure is not hidden by today's post, nor today's lost", async () => {
+    const ctx = setup({ readers: ["ads"] });
+    expect(await ctx.scheduler.tick()).toBe("opened");
+    await finishPage(ctx); // today's ads days: posted
+    ctx.clock.now += GAP;
+    expect(await ctx.scheduler.tick()).toBe("opened");
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "ads", status: "needs_template", detail: "ads_homepage", responses: [] });
+    const ads = (await ctx.read())?.lastRun?.outcomes.ads ?? "";
+    expect(ads.startsWith("needs_template:ads_homepage|done:")).toBe(true);
+    expect(ads).toContain("ads_campaign_daily:2026-11-02=posted");
+  });
+
+  it("two order pages in one run: the reader's outcome is the worse one, with both reasons", async () => {
+    const ctx = setup({ readers: ["order_income"] });
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], incomeQueue: [{ id: "26110001", completedAt: T0 - 2000 }, { id: "26110002", completedAt: T0 - 1000 }] };
+    (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async (job: ReaderJob) => ({
+      order_income: job.orderIds?.[0] === "26110001" ? "posted" : "rejected",
+    });
+    await driveOrderPages(ctx, (id) => ({ responses: [incomeAnswer(id)] }));
+    const income = (await ctx.read())?.lastRun?.outcomes.order_income ?? "";
+    expect(income.split("|")[0]).toMatch(/^error:order_income:0_rows:rejected/);
+    expect(income).toContain("done:order_income=posted");
+  });
+});
+
+describe("0.3.32: an order page that cannot name a line is read 3 times, then 'unresolved_item'", () => {
+  it("counts one failed read a day, marks the third read as the last, then never queues the order again", async () => {
+    const ctx = setup({ readers: ["order_income"] });
+    const fix = { code: 0, data: { order_id: 26110009, order_sn: "261101ZZZZZZZZ", create_time: 1, items: [{ amount: 1, order_price: 1000 }] } };
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], incomeQueue: [{ id: "26110009", completedAt: T0, income: false, fix }] };
+    (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async (_job: ReaderJob, responses: ReaderResponse[]) =>
+      responses.some((r) => r.endpoint === "order_detail") ? { order_income: "empty", order_lines: "posted" } : { order_income: "empty" };
+    const lastFlags: boolean[] = [];
+    for (let day = 0; day < 3; day += 1) {
+      // the third (last) read is answered as the reader does: the lines posted as unresolved_item
+      const answer: ReaderResponse[] = day === 2 ? [{ endpoint: "order_detail", url: "u", status: 200, body: fix, capturedAt: T0, source: "page", orderId: "26110009" }] : [];
+      await driveOrderPages(ctx, () => ({ responses: answer, ...(day === 2 ? { detail: "unresolved_item" } : { detail: "page_lines_unmatched" }) }));
+      const msg = ctx.tabs.sent.filter((m) => (m.message as { job?: { id?: string } }).job?.id === "order_income").at(-1)?.message as { job: { fixLast?: boolean[] } };
+      lastFlags.push(msg.job.fixLast?.[0] ?? false);
+      if (day < 2) expect((await ctx.read())?.incomeQueue?.[0]?.fixFailedDays).toBe(day + 1);
+      ctx.clock.now += 24 * 3_600_000;
+      ctx.storage.data.readers = { ...(await ctx.read())!, incomeDay: undefined, lastRunDay: undefined, run: undefined };
+    }
+    expect(lastFlags).toEqual([false, false, true]);
+    expect((await ctx.read())?.incomeQueue).toEqual([]);
+    expect((await ctx.read())?.pageFixGivenUp).toEqual(["26110009"]);
+    // the orders reader meets the same SKU-less order again: it is not queued for its lines
+    const ordersRun = async (givenUp: string[]) => {
+      const o = setup({ readers: ["orders"] });
+      o.storage.data.readers = { adsDone: [], trafficDone: [], pageFixGivenUp: givenUp };
+      await o.scheduler.tick();
+      const tab = o.tabs.current;
+      await o.scheduler.onTabReady(tab.id, tab.url);
+      await o.scheduler.onResult(tab.id, { job: "orders", status: "done", responses: [{ endpoint: "order_detail", url: "u", status: 200, body: fix, capturedAt: T0, source: "replay" }] });
+      return ((await o.read())?.incomeQueue ?? []).map((q) => q.id);
+    };
+    expect(await ordersRun([])).toEqual(["26110009"]);
+    expect(await ordersRun(["26110009"])).toEqual([]);
   });
 });

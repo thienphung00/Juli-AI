@@ -172,7 +172,7 @@ async def _token(session, seeded, shop_id="998877"):
     )  # fmt: skip
     await session.commit()
     assert pairing.token_hash(issued.token)
-    return {"Authorization": f"Bearer {issued.token}"}
+    return {"Authorization": f"Bearer {issued.token}", "X-Connector-Version": "0.3.31"}
 
 
 @pytest.fixture

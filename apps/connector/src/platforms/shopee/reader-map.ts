@@ -923,8 +923,11 @@ export function mapReaderJob(job: ReaderJob, responses: ReaderResponse[], captur
       return mapAdsProducts(responses, capturedAt);
     case "orders":
       return [mapOrderLines(responses, capturedAt)];
-    case "order_income":
-      return [mapOrderIncome(responses, capturedAt)];
+    case "order_income": {
+      // 0.3.32 (C1): an order page that put its SKUs on a stored answer re-posts that order's lines
+      const lines = responses.filter((r) => r.endpoint === "order_detail");
+      return [mapOrderIncome(responses, capturedAt), ...(lines.length > 0 ? [mapOrderLines(lines, capturedAt)] : [])];
+    }
     case "traffic":
       return mapTrafficJob(responses);
     default:

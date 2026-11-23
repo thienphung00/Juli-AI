@@ -237,12 +237,12 @@ async def test_each_computer_keeps_its_own_state_and_the_shop_row_is_the_aggrega
     first, second = await _two_computers(session, seeded)
     app = build_app(session)
     async with client_for(app) as a, client_for(app) as b:
-        a.headers.update(first)
-        b.headers.update(second)
-        blocked = {**TICK, "source_version": "0.3.25", "outcomes": {"traffic": "blocked:login"}}
+        a.headers.update({**first, "X-Connector-Version": "0.3.33"})
+        b.headers.update({**second, "X-Connector-Version": "0.3.32"})
+        blocked = {**TICK, "source_version": "0.3.33", "outcomes": {"traffic": "blocked:login"}}
         clean = {
             **TICK,
-            "source_version": "0.3.24",
+            "source_version": "0.3.32",
             "outcomes": {"traffic": "done:traffic_overview=posted"},
         }
         assert (await a.post(TICKS, json=blocked)).status_code == 202
@@ -260,7 +260,7 @@ async def test_each_computer_keeps_its_own_state_and_the_shop_row_is_the_aggrega
     assert len(states) == 2
     shop_row = await session.get(ShopeeConnectorState, seeded.shop_id)
     await session.refresh(shop_row)
-    assert shop_row.connector_version == "0.3.25"  # newest, not the last writer's
+    assert shop_row.connector_version == "0.3.33"  # newest, not the last writer's
     assert shop_row.seller_centre_open is True
     assert shop_row.reader_blocks == [
         {"section": "phan_tich_ban_hang", "reason": "login", "readers": ["traffic"]}
@@ -272,7 +272,7 @@ async def test_each_computer_keeps_its_own_state_and_the_shop_row_is_the_aggrega
     }  # fmt: skip
     assert out["alive"] is True and out["seller_centre_open"] is True
     assert out["reader_blocks"] == shop_row.reader_blocks
-    assert sorted(c["version"] for c in out["computers"]) == ["0.3.24", "0.3.25"]
+    assert sorted(c["version"] for c in out["computers"]) == ["0.3.32", "0.3.33"]
     assert all(c["alive"] and c["label"] == "Juli Connector test" for c in out["computers"])
 
 

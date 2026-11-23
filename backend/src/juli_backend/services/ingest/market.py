@@ -28,7 +28,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import case, select
+from sqlalchemy import case, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import SOURCE_RANK
@@ -281,6 +281,9 @@ async def write_market_search(
             )
             await session.execute(stmt)
         for summary in summaries:
+            # C5d: the day's summary keeps the newest read; an older one uploaded later by
+            # another computer is ignored (the capture time lives in ``extra``, no migration).
+            summary["extra"] = {**summary["extra"], "collected_at": collected_at.isoformat()}
             stmt = insert(MarketKeywordSnapshot).values(summary)
             stmt = stmt.on_conflict_do_update(
                 index_elements=["platform", "keyword", "sort", "collected_on"],
@@ -297,6 +300,11 @@ async def write_market_search(
                         "extra",
                     )
                 },
+                where=or_(
+                    MarketKeywordSnapshot.extra["collected_at"].as_string().is_(None),
+                    MarketKeywordSnapshot.extra["collected_at"].as_string()
+                    <= stmt.excluded.extra["collected_at"].as_string(),
+                ),
             )
             await session.execute(stmt)
 

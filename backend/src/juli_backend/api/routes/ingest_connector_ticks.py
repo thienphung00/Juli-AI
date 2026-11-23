@@ -29,6 +29,7 @@ from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.repositories import utc_now_naive
 from juli_backend.services import ingest as ingest_service
+from juli_backend.services.ingest import reader_status
 from juli_backend.services.ops import audit
 from juli_backend.services.shopee_recommendations import connector_state
 
@@ -122,6 +123,8 @@ async def post_connector_tick(
                 "day": tick.day,
                 "occurred_at": (tick.occurred_at or now).isoformat(),
                 "outcomes": tick.outcomes,
+                # C2: one status per reader of this run (ok / empty / blocked / error + reason).
+                "readers": reader_status.statuses(tick.outcomes),
                 "source_version": tick.source_version,
             },
             at=now,

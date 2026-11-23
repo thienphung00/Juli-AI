@@ -20,7 +20,9 @@ function fakeFetch(tokens: unknown[] = []) {
         JSON.stringify({
           platform: "shopee",
           datasets: [
-            { dataset: "shop_overview", last_ingest_at: "2026-11-12T03:00:00Z", last_period_end: "2026-11-11", drift: "ok" },
+            { dataset: "shop_overview", last_ingest_at: "2026-11-12T03:00:00Z", last_period_end: "2026-11-11", drift: "ok", held_through: "2026-11-11", reading_through: null },
+            { dataset: "order_income", last_ingest_at: "2026-11-01T03:00:00Z", last_period_end: "2026-10-31", drift: "ok", held_through: "2026-11-10", reading_through: "2026-11-03", blocked: null },
+            { dataset: "item_traffic_sources", last_ingest_at: "2026-11-17T03:00:00Z", last_period_end: "2026-11-16", drift: "ok", held_through: "2026-11-16", reading_through: "2026-11-16", blocked: "login" },
             { dataset: "ads_campaign_daily", last_ingest_at: "2026-11-12T03:00:00Z", last_period_end: "2026-11-11", drift: "drift" },
             { dataset: "orders_export", last_ingest_at: "2026-11-01T03:00:00Z", last_period_end: "2026-10-31", drift: "ok" },
           ],
@@ -110,6 +112,16 @@ describe("Cài đặt › Juli Connector", () => {
     expect(screen.getByTestId("received-ads_campaign_daily")).toHaveTextContent("Tạm dừng");
     expect(screen.getByTestId("received-affiliate_order_lines")).toHaveTextContent("Chưa nhận");
     expect(table).not.toHaveTextContent("orders_export"); // not the Connector's
+  });
+
+  it("C2: shows the newest day held and, while behind, only Đang đọc đến dd/mm", async () => {
+    render(<ConnectorSettings auth={{ token: "t", shopId: "s1", fetchImpl: fakeFetch() as unknown as typeof fetch }} shopName="ORY" />);
+    const income = await screen.findByTestId("received-order_income");
+    expect(income).toHaveTextContent(new Date("2026-11-10").toLocaleDateString("vi-VN"));
+    expect(income.querySelectorAll("td")[2]).toHaveTextContent(/^Đang đọc đến 03\/11$/);
+    expect(screen.getByTestId("received-shop_overview")).not.toHaveTextContent("Đang đọc");
+    // 1(a): a blocked page says why, in the same line
+    expect(screen.getByTestId("received-item_traffic_sources").querySelectorAll("td")[2]).toHaveTextContent(/^Đang đọc đến 16\/11 · Cần đăng nhập$/);
   });
 
   it("the tab exists only for a Shopee shop", () => {

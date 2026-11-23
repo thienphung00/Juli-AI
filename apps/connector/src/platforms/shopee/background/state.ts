@@ -38,6 +38,13 @@ export interface IncomeQueued {
   completedAt: number;
   failedDays?: number;
   failedDay?: string;
+  /** 0.3.32: false = the order is not completed: its page is read only for its lines (no income yet). */
+  income?: boolean;
+  /** 0.3.32 (C1): the order's trimmed get_one_order answer when a line named no SKU (no buyer data). */
+  fix?: unknown;
+  /** 0.3.32: page reads that could not name the line (one a day); at PAGE_FIX_MAX_FAILS it is posted "unresolved_item". */
+  fixFailedDays?: number;
+  fixFailedDay?: string;
 }
 
 export interface Queued {
@@ -103,12 +110,18 @@ export interface PlannedJob {
   /** order_income: the completed orders to read (raw ids stay in this browser; filled in at its turn). */
   orderIds?: string[];
   orderSns?: string[];
+  /** order_income (0.3.32): per order, whether its income is read, and its stored answer to put SKUs on. */
+  incomeFor?: boolean[];
+  fixBodies?: (unknown | null)[];
+  fixLast?: boolean[];
   /** affiliate: older purchase windows to read once (0.3.17). */
   history?: { start: string; end: string }[];
   /** orders (0.3.19): read back to orders placed on this GMT+7 day (catch-up by date). */
   sinceDay?: string;
   /** ads (0.3.19): older days of the once-per-shop ads history, newest first, after `days`. */
   historyDays?: string[];
+  /** 0.3.32: a page read again in this run after its section answered (F4.3); its outcome replaces the block. */
+  retry?: boolean;
 }
 
 /** One scheduled run: the pages in order, one open tab at a time (persisted: the worker may restart). */
@@ -201,7 +214,7 @@ export interface ReaderSchedule {
   /** 0.3.31: failed reader runs today (outcome not "done"); at READER_FAIL_ATTEMPTS_PER_DAY the page waits until tomorrow. */
   readerFails?: { day: string; counts: Partial<Record<ReaderId, number>> };
   /** 0.3.27 (contract C): pages a read-back job asked for, read in a run of their own as soon as possible. */
-  readback?: { pages: ReaderId[]; at: string };
+  readback?: { pages: ReaderId[]; at: string; /** 0.3.32: not before this time (ms): Phân tích Nội dung after 13:30. */ notBefore?: number };
   /** 0.3.27: when each page last finished "done" (ms), for the read-back's captured. */
   readAt?: Partial<Record<ReaderId, number>>;
   /** A CAPTCHA / login wall stopped the readers: nothing is opened before `until` (ms since epoch). */
@@ -231,6 +244,8 @@ export interface ReaderSchedule {
    * order ids stay in this browser (chrome.storage.local) -- only hashed refs are ever posted.
    */
   incomeQueue?: IncomeQueued[];
+  /** 0.3.32: orders whose SKU-less lines were posted "unresolved_item": never queued for their lines again (newest last, capped). */
+  pageFixGivenUp?: string[];
   /** Orders completing before this time (ms) were queued already: only later ones are added. */
   incomeSince?: number;
   incomeDay?: string;
