@@ -31,9 +31,9 @@ import {
   VOUCHER_PAGE_LIMIT_DEFAULT,
 } from "./config";
 import { isDatacenterPath, isMydataPath } from "./config";
-import { isReadOnlyOrderDetailPath, isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, type ReaderEndpoint } from "./endpoints";
+import { isReadOnlyOrderDetailPath, isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, READER_PAGES, type ReaderEndpoint } from "./endpoints";
 import { isNoCampaign } from "./promotion-map";
-import { trimOrderCards, trimOrderDetail, trimOrderIndex } from "./orders-map";
+import { type PageItem, trimOrderCards, trimOrderDetail, trimOrderIndex, withPageSkus } from "./orders-map";
 import type { Pacer } from "./runner";
 import { buildBackfillDayPlan } from "./sync";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "../../core/time";
@@ -70,6 +70,10 @@ export interface ReaderJob {
   orderIds?: string[];
   /** order_income: per order, the order number that is hashed (parallel to `orderIds`; "" = unknown). */
   orderSns?: string[];
+  /** order_income (0.3.32): per order, false when only its lines are read (not completed yet: no income). */
+  incomeFor?: boolean[];
+  /** order_income (0.3.32): per order, its trimmed get_one_order answer when a line named no SKU (else null). */
+  fixBodies?: (unknown | null)[];
   /** affiliate: older purchase windows to read once (the 6-month history), each ≤ 31 days. */
   history?: ConversionWindow[];
   /** orders (0.3.19): read back until orders placed before this GMT+7 day. */
@@ -192,6 +196,12 @@ export interface ReaderEnv {
   moreOrderPages?: () => boolean;
   /** 0.3.26: the page shows Seller Centre's "no permission" page or message (a sub-account without the right). */
   permissionDeniedVisible?: () => boolean;
+  /** Phân tích Nội dung (0.3.32): the page shows its empty state ("0 Nội dung" / "Không có dữ liệu"). */
+  contentEmptyVisible?: () => boolean;
+  /** order page (0.3.32): the "Doanh thu" rows it shows, `{name, amount}` (order-page-dom.ts). */
+  orderPageIncome?: () => { name: string; amount: number }[];
+  /** order page (0.3.32): its product lines ("Phân loại", "SKU phân loại", line total). */
+  orderPageItems?: () => PageItem[];
 }
 
 // -- request building ----------------------------------------------------------------------
@@ -1325,11 +1335,50 @@ function orderKeyIn(template: Template, orderId: string): { where: "query" | "bo
 }
 
 /**
+ * The order page as shown (0.3.32): for the order it opened (`ids[0]`, one order per page), its
+ * "Doanh thu" rows become one income answer (the same `{name, amount}` items the income mapper
+ * reads) when the order is completed (`incomeFor`), and its product lines put their "SKU phân
+ * loại" on the order's stored answer when a line named none (`fixBodies`): an order_detail answer
+ * the order-line mapper reads again. The other ids (none: the scheduler opens one page per order)
+ * are left for their own page.
+ */
+function readOrderPage(
+  env: ReaderEnv,
+  ids: string[],
+  collected: ReaderResponse[],
+  sns: string[],
+  job: Pick<ReaderJob, "incomeFor" | "fixBodies">,
+): string | undefined {
+  const opened = ids[0];
+  if (!opened) return undefined;
+  const sn = sns[0] ? { orderSn: sns[0] } : {};
+  const at = env.now();
+  const income = env.orderPageIncome?.() ?? [];
+  if (job.incomeFor?.[0] !== false && income.length > 0) {
+    collected.push({ endpoint: "order_income_components", url: `${env.origin}${READER_PAGES.order_income.path}${opened}`, status: 200, body: { code: 0, data: { items: income } }, capturedAt: at, source: "page", orderId: opened, ...sn });
+  }
+  const stored = job.fixBodies?.[0];
+  let note: string | undefined;
+  if (stored) {
+    const fixed = withPageSkus(stored, env.orderPageItems?.() ?? []);
+    if (fixed) collected.push({ endpoint: "order_detail", url: `${env.origin}${READER_PAGES.order_income.path}${opened}`, status: 200, body: fixed, capturedAt: at, source: "page", orderId: opened, ...sn });
+    else note = "page_lines_unmatched";
+  }
+  return ids.length > 1 ? "partial:one_order_per_page" : note;
+}
+
+/**
  * Per-order income: the order page the scheduler opened is `ids[0]`: its own answer is kept; for
  * every other id the same GET is replayed with only the order id changed (one request each, at the
  * normal pace). A call whose template shows no order id is never replayed.
  */
-async function readOrderIncome(env: ReaderEnv, ids: string[], collected: ReaderResponse[], sns: string[] = []): Promise<string | undefined> {
+async function readOrderIncome(
+  env: ReaderEnv,
+  ids: string[],
+  collected: ReaderResponse[],
+  sns: string[] = [],
+  job: Pick<ReaderJob, "incomeFor" | "fixBodies"> = {},
+): Promise<string | undefined> {
   const snOf = (index: number) => (sns[index] ? { orderSn: sns[index] } : {});
   // 0.3.26: an account without the Tài chính right sees a permission page (the income call is
   // never made) or the page's own income call is refused: "blocked_no_permission", never silent.
@@ -1340,9 +1389,15 @@ async function readOrderIncome(env: ReaderEnv, ids: string[], collected: ReaderR
     return t !== undefined && t.lastResponse === undefined && t.lastStatus === 403 && Number(t.lastCode) !== ANTI_FRAUD_CODE;
   };
   const walled = () => env.captchaVisible?.() === true || env.passwordModalVisible?.() === true;
-  if (await env.waitFor(() => denied() || walled(), READER_TEMPLATE_WAIT_MS) && denied()) {
-    throw new Stop(fail("blocked_no_permission", collected, "page"));
-  }
+  // 0.3.32 (C1 + C3): the order page's own call loads before the hook sees it, so the page is READ:
+  // its "Doanh thu" rows and its product lines, for the one order this page shows.
+  const shown = () => (env.orderPageIncome?.().length ?? 0) > 0 || (env.orderPageItems?.().length ?? 0) > 0;
+  const called = () => env.hasSession() && env.template("order_income_components") !== undefined;
+  const settled = await env.waitFor(() => denied() || walled() || shown() || called(), READER_TEMPLATE_WAIT_MS);
+  if (settled && denied()) throw new Stop(fail("blocked_no_permission", collected, "page"));
+  if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_password_recheck", collected, "password_modal"));
+  if (env.captchaVisible?.()) throw new Stop(fail("blocked_captcha", collected, "page"));
+  if (shown() && !called()) return readOrderPage(env, ids, collected, sns, job);
   // 0.3.31: the income call appears only after the order page has loaded its own detail request.
   await waitForPage(env, ["order_detail", "order_income_components"], collected);
   if (refused()) throw new Stop(fail("blocked_no_permission", collected, `http_403${own()?.lastCode ? `_code_${own()?.lastCode}` : ""}`));
@@ -1621,6 +1676,20 @@ async function readAffiliateCaptured(
       ...(period ? { period } : {}),
     });
   }
+  if (!any && endpoints.includes("affiliate_content_summary") && env.contentEmptyVisible?.()) {
+    // 0.3.32: Phân tích Nội dung shows "0 Nội dung" / "Không có dữ liệu" for its newest day: an empty day
+    const day = latestDay ?? gmt7Date(Math.floor(env.now() / 1000) - 86_400);
+    collected.push({
+      endpoint: "affiliate_content_summary",
+      url: `${env.origin}${READER_PAGES.affiliate_content.path}`,
+      status: 200,
+      body: { code: 0, data: {} },
+      capturedAt: env.now(),
+      source: "page",
+      period: { start: day, end: day },
+    });
+    return;
+  }
   if (!any) throw new Stop(fail("needs_template", collected, endpoints.join(",")));
 }
 
@@ -1684,7 +1753,7 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         await readTraffic(env, job.days ?? [], collected);
         break;
       case "order_income":
-        partial = await readOrderIncome(env, job.orderIds ?? [], collected, job.orderSns);
+        partial = await readOrderIncome(env, job.orderIds ?? [], collected, job.orderSns, job);
         break;
       case "health":
         await readHealth(env, collected);

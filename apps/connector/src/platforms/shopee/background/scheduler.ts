@@ -63,8 +63,9 @@ import {
   TRAFFIC_CATCHUP_DAYS,
   TRAFFIC_JOB_TIMEOUT_MS,
   TRAFFIC_MAX_ITEMS,
+  CONTENT_READY_MINUTE_GMT7,
 } from "../config";
-import { completedOrders, incomeReadIds, zeroRowsStep } from "../orders-map";
+import { completedOrders, incomeReadIds, skuLessOrders, zeroRowsStep } from "../orders-map";
 import { viewedItemIds } from "../product-period-map";
 import { activeItemIds, adsDayAnswer, completedTrafficDays, ongoingAdsCampaigns } from "../reader-map";
 import type { CaptureOutcome } from "./connector";
@@ -73,6 +74,7 @@ import { READER_PAGES, readerPageUrl, readerSection } from "../endpoints";
 import { blockedPath, classify, type ReaderJob, type ReaderResponse } from "../reader";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "../../../core/time";
 import {
+  type IncomeQueued,
   type PlannedJob,
   type ReaderBlockReason,
   type ReaderRun,
@@ -284,6 +286,9 @@ export function planJobs(args: {
       if (args.ordersDay !== todayDay) todayJobs.push({ id, sinceDay: ordersSinceDay(todayDay, args.ordersCoveredDay) });
     } else if (id === "order_income") {
       if (args.incomeDay !== todayDay) todayJobs.push({ id });
+    } else if (id === "affiliate_content") {
+      // 0.3.32: yesterday's content is there from 13:30 GMT+7; earlier, its own read-back run reads it
+      if (gmt7Minute(args.nowMs) >= CONTENT_READY_MINUTE_GMT7) todayJobs.push({ id });
     } else if (id === "affiliate" && args.shopId && args.affiliateHistoryShop !== args.shopId) {
       backfillJobs.push({ id, history: affiliateHistoryWindows(args.nowMs) });
     } else {
@@ -366,7 +371,9 @@ export function jobOutcome(id: ReaderId, posted: Record<string, string>, summary
   }
   if (id === "order_income") {
     const income = posted.order_income;
-    if (income !== "posted" && income !== "queued") return zeroRows("order_income", income, note, responses);
+    // 0.3.32: an order page read only for its lines (not completed: no income asked) is done when they landed
+    const linesOnly = !responses.some((r) => r.endpoint === "order_income_components") && (posted.order_lines === "posted" || posted.order_lines === "queued");
+    if (income !== "posted" && income !== "queued" && !linesOnly) return zeroRows("order_income", income, note, responses);
   }
   return `${summary ? `done:${summary}` : "done"}${note ? `|${note}` : ""}`;
 }
@@ -519,7 +526,9 @@ export class ReaderScheduler {
     }
     const today = gmt7Date(Math.floor(now / 1000));
     // 0.3.27 (contract C): a read-back's pages first, in a run of their own (the day's run is untouched)
-    const asked = (sched.readback?.pages ?? []).filter((id) => readerActive(id, shopId));
+    // 0.3.32: a read-back armed for later (Phân tích Nội dung after 13:30) waits for its minute
+    const due = sched.readback?.notBefore === undefined || now >= sched.readback.notBefore;
+    const asked = due ? (sched.readback?.pages ?? []).filter((id) => readerActive(id, shopId)) : [];
     if (asked.length > 0) {
       if (await this.deps.backfillBusy()) {
         await this.setKick("readback", READER_KICK_RETRY_MINUTES);
@@ -534,7 +543,7 @@ export class ReaderScheduler {
       });
       return `readback:${await this.startNext(next, run)}`;
     }
-    if (sched.readback) await this.save({ ...sched, readback: undefined });
+    if (sched.readback && due) await this.save({ ...sched, readback: undefined });
     if (this.stockDue(sched, shopId, now, today)) {
       if (await this.deps.backfillBusy()) {
         await this.setKick("retry", READER_KICK_RETRY_MINUTES);
@@ -869,16 +878,18 @@ export class ReaderScheduler {
       job = { ...job, campaignIds: groups.map((c) => c.id), campaignNames: groups.map((c) => c.name ?? "") };
       run = { ...run, jobs: run.jobs.map((j, i) => (i === run.index ? (job as PlannedJob) : j)) };
     }
-    if (job.id === "order_income") {
-      // Completed orders since the last run, oldest first, at most ORDER_INCOME_MAX_PER_DAY a day.
+    if (job.id === "order_income" && job.orderIds === undefined) {
+      // Completed orders (and, 0.3.32, orders with a line that named no SKU) since the last run, oldest
+      // first, at most ORDER_INCOME_MAX_PER_DAY a day. 0.3.32: the order page is read as shown, one
+      // order per page, so the job becomes one job per order (each a page open against the budget).
       const queued = (sched.incomeQueue ?? []).slice(0, ORDER_INCOME_MAX_PER_DAY);
-      const orderIds = queued.map((o) => o.id);
-      if (orderIds.length === 0) {
+      if (queued.length === 0) {
         const skipped: ReaderRun = { ...run, outcomes: { ...run.outcomes, [job.id]: "no_orders" }, index: run.index + 1 };
         return skipped.index >= skipped.jobs.length ? this.finishRun(sched, skipped) : this.startNext(sched, skipped);
       }
-      job = { ...job, orderIds, orderSns: queued.map((o) => o.sn ?? "") };
-      run = { ...run, jobs: run.jobs.map((j, i) => (i === run.index ? (job as PlannedJob) : j)) };
+      const perOrder = queued.map((o) => orderPageJob(job as PlannedJob, o));
+      job = perOrder[0] as PlannedJob;
+      run = { ...run, jobs: [...run.jobs.slice(0, run.index), ...perOrder, ...run.jobs.slice(run.index + 1)] };
     }
     // The shared daily request budget: nothing is opened once it is spent; the rest waits for tomorrow.
     const { state } = await this.load();
@@ -1023,7 +1034,24 @@ export class ReaderScheduler {
     await this.deps.alarms.clear(READER_WATCHDOG_ALARM).catch(() => undefined);
     await this.reportRun(run.trigger ?? "daily", result, run);
     await this.rereadAfterRun();
+    await this.armContentRead(run);
     return result;
+  }
+
+  /**
+   * 0.3.32: a daily run that ended before 13:30 GMT+7 did not read Phân tích Nội dung (the day is
+   * not there yet): its own read-back run is armed for CONTENT_READY_MINUTE_GMT7 the same day.
+   */
+  private async armContentRead(run: ReaderRun): Promise<void> {
+    const { state, sched } = await this.load();
+    const shopId = state.token?.shop_id;
+    if (!readerActive("affiliate_content", shopId) || (this.deps.readers && !this.deps.readers.includes("affiliate_content"))) return;
+    if (run.jobs.some((j) => j.id === "affiliate_content")) return;
+    const now = this.deps.now();
+    const wait = CONTENT_READY_MINUTE_GMT7 - gmt7Minute(now);
+    if (wait <= 0) return;
+    await this.save({ ...sched, readback: { pages: ["affiliate_content"], at: this.iso(), notBefore: now + wait * 60_000 } });
+    await this.deps.alarms.create(READER_KICK_ALARM, { delayInMinutes: wait });
   }
 
   /** 0.3.29 (F4.3): a data call proved a section while this run was going: arm the re-read of its blocked pages now. */
@@ -1204,6 +1232,8 @@ export class ReaderScheduler {
           ...(job.campaignNames ? { campaignNames: job.campaignNames.map((n) => n.slice(0, 255)) } : {}),
           ...(job.orderIds ? { orderIds: job.orderIds } : {}),
           ...(job.orderSns ? { orderSns: job.orderSns } : {}),
+        ...(job.incomeFor ? { incomeFor: job.incomeFor } : {}),
+        ...(job.fixBodies ? { fixBodies: job.fixBodies } : {}),
           ...(job.history ? { history: job.history } : {}),
           ...(job.sinceDay ? { sinceDay: job.sinceDay } : {}),
           ...(job.historyDays ? { historyDays: job.historyDays } : {}),
@@ -1308,6 +1338,8 @@ export class ReaderScheduler {
         ...(job.campaignNames ? { campaignNames: job.campaignNames } : {}),
         ...(job.orderIds ? { orderIds: job.orderIds } : {}),
         ...(job.orderSns ? { orderSns: job.orderSns } : {}),
+        ...(job.incomeFor ? { incomeFor: job.incomeFor } : {}),
+        ...(job.fixBodies ? { fixBodies: job.fixBodies } : {}),
         ...(job.history ? { history: job.history } : {}),
         ...(job.sinceDay ? { sinceDay: job.sinceDay } : {}),
         ...(job.historyDays ? { historyDays: job.historyDays } : {}),
@@ -1453,11 +1485,17 @@ export class ReaderScheduler {
         sched.incomeReadAt ??
         (sched.incomeSince !== undefined ? now - ORDER_INCOME_QUEUE_DAYS * 86_400_000 : now - ORDER_INCOME_FIRST_RUN_DAYS * 86_400_000);
       const known = new Set((sched.incomeQueue ?? []).map((o) => o.id));
-      const fresh = completedOrders(responses)
+      const completed = completedOrders(responses);
+      const doneIds = new Set(completed.map((o) => o.id));
+      const fresh = completed
         .filter((o) => o.completedAt >= since && !known.has(o.id))
         .sort((a, b) => a.completedAt - b.completedAt);
       const horizon = now - ORDER_INCOME_QUEUE_DAYS * 86_400_000;
-      const queue = [...(sched.incomeQueue ?? []), ...fresh].filter((o) => o.completedAt >= horizon).slice(0, ORDER_INCOME_QUEUE_MAX);
+      // 0.3.32: an order queued for its lines only asks for its income too once it has completed
+      const upgraded = (sched.incomeQueue ?? []).map((o) => (o.income === false && doneIds.has(o.id) ? { ...o, income: true } : o));
+      const queue = withSkuFixes([...upgraded, ...fresh], skuLessOrders(responses), now)
+        .filter((o) => o.completedAt >= horizon)
+        .slice(0, ORDER_INCOME_QUEUE_MAX);
       return {
         ordersDay: posted.order_lines === "posted" || responses.length > 0 ? run.day : sched.ordersDay,
         // Read back to its sinceDay: the next run starts from here (minus the overlap).
@@ -1475,13 +1513,22 @@ export class ReaderScheduler {
       // order never requested (no order key on the page, a stop before its turn) is left unchanged.
       const sent = new Set(job.orderIds ?? []);
       const answered = new Set(
-        responses.filter((r) => r.endpoint === "order_income_components" && r.orderId).map((r) => r.orderId as string),
+        responses.filter((r) => (r.endpoint === "order_income_components" || r.endpoint === "order_detail") && r.orderId).map((r) => r.orderId as string),
       );
       const landed = posted.order_income === "posted" || posted.order_income === "queued";
       const read = landed ? incomeReadIds(responses) : new Set<string>();
+      // 0.3.32 (C1): the order page's SKUs re-posted the order's lines
+      const linesLanded = posted.order_lines === "posted" || posted.order_lines === "queued";
+      const fixedIds = new Set(
+        linesLanded ? responses.filter((r) => r.endpoint === "order_detail" && r.orderId).map((r) => r.orderId as string) : [],
+      );
       const incomeQueue = (sched.incomeQueue ?? []).flatMap((o) => {
         if (!sent.has(o.id) || !answered.has(o.id)) return [o];
-        if (read.has(o.id)) return [];
+        const linesDone = o.fix === undefined || fixedIds.has(o.id);
+        const incomeDone = o.income === false || read.has(o.id);
+        if (linesDone && incomeDone) return [];
+        if (linesDone) o = { ...o, fix: undefined };
+        if (read.has(o.id)) return [{ ...o, income: false }];
         if (o.failedDay === run.day) return [o];
         const failedDays = (o.failedDays ?? 0) + 1;
         return failedDays >= ORDER_INCOME_MAX_FAILED_DAYS ? [] : [{ ...o, failedDays, failedDay: run.day }];
@@ -1572,4 +1619,31 @@ export class ReaderScheduler {
       await this.armReread(sched);
     });
   }
+}
+
+
+/** 0.3.32: one order page job (the order the page opens is its only order). */
+export function orderPageJob(job: PlannedJob, o: IncomeQueued): PlannedJob {
+  return { ...job, orderIds: [o.id], orderSns: [o.sn ?? ""], incomeFor: [o.income !== false], fixBodies: [o.fix ?? null] };
+}
+
+/**
+ * 0.3.32 (C1): orders with a line that named no SKU join the order page queue with their trimmed
+ * answer (`fix`); an order already queued for its income gets the answer added, a new one is read
+ * for its lines only (`income: false`) until it completes.
+ */
+export function withSkuFixes(queue: IncomeQueued[], skuLess: { id: string; sn?: string; body: unknown }[], now: number): IncomeQueued[] {
+  const out = queue.map((o) => ({ ...o }));
+  for (const s of skuLess) {
+    const known = out.find((o) => o.id === s.id);
+    if (known) known.fix = s.body;
+    else out.push({ id: s.id, ...(s.sn ? { sn: s.sn } : {}), completedAt: now, income: false, fix: s.body });
+  }
+  return out;
+}
+
+
+/** The minute of the GMT+7 day (0..1439). */
+export function gmt7Minute(nowMs: number): number {
+  return Math.floor(nowMs / 60_000 + 7 * 60) % 1440;
 }

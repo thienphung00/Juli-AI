@@ -503,7 +503,8 @@ export function mapAffiliateContent(responses: ReaderResponse[], capturedAt: num
     if ("gmv" in node && ("views" in node || "contentsCount" in node)) summary = node;
     else queue.push(...Object.values(node));
   }
-  if (!summary) return empty("affiliate_content_period", "affiliateplatform/QuerySellerContentSummaryQuery", got.period.end, null);
+  // 0.3.32: an answer with no summary (no content that day: "0 Nội dung") is an empty day, posted as such
+  if (!summary) return post("affiliate_content_period", "affiliateplatform/QuerySellerContentSummaryQuery", got.period, [], null, true);
   const money = moneyFor([summary], ["gmv", "gpm"], issues);
   const row: Row = {};
   put(row, "sales", money.of(summary.gmv));

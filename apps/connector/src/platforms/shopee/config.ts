@@ -532,3 +532,13 @@ export const MARKET_SORT = "relevancy";
 export function marketActive(shopId: string | undefined): boolean {
   return !!shopId;
 }
+
+
+/**
+ * 0.3.32 (batch-1123-a C3): Phân tích Nội dung (KOL content) has day D from about 13:30 GMT+7 on
+ * D+1 ("Lần cập nhật gần nhất: 13:30"). Its page is read from this minute of the GMT+7 day on; a
+ * daily run that ends earlier arms its own read-back run for then.
+ */
+export const CONTENT_READY_MINUTE_GMT7 = 13 * 60 + 35;
+/** Datasets whose empty answer is still posted (0 rows), so Juli counts the day as read (0.3.32). */
+export const POST_EMPTY_DATASETS: ReadonlySet<string> = new Set(["affiliate_content_period"]);

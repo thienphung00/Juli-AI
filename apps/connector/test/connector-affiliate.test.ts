@@ -154,3 +154,31 @@ describe("0.3.15: an empty affiliate answer is a distinct outcome, not 'ignored'
     expect(client.posts[0]!.body.period).toMatchObject({ start: "2026-11-06", end: "2026-11-06" });
   });
 });
+
+describe("KOL content (0.3.32, batch-1123-a C3)", () => {
+  const at = (endpoint: ReaderResponse["endpoint"], body: unknown, period = { start: "2026-11-06", end: "2026-11-06" }): ReaderResponse => ({
+    endpoint,
+    url: "x",
+    status: 200,
+    body,
+    capturedAt: NOW,
+    source: "page",
+    period,
+  });
+
+  it("a content day with no content is posted with 0 rows, and reads as 'empty'", async () => {
+    const { client, connector } = setup();
+    const out = await connector.postReader({ id: "affiliate_content" }, [at("affiliate_content_summary", { code: 0, data: {} })]);
+    expect(Object.values(out)).toEqual(["empty"]);
+    expect(client.posts).toHaveLength(1);
+    expect(client.posts[0]!.dataset).toBe("affiliate_content_period");
+    expect(client.posts[0]!.body.rows).toEqual([]);
+    expect(client.posts[0]!.body.period).toMatchObject({ start: "2026-11-06", end: "2026-11-06" });
+  });
+
+  it("the other affiliate pages' empty days are still not posted", async () => {
+    const { client, connector } = setup();
+    await connector.postReader({ id: "affiliate_kols" }, [at("affiliate_performance", { code: 0, data: { list: [], total: 0 } })]);
+    expect(client.posts).toEqual([]);
+  });
+});

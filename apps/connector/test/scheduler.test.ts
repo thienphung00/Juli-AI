@@ -175,6 +175,25 @@ async function finishPage(
   expect(await ctx.scheduler.onResult(tab.id, { job: job?.id, status, responses: answers })).toBe(true);
 }
 
+/** 0.3.32: drive the run's order pages one by one (one order per page), answering each by its order id. */
+async function driveOrderPages(
+  ctx: ReturnType<typeof setup>,
+  answer: (orderId: string) => { responses: ReaderResponse[]; detail?: string },
+): Promise<void> {
+  await ctx.scheduler.tick();
+  for (let n = 0; n < 200; n += 1) {
+    const state = await ctx.read();
+    const job = state?.run?.jobs[state.run.index ?? 0];
+    if (!state?.run || job?.id !== "order_income") return;
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    const { responses, detail } = answer(job.orderIds?.[0] ?? "");
+    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", ...(detail ? { detail } : {}), responses });
+    ctx.clock.now += GAP;
+    await ctx.scheduler.tick();
+  }
+}
+
 /** An income answer with its final amount ("Số tiền cuối cùng"), as the income reader keeps it. */
 function incomeAnswer(orderId: string): ReaderResponse {
   return {
@@ -833,9 +852,12 @@ describe("P97: the day's flow, income queue and bookkeeping", () => {
     await ctx.scheduler.tick();
     const tab = ctx.tabs.current;
     await ctx.scheduler.onTabReady(tab.id, tab.url);
+    // 0.3.32: the order page is read as shown, one order per page: 100 page jobs, oldest first
     const job = (ctx.tabs.sent.at(-1)?.message as { job: { orderIds: string[] } }).job;
-    expect(job.orderIds).toHaveLength(100);
-    expect(job.orderIds[0]).toBe("261101000");
+    expect(job.orderIds).toEqual(["261101000"]);
+    const jobs = (await ctx.read())?.run?.jobs ?? [];
+    expect(jobs.filter((j) => j.id === "order_income")).toHaveLength(100);
+    expect(jobs[99]?.orderIds).toEqual(["261101099"]);
   });
 });
 
@@ -1354,19 +1376,13 @@ describe("0.3.20: the orders outcome is truthful", () => {
       ],
     };
     const refused: ReaderResponse = { endpoint: "order_income_components", url: "u", status: 200, body: { code: 7 }, capturedAt: T0, source: "replay", orderId: "26110002" };
-    const run = async (responses: ReaderResponse[]) => {
-      await ctx.scheduler.tick();
-      const tab = ctx.tabs.current;
-      await ctx.scheduler.onTabReady(tab.id, tab.url);
-      await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", responses });
-    };
-    // read: 0001; refused: 0002 (first failed day) and 0003 (third failed day: dropped)
-    await run([incomeAnswer("26110001"), refused, { ...refused, orderId: "26110003" }]);
+    // read: 0001; refused: 0002 (first failed day) and 0003 (third failed day: dropped); one page each (0.3.32)
+    await driveOrderPages(ctx, (id) => ({ responses: id === "26110001" ? [incomeAnswer(id)] : [{ ...refused, orderId: id }] }));
     expect((await ctx.read())?.incomeQueue).toEqual([{ id: "26110002", completedAt: T0 - 2000, failedDays: 1, failedDay: "2026-11-03" }]);
     // a second run the same day (a manual sync) does not count another failed day
     ctx.storage.data.readers = { ...(await ctx.read())!, incomeDay: undefined, lastRunDay: undefined, run: undefined };
-    await run([]);
-    expect(ctx.posted.filter((p) => p.job.id === "order_income")).toHaveLength(2);
+    await driveOrderPages(ctx, () => ({ responses: [] }));
+    expect(ctx.posted.filter((p) => p.job.id === "order_income")).toHaveLength(4);
     expect((await ctx.read())?.incomeQueue).toEqual([{ id: "26110002", completedAt: T0 - 2000, failedDays: 1, failedDay: "2026-11-03" }]);
   });
 
@@ -1379,10 +1395,7 @@ describe("0.3.20: the orders outcome is truthful", () => {
     ctx.storage.data.readers = { adsDone: [], trafficDone: [], incomeQueue: queue };
     // no answer, no row: what the Connector's postReader gives for an income read with nothing in it
     (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async () => ({ order_income: "ignored" });
-    await ctx.scheduler.tick();
-    const tab = ctx.tabs.current;
-    await ctx.scheduler.onTabReady(tab.id, tab.url);
-    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", detail: "no_order_key", responses: [] });
+    await driveOrderPages(ctx, () => ({ responses: [], detail: "no_order_key" }));
     expect((await ctx.read())?.incomeQueue).toEqual(queue);
     expect((await ctx.read())?.lastRun?.outcomes.order_income).toBe("error:order_income:0_rows:no_order_key");
   });
