@@ -32,10 +32,11 @@ from juli_backend.api.dependencies import get_active_shop
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.database.tenant_context import with_shop_scope
-from juli_backend.models.shopee_connector import ShopeeConnectorTokenState
+from juli_backend.models.shopee_connector import ShopeeConnectorState, ShopeeConnectorTokenState
 from juli_backend.repositories import utc_now_naive
 from juli_backend.services import ingest as ingest_service
 from juli_backend.services.ingest import read_days
+from juli_backend.services.shopee_recommendations import connector_state
 
 logger = logging.getLogger(__name__)
 
@@ -185,8 +186,13 @@ async def get_shop_ingest_status(
     if platform == "shopee":
         # C2: the newest day held per daily dataset and, while behind, how far the read has got.
         held = await read_days.progress(session, shop.id, platform)
+        state = await session.get(ShopeeConnectorState, shop.id)
+        blocked = read_days.blocked_by_dataset(
+            state.reader_blocks if state else None, connector_state.READER_DATASETS
+        )
         for entry in datasets:
             entry.update(held.get(entry["dataset"], {}))
+            entry["blocked"] = blocked.get(entry["dataset"])
     return {"platform": platform, "datasets": datasets}
 
 

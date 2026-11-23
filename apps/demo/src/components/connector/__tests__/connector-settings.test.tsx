@@ -21,7 +21,8 @@ function fakeFetch(tokens: unknown[] = []) {
           platform: "shopee",
           datasets: [
             { dataset: "shop_overview", last_ingest_at: "2026-11-12T03:00:00Z", last_period_end: "2026-11-11", drift: "ok", held_through: "2026-11-11", reading_through: null },
-            { dataset: "order_income", last_ingest_at: "2026-11-01T03:00:00Z", last_period_end: "2026-10-31", drift: "ok", held_through: "2026-11-10", reading_through: "2026-11-03" },
+            { dataset: "order_income", last_ingest_at: "2026-11-01T03:00:00Z", last_period_end: "2026-10-31", drift: "ok", held_through: "2026-11-10", reading_through: "2026-11-03", blocked: null },
+            { dataset: "item_traffic_sources", last_ingest_at: "2026-11-17T03:00:00Z", last_period_end: "2026-11-16", drift: "ok", held_through: "2026-11-16", reading_through: "2026-11-16", blocked: "login" },
             { dataset: "ads_campaign_daily", last_ingest_at: "2026-11-12T03:00:00Z", last_period_end: "2026-11-11", drift: "drift" },
             { dataset: "orders_export", last_ingest_at: "2026-11-01T03:00:00Z", last_period_end: "2026-10-31", drift: "ok" },
           ],
@@ -119,6 +120,8 @@ describe("Cài đặt › Juli Connector", () => {
     expect(income).toHaveTextContent(new Date("2026-11-10").toLocaleDateString("vi-VN"));
     expect(income.querySelectorAll("td")[2]).toHaveTextContent(/^Đang đọc đến 03\/11$/);
     expect(screen.getByTestId("received-shop_overview")).not.toHaveTextContent("Đang đọc");
+    // 1(a): a blocked page says why, in the same line
+    expect(screen.getByTestId("received-item_traffic_sources").querySelectorAll("td")[2]).toHaveTextContent(/^Đang đọc đến 16\/11 · Cần đăng nhập$/);
   });
 
   it("the tab exists only for a Shopee shop", () => {

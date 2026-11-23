@@ -209,3 +209,21 @@ async def progress(
     held = await covered_days(session, shop_id, platform, today, extension_only=False)
     read = await covered_days(session, shop_id, platform, today)
     return progress_of(held, read, today)
+
+
+def blocked_by_dataset(
+    reader_blocks: list[dict[str, object]] | None, reader_datasets: dict[str, tuple[str, ...]]
+) -> dict[str, str]:
+    """C2 / 1(a): the shop's current reader blocks (``shopee_connector_state.reader_blocks``,
+    ``[{reason, readers, section}]``) per dataset: the reason a page of that dataset is stopped
+    (``login``, ``password_recheck`` ...). The first block naming a reader wins."""
+    out: dict[str, str] = {}
+    for block in reader_blocks or []:
+        reason = block.get("reason")
+        readers = block.get("readers")
+        if not isinstance(reason, str) or not isinstance(readers, list):
+            continue
+        for reader in readers:
+            for dataset in reader_datasets.get(str(reader), ()):
+                out.setdefault(dataset, reason)
+    return out

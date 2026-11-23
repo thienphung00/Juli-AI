@@ -9,6 +9,7 @@ from decimal import Decimal
 import pytest
 
 from juli_backend.models.ingest import IngestRawPayload, PlatformDailyMetric
+from juli_backend.models.shopee_connector import ShopeeConnectorState
 from juli_backend.services.ingest import read_days
 from juli_backend.services.ingest.rate_limit import InMemoryRateGate, set_ingest_rate_gate
 from tests.support.api import client_for
@@ -182,6 +183,13 @@ async def test_the_seller_status_carries_held_and_reading_days_per_daily_dataset
         [
             _post(shop.id, "shop_overview", d(2026, 10, 20), d(2026, 11, 18)),
             _post(shop.id, "order_income", d(2026, 10, 20), d(2026, 10, 31), source="file"),
+            ShopeeConnectorState(
+                shop_id=shop.id,
+                reader_blocks=[
+                    {"reason": "login", "readers": ["item_traffic"], "section": "phan_tich"},
+                    {"reason": "password_recheck", "readers": ["shop_totals"], "section": "pt"},
+                ],
+            ),
         ]
     )
     await session.commit()
@@ -191,6 +199,10 @@ async def test_the_seller_status_carries_held_and_reading_days_per_daily_dataset
         res = await seller.get("/v1/ingest/shop-status")
     assert res.status_code == 200, res.text
     entries = {e["dataset"]: e for e in res.json()["datasets"]}
+    assert entries["item_traffic_sources"]["blocked"] == "login"  # 1(a): the block, per dataset
+    assert entries["shop_overview"]["blocked"] == "password_recheck"
+    assert entries["order_lines"]["blocked"] is None
+    assert entries["item_traffic_sources"]["reading_through"] == "2026-10-19"
     assert entries["shop_overview"]["held_through"] == "2026-11-18"
     assert entries["shop_overview"]["reading_through"] is None
     assert entries["order_income"]["held_through"] == "2026-10-31"
@@ -217,3 +229,16 @@ async def test_a_day_with_lines_that_name_no_item_is_read_again(session, monkeyp
     await _write(session, shop.id, "extension", 3, T2, ordered_at=at)  # the detail read
     covered = await read_days.covered_days(session, shop.id, "shopee", TODAY)
     assert "order_lines" not in read_days.missing_by_dataset(covered, TODAY)
+
+
+def test_blocks_name_the_datasets_of_their_readers():
+    blocks = [
+        {"reason": "login", "readers": ["item_traffic", "traffic"], "section": "a"},
+        {"reason": "captcha", "readers": ["traffic"], "section": "a"},
+        {"reason": 3, "readers": ["orders"]},
+    ]
+    got = read_days.blocked_by_dataset(
+        blocks, {"item_traffic": ("item_traffic_sources",), "traffic": ("traffic_overview",)}
+    )
+    assert got == {"item_traffic_sources": "login", "traffic_overview": "login"}
+    assert read_days.blocked_by_dataset(None, {}) == {}
