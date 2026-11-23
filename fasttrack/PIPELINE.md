@@ -7,7 +7,7 @@ This page is the single operating reference. Handoffs link to it instead of rest
 
 | Step | Who | Done when |
 |---|---|---|
-| 1. Grill | owner + coordinator | one question at a time, each with a recommendation, in plain chat text. Ends with an **acceptance table** (`contracts/EXECUTOR-BRIEF.md` §3) that the owner approves. No executor starts before that. |
+| 1. Grill | owner + coordinator | one question at a time, each with a recommendation, in plain chat text. Ends with the **grill exit checklist** (below) and an **acceptance table** (`contracts/EXECUTOR-BRIEF.md` §3) that the owner approves. No executor starts before that. |
 | 2. Claim | coordinator | `state.py session`, `state.py batch <branch>`, `state.py claim-migration N` for any migration |
 | 3. Slice + brief | coordinator | one brief per slice from `contracts/EXECUTOR-BRIEF.md`; `state.py ab-assign <batch> <slice>` picks arm A or B |
 | 4. Build | executor (Sonnet; Opus only for migration/security/integration) | the brief's `## Sources` and acceptance rows are filled in |
@@ -19,6 +19,17 @@ This page is the single operating reference. Handoffs link to it instead of rest
 | 10. Watch + verify live | coordinator | `fasttrack/bin/deploy_watch.py <tag>` (under Monitor), then the **LIVE** acceptance row: dashboard vs a direct read-only query on the sample shop + 1 real shop. Write `DEPLOY_REPORT.md` (each check pass/fail with evidence). "Live" is said only when every check passes. |
 
 The owner is always required for: grill approval, the acceptance table, migrations, auth, security, prod data writes, client data, PR merge, deploy tag, SSH/VPS. Everything else runs without asking.
+
+## Grill exit checklist (W47: 35 post-grill design changes)
+
+The grill closes only when the owner has answered each line, in the grill log:
+1. **Write permissions:** what Juli writes to the shop (Seller Centre, Connector fill) and what it only reads.
+2. **Every surface:** each screen, Excel export, client report, agent tool, email and the sample shop that shows the change, by name. A surface left out is out of scope, said explicitly.
+3. **Standing rules:** `fasttrack/bin/brief_rules.py <grill log>` output reviewed with the owner; each rule that applies becomes an acceptance row (e.g. fix all staleness together, every card kind, backend registry is the source of truth).
+4. **Vendor behaviour:** each Shopee / TikTok assumption has a capture or probe planned as a PLATFORM row.
+5. **Acceptance table** approved.
+
+A change after close is a new decision: `state.py decide` and a new grill-log line, never a silent edit to a brief.
 
 ## Skills, hooks and headless runs (active from cutover)
 - **`deploy` skill:** steps 6 → 10 as one checklist, ending with `DEPLOY_REPORT.md`.
@@ -37,15 +48,22 @@ The owner is always required for: grill approval, the acceptance table, migratio
 - **State, not messages.** Run `fasttrack/state.py check --session <me> --branch <batch>` before rebase, push, "ready" and tag, and after every compaction. Record facts with `state.py fact` (prod migration head, Connector version, DB host) instead of putting them in memory or handoffs. Use a message only for what the state can't hold, and when you do, quote the state line.
 - **"Ready" means the gate is VALID for the tree.** Never say "ready", "all checks pass" or "live" without a `gate_status.py` VALID line, or the `deploy_watch.py` success line for "live".
 - **Owner commands:** use the wrappers (`pg-test.sh`, `tag-deploy.sh`, `open_pr.py`). Pipe any other command through `fasttrack/bin/cmdlint.py` before showing it.
+- **Owner decisions are state, not relays.** When the owner decides something that another session needs, record it with `state.py decide --session <me> "<decision>"`. Every other session's next `check` prints it once, so nobody relays it (W47: a relayed decision reached S2 contradicted).
+- **Taking over a session's scope:** `state.py handover --from <old> --to <me> --approved-by "<owner, date>"` moves its open batches and migration claims and marks it inactive. Never edit `STATE.json` by hand.
+- **One full suite on this Mac:** `predeploy.sh` (full or `--jobs`) takes `state.py suite-lock` and releases it on exit; any other whole-suite run takes it by hand. `check` names the holder.
 - **Open owner questions** go in with `state.py ask` and come out with `state.py answer`. Before each reply to the owner, look at `state.py show`; any open ask is answered or re-asked first, never left buried.
 - **Whole suites run on GitHub.** The deploy gate is the PR's `fasttrack-pr.yml` run, so sessions no longer queue for this machine. Locally: targeted tests and `predeploy.sh --fast`. A full local `predeploy.sh` is optional; if one runs, it runs alone (two at once took 4 h and both failed on timeouts, 2026-11-17).
-- **Coordinator sessions last one batch, or ~24 h.** Hand off when the batch merges. The next session reads `state.py show` plus the handoff.
+- **Coordinator sessions last one batch, or ~6 h of work, whichever comes first** (W47: two 15 h coordinators averaged 339 k context per request). `check` says when a session passes 6 h. Hand off with the `fasttrack-handoff` skill; the next session registers with `state.py session <name> --fresh`, reads `state.py show` plus the handoff. Long reads (logs, transcripts, big diffs) go to an Explore or executor agent, not the coordinator's own context.
 
 ## Commands
 
 ```
 PY=/Users/macos/Juli-AI-v2/juli/.venv/bin/python
 $PY fasttrack/state.py show | refresh | check --session S --branch B
+$PY fasttrack/state.py decide --session S "<owner decision>"
+$PY fasttrack/state.py handover --from S0 --to S --approved-by "<who>"
+$PY fasttrack/state.py suite-lock acquire|release --session S --what "<run>"
+$PY fasttrack/bin/brief_rules.py <brief.md>                       # standing rules + PLATFORM / LIB rows
 fasttrack/predeploy.sh [--fast | --jobs a,b | --dry-run]
 $PY fasttrack/gate_status.py <sha>                               # VALID via ci (PR run) or local; --no-ci = local only
 $PY fasttrack/bin/open_pr.py --head B --title T --body-file F --session S [--dry-run]

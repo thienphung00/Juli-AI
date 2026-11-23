@@ -28,7 +28,8 @@
 #
 # Env: PYTHON (default: <repo>/.venv, else /Users/macos/Juli-AI-v2/juli/.venv), CHECK_DATABASE_URL
 # (throwaway Postgres for check.sh; else check.sh starts docker postgres:16), NODE_OPTIONS
-# (default --no-webstorage, Node 26), JULI_FASTTRACK_STATE_DIR (see fasttrack/state.py).
+# (default --no-webstorage, Node 26), JULI_FASTTRACK_STATE_DIR (see fasttrack/state.py),
+# JULI_SESSION (holder name for the state.py suite lock a full/partial run takes).
 #
 # Gate speed-ups (owner-approved 2026-11-17; trial ended by the owner 2026-11-18, since the
 # deploy gate now runs on GitHub and local runs are optional), JULI_GATE_XDIST:
@@ -126,6 +127,16 @@ for f in "${PRE_STOP[@]+"${PRE_STOP[@]}"}"; do echo "PREFLIGHT STOP  ${f}"; done
 if [ "${#PRE_STOP[@]}" -gt 0 ]; then
   echo "predeploy: not started — fix the STOP line(s), or leave check out: --jobs heads,frontend,static,unit"
   exit 1
+fi
+# One whole suite on this Mac at a time (W47: two at once cost ~4 h). --fast runs are targeted.
+if [ "${MODE}" != fast ]; then
+  LOCK_SESSION="${JULI_SESSION:-predeploy-$(basename "${REPO_ROOT}")}"
+  if ! "${PYTHON}" "${REPO_ROOT}/fasttrack/state.py" suite-lock acquire --session "${LOCK_SESSION}" \
+      --what "predeploy ${MODE} ${SHA:0:8}"; then
+    echo "predeploy: not started — another full suite holds the lock (state.py show)"
+    exit 1
+  fi
+  trap '"${PYTHON}" "${REPO_ROOT}/fasttrack/state.py" suite-lock release --session "${LOCK_SESSION}" >/dev/null 2>&1' EXIT
 fi
 
 # ---------------------------------------------------------------- jobs

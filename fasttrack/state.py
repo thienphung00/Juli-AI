@@ -29,6 +29,14 @@ Commands (all print a short human summary; --json for machine output):
   answer ID TEXT                         close it
   ab-assign BATCH SLICE --session S      A/B arm for an executor slice (balanced per batch)
   ab-result SLICE --field value ...      record slice outcome metrics
+  decide --session S TEXT                record an OWNER decision; every other session's next
+                                         `check` prints it once (no relays, W47 OWNER_RELAY)
+  handover --from S0 --to S --approved-by WHO
+                                         move S0's open batches + migration claims to S and mark
+                                         S0 inactive (W47: a stale claim blocked a push)
+  suite-lock acquire|release --session S [--what TEXT]
+                                         one full test suite on this Mac at a time (W47: two
+                                         suites at once cost ~4 h); `check` reports the holder
 """
 
 from __future__ import annotations
@@ -53,6 +61,8 @@ STALE_HOURS = 24
 MIGRATIONS_DIR = "backend/src/juli_backend/database/migrations/versions"
 BATCH_STATUSES = ("building", "ready", "pr-open", "merged", "abandoned")
 MIGRATION_STATUSES = ("claimed", "merged", "live", "released")
+ROTATE_HOURS = 6  # a coordinator writes the handoff and starts fresh after this (W47 M21a)
+SUITE_LOCK_STALE_HOURS = 6
 AB_FIELDS = (
     "owner_defects",
     "done_disproved",
@@ -104,6 +114,8 @@ def empty_state() -> dict[str, Any]:
         "facts": {},
         "asks": [],
         "ab": {},
+        "decisions": [],
+        "suite_lock": None,
     }
 
 
@@ -328,12 +340,83 @@ def blockers(st: dict[str, Any], session: str, branch: str | None) -> tuple[list
     for a in st["asks"]:
         if a.get("status") == "open" and a.get("session") == session:
             adv.append(f"open owner ask #{a['id']}: {a['text'][:120]}")
+    me = st["sessions"].get(session, {})
+    seen = me.get("decisions_seen", 0)
+    for d in st["decisions"]:
+        if d["id"] > seen and d.get("by") != session:
+            adv.append(
+                f"OWNER DECISION #{d['id']} ({d['at']}, via {d.get('by')}): {d['text'][:200]}"
+            )
+    lock = st.get("suite_lock")
+    if lock and lock.get("session") != session:
+        adv.append(
+            f"full test suite running: {lock.get('session')} since {lock.get('at')} ({lock.get('what', '')}) "
+            "— don't start another (`suite-lock acquire` refuses)"
+        )
+    started = me.get("started_at")
+    if started and hours_since(started) > ROTATE_HOURS:
+        adv.append(
+            f"session {session} started {hours_since(started):.0f} h ago (> {ROTATE_HOURS} h): write the handoff "
+            "(fasttrack-handoff) and continue in a fresh session"
+        )
     cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=STALE_HOURS)
     for name, b in st["batches"].items():
         if b.get("status") in ("building", "ready", "pr-open") and b.get("updated_at"):
             if dt.datetime.fromisoformat(b["updated_at"].replace("Z", "+00:00")) < cutoff:
                 adv.append(f"batch {name} ({b.get('session')}) not updated for > {STALE_HOURS} h")
     return block, adv
+
+
+def hours_since(ts: str) -> float:
+    t = dt.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    return (dt.datetime.now(dt.timezone.utc) - t).total_seconds() / 3600
+
+
+def mark_decisions_seen(st: dict[str, Any], session: str) -> None:
+    if session in st["sessions"] and st["decisions"]:
+        st["sessions"][session]["decisions_seen"] = st["decisions"][-1]["id"]
+
+
+def handover(st: dict[str, Any], src: str, dst: str, approved_by: str) -> list[str]:
+    """Move src's open batches and migration claims to dst; src becomes inactive."""
+    moved: list[str] = []
+    for name, b in st["batches"].items():
+        if b.get("session") == src and b.get("status") in ("building", "ready", "pr-open"):
+            b.update(session=dst, updated_at=now(), handed_over_from=src)
+            moved.append(f"batch {name}")
+    for n, m in st["migrations"].items():
+        if m.get("session") == src and m.get("status") == "claimed":
+            m.update(session=dst, transferred_from=src, approved_by=approved_by)
+            moved.append(f"migration {n}")
+    s0 = st["sessions"].setdefault(src, {})
+    s0["role"] = f"inactive: handed over to {dst} ({approved_by})"
+    s0["updated_at"] = now()
+    lock = st.get("suite_lock")
+    if lock and lock.get("session") == src:
+        st["suite_lock"] = None
+        moved.append("suite lock released")
+    event("handover", from_session=src, to_session=dst, approved_by=approved_by, moved=moved)
+    return moved
+
+
+def suite_lock(st: dict[str, Any], action: str, session: str, what: str) -> str | None:
+    """None on success, else the refusal message."""
+    lock = st.get("suite_lock")
+    if action == "acquire":
+        if (
+            lock
+            and lock.get("session") != session
+            and hours_since(lock["at"]) < SUITE_LOCK_STALE_HOURS
+        ):
+            return f"full suite already running: {lock['session']} since {lock['at']} ({lock.get('what', '')})"
+        st["suite_lock"] = {"session": session, "what": what, "at": now()}
+        event("suite-lock", action="acquire", session=session, what=what, took_stale=bool(lock))
+        return None
+    if lock and lock.get("session") != session:
+        return f"suite lock is held by {lock['session']}, not {session}"
+    st["suite_lock"] = None
+    event("suite-lock", action="release", session=session)
+    return None
 
 
 def ab_assign(st: dict[str, Any], batch: str, slice_id: str, session: str) -> str:
@@ -380,6 +463,13 @@ def render(st: dict[str, Any]) -> str:
         lines.append("facts:")
         for k, f in sorted(st["facts"].items()):
             lines.append(f"  {k} = {f.get('value')}  ({f.get('by')}, {f.get('at')})")
+    if st.get("suite_lock"):
+        lk = st["suite_lock"]
+        lines.append(f"suite lock  {lk['session']} since {lk['at']} ({lk.get('what', '')})")
+    if st["decisions"]:
+        lines.append("owner decisions (latest 10):")
+        for d in st["decisions"][-10:]:
+            lines.append(f"  #{d['id']} {d['at']} via {d.get('by')}: {d['text'][:140]}")
     open_asks = [a for a in st["asks"] if a.get("status") == "open"]
     if open_asks:
         lines.append("open owner asks:")
@@ -409,6 +499,9 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("name")
     s.add_argument("--role", default="")
     s.add_argument("--owns", default="")
+    s.add_argument(
+        "--fresh", action="store_true", help="a new session took this name: reset started_at"
+    )
     b = sub.add_parser("batch")
     b.add_argument("branch")
     b.add_argument("--session", required=True)
@@ -447,6 +540,17 @@ def main(argv: list[str] | None = None) -> int:
     aa.add_argument("batch")
     aa.add_argument("slice")
     aa.add_argument("--session", required=True)
+    de = sub.add_parser("decide")
+    de.add_argument("text")
+    de.add_argument("--session", required=True)
+    ho = sub.add_parser("handover")
+    ho.add_argument("--from", dest="src", required=True)
+    ho.add_argument("--to", dest="dst", required=True)
+    ho.add_argument("--approved-by", required=True, help="who approved, e.g. 'owner 2026-11-23'")
+    sl = sub.add_parser("suite-lock")
+    sl.add_argument("action", choices=("acquire", "release"))
+    sl.add_argument("--session", required=True)
+    sl.add_argument("--what", default="")
     ar = sub.add_parser("ab-result")
     ar.add_argument("slice")
     for fld in AB_FIELDS:
@@ -469,6 +573,7 @@ def main(argv: list[str] | None = None) -> int:
         with locked_state() as st:
             warn = [] if args.no_refresh else refresh(st)
             block, adv = blockers(st, args.session, args.branch)
+            mark_decisions_seen(st, args.session)
         for w in warn:
             print(f"WARN    {w}")
         for x in adv:
@@ -483,6 +588,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "session":
             s = st["sessions"].setdefault(args.name, {})
             s.update(role=args.role or s.get("role", ""), updated_at=now())
+            if args.fresh or "started_at" not in s:
+                s["started_at"] = now()
             if args.owns:
                 s["owns"] = [x.strip() for x in args.owns.split(",") if x.strip()]
             event("session", name=args.name, role=s["role"])
@@ -606,6 +713,23 @@ def main(argv: list[str] | None = None) -> int:
                 if a["id"] == args.id:
                     a.update(status="answered", answer=args.text, answered_at=now())
             event("answer", id=args.id)
+        elif args.cmd == "decide":
+            nid = max([d["id"] for d in st["decisions"]] or [0]) + 1
+            st["decisions"].append({"id": nid, "text": args.text, "by": args.session, "at": now()})
+            event("decision", id=nid, session=args.session)
+            print(f"decision #{nid} recorded; every other session sees it on its next check")
+        elif args.cmd == "handover":
+            if args.src == args.dst:
+                print("REFUSED --from and --to are the same session", file=sys.stderr)
+                return 1
+            moved = handover(st, args.src, args.dst, args.approved_by)
+            print(f"handover {args.src} -> {args.dst}: {', '.join(moved) or 'nothing open'}")
+        elif args.cmd == "suite-lock":
+            refused = suite_lock(st, args.action, args.session, args.what)
+            if refused:
+                print(f"REFUSED {refused}", file=sys.stderr)
+                return 1
+            print(f"suite lock {args.action}d by {args.session}")
         elif args.cmd == "ab-assign":
             arm = ab_assign(st, args.batch, args.slice, args.session)
             print(arm)
