@@ -21,8 +21,10 @@ from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.evaluate import evaluate
 from juli_backend.services.shopee_recommendations.kinds import (
     FAMILY_LABELS,
+    VOUCHER_KINDS,
     allowed_for_metric,
     spec,
+    voucher_scope_label,
 )
 from juli_backend.services.shopee_recommendations.model import Candidate, Evaluation
 from juli_backend.services.shopee_recommendations.plan import measurement_plan, stats_for
@@ -53,12 +55,16 @@ def variant_hints(cand: Candidate) -> list[str]:
 
 def _label(env: RecoEnv, cand: Candidate) -> str:
     s = spec(cand.kind)
+    head = s.label
+    if cand.kind in VOUCHER_KINDS:  # S7: Shopee's name, then the scope
+        scope = cand.inputs.get("scope") or ("product" if cand.items else "shop")
+        head = f"{s.label} · {voucher_scope_label(scope)}"
     if cand.item:
-        return f"{s.label} — {env.name(cand.item)}"
+        return f"{head} — {env.name(cand.item)}"
     if cand.campaign_key:
         alloc = next((c for c in env.view.ads.campaigns if c.key == cand.campaign_key), None)
-        return f"{s.label} — {alloc.name if alloc else 'chiến dịch'}"
-    return s.label
+        return f"{head} — {alloc.name if alloc else 'chiến dịch'}"
+    return head
 
 
 def shop_deltas(env: RecoEnv, money: dict[str, Any], quantile: str = "p25") -> dict[str, float]:
