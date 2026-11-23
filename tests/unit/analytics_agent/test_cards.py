@@ -83,7 +83,7 @@ async def test_accepted_card_uses_engine_values_and_jev_recommended_version() ->
         and ev["draft_ref"].startswith("d_")
         and ev["kind"] == "product_discount"
     )
-    assert ev["kind_vi"] == "Giảm giá sản phẩm" and ev["item_name"] == "Sản phẩm A"
+    assert ev["kind_vi"] == "Chương Trình Của Shop" and ev["item_name"] == "Sản phẩm A"
     assert eng.calls == [("product_discount", "p1")]
     by = {v["label_vi"]: v for v in ev["versions"]}
     assert by["Vừa"]["recommended"] and not by["Nhẹ"]["recommended"]
