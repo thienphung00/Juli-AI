@@ -261,8 +261,16 @@ class ServiceData:
 
     # ------------------------------------------------------------------ entities (Track J)
 
-    #: lines that count as orders: not cancelled, not refunded / returned (GLOSSARY, order statuses)
-    _COUNTED = "('confirmed','in_transit','delivered')"
+    #: The shop headline basis (registry / `shopee_analytics.engine`): a confirmed line has a
+    #: payment time and a quantity, and counts in đơn / GMV / AOV unless its status is a refund
+    #: status (`counts_in_sales`); the day is the line's order day. Entity rows use exactly this,
+    #: so they are a subset of the shop totals.
+    @staticmethod
+    def _sales_basis() -> str:
+        from juli_backend.services.shopee_profit.order_profit import REFUND_STATUSES
+
+        refunds = ", ".join(f"'{x.value}'" for x in sorted(REFUND_STATUSES, key=lambda x: x.value))
+        return f"paid_at is not null and qty > 0 and status not in ({refunds})"
 
     async def entity_totals(
         self, kind: str, a: date, b: date, item: str | None = None
@@ -271,7 +279,12 @@ class ServiceData:
         canonical `order_lines`: voucher = lines with a seller voucher share (cost = that share,
         registry `offer_voucher`); affiliate = lines flagged affiliate (cost = the commission of
         `affiliate_lines`). Optionally one product."""
-        cond = {"voucher": "shop_voucher_share > 0", "affiliate": "affiliate"}[kind]
+        cond = {
+            "voucher": "shop_voucher_share > 0",
+            "no_voucher": "shop_voucher_share = 0",
+            "affiliate": "affiliate",
+            "all": "1 = 1",  # the shop's own lines on the same basis: the partition's whole
+        }[kind]
         row = (
             await self._q(
                 f"""select count(distinct order_ref) as orders,
@@ -279,7 +292,7 @@ class ServiceData:
                            coalesce(sum(shop_voucher_share), 0) as voucher_cost
                       from order_lines
                      where shop_id = :s and platform = 'shopee' and day between :a and :b
-                       and status in {self._COUNTED} and {cond}
+                       and {self._sales_basis()} and {cond}
                        and (cast(:i as text) is null or item_id = cast(:i as text))""",
                 a=a,
                 b=b,
@@ -308,7 +321,7 @@ class ServiceData:
                        coalesce(sum(shop_voucher_share), 0) as cost
                   from order_lines
                  where shop_id = :s and platform = 'shopee' and day between :a and :b
-                   and status in {self._COUNTED} and shop_voucher_share > 0
+                   and {self._sales_basis()} and shop_voucher_share > 0
                    and voucher_code is not null
                  group by voucher_code order by sum(deal_price * qty) desc""",
             a=a,
