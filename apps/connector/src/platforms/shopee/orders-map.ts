@@ -266,11 +266,15 @@ function collectOrders(responses: ReaderResponse[]): Map<string, CollectedOrder>
       const sn = idOf(order.order_sn);
       const api = idOf(order.order_id);
       const key = sn ?? api;
-      if (key !== undefined && !orders.has(key)) {
+      // a2 C-A2: an order's get_one_order answer replaces its card (it names the combo's lines)
+      if (key !== undefined && (!orders.has(key) || (detail && !orders.get(key)!.__detail))) {
         orders.set(key, { ...order, ...(api !== undefined ? { __api: api } : {}), ...(detail ? { __detail: true } : {}) });
       }
     }
   }
+  // a card keyed by order_id only and its detail keyed by order_sn are one order: the detail stays
+  const detailed = new Set([...orders.values()].filter((o) => o.__detail && o.__api !== undefined).map((o) => o.__api));
+  for (const [key, order] of orders) if (!order.__detail && order.__api !== undefined && detailed.has(order.__api)) orders.delete(key);
   return orders;
 }
 
@@ -599,6 +603,34 @@ export interface PageItem {
 
 const hasSku = (item: Record<string, unknown>): boolean =>
   [item.item_sku, item.sku, item.model_sku, item.variation_sku].some((v) => typeof v === "string" && v.trim() !== "");
+
+/**
+ * batch-1123-a2 C-A2: the order ids (what get_one_order takes) of card-list orders with a line that
+ * names no SKU (a combo's parent row: posted as `sku:unknown`, 23/11) and no get_one_order answer
+ * yet. The reader reads each with get_one_order, which names the combo's own lines.
+ */
+export function cardOrdersWithoutSku(responses: ReaderResponse[]): string[] {
+  const detailed = new Set<string>();
+  for (const response of responses) {
+    if (response.endpoint !== "order_detail") continue;
+    const order = payloadOf(response.body);
+    const id = isRecord(order) ? idOf(order.order_id) : undefined;
+    if (id) detailed.add(id);
+    if (response.orderId) detailed.add(response.orderId);
+  }
+  const out: string[] = [];
+  for (const response of responses) {
+    if (response.endpoint !== "order_cards" || classify(response.status, response.body) !== "ok") continue;
+    for (const order of findList(payloadOf(response.body), isOrderRecord, 5)?.list ?? []) {
+      const flat = trimOrder(order);
+      const items = Array.isArray(flat.items) ? flat.items.filter(isRecord) : [];
+      const id = idOf(flat.order_id);
+      if (!id || items.length === 0 || linesOf(flat).every(hasSku) || detailed.has(id) || out.includes(id)) continue;
+      out.push(id);
+    }
+  }
+  return out;
+}
 
 /**
  * Orders whose get_one_order answer has a line that names no SKU (a combo's parent line: posted as

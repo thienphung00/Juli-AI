@@ -33,7 +33,7 @@ import {
 import { isDatacenterPath, isMydataPath } from "./config";
 import { isReadOnlyOrderDetailPath, isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, READER_PAGES, type ReaderEndpoint } from "./endpoints";
 import { isNoCampaign } from "./promotion-map";
-import { type PageItem, trimOrderCards, trimOrderDetail, trimOrderIndex, withPageSkus, withUnresolvedSkus } from "./orders-map";
+import { cardOrdersWithoutSku, type PageItem, trimOrderCards, trimOrderDetail, trimOrderIndex, withPageSkus, withUnresolvedSkus } from "./orders-map";
 import type { Pacer } from "./runner";
 import { buildBackfillDayPlan } from "./sync";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "../../core/time";
@@ -1248,7 +1248,33 @@ async function readOrders(env: ReaderEnv, collected: ReaderResponse[], sinceDay?
       throw new Stop(fail(env.hasSession() ? "needs_template" : "needs_data_page", collected, "order_list"));
     }
   }
-  return readOrdersFromApi(env, collected, sinceDay);
+  const note = await readOrdersFromApi(env, collected, sinceDay);
+  const bundles = await readBundleDetails(env, collected);
+  return note ?? bundles;
+}
+
+/** a2 C-A2: a get_one_order read for a combo's order was refused (or gave no order): its lines stay as the card had them. */
+export const BUNDLE_DETAIL_REFUSED = "bundle_detail_refused";
+
+/**
+ * batch-1123-a2 C-A2: on the card-list path, the orders whose card has a line naming no SKU (a
+ * combo's parent row) are read one by one with get_one_order (budget-counted, paced, trimmed in
+ * the page, the same request as the links path), so their lines carry the item ids. A refused read
+ * leaves the card's lines and says so in the note.
+ */
+async function readBundleDetails(env: ReaderEnv, collected: ReaderResponse[]): Promise<string | undefined> {
+  const ids = cardOrdersWithoutSku(collected);
+  if (ids.length === 0 || !isReadOnlyOrderDetailPath(READER_ENDPOINTS.order_detail.path)) return undefined;
+  const template = env.template("order_detail") ?? orderServiceHeaders(env);
+  let refused = false;
+  for (const id of ids.slice(0, ORDER_DETAIL_MAX_PER_RUN)) {
+    if (env.budget && env.budget.left <= 0) return "partial:budget";
+    const request = buildReaderRequest(env.origin, "order_detail", template, { query: { order_id: id } }, env.session());
+    const response = await send(env, request, collected, {}, true);
+    response.body = trimOrderDetail(response.body);
+    if (classify(response.status, response.body) !== "ok" || !isRecord(payloadOf(response.body))) refused = true;
+  }
+  return refused ? BUNDLE_DETAIL_REFUSED : undefined;
 }
 
 /**
