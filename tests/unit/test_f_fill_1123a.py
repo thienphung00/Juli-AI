@@ -19,6 +19,7 @@ from juli_backend.models.shopee_fill import (
 )
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_recommendations import fill_queue, revert_fill
+from tests.unit import test_p97_fill_queue as _p97
 
 #: 23/11/2026 10:00 GMT+7
 NOW = datetime(2026, 11, 23, 3, 0, tzinfo=UTC)
@@ -449,3 +450,24 @@ async def test_a_cover_card_with_a_juli_image_carries_its_address_for_the_upload
     assert job["payload"]["new_cover_url"] == "https://img.example.test/new.png"
     card["execution_sheet"] = {"downloads": [{"url": "http://insecure.example.test/x.png"}]}
     assert "new_cover_url" not in (await _one(card))["payload"]
+
+
+# ------------------------------------------------------------- F7 locked by a promotion (DB)
+
+shop = _p97.shop
+_flag_on = _p97._flag_on
+
+
+async def test_a_locked_product_page_ends_the_job_with_the_vietnamese_reason(session, shop):
+    seeded, ids = shop
+    await _p97._approve(session, seeded, ids[2])  # any job: the lock check is the same for all
+    (job,) = [j for j in await _p97._jobs(session, seeded) if j.kind == "affiliate_commission"]
+    out = await fill_queue.report(
+        session,
+        seeded.shop_id,
+        job.id,
+        status="opened",
+        field_checks=[{"key": "promotion_lock", "ok": False, "seen": fill_queue.PROMOTION_LOCKED}],
+    )
+    assert out["status"] == "failed" and out["error"] == fill_queue.PROMOTION_LOCKED
+    assert not fill_queue.promotion_locked([{"key": "promotion_lock", "ok": True}])

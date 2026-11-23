@@ -391,6 +391,18 @@ DEAL_ABANDONED = "Chương trình trống trên Shopee — cần Kết thúc"
 DEAL_ABANDON_AFTER = timedelta(hours=24)
 
 
+#: F7: the Connector's check that a running promotion greys the product page's fields
+PROMOTION_LOCK_KEY = "promotion_lock"
+PROMOTION_LOCKED = "Bị khoá vì chương trình khuyến mãi đang chạy"
+
+
+def promotion_locked(field_checks: list[dict[str, Any]] | None) -> bool:
+    return any(
+        isinstance(c, dict) and c.get("key") == PROMOTION_LOCK_KEY and c.get("ok") is False
+        for c in field_checks or []
+    )
+
+
 def readback_of(kind: str) -> str:
     return READBACK_OF_KIND.get(kind, READBACK_UNSUPPORTED)
 
@@ -1515,6 +1527,9 @@ async def report(
         if field_checks is not None:
             payload["fill_check"] = field_checks
         j.payload = payload
+    if status != STATUS_FAILED and promotion_locked(field_checks):
+        # F7: the product page greys the field (a running promotion): the job ends, nothing saved
+        status, error = STATUS_FAILED, PROMOTION_LOCKED
     j.status = status
     if captured_ref is not None:
         j.captured_ref = captured_ref
