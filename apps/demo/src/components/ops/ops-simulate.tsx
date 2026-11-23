@@ -8,6 +8,7 @@ import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { writeCurrentShop } from "../../lib/ops/current-shop";
 import { fmtInt, fmtK, fmtM, fmtPct, fmtSignedPct } from "../../lib/ops/format";
 import { STABILITY_COPY, STEP, VERDICT_COPY, bandPctText, cleanDeltas, cellVerdict, simulate, step, trendChip, type Verdict } from "../../lib/ops/simulation";
+import { STREAM_LABEL_TABLE } from "../../lib/platform-labels";
 import type { BandStats, Deltas, KpiId, OpsMe, SimCell, SimulationPage, Stability, StreamId } from "../../lib/ops/types";
 import { FreshnessLine } from "./ops-freshness";
 import { C, OpsHeader, OpsPage, STAGE_STYLE, card } from "./ops-shell";
@@ -39,7 +40,7 @@ const TREND_STYLE: Record<string, CSSProperties> = {
 const STRENGTH_COLOR: Record<ChangeStrength, string> = { clear: C.ink, likely: C.body, noise: C.muted2 };
 /** V6: the long stream name, only as a hover title. */
 const STREAM_HINT: Partial<Record<StreamId, string>> = { seller_video: "Video của người bán", seller_live: "LIVE của người bán" };
-const STREAM_LABEL: Record<StreamId, string> = { product_card: "Thẻ sản phẩm", shop_tab: "Tab cửa hàng", seller_video: "Video", seller_live: "LIVE" };
+const STREAM_LABEL: Record<StreamId, string> = STREAM_LABEL_TABLE.tiktok as Record<StreamId, string>;
 const KPI_LABEL: Record<KpiId, string> = { impressions: "Lượt hiển thị", ctr: "CTR", ctor: "CTOR", aov: "AOV" };
 
 function value(kpi: KpiId, v: number | null): string {

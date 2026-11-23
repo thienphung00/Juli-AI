@@ -15,6 +15,9 @@ import { DecisionsPageClient } from "../decisions-page-client";
 import { DemoShell } from "../demo-shell";
 import { PartnerSignIn } from "../partner-sign-in";
 
+// W3 U-4: these tests exercise the ADR-108 TikTok screens, which stay behind the one switch.
+process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS = "1";
+
 /**
  * P32-D (D42 amendment, owner 2026-10-15): with `REVIEWER_SHOP_ID` unset the
  * API answers `/v1/reviewer/me` with `shop: null`, and the partner trial

@@ -1,18 +1,13 @@
 import { IS_RATE, METRIC_ORDER, inMode, type MetricKey, type ValueMode } from "../metrics";
+import { channelLabel } from "../platform-labels";
 import { DASH, fmt, pc, vnd } from "./format";
 import type { MetricViewRow } from "./types";
 
 /** URL state of Phân tích: `metric`, `channel`, `product`, and `cach=tb` for Trung bình / ngày. */
 
-export const CHANNEL_LABEL: Readonly<Record<string, string>> = {
-  the_san_pham: "Thẻ sản phẩm",
-  trang_shop: "Trang shop",
-  video: "Video",
-  live: "Live",
-  ads_product: "DVHT Sản phẩm",
-  ads_shop: "DVHT Shop+",
-  lien_ket: "Tiếp thị liên kết",
-};
+export const CHANNEL_LABEL: Readonly<Record<string, string>> = Object.fromEntries(
+  ["the_san_pham", "trang_shop", "video", "live", "ads_product", "ads_shop", "lien_ket"].map((k) => [k, channelLabel("shopee", k) ?? k]),
+);
 
 /** Old `kpi=` values of Phân tích links → the metric they open. */
 const METRIC_OF_KPI: Readonly<Record<string, MetricKey>> = {

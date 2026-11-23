@@ -33,7 +33,31 @@ async function platformFromShopsMe(token: string, shopId: string, fetchImpl?: ty
   }
 }
 
-export async function probeShopPlatform(
+/** How long the platform question may stay open before it is given up as "unclear" (W3 U-3). */
+export const PLATFORM_PROBE_TIMEOUT_MS = 10_000;
+
+/**
+ * The question always ends: a read that never answers (a stalled `shops/me`, a dropped connection) used to leave
+ * `useShopPlatformResolved` at `null` for good, and Quyết định then sat on "Đang tải đề xuất…" with no way out.
+ * After the timeout the answer is `null` ("unclear": TikTok for the screens, not remembered, asked again next visit).
+ */
+export function probeShopPlatform(token: string, shopId: string, fetchImpl?: typeof fetch): Promise<NavPlatform | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), PLATFORM_PROBE_TIMEOUT_MS);
+    probeShopPlatformOnce(token, shopId, fetchImpl).then(
+      (platform) => {
+        clearTimeout(timer);
+        resolve(platform);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(null);
+      },
+    );
+  });
+}
+
+async function probeShopPlatformOnce(
   token: string,
   shopId: string,
   fetchImpl?: typeof fetch,

@@ -1,5 +1,6 @@
 "use client";
 
+import { streamName } from "../../../lib/platform-labels";
 import { Fragment, useEffect, useState } from "react";
 
 import { opsApi, type OpsApi } from "../../../lib/ops/api";
@@ -331,8 +332,6 @@ function ProductCells({ row }: { readonly row: FunnelNumbers }) {
   );
 }
 
-const STREAM_LABEL: Record<string, string> = { product_card: "Thẻ sản phẩm", seller_video: "Video", seller_live: "Live", affiliate: "Tiếp thị liên kết" };
-
 function ProductDetail({ product }: { readonly product: ShopeeProduct }) {
   const flows = Object.entries(product.by_flow);
   return (
@@ -353,7 +352,7 @@ function ProductDetail({ product }: { readonly product: ShopeeProduct }) {
           <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
             {flows.map(([stream, v]) => (
               <li key={stream}>
-                {STREAM_LABEL[stream] ?? stream}: {fmtVnd(v.gmv)} · {fmtCount(v.orders)} đơn
+                {streamName("shopee", stream)}: {fmtVnd(v.gmv)} · {fmtCount(v.orders)} đơn
               </li>
             ))}
           </ul>

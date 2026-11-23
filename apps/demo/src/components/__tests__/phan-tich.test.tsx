@@ -25,6 +25,9 @@ import { AUTH_SESSION_STORAGE_KEY } from "../../lib/supabase-auth";
 import { resolveTab } from "../../lib/quyet-dinh/copy";
 import type { QdQuery } from "../quyet-dinh/quyet-dinh-view";
 
+// W3 U-4: these tests exercise the ADR-108 TikTok screens, which stay behind the one switch.
+process.env.NEXT_PUBLIC_TIKTOK_ADR108_SCREENS = "1";
+
 /**
  * Phân tích (ADR-109 Amendment 2, AC-12.x): collapsible streams, cells with
  * ₫/day impact, re-ranking, rows that expand in place, "Còn lại" / "Tổng",

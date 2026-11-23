@@ -90,7 +90,8 @@ export function ShopReportProvider({
     // server render and the first client render agree.
     const timer = window.setTimeout(async () => {
       // P64: an expired access token is refreshed before the first /v1 read.
-      const session = await ensureFreshSession();
+      // A refresh that throws must not leave the shell "resolving" for good: it is treated as signed out.
+      const session = await ensureFreshSession().catch(() => null);
       if (cancelled) return;
       if (!session) {
         setState({ status: "anonymous", envelope: null });

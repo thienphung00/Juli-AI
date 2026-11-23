@@ -5,6 +5,7 @@ import { Suspense, useMemo } from "react";
 
 import { readAuthSession } from "../../lib/supabase-auth";
 import { useShopReport } from "../../lib/shop-report/shop-report-context";
+import { useShopPlatform } from "../../lib/shopee-analytics/platform";
 import { DEMO_SHOPEE_BASE, createShopeeApi, opsExportsBase, opsShopeeBase } from "../../lib/shopee-analytics/client";
 import { ShopeeHostProvider, type ShopeeHost } from "../../lib/shopee-analytics/context";
 import { DEMO_BUILDER_BASE, createBuilderApi, opsBuilderBase, p92BuilderEnabled } from "../../lib/shopee-decisions/builder-api";
@@ -34,6 +35,7 @@ export function useQueryParams(): URLSearchParams {
 
 function SellerHost({ children }: { readonly children: (host: ShopeeHost) => React.ReactNode }) {
   const { state } = useShopReport();
+  const platform = useShopPlatform(state);
   const token = "token" in state ? state.token : null;
   const shop = "shop" in state ? state.shop : null;
   const host = useMemo<ShopeeHost | null>(
@@ -48,9 +50,10 @@ function SellerHost({ children }: { readonly children: (host: ShopeeHost) => Rea
             links: sellerLinks,
             shopKey: shop.id,
             shopName: shop.name,
+            platform,
           }
         : null,
-    [token, shop],
+    [token, shop, platform],
   );
   if (state.status === "resolving") return <p className="sa-loading">Đang tải…</p>;
   if (!host) {

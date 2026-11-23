@@ -1,8 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ShopReportState } from "../../shop-report/shop-report-context";
-import { probeShopPlatform, resetShopPlatformCache, useShopPlatform } from "../platform";
+import { PLATFORM_PROBE_TIMEOUT_MS, probeShopPlatform, resetShopPlatformCache, useShopPlatform, useShopPlatformResolved } from "../platform";
 
 function respond(status: number, body: unknown): typeof fetch {
   return vi.fn(async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
@@ -69,5 +69,46 @@ describe("which marketplace the acting shop is on", () => {
     render(<Probe state={{ status: "no-shop", token: "t" }} />);
     expect(f).not.toHaveBeenCalled();
     expect(screen.getAllByTestId("p").map((e) => e.textContent)).toEqual(["tiktok", "tiktok"]);
+  });
+});
+
+/** W3 U-3: Quyết định of a TikTok shop sat on "Đang tải đề xuất…" while the platform question was open. */
+describe("the resolved platform of a TikTok shop (Quyết định waits on it)", () => {
+  afterEach(() => vi.useRealTimers());
+
+  function Resolved({ state, f }: { state: ShopReportState; f: typeof fetch }) {
+    return <span data-testid="r">{String(useShopPlatformResolved(state, f))}</span>;
+  }
+  const tiktokShop = { id: "s7", name: "Shop" };
+
+  it("answers tiktok from shops/me in every state that carries the shop", async () => {
+    const states: ShopReportState[] = [
+      { status: "loading", token: "t", shop: tiktokShop },
+      { status: "ready", token: "t", shop: { id: "s8", name: "Shop" }, envelope: {} as never },
+      { status: "error", token: "t", shop: { id: "s9", name: "Shop" } },
+    ];
+    for (const state of states) {
+      const { unmount } = render(<Resolved f={respond(200, { platform: "tiktok" })} state={state} />);
+      await waitFor(() => expect(screen.getByTestId("r")).toHaveTextContent("tiktok"));
+      unmount();
+    }
+  });
+
+  it("is null only while the shell is resolving who the shop is", () => {
+    render(<Resolved f={respond(200, {})} state={{ status: "resolving" }} />);
+    expect(screen.getByTestId("r")).toHaveTextContent("null");
+  });
+
+  it("a platform read that never answers ends as unclear (tiktok), not as a wait with no end", async () => {
+    vi.useFakeTimers();
+    const stalled = vi.fn(() => new Promise<Response>(() => undefined)) as unknown as typeof fetch;
+    render(<Resolved f={stalled} state={{ status: "loading", token: "t", shop: tiktokShop }} />);
+    expect(screen.getByTestId("r")).toHaveTextContent("null");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PLATFORM_PROBE_TIMEOUT_MS + 1);
+    });
+    expect(screen.getByTestId("r")).toHaveTextContent("tiktok");
+    // Unclear is not remembered: the next visit asks again.
+    expect(await probeShopPlatform("t", "s7", respond(200, { platform: "tiktok" }))).toBe("tiktok");
   });
 });

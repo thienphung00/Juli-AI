@@ -1,5 +1,6 @@
 "use client";
 
+import { streamShortName } from "../../lib/platform-labels";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
@@ -33,7 +34,6 @@ const STAGES: [StageId, string, string][] = [
   ["self", "Tự vận hành", "Seller tự dùng"],
   ["pilot", "Pilot đặc biệt", "Cấu hình riêng, ưu tiên hỗ trợ"],
 ];
-const STREAM_LABEL: Record<string, string> = { product_card: "Thẻ SP", shop_tab: "Tab", seller_video: "Video", seller_live: "LIVE" };
 const OWN: CSSProperties = { background: "#fff7fa", borderColor: "#f8b9d3", fontWeight: 600 };
 
 type Api = Pick<OpsApi, "settings" | "putSettings" | "resetSettings" | "invite"> & Partial<Pick<OpsApi, "removeMember" | "groups" | "createGroup" | "setGroupReason" | "consent" | "enableConsent" | "createPairingCode" | "ingestTokens" | "revokeIngestToken" | "revokeInactiveIngestTokens">>;
@@ -408,7 +408,7 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
               help="Tắt luồng không phù hợp với shop"
               onDefault={() => change({ enabled_streams: null })}
               overridden={isSet("enabled_streams")}
-              summary={streams.map((id) => STREAM_LABEL[id] ?? id).join(" · ") || "Không luồng nào"}
+              summary={streams.map((id) => streamShortName("tiktok", id)).join(" · ") || "Không luồng nào"}
               title="Luồng được đề xuất"
             >
               <Chips labels={STREAM_NAMES} onChange={(next) => change({ enabled_streams: next })} options={s.options.streams.map((x) => x.id)} value={streams} />

@@ -1,5 +1,7 @@
 "use client";
 
+import { PLATFORM_NAME_TABLE } from "../../lib/platform-labels";
+import { useHostPlatform } from "../../lib/shopee-analytics/context";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -200,6 +202,7 @@ export function NotMaterializedNotice({ error, testId = "sa-not-materialized" }:
 /** The state of a resource that is not ready, or `null` when it is. */
 export function ResourceState<T>({ resource, children }: { readonly resource: Resource<T>; readonly children: (data: T) => ReactNode }) {
   const sample = useSampleShopReviewer();
+  const platform = useHostPlatform();
   if (resource.status === "loading") {
     return (
       <p className="sa-loading" role="status">
@@ -210,7 +213,12 @@ export function ResourceState<T>({ resource, children }: { readonly resource: Re
   if (resource.status === "refused") {
     if (resource.refusal === "not-materialized" && notMaterializedOf(resource.error)) return <NotMaterializedNotice error={resource.error} />;
     // P100 S2-D4: the reviewer's sample shop has no Juli Connector, so its copy never names it.
-    const copy = sample && resource.refusal === "no-data" ? SAMPLE_NO_DATA : REFUSAL_COPY[resource.refusal];
+    const copy =
+      resource.refusal === "no-data" && platform === "tiktok"
+        ? { title: `Shop chưa có dữ liệu ${PLATFORM_NAME_TABLE.tiktok}`, body: SAMPLE_NO_DATA.body }
+        : sample && resource.refusal === "no-data"
+          ? SAMPLE_NO_DATA
+          : REFUSAL_COPY[resource.refusal];
     return (
       <section className="sa-card" data-testid={`sa-refusal-${resource.refusal}`} role="alert">
         <h2 className="sa-h2">{copy.title}</h2>

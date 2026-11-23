@@ -1,5 +1,6 @@
 "use client";
 
+import { TERM_LABEL_TABLE, streamName } from "../../lib/platform-labels";
 import { useEffect, useState } from "react";
 
 import { OpsApiError, type OpsApi } from "../../lib/ops/api";
@@ -54,7 +55,7 @@ const LEVER_OPTIONS: Readonly<Record<string, string>> = {
   buy_more_save_more: "Mua nhiều giảm nhiều",
 };
 const METRIC_OPTIONS: Readonly<Record<string, string>> = { aov: "AOV", items_per_order: "Số món mỗi đơn", ctr: "CTR", ctor: "CTOR" };
-const CHANNEL_OPTIONS: Readonly<Record<string, string>> = { total: "Tất cả kênh", product_card: "Thẻ sản phẩm" };
+const CHANNEL_OPTIONS: Readonly<Record<string, string>> = { total: TERM_LABEL_TABLE.tiktok.allChannels, product_card: streamName("tiktok", "product_card") };
 
 const num = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(1).replace(".", ",")}`;
 const pct1 = (n: number) => `${n.toFixed(1).replace(".", ",")} %`;

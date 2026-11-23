@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { AppNavigation } from "../components/app-shell/app-navigation";
-import { APP_DESTINATIONS, SHOPEE_DESTINATIONS } from "../lib/app-navigation";
+import { APP_DESTINATIONS, SHOPEE_DESTINATIONS, TIKTOK_DESTINATIONS } from "../lib/app-navigation";
 
 /**
  * One rail for TikTok Shop and Shopee (owner, 2026-11-19): the same labels in the same order;
@@ -21,21 +21,31 @@ describe("app navigation — a TikTok shop", () => {
 
   it("uses the Shopee rail's labels and order, minus the entries TikTok has no page for yet", () => {
     const shopee = SHOPEE_DESTINATIONS.map((d) => d.label);
-    const tiktok = APP_DESTINATIONS.map((d) => d.label);
+    const tiktok = TIKTOK_DESTINATIONS.map((d) => d.label);
     expect(tiktok).toEqual(shopee.filter((label) => tiktok.includes(label)));
     expect(shopee.filter((label) => !tiktok.includes(label))).toEqual(["Dữ liệu shop"]);
   });
 
-  it("navigates to the TikTok pages and marks the active one (pink tint via aria-current)", () => {
-    render(<AppNavigation activePath="/analytics" />);
+  it("navigates a TikTok shop to the shared screens and marks the active one (pink tint via aria-current)", () => {
+    render(<AppNavigation activePath="/phan-tich" />);
     const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
 
-    expect(within(nav).getByRole("link", { name: "Tổng quan" })).toHaveAttribute("href", "/");
+    expect(within(nav).getByRole("link", { name: "Tổng quan" })).toHaveAttribute("href", "/tong-quan");
     expect(within(nav).getByRole("link", { name: "Quyết định" })).toHaveAttribute("href", "/decisions");
+    const analytics = within(nav).getByRole("link", { name: "Phân tích" });
+    expect(analytics).toHaveAttribute("href", "/phan-tich");
+    expect(analytics).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("link", { name: "Tổng quan" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("W3 U-4: the ADR-108 rail (Trang chủ /, Phân tích /analytics) stays reachable behind the one switch", () => {
+    render(<AppNavigation activePath="/analytics" tiktokLegacy />);
+    const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
+    expect(within(nav).getByRole("link", { name: "Tổng quan" })).toHaveAttribute("href", "/");
     const analytics = within(nav).getByRole("link", { name: "Phân tích" });
     expect(analytics).toHaveAttribute("href", "/analytics");
     expect(analytics).toHaveAttribute("aria-current", "page");
-    expect(within(nav).getByRole("link", { name: "Tổng quan" })).not.toHaveAttribute("aria-current");
+    expect(APP_DESTINATIONS.map((d) => d.href)).toEqual(["/", "/analytics", "/decisions"]);
   });
 
   it("has no locked entry, and no Juli entry unless the shop has the tab enabled", () => {

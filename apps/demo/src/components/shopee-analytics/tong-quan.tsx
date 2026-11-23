@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 
-import { useShopee } from "../../lib/shopee-analytics/context";
+import { PLATFORM_NAME_TABLE, channelCellBlank, channelName, channelOutsideTotal, channelRowsForDisplay } from "../../lib/platform-labels";
+import { useHostPlatform, useShopee } from "../../lib/shopee-analytics/context";
 import { saveBlob, tongQuanFileName } from "../../lib/shopee-analytics/download";
 import { DASH, dayMonth, fmt, pc, vnCount, vnd } from "../../lib/shopee-analytics/format";
 import { readWindow, type WindowState, windowParams } from "../../lib/shopee-analytics/params";
@@ -27,17 +28,6 @@ import { DataThrough, Ini, ResourceState, initialsOf } from "./ui";
 
 export type Level = "shop" | "product";
 
-const NAMES: Readonly<Record<ChannelKey, string>> = {
-  organic: "Organic",
-  organic_card: "Thẻ sản phẩm",
-  organic_shop: "Trang shop",
-  organic_video: "Video",
-  organic_live: "Live",
-  ads: "Quảng cáo",
-  ads_product: "DVHT Sản phẩm",
-  ads_shop: "DVHT Shop+",
-  affiliate: "Tiếp thị liên kết",
-};
 const AD_BASE: Readonly<Record<AdBase, string>> = { traffic_overview: "Lưu lượng", ads_report: "Báo cáo DVHT" };
 /** The Phân tích `channel` a row opens (none for the two parents that hold several). */
 const CHANNEL_OF: Partial<Record<ChannelKey, string>> = {
@@ -96,7 +86,7 @@ export function findingOf(split: ChannelSplit): string {
   if (gmv !== null) parts.push(`GMV ${pctText(gmv)}`);
   const card = split.rows.find((r) => r.key === "organic_card");
   const ctr = change(card?.ctr, card?.prev?.ctr);
-  if (ctr !== null) parts.push(`CTR ${NAMES.organic_card} ${pctText(ctr)}`);
+  if (ctr !== null) parts.push(`CTR ${channelName("shopee", "organic_card")} ${pctText(ctr)}`);
   return parts.join(" · ");
 }
 
@@ -161,7 +151,7 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
         <div className="sa-head__line">
           <h1 className="sa-h1">{host.shopName || "Shop"}</h1>
           <span className="sa-chip" data-testid="sa-platform">
-            Shopee
+            {PLATFORM_NAME_TABLE[host.platform ?? "shopee"]}
           </span>
           {ready ? (
             <span className="sa-fresh" data-testid="sa-fresh">
@@ -318,6 +308,7 @@ function Tiles({ data, mode, product, state }: { readonly data: ChannelSplit; re
 
 function Composition({ data, mode, product, state }: { readonly data: ChannelSplit; readonly mode: ValueMode; readonly product: string | null; readonly state: WindowState }) {
   const { links } = useShopee();
+  const platform = useHostPlatform();
   const days = daysOf(data);
   const items = compositionOf(data);
   if (items.every((i) => i.share === null)) return null;
@@ -335,7 +326,7 @@ function Composition({ data, mode, product, state }: { readonly data: ChannelSpl
       <div className="sa-tq__comp-items">
         {items.map((i) => (
           <Link className={`sa-tq__comp-item sa-tq__comp-item--${i.key}`} data-testid={`sa-comp-${i.key}`} href={analysisHref(links, { metric: "gmv", channel: CHANNEL_OF[i.key], product, mode }, state)} key={i.key}>
-            <span>{NAMES[i.key]}</span>
+            <span>{channelName(platform, i.key)}</span>
             <b>{i.share === null ? DASH : pc(i.share, 0)}</b>
             <span>{mil(inMode(i.gmv, days, mode))}</span>
             <Shift pct={change(i.gmv, i.prev)} />
@@ -372,6 +363,7 @@ function cellText(c: Cell, v: number | null): string {
 
 function ChannelTable({ data, mode, product, state, weakest }: { readonly data: ChannelSplit; readonly mode: ValueMode; readonly product: string | null; readonly state: WindowState; readonly weakest: WeakestMetric | null }) {
   const { links } = useShopee();
+  const platform = useHostPlatform();
   const days = daysOf(data);
   const perDay = (c: Cell) => !RATE_CELLS.has(c) && mode === "avg";
   return (
@@ -387,12 +379,13 @@ function ChannelTable({ data, mode, product, state, weakest }: { readonly data: 
           </span>
         ))}
       </div>
-      {data.rows.map((r) => {
+      {channelRowsForDisplay(platform, data.rows).map((r) => {
         const channel = CHANNEL_OF[r.key];
+        const outside = channelOutsideTotal(platform, r.key);
         return (
-          <div className={`sa-tq__row${r.parent ? " sa-tq__row--child" : ""}`} data-testid={`sa-channel-${r.key}`} key={r.key} role="row">
+          <div className={`sa-tq__row${r.parent ? " sa-tq__row--child" : ""}${outside ? " sa-tq__row--outside" : ""}`} data-outside-total={outside ? "true" : undefined} data-testid={`sa-channel-${r.key}`} key={r.key} role="row">
             <span className="sa-tq__name" role="cell">
-              <Link href={analysisHref(links, { metric: "gmv", channel, product, mode }, state)}>{NAMES[r.key]}</Link>
+              <Link href={analysisHref(links, { metric: "gmv", channel, product, mode }, state)}>{channelName(platform, r.key)}</Link>
               {r.ad_base ? (
                 <span className="sa-tq__src" data-testid={`sa-base-${r.key}`}>
                   {AD_BASE[r.ad_base]}
@@ -400,8 +393,9 @@ function ChannelTable({ data, mode, product, state, weakest }: { readonly data: 
               ) : null}
             </span>
             {COLUMNS.map(([cell, , metric]) => {
-              const v = cellValue(r, cell, days, mode);
-              const before = r.prev ? cellValue(r.prev, cell, days, mode) : null;
+              const blank = channelCellBlank(platform, r.key, cell);
+              const v = blank ? null : cellValue(r, cell, days, mode);
+              const before = r.prev && !blank ? cellValue(r.prev, cell, days, mode) : null;
               return (
                 <Link className="sa-tq__cell" data-testid={`sa-cell-${r.key}-${cell}`} href={analysisHref(links, { metric, channel, product, mode }, state)} key={cell} role="cell">
                   <span>{cellText(cell, v)}</span>
