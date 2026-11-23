@@ -1680,7 +1680,8 @@ async def mark_executed(
         ref_id, ref_code = typed_id or cap_id, typed_code or cap_code
         name = str(((job.payload or {}) if job else {}).get("name") or p.code or "")
         if kind == "voucher":
-            c["target"] = fill_refs.voucher_target(ref_id, ref_code, name)
+            kept = {k: v for k, v in c.get("target", {}).items() if k != "voucher_id"}
+            c["target"] = {**kept, **fill_refs.voucher_target(ref_id, ref_code, name)}
             # F2.3 / E46: the person changed the form by hand: the saved form's values are what
             # the read-back must find; the card's own are kept beside them
             seen = await fill_queue.seen_voucher_values(session, shop_id, card_id)
