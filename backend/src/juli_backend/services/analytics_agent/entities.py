@@ -17,6 +17,7 @@ from juli_backend.services.analytics_agent.windows import (
     anchor_for,
     build_windows,
     campaign_days,
+    sale_days_vi,
 )
 
 NO_DATA_VI = "Juli chưa có số liệu này"
@@ -42,6 +43,7 @@ def _answer(kind: str, title: str, w: Any, latest: date, **extra: Any) -> dict[s
         "title_vi": title,
         "window_vi": w.label(),
         "fresh_vi": f"Số liệu đến hết {latest:%d/%m}",
+        **({"sale_vi": sv} if (sv := sale_days_vi(w)) else {}),
         **extra,
     }
 
@@ -64,7 +66,11 @@ async def _window(
     if latest is None:
         return None
     w = build_windows(
-        preset, anchor_for(preset, as_of, latest), explicit=explicit, named_month=named_month
+        preset,
+        anchor_for(preset, as_of, latest),
+        explicit=explicit,
+        named_month=named_month,
+        sale_aware=True,
     )
     return w, latest
 

@@ -78,6 +78,7 @@ MODES = {
 LOOKUPS = {
     "metric_total": "one metric's value for a period, compared with the period before",
     "top_products": "the products ranked by revenue or orders for a period",
+    "top_decliners": "the products whose revenue fell the most compared with the period before",
     "daily_trend": "the metric day by day over a period",
     "channel_breakdown": "the metric split by traffic source / channel for a period",
 }
@@ -106,6 +107,12 @@ METRIC_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
         (r"lượt xem|\bviews?\b", "views"),
     )
 )
+DECLINE_WORDS = re.compile(
+    r"biggest (decline|drop|fall)|fell (the )?most|declin|(dropped|fallen|falling) (the )?most|"
+    r"giảm (mạnh|nhiều) nhất|giảm mạnh|worst",
+    re.I,
+)
+LIST_LOOKUPS = ("top_products", "top_decliners")
 METRIC_CHAIN = {m: c for c, m in CHAIN_METRIC.items()}
 METRIC_CHAIN.update(roas="ads_change", ads_spend="ads_change", margin="profit_change")
 
@@ -374,6 +381,10 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
             okl, infol = choice_ok(answers["lookup"])
             dec["checks"]["lookup"] = infol
             dec["lookup"] = infol["pick"] if okl else "metric_total"
+            if DECLINE_WORDS.search(str(intent.get("metric_phrase") or "")) and re.search(
+                r"product|sản phẩm|sp\b|item", str(intent.get("metric_phrase") or ""), re.I
+            ):
+                dec["lookup"] = "top_decliners"  # "giảm mạnh nhất" is a decline, not top by GMV
     for k in ("chain", "metric", "window", "scope"):
         if k not in answers:
             continue
@@ -394,7 +405,7 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
         dec["checks"]["metric"] = {"pick": named, "rule": "phrase"}
         unclear = [x for x in unclear if x[0] not in ("chain", "metric")]
         answers = {**answers, "metric_named": {"noul": 1.0}}
-    elif named and dec.get("lookup") != "top_products":
+    elif named and dec.get("lookup") not in LIST_LOOKUPS:
         dec["metric"] = named
         unclear = [x for x in unclear if x[0] != "metric"]
         answers = {**answers, "metric_named": {"noul": 1.0}}
@@ -405,7 +416,7 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
             "rule": f"<={FITS_NO} -> ask which metric",
         }
         if mn <= FITS_NO and not (
-            dec.get("mode") == "lookup" and dec.get("lookup") == "top_products"
+            dec.get("mode") == "lookup" and dec.get("lookup") in LIST_LOOKUPS
         ):
             unclear.insert(0, ("chain", list(CHAINS)))
     pn = answers.get("product_named", {}).get("noul")
@@ -427,7 +438,7 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
         dec["scope"] = "product" if pn >= FITS_GO and intent.get("product_phrase") else "shop"
     if (
         dec.get("mode") == "lookup"
-        and dec.get("lookup") != "top_products"
+        and dec.get("lookup") not in LIST_LOOKUPS
         and mn is not None
         and mn <= FITS_NO
     ):
@@ -437,7 +448,7 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     if (
         dec.get("mode") == "lookup"
     ):  # a data answer needs lookup kind + window (+ metric), never chain / scope
-        drop = {"chain", "scope"} | ({"metric"} if dec.get("lookup") == "top_products" else set())
+        drop = {"chain", "scope"} | ({"metric"} if dec.get("lookup") in LIST_LOOKUPS else set())
         unclear = [x for x in unclear if x[0] not in drop]
         dec["checks"].pop("chain_metric_conflict", None)
     order = ["chain", "metric", "window", "scope"]
@@ -477,6 +488,7 @@ def options_vi(
     as_of: date,
     names: dict[str, str] | None = None,
     latest: date | None = None,
+    sale_aware: bool = False,
 ) -> list[dict[str, str]]:
     out = []
     for v in values:
@@ -485,7 +497,9 @@ def options_vi(
         elif item == "metric":
             label = labels.metric(v)
         elif item == "window":
-            label = build_windows(v, anchor_for(v, as_of, latest)).label()  # real dates (U5a)
+            label = build_windows(
+                v, anchor_for(v, as_of, latest), sale_aware=sale_aware
+            ).label()  # real dates (U5a)
         else:
             label = (names or {}).get(v, v)
         out.append({"label_vi": label, "value": v})
@@ -513,7 +527,9 @@ def needs_choice_event(
         "type": "needs_choice",
         "item": item,
         "question_vi": QUESTION_VI[item],
-        "options": options_vi(item, values, labels, as_of, names, latest),
+        "options": options_vi(
+            item, values, labels, as_of, names, latest, dec.get("mode") == "lookup"
+        ),
         "pending": pending,
     }
 

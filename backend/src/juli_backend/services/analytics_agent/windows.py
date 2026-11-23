@@ -19,6 +19,9 @@ class Windows:
     context: tuple[date, date] | None = None
     same_weekday: list[date] = field(default_factory=list)
     flags: list[str] = field(default_factory=list)
+    #: the window the seller asked to compare with, when it held a sale day and `prev` was moved
+    #: to the nearest earlier normal one (a sale week is never the baseline)
+    sale_prev: tuple[date, date] | None = None
 
     def label(self) -> str:
         def f(w: tuple[date, date]) -> str:
@@ -67,6 +70,21 @@ CALENDAR_PRESETS = frozenset(
 )
 
 
+WEEKLY = frozenset(
+    {"last_full_week_vs_week_before", "this_week_vs_same_days_last_week", "last_7d_vs_prev_7d"}
+)
+
+
+def sale_days_vi(w: Windows) -> str | None:
+    """The sale days inside the compared windows, for the answer's marker line."""
+    days = sorted(
+        set(campaign_days(*w.cur))
+        | (set(campaign_days(*w.sale_prev)) if w.sale_prev else set())
+        | (set(campaign_days(*w.prev)) if w.prev else set())
+    )
+    return "Ngày sale: " + ", ".join(f"{d:%d/%m}" for d in days) if days else None
+
+
 def anchor_for(preset: str, as_of: date, latest: date | None) -> date:
     """as_of = the newest complete calendar day (yesterday, VN). Calendar presets keep it even
     when the data stops earlier; the others never run past the newest complete data day."""
@@ -108,6 +126,7 @@ def build_windows(
     *,
     explicit: tuple[date, date] | None = None,
     named_month: str | None = None,
+    sale_aware: bool = False,
 ) -> Windows:
     a_ = anchor
     if explicit:
@@ -156,8 +175,17 @@ def build_windows(
         first = date(y, m, 1)
         w = Windows(preset, (first, min(_clamp_day(y, m, 31), a_)), _prev_month(first))
     else:
-        w = build_windows("last_30d_vs_prev_30d", a_)
+        w = build_windows("last_30d_vs_prev_30d", a_, sale_aware=sale_aware)
         w.flags.append("window_defaulted")
+    if sale_aware and preset in WEEKLY and w.prev and not explicit and campaign_days(*w.prev):
+        for k in range(1, 6):
+            cand = (w.prev[0] - timedelta(days=7 * k), w.prev[1] - timedelta(days=7 * k))
+            if not campaign_days(*cand):
+                w.sale_prev, w.prev = w.prev, cand
+                w.flags.append("baseline_off_sale")
+                break
+        else:
+            w.flags.append("baseline_is_sale")
     lo = w.prev[0] if w.prev else (w.same_weekday[-1] if w.same_weekday else w.cur[0])
     days = campaign_days(lo, w.cur[1])
     if days:

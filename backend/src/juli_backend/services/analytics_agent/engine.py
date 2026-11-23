@@ -215,6 +215,8 @@ async def _run(
         dec = routing.resume(req.pending, req.choice)
         restated = req.pending.get("restated") or routing.RESTATE_PREFIX
         blocks.append((req.pending["intent"], dec))
+        # the intents queued behind the one that asked: every intent gets its answer (B4)
+        blocks.extend((i, d) for i, d in req.pending.get("rest") or [])
         more = req.pending.get("more") or []
     else:
         parsed, usage = await routing.parse_intents(llm, req.text or "", as_of)
@@ -280,6 +282,9 @@ async def _run(
             ev["pending"]["anchor"] = as_of.isoformat()
             ev["pending"]["restated"] = restated
             ev["pending"]["more"] = more
+            ev["pending"]["rest"] = [
+                [i, {k: v for k, v in d.items() if k != "checks"}] for i, d in blocks[idx:]
+            ]
             await out.emit(ev)
             result.stop_reasons.append("needs_choice")
             return  # one unclear item at a time; the tap resumes from pending

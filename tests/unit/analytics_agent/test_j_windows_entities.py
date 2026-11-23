@@ -55,6 +55,44 @@ def test_sale_days_are_double_days_15th_and_25th() -> None:
     assert any(f.startswith("contains_campaign_day:11/11,15/11") for f in w.flags)
 
 
+def test_a_sale_week_is_never_the_baseline() -> None:
+    w = windows.build_windows("last_full_week_vs_week_before", YDAY, sale_aware=True)
+    assert w.cur == (date(2026, 11, 16), YDAY)
+    assert w.sale_prev == (date(2026, 11, 9), date(2026, 11, 15))  # 11.11 + 15.11
+    assert w.prev == (date(2026, 11, 2), date(2026, 11, 8))  # the nearest normal week
+    assert "baseline_off_sale" in w.flags
+    assert windows.sale_days_vi(w) == "Ngày sale: 11/11, 15/11"
+    quiet = windows.build_windows(
+        "last_full_week_vs_week_before", date(2026, 11, 8), sale_aware=True
+    )
+    assert quiet.sale_prev is None and quiet.prev == (date(2026, 10, 26), date(2026, 11, 1))
+
+
+async def test_answer_marks_sale_days_and_compares_with_a_normal_week() -> None:
+    def gmv(d: date) -> float:  # 11.11 week collapses afterwards: must not read as a collapse
+        return 5000.0 if date(2026, 11, 9) <= d <= date(2026, 11, 15) else 1000.0
+
+    shop = shop_rows(YDAY - timedelta(days=60), YDAY, gmv=gmv, orders=3.0)
+    llm = FakeLLM(
+        {
+            "restated_vi": "Doanh thu tuần trước",
+            "intents": [
+                intent(question_type="status", metric_phrase="revenue", time_phrase="last week")
+            ],
+        }
+    )
+    sink, _ = await go(
+        AskRequest(shop_id=SHOP, platform="shopee", as_of=YDAY, text="q"),
+        llm=llm,
+        jev=_lookup_jev("gmv"),
+        data=FakeData(shop),
+    )
+    da = sink.of("data_answer")[0]
+    assert da["sale_vi"].startswith("Ngày sale: 11/11")
+    assert da["window_vi"] == "16/11–22/11 so với 02/11–08/11"
+    assert da["delta"]["dir"] == "flat"  # vs the normal week, not "▼ 80 %" vs the 11.11 week
+
+
 def test_named_metric_and_window_phrase_skip_the_pickers() -> None:
     it = intent(metric_phrase="advertising spend", time_phrase="last week")
     a = ans(
@@ -309,7 +347,7 @@ async def test_window_chosen_is_the_window_run_and_freshness_is_the_newest_compl
     nc = sink.of("needs_choice")[0]
     assert nc["pending"]["anchor"] == YDAY.isoformat()
     shown = nc["options"][0]["label_vi"]
-    assert shown == "16/11–22/11 so với 09/11–15/11"
+    assert shown == "16/11–22/11 so với 02/11–08/11"  # 9-15/11 holds 11.11 and 15/11
     r2 = AskRequest(
         shop_id=SHOP,
         platform="shopee",
@@ -385,3 +423,78 @@ async def test_vietnamese_named_metric_and_week_answer_directly() -> None:
     assert not sink.of("needs_choice") and res.stop_reasons == ["data_answer"]
     da = sink.of("data_answer")[0]
     assert da["window_vi"].startswith("16/11–22/11")
+
+
+async def test_biggest_decline_is_a_decline_ranking_not_top_by_gmv() -> None:
+    first = YDAY - timedelta(days=30)
+    shop = shop_rows(first, YDAY, gmv=1000.0, orders=3.0)
+
+    def prod(item: str, now: float, before: float) -> list[dict[str, Any]]:
+        return [
+            {
+                "day": d,
+                "item_id": item,
+                "gmv": now if d > YDAY - timedelta(days=7) else before,
+                "orders": 1.0,
+                "units": 1.0,
+            }
+            for d in (first + timedelta(days=i) for i in range(31))
+        ]
+
+    prods = prod("p1", 900.0, 1000.0) + prod("p2", 100.0, 800.0) + prod("p3", 5000.0, 1.0)
+    data = FakeData(shop, products=prods, names={"p1": "A", "p2": "B", "p3": "C"})
+    llm = FakeLLM(
+        {
+            "restated_vi": "Sản phẩm giảm mạnh nhất",
+            "intents": [
+                intent(
+                    question_type="status",
+                    metric_phrase="products with the biggest decline in revenue",
+                    time_phrase="7 days",
+                )
+            ],
+        }
+    )
+    jev = FakeJev(lambda s, q: full(mode=ch("lookup"), lookup=ch("top_products"), metric=ch("gmv")))
+    sink, _ = await go(
+        AskRequest(shop_id=SHOP, platform="shopee", as_of=YDAY, text="q"),
+        llm=llm,
+        jev=jev,
+        data=data,
+    )
+    rows = sink.of("data_answer")[0]["rows"]
+    assert [r["label_vi"] for r in rows][:2] == ["B", "A"]  # p3 grew; p2 fell most
+    assert rows[0]["value_vi"].startswith("▼ ")
+
+
+async def test_every_intent_is_answered_even_after_a_clarifying_choice() -> None:
+    shop = shop_rows(YDAY - timedelta(days=40), YDAY, gmv=1000.0, orders=3.0)
+    data = FakeData(shop)
+    two = {
+        "restated_vi": "hai câu",
+        "intents": [
+            intent(question_type="status", metric_phrase="revenue", time_phrase="recently"),
+            intent(question_type="status", metric_phrase="orders", time_phrase="last week"),
+        ],
+    }
+    jev = FakeJev(
+        lambda s, q: full(
+            mode=ch("lookup"),
+            lookup=ch("metric_total"),
+            metric=ch("gmv"),
+            window=ch("last_7d_vs_prev_7d", 0.55, "last_30d_vs_prev_30d"),
+        )
+    )
+    r = AskRequest(shop_id=SHOP, platform="shopee", as_of=YDAY, text="q")
+    sink, _ = await go(r, llm=FakeLLM(two), jev=jev, data=data)
+    nc = sink.of("needs_choice")[0]
+    r2 = AskRequest(
+        shop_id=SHOP,
+        platform="shopee",
+        as_of=YDAY,
+        choice={"item": "window", "value": "last_7d_vs_prev_7d"},
+        pending=nc["pending"],
+    )
+    sink2, _ = await go(r2, llm=FakeLLM(None), jev=FakeJev(lambda s, q: full()), data=data)
+    titles = [a["title_vi"] for a in sink2.of("data_answer")]
+    assert len(titles) == 2 and titles[0] != titles[1]
