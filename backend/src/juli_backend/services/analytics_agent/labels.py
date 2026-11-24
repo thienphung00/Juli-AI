@@ -59,6 +59,9 @@ KINDS_VI = {
     "ads_pause": "Tạm dừng quảng cáo",
     "ads_purpose": "Mục tiêu quảng cáo",
     "ads_add_product": "Thêm sản phẩm vào quảng cáo",
+    "ads_remove_product": "Gỡ sản phẩm khỏi chiến dịch nhóm",
+    "ads_new_campaign": "Chiến dịch quảng cáo mới",
+    "ads_keywords": "Từ khoá và giá thầu quảng cáo",
     "title": "Tên sản phẩm",
     "description_first_line": "Mô tả sản phẩm",
     "keyword": "Từ khoá",
@@ -66,6 +69,11 @@ KINDS_VI = {
     "price_display": "Hiển thị giá",
     "affiliate_commission": "Hoa hồng tiếp thị liên kết",
     "affiliate_target_campaign": "Chiến dịch tiếp thị liên kết mục tiêu",
+    "affiliate_invite": "Mời KOL",
+    "affiliate_sample": "Gửi mẫu cho KOL",
+    "combo_multi": "Combo Khuyến Mãi nhiều sản phẩm",
+    "mega_sale": "Chiến dịch lớn",
+    "variation_restructure": "Gom lại phân loại",
 }
 
 

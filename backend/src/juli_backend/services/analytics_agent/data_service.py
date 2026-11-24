@@ -44,8 +44,16 @@ def merge_campaigns(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
         gid = " ".join(str(r["name"]).casefold().split()) or str(r["key"])
         g = groups.setdefault(
             gid,
-            {"keys": [], "spend": Decimal(0), "gmv": Decimal(0), "before_ads": Decimal(0)},
+            {
+                "keys": [],
+                "spend": Decimal(0),
+                "gmv": Decimal(0),
+                "before_ads": Decimal(0),
+                "items": {},
+            },
         )
+        for item, sp in (r.get("items") or {}).items():
+            g["items"][item] = g["items"].get(item, Decimal(0)) + Decimal(str(sp))
         g["keys"].append(r["key"])
         g["name"] = r["name"]
         g["spend"] += Decimal(str(r["spend"]))
@@ -69,6 +77,8 @@ def merge_campaigns(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "roas": roas_direct(g["gmv"], g["spend"]),
                 "break_even": roas_break_even(g["gmv"], before) if before is not None else None,
                 "profit_after_ads": None if before is None else before - g["spend"],
+                # the products the campaign spends on, biggest spend first (ads report by product)
+                "items": sorted(g["items"], key=lambda k: -g["items"][k])[:5],
             }
         )
     return out
@@ -271,10 +281,11 @@ class ServiceData:
         )
 
     async def open_cards(self) -> list[dict[str, Any]]:
-        """Open cards plus executed ones within 28 days (G4)."""
+        """Open cards plus executed ones within 28 days (G4). `kind` is the stored (coarse) proposal
+        kind ("ads", "other", ...); `change_kind` is the card's own kind id (ads_budget, ...)."""
         return await self._q(
-            """select kind, item_id, status, planned_start, subject_label, change_after::text as
-            change_after,
+            """select kind, change_after->>'change_kind' as change_kind, item_id, status,
+                      planned_start, subject_label, change_after::text as change_after,
                       code
                  from shop_proposals
                 where shop_id = :s and platform = 'shopee'
@@ -519,6 +530,7 @@ class ServiceData:
                         {
                             "key": c.key,
                             "name": c.name or c.key,
+                            "items": dict(c.products or {}),
                             "spend": c.spend,
                             "gmv": prof["direct_per_day"] * days,
                             # NULL is not 0: no rate = unknown, but a segment with no direct GMV
@@ -534,9 +546,9 @@ class ServiceData:
         return apply_shop_break_even(merge_campaigns(raw), shop_be)
 
     async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]:
-        """Per day: the shop's ad spend and its summed daily budget (None when a campaign has no
-        budget limit that day). The ads report rows `ads_campaign_daily`, read through the
-        existing `PlatformDailyMetricsRepo`."""
+        """Per day: the shop's ad spend, its ad orders and its summed daily budget (None when a
+        campaign has no budget limit that day). The ads report rows `ads_campaign_daily`, read
+        through the existing `PlatformDailyMetricsRepo`."""
         from decimal import Decimal
 
         from juli_backend.repositories import PlatformDailyMetricsRepo
@@ -547,14 +559,17 @@ class ServiceData:
                 rows = await PlatformDailyMetricsRepo(s).window(
                     self.shop, datasets=[ADS_DAILY], start=a, end=b, any_item=True
                 )
-                plain = [(r.day, r.segment, dict(r.extra or {})) for r in rows]
+                plain = [(r.day, r.segment, dict(r.extra or {}), r.orders) for r in rows]
             finally:
                 await s.rollback()
         per: dict[date, dict[str, Any]] = {}
-        for day, seg, extra in plain:
+        for day, seg, extra, orders in plain:
             if seg == "all":
                 continue
-            d = per.setdefault(day, {"day": day, "spend": Decimal(0), "budget": Decimal(0)})
+            d = per.setdefault(
+                day, {"day": day, "spend": Decimal(0), "budget": Decimal(0), "ad_orders": 0.0}
+            )
+            d["ad_orders"] += float(orders or 0)
             d["spend"] += Decimal(str(extra.get("cost") or 0))
             bud = extra.get("daily_budget")
             d["budget"] = (
