@@ -20,6 +20,7 @@ import { mapMarketSearch } from "../market";
 import { importOrderRefKey, orderRef } from "../ingest/order-ref";
 import { RAW_ORDER_ID } from "../affiliate-map";
 import { mapReaderJob } from "../reader-map";
+import { splitByPeriod, withinReadWindow } from "../post-period";
 import { classify, type ReaderJob, type ReaderResponse } from "../reader";
 import { isDataAnswer, type RequestResult } from "../runner";
 import { backfillDatasets, buildBackfillDayPlan, buildSyncPlan } from "../sync";
@@ -67,7 +68,12 @@ export type CaptureOutcome =
   | "drift"
   | "posted"
   | "queued"
-  | "rejected"
+  /**
+   * 0.3.34 (C-H1): refused, and why: `rejected:<gateway code>` (a 4xx answer: invalid_rows,
+   * period_too_long, granularity_mismatch, ...; `http_<status>` when the answer names none),
+   * `rejected:order_ref_key` (no key to hash the order ids), `rejected:raw_order_id`.
+   */
+  | `rejected:${string}`
   /** Juli refused the shop (403 consent_required): nothing more is sent until the seller retries. */
   | "refused";
 
@@ -93,6 +99,12 @@ const READ_OUTCOMES: ReadonlySet<string> = new Set(["done", "no_items", "no_camp
 export function todaysPagesAllRead(readers: State["readers"], today: string): boolean {
   if (readers?.lastRun?.day !== today) return true;
   return Object.values(readers.lastRun.outcomes).every((outcome) => READ_OUTCOMES.has(String(outcome).split(/[:|]/, 1)[0] ?? ""));
+}
+
+/** 0.3.34 (C-H1): a gateway refusal as an outcome that names its reason (metadata only, no body). */
+export function rejectedFor(error: GatewayError): `rejected:${string}` {
+  const code = error.code && error.code !== "http_error" ? error.code : `http_${error.status}`;
+  return `rejected:${code.replace(/[^a-z0-9_]/gi, "_").slice(0, 40)}`;
 }
 
 export class Connector {
@@ -202,15 +214,18 @@ export class Connector {
       return sent === "posted" ? "empty" : sent;
     }
     // A raw Shopee order id never leaves the browser: such a row must have been hashed first.
-    if (mapped.rows.some((row) => RAW_ORDER_ID in row)) return "rejected";
+    if (mapped.rows.some((row) => RAW_ORDER_ID in row)) return "rejected:raw_order_id";
 
     let outcome: CaptureOutcome = "posted";
-    for (let start = 0; start < mapped.rows.length; start += MAX_ROWS_PER_POST) {
-      const chunk = { ...mapped, rows: mapped.rows.slice(start, start + MAX_ROWS_PER_POST) };
-      const result = await this.postChunk(chunk, capturedAt, token);
-      if (result !== "posted") {
-        outcome = result;
-        if (result === "unpaired" || result === "refused" || result === "stopped") break;
+    // 0.3.34 (C-H2): never more days in one post than the gateway takes (period_too_long)
+    for (const period of splitByPeriod(mapped)) {
+      for (let start = 0; start < period.rows.length; start += MAX_ROWS_PER_POST) {
+        const chunk = { ...period, rows: period.rows.slice(start, start + MAX_ROWS_PER_POST) };
+        const result = await this.postChunk(chunk, capturedAt, token);
+        if (result !== "posted") {
+          outcome = result;
+          if (result === "unpaired" || result === "refused" || result === "stopped") return outcome;
+        }
       }
     }
     return outcome;
@@ -248,7 +263,7 @@ export class Connector {
         // 4xx: the gateway refused the data itself; retrying the same body cannot help.
         if (error.status < 500 && error.status !== 429) {
           await saveState(this.deps.storage, { lastError: { at: this.iso(), code: error.code } });
-          return "rejected";
+          return rejectedFor(error);
         }
       }
       await saveState(this.deps.storage, {
@@ -267,7 +282,9 @@ export class Connector {
     const outcomes: Record<string, CaptureOutcome> = {};
     // "affiliate": one post per purchase window (0.3.17 history), keyed by the window's end.
     const perDate = new Set(["ads", "item_traffic", "affiliate", "affiliate_dashboard", "affiliate_bills"]);
-    for (const raw of mapReaderJob(job, responses, capturedAt)) {
+    for (const mappedRaw of mapReaderJob(job, responses, capturedAt)) {
+      // 0.3.34 (C-H2): the orders job's lines placed before its read window are not posted
+      const raw = job.id === "orders" && mappedRaw.dataset === "order_lines" ? withinReadWindow(mappedRaw, job.sinceDay) : mappedRaw;
       const key =
         job.id === "shop_totals" || job.id === "product_period"
           ? `${raw.dataset}:${raw.orderType}`
@@ -276,8 +293,13 @@ export class Connector {
             : perDate.has(job.id)
               ? `${raw.dataset}:${raw.date}`
               : raw.dataset;
+      if (raw !== mappedRaw && raw.rows.length === 0 && !raw.drift) {
+        // every line was placed before the window: nothing new to send (not a failed read)
+        outcomes[key] = "empty";
+        continue;
+      }
       const mapped = await this.hashOrderIds(raw);
-      outcomes[key] = mapped ? await this.submit(mapped, capturedAt) : "rejected";
+      outcomes[key] = typeof mapped === "string" ? mapped : await this.submit(mapped, capturedAt);
     }
     return outcomes;
   }
@@ -286,7 +308,7 @@ export class Connector {
    * Affiliate conversion rows carry the raw order id only until here: it is replaced by
    * `order_ref` with the shop's key from Juli (never stored). No key, no post.
    */
-  private async hashOrderIds(mapped: Mapped): Promise<Mapped | null> {
+  private async hashOrderIds(mapped: Mapped): Promise<Mapped | "unpaired" | "rejected:order_ref_key"> {
     if (!mapped.rows.some((row) => RAW_ORDER_ID in row)) return mapped;
     const state = await this.state();
     if (!state.token) return mapped; // submit() answers "unpaired"
@@ -296,9 +318,9 @@ export class Connector {
       if (typeof answer?.order_ref_key !== "string") throw new Error("no key");
       key = await importOrderRefKey(answer.order_ref_key);
     } catch (error) {
-      if (await this.onAuthError(error)) return null;
+      if (await this.onAuthError(error)) return "unpaired";
       await saveState(this.deps.storage, { lastError: { at: this.iso(), code: "order_ref_key_unavailable" } });
-      return null;
+      return "rejected:order_ref_key";
     }
     const rows = await Promise.all(
       mapped.rows.map(async (row) => {

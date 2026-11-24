@@ -1453,6 +1453,14 @@ describe("0.3.20: the orders outcome is truthful", () => {
     expect((await ctx.read())?.lastRun?.outcomes.order_income).toBe("error:order_income:0_rows:no_order_key");
   });
 
+  it("0.3.34 C-H1: the tick's outcome names why the gateway refused the post", async () => {
+    const ctx = setup({ readers: ["order_income"] });
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], incomeQueue: [{ id: "26110001", completedAt: T0 - 3000 }] };
+    (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async () => ({ order_income: "rejected:period_too_long" });
+    await driveOrderPages(ctx, (id) => ({ responses: [incomeAnswer(id)] }));
+    expect((await ctx.read())?.lastRun?.outcomes.order_income).toMatch(/^error:order_income:0_rows:rejected:period_too_long/);
+  });
+
   it("0.3.26: a post that did not land keeps every sent order queued", async () => {
     const ctx = setup({ readers: ["order_income"] });
     (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async () => ({ order_income: "rejected" });
