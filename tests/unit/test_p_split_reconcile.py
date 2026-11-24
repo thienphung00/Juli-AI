@@ -123,3 +123,26 @@ def test_exports_read_the_one_affiliate_cost_not_a_second_commission_sum():
 
     src = Path(collect.__file__).read_text(encoding="utf-8")
     assert "channel_split.affiliate_cost(" in src and "ln.commission" not in src
+
+
+def test_the_plans_split_block_adds_up_to_the_same_kpi_totals():
+    from juli_backend.services.shopee_recommendations.plan_aggregate import _split_block
+
+    pairs = _pairs()
+    gmv, orders = _totals(pairs)
+    view = _view(pairs)
+    p2_gmv, p2_orders = _totals([p for p in pairs if p[0].product_id == "P2"])
+    shop = NS(gmv=gmv + D(1000), orders=int(orders) + 1)
+    view.metrics = NS(
+        gmv=shop.gmv,
+        orders=shop.orders,
+        split=lambda pid: NS(gmv=p2_gmv, orders=int(p2_orders)) if pid == "P2" else None,
+    )
+    env = NS(view=view)
+    j = NS(result_basis=1, horizon=1, leaves=[], counted={})
+    block = _split_block(env, j, None)
+    assert block is not None
+    for col, want in (("gmv", shop.gmv), ("orders", D(shop.orders))):
+        assert sum(block["today"]["rows"][ch][col] for ch in SPLIT_CHANNELS) == want
+    p2 = _split_block(env, j, "P2")
+    assert p2 is not None and p2["today"]["total"]["gmv"] == p2_gmv

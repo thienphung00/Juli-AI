@@ -85,7 +85,12 @@ from juli_backend.services.shopee_builder.engine.contract import (
     SourceFunnel,
 )
 from juli_backend.services.shopee_profit import shop_profit
-from juli_backend.services.shopee_profit.ladder import Ladder, ladder_of
+from juli_backend.services.shopee_profit.ladder import (
+    Ladder,
+    affiliate_cost,
+    covered,
+    ladder_of,
+)
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 
 LOG = logging.getLogger(__name__)
@@ -664,21 +669,6 @@ async def _load(
     return ctx, view, window
 
 
-def _covered(pb: Any) -> bool:
-    """The line is in the profit basis: every cost known, so Lợi nhuận ròng counts it (the
-    ladder's ``components_of`` rule)."""
-    return pb.excluded_reason is None and pb.organic_contribution is not None
-
-
-def affiliate_cost(pairs: Sequence[tuple[Any, Any]]) -> Decimal | None:
-    """THE affiliate cost (registry ``cost_affiliate``, decision #55 Q2): the commission of the
-    affiliate lines in the profit basis (delivered / settled, every cost known: the lines Lợi
-    nhuận ròng uses). KPI, channel split, exports and Chat all read this one sum. ``None`` when
-    no affiliate line is in the basis."""
-    lines = [pb for ln, pb in pairs if ln.affiliate and _covered(pb)]
-    return sum((pb.commission or ZERO_D for pb in lines), ZERO_D) if lines else None
-
-
 def _product_ads(
     view: PeriodView, product_id: str | None, ads_known: bool
 ) -> dict[str, Decimal] | None:
@@ -742,13 +732,13 @@ def _sums(pairs: Sequence[tuple[Any, Any]]) -> dict[str, Decimal]:
     (every cost known); Ưu đãi (the combined seller cost, ``ProfitBreakdown.offer_cost``) of all
     lines; the affiliate commission of the covered lines."""
     sale = [ln for ln, _ in pairs if counts_in_sales(ln)]
-    covered = [pb for _, pb in pairs if _covered(pb)]
+    known = [pb for _, pb in pairs if covered(pb)]
     return {
         "gmv": sum((ln.order_value for ln in sale), ZERO_D),
         "orders": Decimal(len({ln.order_id for ln in sale})),
-        "net_revenue": sum((pb.revenue for pb in covered), ZERO_D),
+        "net_revenue": sum((pb.revenue for pb in known), ZERO_D),
         "cost_offers": sum((pb.offer_cost for _, pb in pairs), ZERO_D),
-        "contribution": sum((pb.organic_contribution or ZERO_D for pb in covered), ZERO_D),
+        "contribution": sum((pb.organic_contribution or ZERO_D for pb in known), ZERO_D),
         "cost_affiliate": affiliate_cost(pairs) or ZERO_D,
     }
 
