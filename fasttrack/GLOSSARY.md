@@ -82,6 +82,8 @@ Before saying "Juli changed X", check the actor or source field of the row (Conn
 | Term | Means |
 |---|---|
 | **ROAS hoà vốn** | registry `roas_break_even`: GMV ÷ what an order keeps after giá vốn, fees and vouchers, before ads. The ROAS at which profit after ads is 0. |
+| **Đóng góp trước quảng cáo** (`contribution_before_ads`) | registry value: what the orders keep after giá vốn, fees and Ưu đãi (a cost), before ads. Read at shop, product and campaign level from the shared profit service (decisions #36/#37). |
+| **Số liệu đến hết dd/mm** | the newest complete day the answer's numbers include (`clip_to_freshness`). Every Chat summary names it with the window. Not the Connector's "Đang đọc đến" status on Cài đặt. (decisions #36/#37) |
 | **Ngày sale** | a double day (1.1 … 12.12), the 15th and the 25th (`shopee_kpi.flow_glm.calendar_row`). Marked in comparisons; a sale week is never the baseline. |
 | **Giá vốn** | the cost of goods, VAT-inclusive, per unit / item. Missing giá vốn means profit is not trusted. |
 | **Tuần** / **tuần trước** / **tuần này** | a week is Mon–Sun. "Tuần trước" = the last complete Mon–Sun. "Tuần này" = Monday to the newest complete day, against the same days last week. |

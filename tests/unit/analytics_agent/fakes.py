@@ -317,5 +317,8 @@ class FakeEntityData(FakeData):
     async def product_profit(self, item: str, a: date, b: date) -> dict[str, Any] | None:
         return self.entity.get("product_profit", {}).get((item, a))
 
+    async def product_profit_rows(self, a: date, b: date) -> list[dict[str, Any]]:
+        return self.entity.get("product_rows", [])
+
     async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]:
         return [r for r in self.entity.get("budget_days", []) if a <= r["day"] <= b]

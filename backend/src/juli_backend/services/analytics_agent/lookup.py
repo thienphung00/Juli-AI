@@ -186,9 +186,10 @@ async def run_lookup(
 async def _total(
     data: DataPort, metric: str, w: Any, rows: list[dict[str, Any]]
 ) -> tuple[float | None, float | None]:
-    if metric == "roas_break_even":  # the registry's metric over the overview's shop components
-        o1 = (await data.overview(*w.cur)).get("shop_profit") or {}
-        o0 = ((await data.overview(*w.prev)).get("shop_profit") or {}) if w.prev else {}
+    if metric == "roas_break_even":  # the shop's figure from the shared profit service
+        # the shop's ROAS hoà vốn is the overview's `profit` block (Tổng quan's own figure)
+        o1 = (await data.overview(*w.cur)).get("profit") or {}
+        o0 = ((await data.overview(*w.prev)).get("profit") or {}) if w.prev else {}
         return _break_even(o1), (_break_even(o0) if w.prev else None)
     if metric in MONEY_METRICS:
         o1 = await data.overview(*w.cur)
@@ -213,9 +214,7 @@ def default_metric(chain: str | None) -> str:
     return CHAIN_METRIC.get(chain or "", "gmv")
 
 
-def _break_even(shop_profit: dict[str, Any]) -> float | None:
-    from juli_backend.services.analytics_agent.registry_reads import roas_break_even
-
-    return roas_break_even(
-        shop_profit.get("net_revenue"), shop_profit.get("contribution_before_ads")
-    )
+def _break_even(profit: dict[str, Any]) -> float | None:
+    """The shop's ROAS hoà vốn as Tổng quan shows it (overview `profit.break_even_roas`)."""
+    v = profit.get("break_even_roas")
+    return None if v is None else float(v)
