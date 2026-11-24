@@ -115,14 +115,22 @@ export function useRunStream(
   useEffect(() => {
     if (!enabled || !token || !runId) return;
 
+    // Set by the cleanup. The client can still deliver a callback after
+    // `abort()` (a retry timer waking up, a late rejection), and by then the
+    // component -- or the whole test environment -- is gone: a setState there
+    // is a no-op at best and a "window is not defined" at worst.
+    let disposed = false;
+
     const stream = openAgentEventStream(
       { runId, token, shopId, baseUrl, fetchImpl },
       {
         onEvent: (event) => {
+          if (disposed) return;
           setPhase({ key: connectionKey, status: "open" });
           appendEvent(event);
         },
         onError: (error, context) => {
+          if (disposed) return;
           // `willRetry` is the client's own decision, and it is the only honest
           // source for this: a 401 or 404 never retries however many attempts
           // remain, so inferring "reconnecting" from the attempt count would
@@ -134,6 +142,7 @@ export function useRunStream(
           });
         },
         onClose: (reason) => {
+          if (disposed) return;
           setPhase((previous) => ({
             key: connectionKey,
             status: "closed",
@@ -144,7 +153,10 @@ export function useRunStream(
       },
     );
 
-    return () => stream.abort();
+    return () => {
+      disposed = true;
+      stream.abort();
+    };
   }, [runId, token, shopId, baseUrl, fetchImpl, enabled, appendEvent, connectionKey]);
 
   const view = useMemo(() => reduceRunView(events), [events]);

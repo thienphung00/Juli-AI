@@ -681,3 +681,31 @@ describe("module dependency hygiene", () => {
     }
   });
 });
+
+describe("abort during a pending reconnect delay", () => {
+  it("finishes as aborted at once instead of waiting out the delay", async () => {
+    const onClose = vi.fn();
+    const scheduled: Array<() => void> = [];
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError("network down");
+    });
+    const stream = openAgentEventStream(
+      {
+        runId: "run-1",
+        token: "t",
+        fetchImpl: fetchImpl as never,
+        scheduleReconnect: (_delay, run) => {
+          scheduled.push(run); // never fires: the delay would outlive the caller
+        },
+      },
+      { onEvent: vi.fn(), onClose },
+    );
+
+    await vi.waitFor(() => expect(scheduled).toHaveLength(1));
+    stream.abort();
+    await stream.done;
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledWith("aborted");
+  });
+});
