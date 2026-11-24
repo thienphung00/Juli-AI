@@ -24,6 +24,7 @@ from juli_backend.services.shopee_analytics.funnel import (
 )
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_builder.engine.contract import RESIDUAL, SOURCES
+from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 from tests.support.shopee_analytics import CUR_END, seed_shopee_shop
 
 D1, D2, D3 = date(2026, 10, 1), date(2026, 10, 2), date(2026, 10, 3)
@@ -300,15 +301,20 @@ async def test_contribution_rate_is_contribution_per_dong_of_line_gmv(session):
     ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
     view = await service.load_view(session, seeded.shop_id, ctx, window)
     rate = funnel.contribution_rate(view)
-    if any(
-        not view.costs.cogs_is_real(ln.sku) for ln, pb in view.pairs if pb.excluded_reason is None
-    ):
+    # #42 / #44: Lợi nhuận đóng góp (before ads AND affiliate) of the covered lines (real giá vốn,
+    # every cost known) per đồng of their sale GMV; no covered line -> None
+    lines = [
+        (ln, pb)
+        for ln, pb in view.pairs
+        if pb.excluded_reason is None
+        and pb.contribution is not None
+        and view.costs.cogs_is_real(ln.sku)
+    ]
+    gmv = sum((ln.order_value for ln, _ in lines if counts_in_sales(ln)), D(0))
+    if gmv <= 0:
         assert rate is None
     else:
-        lines = [(ln, pb) for ln, pb in view.pairs if pb.excluded_reason is None]
-        want = sum((pb.contribution for _, pb in lines), D(0)) / sum(
-            (ln.order_value for ln, _ in lines), D(0)
-        )
+        want = sum((pb.contribution + (pb.commission or 0) for _, pb in lines), D(0)) / gmv
         assert rate == want
 
 

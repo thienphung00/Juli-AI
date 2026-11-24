@@ -504,23 +504,51 @@ def numbers(base: FunnelBase, orders: int | Decimal | None) -> FunnelNumbers:
 # -- contribution rate -------------------------------------------------------------------------
 
 
-def contribution_rate(view: PeriodView, item_ids: Iterable[str] = ()) -> Decimal | None:
-    """Contribution before ads per đồng of order-line GMV of the scope's carrying lines (the
-    window's prices), ``None`` without lines or when a line has no real giá vốn."""
+def _covered(view: PeriodView, item_ids: Iterable[str]) -> list[tuple[Any, Any]]:
+    """The scope's lines inside the profit base whose every cost is known (a real giá vốn)."""
     wanted = set(item_ids)
-    lines = [
+    return [
         (ln, pb)
         for ln, pb in view.pairs
-        if pb.excluded_reason is None and (not wanted or ln.product_id in wanted)
+        if pb.excluded_reason is None
+        and (not wanted or ln.product_id in wanted)
+        and pb.organic_contribution is not None
+        and view.costs.cogs_is_real(ln.sku)
     ]
-    if not lines:
-        return None
-    if any(not view.costs.cogs_is_real(ln.sku) or pb.contribution is None for ln, pb in lines):
-        return None
+
+
+def contribution_rate(view: PeriodView, item_ids: Iterable[str] = ()) -> Decimal | None:
+    """Decision #42 / #44: Lợi nhuận đóng góp (before ads AND affiliate) per đồng of order-line
+    GMV, over the scope's covered lines (every cost known, a real giá vốn; the window's prices).
+    The rate measured on the covered lines stands for every order of the scope (P9 / D6: scaled
+    over the days with costs, never a sum of the covered days divided by every day). ``None``
+    without a covered line. A refund line's cost counts; its GMV does not (not a sale)."""
+    lines = _covered(view, item_ids)
     gmv = sum((ln.order_value for ln, _ in lines if counts_in_sales(ln)), ZERO)
     if gmv <= 0:
         return None
-    return sum((pb.contribution or ZERO for _, pb in lines), ZERO) / gmv
+    return sum((pb.organic_contribution or ZERO for _, pb in lines), ZERO) / gmv
+
+
+def on_contribution(base: FunnelBase, rate: Decimal | None) -> FunnelBase:
+    """Decision #42: the card basis. Every source's profit = Lợi nhuận đóng góp = ``rate`` x its
+    GMV (before ads and affiliate), standing on all its orders (``profit_orders`` = đơn), so
+    extra orders, the AOV effect and break-even all use ONE rate (``contribution_rate``). The
+    stored day profit (after ads) is no longer the card basis. ``rate`` None = profit unknown."""
+    sources = tuple(
+        replace(
+            s,
+            profit=None if rate is None else rate * s.gmv,
+            profit_orders=s.orders,
+        )
+        for s in base.sources
+    )
+    return replace(
+        base,
+        sources=sources,
+        contribution_rate=rate,
+        profit_days=base.days if rate is not None else 0,
+    )
 
 
 # -- the screens' flow tables ------------------------------------------------------------------
@@ -643,4 +671,5 @@ __all__ = [
     "load_funnel_base",
     "load_rows",
     "numbers",
+    "on_contribution",
 ]

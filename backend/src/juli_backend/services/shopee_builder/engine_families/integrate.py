@@ -105,36 +105,53 @@ def scope_items(spec: sp.VersionSpec) -> tuple[str, ...]:
 
 def base_for(env: RecoEnv, item_ids: Sequence[str], shop_id: str = "") -> FunnelBase:
     """The F2 base on the env's stored rows: the adaptive window per metric (14 / 30 / 60 days,
-    ``env.funnel_history`` when loaded), missing days not zero, a stale marker (read once)."""
+    ``env.funnel_history`` when loaded), missing days not zero, a stale marker (read once).
+
+    Decision #42: the card basis is Lợi nhuận đóng góp -- before ads AND affiliate -- so the
+    base's profit is the scope's contribution rate x its GMV (``funnel.on_contribution``), never
+    the stored day profit (after ads). A scope with no line in the window (a product that did not
+    sell) takes the shop's rate."""
     rows = env.funnel_history
     if not isinstance(rows, funnel.FunnelRows):
         rows = env.view.data.funnel
     if not isinstance(rows, funnel.FunnelRows):
         rows = funnel.FunnelRows(env.view.window)
     items = tuple(dict.fromkeys(i for i in item_ids if i))
+    rate = scope_rate(env, items)
     base = forecast_base.adaptive_base(
         rows,
         shop_id,
         item_ids=items,
-        contribution_rate=funnel.contribution_rate(env.view, items),
+        contribution_rate=rate,
         today=env.today,
     )
+    base = funnel.on_contribution(base, rate)
     return replace(base, margin_basis=margin_basis(env.view.profit, items))
 
 
+def scope_rate(env: RecoEnv, items: Sequence[str]) -> Decimal | None:
+    """The scope's contribution rate (``funnel.contribution_rate``); the shop's when the scope
+    has no line in the window at all (a line without a cost keeps it unknown)."""
+    rate = funnel.contribution_rate(env.view, items)
+    if rate is None and items and not any(ln.product_id in set(items) for ln, _ in env.view.pairs):
+        return funnel.contribution_rate(env.view, ())
+    return rate
+
+
 def margin_basis(profit: shop_profit.ShopProfit, item_ids: Sequence[str]) -> MarginBasis | None:
-    """T1 (A1.1): the dashboard's margin inputs for the scope -- the very figures behind
-    ``shop_profit.scope_margin_pct`` (covered profit, covered ``buyer_paid`` = doanh thu thực) --
-    plus ``gmv_covered``, the GMV of the same sale lines (no cancelled, undelivered or refund
-    order), so net / GMV compares like with like. None when the scope has no covered revenue."""
+    """T1 (A1.1) / #42: the scope's Biên đóng góp inputs -- the covered lines' Lợi nhuận đóng góp
+    (before ads and affiliate) and covered ``buyer_paid`` (doanh thu thực) -- plus
+    ``gmv_covered``, the GMV of the same sale lines (no cancelled, undelivered or refund order),
+    so net / GMV compares like with like. None when the scope has no covered revenue."""
     items = tuple(dict.fromkeys(i for i in item_ids if i))
+    num: Decimal | None
     if not items:
-        net, num = profit.buyer_paid_covered, profit.covered_margin_profit
+        net, num = profit.buyer_paid_covered, profit.organic_contribution
         gmv = profit.gmv_covered
     else:
         rows = [profit.products[i] for i in items if i in profit.products]
         net = sum((p.buyer_paid_covered for p in rows), ZERO)
-        num = sum((p.profit for p in rows), ZERO) if rows else None
+        num = sum((p.organic_contribution for p in rows), ZERO) if rows else None
         gmv = sum((p.gmv_covered for p in rows), ZERO)
     if net <= 0 or gmv <= 0:
         return None
@@ -404,6 +421,7 @@ def _sum_scenarios(cols: Sequence[Scenario]) -> Scenario:
         total("profit"),
         total("offer_cost") or ZERO,
         by_source,
+        total("revenue_offer_cost") or ZERO,
     )
 
 
@@ -703,19 +721,10 @@ def ads_result(
 
 
 def profit_per_order_before_ads(base: FunnelBase) -> Decimal | None:
-    """P100 B.15: the break-even CPA -- profit per order of the scope BEFORE ads: the stored
-    profit is after the ad spend (the one shop profit), so the spend per order is added back."""
-    ppo = profit_per_order(base)
-    if ppo is None:
-        return None
-    orders = base.total("orders")
-    spend = sum(
-        ((s.ads.spend or ZERO) for s in base.sources if s.ads is not None and s.ads.spend),
-        ZERO,
-    )
-    if not orders or orders <= 0:
-        return ppo
-    return ppo + spend / orders
+    """P100 B.15: the break-even CPA -- profit per order of the scope BEFORE ads. Since #42 the
+    base is Lợi nhuận đóng góp (before ads and affiliate), so this is the base's own profit per
+    order: the card's extra orders and "Lợi nhuận sau quảng cáo" stand on the same figure."""
+    return profit_per_order(base)
 
 
 def product_ad_rows(env: RecoEnv) -> tuple[ProductAdRow, ...]:

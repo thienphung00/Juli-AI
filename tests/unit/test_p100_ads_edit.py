@@ -309,9 +309,12 @@ def test_several_campaigns_add_up_with_weighted_break_even():
     assert integrate._sum_ads([one, None]) is None
 
 
-def test_break_even_cpa_adds_the_ad_spend_back():
-    """Stored profit is after ads: 12.000.000 ÷ 600 + 3.000.000 ÷ 600 = 25.000đ per order."""
-    assert integrate.profit_per_order_before_ads(base()) == D(25_000)
+def test_break_even_cpa_is_the_base_contribution_per_order():
+    """#42: the builder base is Lợi nhuận đóng góp (before ads and affiliate,
+    ``funnel.on_contribution``), so the break-even CPA is its own profit per order -- the ad
+    spend is never added back a second time: 12.000.000 ÷ 600 = 20.000đ."""
+    assert integrate.profit_per_order_before_ads(base()) == D(20_000)
+    assert integrate.profit_per_order_before_ads(base()) == integrate.profit_per_order(base())
 
 
 def test_cancel_rate_from_placed_vs_confirmed_overview_days():

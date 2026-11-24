@@ -703,13 +703,13 @@ def _product_affiliate(view: PeriodView, product_id: str | None) -> dict[str, De
 
 
 def _offers_cost(view: PeriodView, product_id: str | None) -> Decimal | None:
-    """Ưu đãi: the voucher + Chương Trình Của Shop (khuyến mãi / flash sale) + combo / Deal Sốc
-    discounts of the window's order lines -- the same three the profit computation takes off
-    (``five_numbers``: promo + voucher + combo). ``None`` without order lines."""
+    """Ưu đãi, one combined cost (#46): Chương Trình Của Shop (khuyến mãi / flash sale) + combo /
+    Deal Sốc + the shop voucher the SELLER bore (settlement ``seller_voucher_borne``, never the
+    buyer-side voucher share; ``ProfitBreakdown.offer_cost``). ``None`` without order lines."""
     pairs = [(ln, pb) for ln, pb in view.pairs if product_id is None or ln.product_id == product_id]
     if not pairs:
         return None
-    return sum((pb.promo_discount + pb.voucher + pb.bundle for _, pb in pairs), Decimal(0))
+    return sum((pb.offer_cost for _, pb in pairs), Decimal(0))
 
 
 ZERO_D = Decimal(0)
