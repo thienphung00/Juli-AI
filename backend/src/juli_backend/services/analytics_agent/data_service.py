@@ -534,9 +534,9 @@ class ServiceData:
         return apply_shop_break_even(merge_campaigns(raw), shop_be)
 
     async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]:
-        """Per day: the shop's ad spend and its summed daily budget (None when a campaign has no
-        budget limit that day). The ads report rows `ads_campaign_daily`, read through the
-        existing `PlatformDailyMetricsRepo`."""
+        """Per day: the shop's ad spend, its ad orders and its summed daily budget (None when a
+        campaign has no budget limit that day). The ads report rows `ads_campaign_daily`, read
+        through the existing `PlatformDailyMetricsRepo`."""
         from decimal import Decimal
 
         from juli_backend.repositories import PlatformDailyMetricsRepo
@@ -547,14 +547,17 @@ class ServiceData:
                 rows = await PlatformDailyMetricsRepo(s).window(
                     self.shop, datasets=[ADS_DAILY], start=a, end=b, any_item=True
                 )
-                plain = [(r.day, r.segment, dict(r.extra or {})) for r in rows]
+                plain = [(r.day, r.segment, dict(r.extra or {}), r.orders) for r in rows]
             finally:
                 await s.rollback()
         per: dict[date, dict[str, Any]] = {}
-        for day, seg, extra in plain:
+        for day, seg, extra, orders in plain:
             if seg == "all":
                 continue
-            d = per.setdefault(day, {"day": day, "spend": Decimal(0), "budget": Decimal(0)})
+            d = per.setdefault(
+                day, {"day": day, "spend": Decimal(0), "budget": Decimal(0), "ad_orders": 0.0}
+            )
+            d["ad_orders"] += float(orders or 0)
             d["spend"] += Decimal(str(extra.get("cost") or 0))
             bud = extra.get("daily_budget")
             d["budget"] = (
