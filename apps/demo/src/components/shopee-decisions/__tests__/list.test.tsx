@@ -55,7 +55,7 @@ describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
     renderReco(<DecisionsView params={params()} />, fakeReco({ list: list([ok, none]) }));
     const top = await screen.findByTestId("sq-card-card-voucher");
     // forecast grill F4: the likely value (P50) only, no range
-    expect(within(top).getByTestId("dx-fc-profit")).toHaveTextContent("Lợi nhuận dự kiến (30 ngày): 153.500 đ");
+    expect(within(top).getByTestId("dx-fc-profit")).toHaveTextContent("Lợi nhuận đóng góp dự kiến (30 ngày): 153.500 đ");
     expect(within(top).getByTestId("dx-fc-profit-sub")).toHaveTextContent("hiện tại: 162.572 đ · −9.072 đ (−5,6 %)");
     // a negative Δ on a positive profit is not a loss: neutral colour, no "Lỗ"
     expect(within(top).getByTestId("dx-fc-profit-value")).not.toHaveClass("sa-tone--down");
@@ -79,7 +79,7 @@ describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
     expect(screen.queryByTestId("sq-card-card-ads")).toBeNull();
     expect(screen.queryByTestId("sq-card-card-promo")).toBeNull();
     expect(screen.getByTestId("sq-card-card-other")).toBeInTheDocument();
-    expect(within(top).getByTestId("dx-fc-profit")).toHaveTextContent(/^Lợi nhuận dự kiến/);
+    expect(within(top).getByTestId("dx-fc-profit")).toHaveTextContent(/^Lợi nhuận đóng góp dự kiến/);
     expect(within(top).queryByText(/Δ lợi nhuận/)).toBeNull();
     expect(top.querySelectorAll(".jm-chip").length).toBeGreaterThan(0);
     expect(within(top).getByRole("link", { name: "Xem & sửa" })).toHaveAttribute("href", "/decisions?the=card-voucher&from=quyet-dinh");

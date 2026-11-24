@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { metricLabel, roiText, roundHalfAway } from "../../../lib/metrics";
 import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderOutcome } from "../../../lib/shopee-decisions/builder-api";
 import { bandText, breakEvenText, floorWarningText, marginText, metricValue, refusalText, unitLines, voucherMaxText, voucherUsageText } from "../../../lib/shopee-decisions/builder-p92";
@@ -296,7 +297,7 @@ export function ResultCard({ result: r, name, breakEven = false, forecast: given
   const rows: { readonly key: string; readonly label: string; readonly text: string }[] = [];
   if (a) {
     rows.push({ key: "spend", label: "Chi phí cả kỳ", text: arrow(a.spend.now === null ? DASH : vnd(a.spend.now), a.spend.after === null ? null : vnd(a.spend.after)) });
-    const d = a.orders.now !== null && a.orders.after !== null ? a.orders.after - a.orders.now : null;
+    const d = a.orders.now !== null && a.orders.after !== null ? roundHalfAway(a.orders.after) - roundHalfAway(a.orders.now) : null;
     rows.push({ key: "orders", label: "Đơn quảng cáo", text: `${a.orders.now === null ? DASH : fmt(a.orders.now, 0)} → ${a.orders.after === null ? DASH : fmt(a.orders.after, 0)}${d === null ? "" : ` (${signedCount(d)})`}` });
     if (a.incremental.orders_extra !== null) rows.push({ key: "lost", label: "Trong đó đơn mất thật", text: signedCount(a.incremental.orders_extra) });
     rows.push({ key: "profit", label: "Lợi nhuận sau quảng cáo", text: arrow(a.profit_after_ads.now === null ? DASH : vnd(a.profit_after_ads.now), a.profit_after_ads.after === null ? null : vnd(a.profit_after_ads.after)) });
@@ -313,9 +314,9 @@ export function ResultCard({ result: r, name, breakEven = false, forecast: given
     } else {
       // the cost line only when it costs; a zero cost says nothing
       if (hasCost(r)) rows.push({ key: "cost", label: "Chi phí", text: r.cost.total > 0 ? vnd(r.cost.total) : `Giảm ${vnd(-r.cost.total)}` });
-      if (hasCost(r) && r.roi?.value !== null && r.roi?.value !== undefined) rows.push({ key: "roi", label: roiLabel(r), text: fmt(r.roi.value, 1) });
+      if (hasCost(r) && r.roi?.value !== null && r.roi?.value !== undefined) rows.push({ key: "roi", label: roiLabel(r), text: roiText(r.roi.value) });
       const m = r.margin;
-      if (m && m.before_pct !== null && m.after_pct !== null) rows.push({ key: "margin", label: "Biên lợi nhuận", text: `${pp(m.before_pct, 1)} → ${pp(m.after_pct, 1)}` });
+      if (m && m.before_pct !== null && m.after_pct !== null) rows.push({ key: "margin", label: metricLabel(m.metric_id === "margin" ? "margin" : "margin_contribution"), text: `${pp(m.before_pct, 1)} → ${pp(m.after_pct, 1)}` });
       const be = r.cost.break_even_orders;
       if (breakEven && hasCost(r) && be !== null && be !== undefined) rows.push({ key: "breakeven", label: "Hoà vốn", text: `cần ≥ ${fmt(Math.ceil(be - 1e-6), 0)} đơn` });
     }

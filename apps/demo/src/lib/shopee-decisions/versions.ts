@@ -1,4 +1,5 @@
 import { DASH, fmt, vnCount, vnd, type Tone } from "../shopee-analytics/format";
+import { metricLabel, roundHalfAway } from "../metrics";
 import { parseServerIso } from "../vn-format";
 import { NOISE_TAG, deltaOf, reasonLine, strategyOf } from "./card-rows";
 import { vnWhen } from "./model";
@@ -20,7 +21,7 @@ export const MIN_MEASURE_DAYS = 3;
 const num = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 
 /** Money to the nearest nghìn, as the artboards print it. */
-export const roundK = (n: number): number => Math.round(n / 1000) * 1000;
+export const roundK = (n: number): number => roundHalfAway(n / 1000) * 1000;
 const MINUS = "−";
 /** "+60.000đ" / "−1.000đ", rounded to nghìn. */
 export function svk(n: N | undefined): string {
@@ -462,7 +463,7 @@ export function versionTable(card: Card, versions: readonly CardVersion[]): Tabl
     ),
     rowFrom(
       "bien",
-      "Biên lợi nhuận",
+      metricLabel("margin_contribution"),
       "trước → sau",
       null,
       cellOf((p) => {

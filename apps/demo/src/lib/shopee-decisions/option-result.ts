@@ -31,6 +31,8 @@ export interface DeltaMoney {
 export interface DeltaProfit extends DeltaMoney {
   readonly low: number | null;
   readonly high: number | null;
+  /** Track P: "contribution" = Δ Lợi nhuận đóng góp (before ads and affiliate). */
+  readonly basis?: string;
 }
 
 export interface FunnelColumn {
@@ -107,7 +109,7 @@ export interface OptionResult {
   readonly reason_code?: string | null;
   readonly reason_text?: string | null;
   /** P100-C (B.6): profit ÷ GMV before / after (percent numbers) and the shift in points. */
-  readonly margin?: { readonly before_pct: number | null; readonly after_pct: number | null; readonly shift_pts: number | null };
+  readonly margin?: { readonly metric_id?: string; readonly before_pct: number | null; readonly after_pct: number | null; readonly shift_pts: number | null };
   readonly detail: {
     readonly before: FunnelColumn;
     readonly low: FunnelColumn | null;

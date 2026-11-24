@@ -148,7 +148,7 @@ describe("Thực hiện · dự kiến", () => {
   it("a card with a forecast shows the amounts and one Số liệu đến dd/mm for the list", async () => {
     const forecast = { data_through: "2026-11-18", metrics: { profit: { hien_tai: 162572, du_kien: 153500, delta: -9072, delta_pct: -5.6, days: 14 } } };
     renderReco(<ThucHienView />, fakeReco({ execution: states([exec({ card_id: "f", forecast, data_through: "2026-11-18" }), exec({ card_id: "g" })]) }));
-    expect(await screen.findByTestId("sd-th-fc-f-profit")).toHaveTextContent("Lợi nhuận dự kiến (14 ngày): 153.500 đ");
+    expect(await screen.findByTestId("sd-th-fc-f-profit")).toHaveTextContent("Lợi nhuận đóng góp dự kiến (14 ngày): 153.500 đ");
     expect(screen.getByTestId("sd-th-fc-f-profit-sub")).toHaveTextContent("hiện tại: 162.572 đ · −9.072 đ (−5,6 %)");
     expect(screen.getByTestId("sd-th-through")).toHaveTextContent("Số liệu đến 18/11");
     expect(screen.queryByTestId("sd-th-fc-g")).toBeNull();

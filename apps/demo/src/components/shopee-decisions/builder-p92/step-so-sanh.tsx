@@ -7,6 +7,7 @@ import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderApi, BuilderEvaluation, BuilderOutcome, ChooseResult, GroupResult } from "../../../lib/shopee-decisions/builder-api";
 import { breachesOfOutcome, refusalText } from "../../../lib/shopee-decisions/builder-p92";
 import { deltaOf, hasCost, metricsFor, strategyOfResult, reasonLine, type Metric } from "../../../lib/shopee-decisions/card-rows";
+import { metricLabel, roiText } from "../../../lib/metrics";
 import { roiLabel, type OptionResult } from "../../../lib/shopee-decisions/option-result";
 import type { Breach } from "../../../lib/shopee-decisions/types";
 import { ackText, breachWarnLines } from "../../../lib/shopee-decisions/versions";
@@ -87,11 +88,11 @@ const HEAD: Readonly<Record<Metric, string>> = {
   views: "Δ lượt xem",
   ctr: "Δ CTR",
   gmv: "GMV dự kiến",
-  profit: "Lợi nhuận dự kiến",
+  profit: `${metricLabel("contribution")} dự kiến`,
   cost: "Chi phí",
   orders: "Đơn dự kiến",
   aov: "AOV dự kiến",
-  margin: "Biên lợi nhuận",
+  margin: metricLabel("margin_contribution"),
   breakeven: "Hoà vốn",
   ads_orders: "Đơn QC",
   cpa: "CPA / hoà vốn",
@@ -130,7 +131,7 @@ function cellText(m: Metric, r: OptionResult): string {
       return a && a.after !== null ? fmt(a.after, 1) : DASH;
     }
     case "roi":
-      return r.roi?.value !== null && r.roi?.value !== undefined ? fmt(r.roi.value, 2) : DASH;
+      return r.roi?.value !== null && r.roi?.value !== undefined ? roiText(r.roi.value) : DASH;
   }
 }
 
@@ -249,7 +250,7 @@ export function StepSoSanh(p: StepSoSanhProps) {
         <>
           {!allListing ? (
           <div className="sa-card p4-bars" data-testid="p4-bars">
-            <div className="p4-bars__title">Lợi nhuận dự kiến {days ? `(${fmt(days, 0)} ngày)` : ""}</div>
+            <div className="p4-bars__title">{metricLabel("contribution")} dự kiến {days ? `(${fmt(days, 0)} ngày)` : ""}</div>
             {rows.map((x) => {
               const loss = (x.du ?? 0) < 0;
               return (

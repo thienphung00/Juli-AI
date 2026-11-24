@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { metricLabel } from "../../../lib/metrics";
 import { sourceFunnelName } from "../../../lib/platform-labels";
 import { DASH, fmt, pp, vnCount, vnd } from "../../../lib/shopee-analytics/format";
 import type { VersionDates } from "../../../lib/shopee-decisions/builder-api";
@@ -145,7 +146,7 @@ export function OptionCard({ result: r, title, testId = "option-card", dates, pr
         ) : null}
         {margin ? (
           <div>
-            <dt>Biên lợi nhuận</dt>
+            <dt>{metricLabel(r.margin?.metric_id === "margin" ? "margin" : "margin_contribution")}</dt>
             <dd data-testid="oc-margin">{margin}</dd>
           </div>
         ) : null}
@@ -292,7 +293,7 @@ export function CompareTable({ rows, sortBasis }: { readonly rows: readonly Comp
         <tr>
           <th>Phương án</th>
           <th>Thời gian</th>
-          <th>Lợi nhuận dự kiến</th>
+          <th>{metricLabel("contribution")} dự kiến</th>
           <th>GMV dự kiến</th>
           <th>Đơn dự kiến</th>
           <th>AOV dự kiến</th>

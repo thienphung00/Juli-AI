@@ -21,7 +21,7 @@ export function MetricLines({ forecast, keys = METRIC_KEYS, days, testId = "fc",
   return (
     <div className="fc" data-testid={testId}>
       {keys.map((k) => {
-        const v = metricView(k, forecast?.metrics?.[k], { days: days ?? forecast?.days ?? null, why });
+        const v = metricView(k, forecast?.metrics?.[k], { days: days ?? forecast?.days ?? null, why, noise: forecast?.noise?.includes(k) });
         return (
           <div className={`fc__row${k === "profit" ? " fc__row--main" : ""}`} data-testid={`${testId}-${k}`} key={k}>
             <div className="fc__head">
@@ -84,7 +84,7 @@ export function ActualLines({ actual, measurement, keys = METRIC_KEYS, testId = 
 
 /** One metric as a table cell: the amount, then the grey "hiện tại: … · ±Δ (±%)" line. */
 export function MetricCell({ forecast, metric, testId, fallbackWhy }: { readonly forecast: ForecastBlock | null | undefined; readonly metric: MetricKey; readonly testId?: string; readonly fallbackWhy?: string | null }) {
-  const v = metricView(metric, forecast?.metrics?.[metric], { days: forecast?.days ?? null, why: forecast?.reason_text ?? fallbackWhy ?? null });
+  const v = metricView(metric, forecast?.metrics?.[metric], { days: forecast?.days ?? null, why: forecast?.reason_text ?? fallbackWhy ?? null, noise: forecast?.noise?.includes(metric) });
   return (
     <>
       <b className={v.loss ? "sa-tone--down" : undefined} data-testid={testId} title={v.why}>

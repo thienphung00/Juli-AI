@@ -157,7 +157,12 @@ export interface PlanCardResult {
     readonly days?: N;
     readonly delta?: Readonly<Record<"p10" | "p50" | "p90", { readonly dgmv: N; readonly dorders: N; readonly dprofit: N }>> | null;
     readonly cost_total?: N;
+    /** Track P: the share of the card's own cost the plan counts (an ads card's campaign is counted once). */
+    readonly cost_counted_share?: N;
   } | null;
+  /** Track P (#47): why the card is not counted (`exclusive_programme`) and the winner's code. */
+  readonly not_counted_reason?: string | null;
+  readonly replaced_by?: string | null;
   readonly break_even_orders: N;
   readonly days: N;
   /** Renamed in P99b: "duration" | "first_30_days". */
@@ -290,6 +295,16 @@ export interface ProductBlock {
   readonly window: WindowOptions;
   /** P92 B-10: the product's cards as ordered steps (price, giảm giá, voucher, combo, ads). */
   readonly steps?: ProductSteps;
+  /** Track P: this product's Organic / Quảng cáo / TTLK today and the plan's Δ per channel. */
+  readonly split?: PlanSplit | null;
+}
+
+/** Δ P50 of one channel (VND, đơn). */
+export type ChannelDelta = { readonly dgmv: N; readonly dorders: N; readonly dprofit: N };
+
+export interface PlanSplit {
+  readonly today?: import("../shopee-analytics/types").ProfitSplit | null;
+  readonly delta_p50: Readonly<Record<"organic" | "ads" | "affiliate", ChannelDelta>>;
 }
 
 export type StepKey = "price" | "giam_gia" | "voucher" | "combo" | "ads" | (string & {});
@@ -414,6 +429,10 @@ export interface PlanAggregate {
   readonly dprofit_month?: { readonly certain?: N; readonly predicted: Quantiles; readonly total: Quantiles };
   readonly dgmv_month?: { readonly certain?: N; readonly total: Quantiles };
   readonly dorders_month?: Quantiles;
+  /** Track P: the plan's "Biên lợi nhuận" (after ads and affiliate ÷ doanh thu thực), one figure. */
+  readonly margin?: { readonly metric_id?: string; readonly before_pct: N; readonly after_pct: N } | null;
+  /** Track P: Organic / Quảng cáo / TTLK. */
+  readonly split?: PlanSplit | null;
   readonly cost?: PlanCost | null;
   readonly floor?: { readonly ok: boolean; readonly breaches: readonly PlanBreach[] };
   readonly breaches?: readonly PlanBreach[];
