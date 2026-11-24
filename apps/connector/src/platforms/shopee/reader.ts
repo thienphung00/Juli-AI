@@ -205,6 +205,8 @@ export interface ReaderEnv {
   contentEmptyVisible?: () => boolean;
   /** order page (0.3.32): the "Doanh thu" rows it shows, `{name, amount}` (order-page-dom.ts). */
   orderPageIncome?: () => { name: string; amount: number }[];
+  /** batch-1124-a S1: the order page's buyer-payment voucher rows (Shopee Voucher, Mã giảm giá của Shop). */
+  orderPageBuyer?: () => { name: string; amount: number }[];
   /** order page (0.3.32): its product lines ("Phân loại", "SKU phân loại", line total). */
   orderPageItems?: () => PageItem[];
 }
@@ -1436,11 +1438,12 @@ function readOrderPage(
   const sn = sns[0] ? { orderSn: sns[0] } : {};
   const at = env.now();
   const income = env.orderPageIncome?.() ?? [];
+  const buyer = env.orderPageBuyer?.() ?? [];
   const wantIncome = job.incomeFor?.[0] !== false;
   // a2 C-A10: only a page that shows the final amount is posted as the order's income
   const incomeNote = wantIncome && !pageIncomeFinal(income) ? incomeMissNote(income) : undefined;
   if (wantIncome && pageIncomeFinal(income)) {
-    collected.push({ endpoint: "order_income_components", url: `${env.origin}${READER_PAGES.order_income.path}${opened}`, status: 200, body: { code: 0, data: { items: income } }, capturedAt: at, source: "page", orderId: opened, ...sn });
+    collected.push({ endpoint: "order_income_components", url: `${env.origin}${READER_PAGES.order_income.path}${opened}`, status: 200, body: { code: 0, data: { items: income, ...(buyer.length > 0 ? { buyer_items: buyer } : {}) } }, capturedAt: at, source: "page", orderId: opened, ...sn });
   }
   const stored = job.fixBodies?.[0];
   let note: string | undefined;

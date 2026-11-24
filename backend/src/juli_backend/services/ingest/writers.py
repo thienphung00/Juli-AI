@@ -38,7 +38,7 @@ from typing import Any
 from sqlalchemy import and_, case, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.ingest import SOURCE_RANK
+from juli_backend.models.ingest import SOURCE_EXTENSION, SOURCE_RANK
 from juli_backend.models.platform_data import ITEM_LEVEL_VARIATION, PlatformItem
 from juli_backend.models.shopee_profit import (
     ORDER_LINE_STATUSES,
@@ -115,7 +115,28 @@ def _ranked_set(stmt: Any, table: Any, columns: Iterable[str]) -> dict[str, Any]
         stored_captured=payload_captured_at(table),
         incoming_captured=excluded_payload_captured_at(),
     )
-    return _fill_unresolved_item(stmt, table, out)
+    return _keep_split_vouchers(stmt, table, _fill_unresolved_item(stmt, table, out))
+
+
+#: batch-1124-a S1: the line columns the Connector's income fills (``split_buyer_vouchers``).
+_SPLIT_VOUCHERS = ("shop_voucher_share", "platform_voucher_share")
+
+
+def _keep_split_vouchers(stmt: Any, table: Any, out: dict[str, Any]) -> dict[str, Any]:
+    """A Connector line post states 0 for a voucher it cannot see (get_one_order has none): over a
+    Connector line whose voucher the income split filled, that 0 keeps the stored amount (owner
+    2026-11-24, rule B). Any other post, or a non-zero value, follows the ranked rule."""
+    for column in _SPLIT_VOUCHERS:
+        if column not in out:
+            continue
+        keep = and_(
+            stmt.excluded.source == SOURCE_EXTENSION,
+            table.c.source == SOURCE_EXTENSION,
+            stmt.excluded[column] == 0,
+            table.c[column] != 0,
+        )
+        out[column] = case((keep, table.c[column]), else_=out[column])
+    return out
 
 
 def _fill_unresolved_item(stmt: Any, table: Any, out: dict[str, Any]) -> dict[str, Any]:

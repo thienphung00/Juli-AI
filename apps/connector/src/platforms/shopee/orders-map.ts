@@ -115,6 +115,8 @@ const ITEM_KEEP = new Set([
   "line_item_id",
   "add_on_deal_id",
   "bundle_deal_id",
+  // batch-1124-a S1 (P-S2, 24/11): the Mua Kèm Deal Sốc add-on line's own flag
+  "is_add_on_sub_item",
 ]);
 const ITEM_LISTS = ["order_items", "items", "item_list", "model_list", "order_item_list"] as const;
 /** A combo line's own lines (get_one_order): empty for a plain item. */
@@ -300,6 +302,46 @@ function linesOf(order: Record<string, unknown>): Record<string, unknown>[] {
   });
 }
 
+/**
+ * batch-1124-a S1 (P-S2 capture, 24/11): get_one_order states no combo discount amount. Its
+ * `order_items[].order_price x amount` is each group's list value and `total_price` what the buyer
+ * pays for the goods (equal to `price_before_discount`: no voucher in it), so
+ * Σ (order_price x amount) − total_price is the order's item-level discount. It is the combo's when
+ * the order has a combo line, shared over the combo lines (and only those) by line list value.
+ * Unknown (no map) when the order has no combo line, no total, or the gap does not fit the combo
+ * lines; never a guess.
+ */
+function comboDiscounts(
+  order: Record<string, unknown>,
+  lines: Record<string, unknown>[],
+  lineValue: (item: Record<string, unknown>) => number,
+  money: (value: unknown) => number | undefined,
+): Map<number, number> | undefined {
+  const paid = money(order.total_price);
+  const groups = Array.isArray(order.items) ? order.items.filter(isRecord) : [];
+  if (paid === undefined || paid <= 0 || groups.length === 0) return undefined;
+  let listed = 0;
+  for (const group of groups) {
+    const price = money(group.order_price ?? group.deal_price ?? group.item_price);
+    const qty = num(group.amount ?? group.quantity ?? group.qty);
+    if (price === undefined || qty === undefined) return undefined;
+    listed += price * qty;
+  }
+  const comboLines = lines.map((line, index) => ({ index, value: lineValue(line) })).filter(({ index }) => (num(lines[index]!.bundle_deal_id) ?? 0) > 0);
+  const comboValue = comboLines.reduce((sum, line) => sum + line.value, 0);
+  const gap = Math.round((listed - paid) * 100) / 100;
+  if (comboLines.length === 0 || comboValue <= 0 || gap <= 0 || gap > comboValue) return undefined;
+  const out = new Map<number, number>();
+  let left = gap;
+  comboLines.forEach(({ index, value }, n) => {
+    // the last combo line takes the rounding rest, so the lines add up to the order's discount
+    const share = n === comboLines.length - 1 ? Math.round(left * 100) / 100 : Math.round(((gap * value) / comboValue) * 100) / 100;
+    left -= share;
+    out.set(index, share);
+  });
+  return out;
+}
+
 /** The order is still waiting for the buyer's payment (not yet a confirmed order). */
 export function awaitingPayment(order: Record<string, unknown>): boolean {
   const t = String(order.status_text ?? (typeof order.status === "string" ? order.status : "") ?? "").toLowerCase();
@@ -356,6 +398,7 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
     const lineValue = (item: Record<string, unknown>) =>
       (money(item.order_price ?? item.deal_price ?? item.item_price) ?? 0) * (num(item.amount ?? item.quantity ?? item.qty) ?? 1);
     const total = items.reduce((sum, item) => sum + lineValue(item), 0);
+    const combo = order.__detail ? comboDiscounts(order, items, lineValue, money) : undefined;
     const split = (value: unknown, item: Record<string, unknown>): number | undefined => {
       const amount = money(value);
       if (amount === undefined) return undefined;
@@ -403,7 +446,7 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       if (modelId) extra.model_id = modelId;
       if (Object.keys(extra).length > 0) row.extra = extra;
       if ((num(item.bundle_deal_id) ?? 0) > 0) row.promo_kind = "bundle";
-      else if ((num(item.add_on_deal_id) ?? 0) > 0) row.promo_kind = "add_on";
+      else if ((num(item.add_on_deal_id) ?? 0) > 0 || item.is_add_on_sub_item === true) row.promo_kind = "add_on";
       const returned = num(item.returned_qty);
       if (returned !== undefined && returned >= 0) row.returned_qty = returned;
       const shopVoucher = split(order.shop_voucher_amount ?? order.seller_voucher, item);
@@ -414,6 +457,7 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       if (shopVoucher !== undefined) row.shop_voucher_share = shopVoucher;
       if (platformVoucher !== undefined) row.platform_voucher_share = platformVoucher;
       if (bundle !== undefined) row.bundle_discount = bundle;
+      else if (combo?.has(index)) row.bundle_discount = combo.get(index) as number;
       if (shipping !== undefined) row.buyer_shipping_fee = shipping;
       if (bank !== undefined) row.bank_promo = bank;
       if (completedAt) row.completed_at = completedAt;
@@ -500,6 +544,8 @@ const INCOME_LABELS: [RegExp, string][] = [
   // 0.3.29 (F4.9): the two fee columns inside Phí Dịch Vụ (the backend never adds them to fee_service)
   [/^phi ha tang/, "fee_infra"],
   [/^phi (chuong trinh )?voucher xtra/, "fee_voucher_xtra"],
+  // batch-1124-a S1 (P-S3 capture 24/11): the order page names the row "Voucher Xtra" (under Phụ phí)
+  [/^voucher xtra$/, "fee_voucher_xtra"],
   [/^phi (xu ly giao dich|thanh toan)/, "fee_payment"],
   [/^phi van chuyen.*(nguoi mua tra|nguoi mua)/, "ship_buyer_paid"],
   [/^phi van chuyen.*(tro gia|shopee tro)/, "ship_shopee_subsidy"],
@@ -516,7 +562,7 @@ const FINAL_AMOUNT = /^(so tien cuoi cung|doanh thu don hang)$/;
 export function incomeNotFinal(responses: ReaderResponse[]): boolean {
   return responses.some((r) => {
     if (r.endpoint !== "order_income_components" || classify(r.status, r.body) !== "ok") return false;
-    const found = pairs(payloadOf(r.body));
+    const found = pairs(incomePayload(r.body));
     return found.length > 0 && !found.some((p) => FINAL_AMOUNT.test(plain(p.label)));
   });
 }
@@ -542,6 +588,30 @@ function plain(label: string): string {
     .replace(/[:*]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * batch-1124-a S1 (P-S3): the order page's buyer-payment rows travel as `data.buyer_items`, apart
+ * from the income rows: its "Mã giảm giá của Shop" is what the buyer saved, NOT the seller's cost,
+ * so it must never meet INCOME_LABELS (where that label is the seller-borne voucher).
+ */
+const BUYER_ITEMS = "buyer_items";
+/** Buyer-payment labels -> the order_income wire field (split onto the order's lines by Juli). */
+const BUYER_LABELS: [RegExp, string][] = [
+  [/^ma giam gia cua shop$/, "buyer_shop_voucher"],
+  [/^shopee voucher$/, "buyer_platform_voucher"],
+];
+
+function incomePayload(body: unknown): unknown {
+  const data = payloadOf(body);
+  if (!isRecord(data) || !(BUYER_ITEMS in data)) return data;
+  const { [BUYER_ITEMS]: _buyer, ...rest } = data;
+  return rest;
+}
+
+function buyerPayload(body: unknown): unknown {
+  const data = payloadOf(body);
+  return isRecord(data) ? data[BUYER_ITEMS] : undefined;
 }
 
 /** Every {label, amount} pair in an income answer, whatever the nesting (a few levels deep). */
@@ -570,7 +640,7 @@ export function incomeReadIds(responses: ReaderResponse[]): Set<string> {
   const out = new Set<string>();
   for (const r of responses) {
     if (r.endpoint !== "order_income_components" || !r.orderId || classify(r.status, r.body) !== "ok") continue;
-    if (pairs(payloadOf(r.body)).some((p) => FINAL_AMOUNT.test(plain(p.label)))) out.add(r.orderId);
+    if (pairs(incomePayload(r.body)).some((p) => FINAL_AMOUNT.test(plain(p.label)))) out.add(r.orderId);
   }
   return out;
 }
@@ -582,7 +652,7 @@ export function mapOrderIncome(responses: ReaderResponse[], capturedAt: number):
   if (answers.length === 0) return { ...base, date: today, rows: [], drift: null };
   // One scale for the whole job, read from the sizes of the product prices and payouts.
   const sample = answers.flatMap((r) =>
-    pairs(payloadOf(r.body))
+    pairs(incomePayload(r.body))
       .filter((p) => /^(gia san pham|so tien cuoi cung|doanh thu don hang)$/.test(plain(p.label)))
       .map((p) => ({ v: Math.abs(p.amount) })),
   );
@@ -592,19 +662,24 @@ export function mapOrderIncome(responses: ReaderResponse[], capturedAt: number):
   for (const response of answers) {
     // The hashed id is the order number when the queue knew it (joins the export and the affiliate lines).
     const row: Row = { [RAW_ORDER_ID]: response.orderSn ?? response.orderId };
-    for (const { label, amount } of pairs(payloadOf(response.body))) {
+    for (const { label, amount } of pairs(incomePayload(response.body))) {
       const key = plain(label);
       const field = INCOME_LABELS.find(([re]) => re.test(key))?.[1];
       if (field === undefined || field in row) continue;
       const vnd = Math.round((amount / divisor) * 100) / 100;
       row[field] = SIGNED.has(field) ? vnd : Math.abs(vnd);
     }
+    for (const { label, amount } of pairs(buyerPayload(response.body))) {
+      const field = BUYER_LABELS.find(([re]) => re.test(plain(label)))?.[1];
+      if (field === undefined || field in row) continue;
+      row[field] = Math.abs(Math.round((amount / divisor) * 100) / 100);
+    }
     if (!("payout" in row)) {
       // a2 C-A10 (prod 23/11: drift "components.final_amount" from 0.3.32's income CALL): an answer
       // that has its income lines but no final amount is an order not final yet (in transit, not
       // settled): skipped, the reader says `income_not_final`. Drift stops order_income for the
       // whole version, so it is kept for an answer of another shape: no income line at all.
-      const structural = response.source !== "page" && pairs(payloadOf(response.body)).length === 0;
+      const structural = response.source !== "page" && pairs(incomePayload(response.body)).length === 0;
       if (structural && !drift.missing.includes("components")) drift.missing.push("components");
       continue;
     }

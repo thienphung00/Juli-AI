@@ -1165,6 +1165,12 @@ class ShopeeOrderIncomeRow(PeriodRowBase):
     seller_coin_borne: SignedCount | None = None
     trade_in_bonus_seller: SignedCount | None = None
     transaction_fee_rate: Rate | None = None
+    #: batch-1124-a S1 (order page "Thanh toán của Người Mua", P-S3 capture 24/11): what the buyer
+    #: saved with the shop's voucher and with a Shopee voucher. NOT the seller's cost (that is
+    #: ``seller_voucher_borne``) and not stored on ``order_settlements``: the gateway splits them
+    #: onto the order's ``order_lines`` (``shop_voucher_share`` / ``platform_voucher_share``).
+    buyer_shop_voucher: Money | None = None
+    buyer_platform_voucher: Money | None = None
 
     def key(self) -> tuple[Any, ...]:
         return (self.order_ref,)
