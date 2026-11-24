@@ -136,7 +136,8 @@ async def _seed_rows(session, sid, first: date, last: date, *, item_profit=10_00
             ShopeeProductMetricsDaily(
                 shop_id=sid, day=d, order_type="confirmed", item_id=ITEM,
                 gmv=D(100_000), orders=2 if not after else 1,
-                profit=D(30_000 if not after else 10_000), ads_spend=D(5_000),
+                profit=D(25_000 if not after else 5_000),  # profit is already after ads
+                ads_spend=D(5_000),
                 source="order_lines",
             )
         )  # fmt: skip
@@ -181,7 +182,9 @@ async def test_daily_job_rereads_a_cut_set_as_a_group_and_writes_running_thuc_te
     assert actual == second.result["actual"]  # one result for the group
     assert actual["days"] == 14 and actual["days_measured"] == 7
     assert actual["label"] == "Đã đo 7/14 ngày" and first.result["label"] == actual["label"]
-    p = actual["metrics"]["profit"]  # product profit after ads: (30k - 5k) x7 -> (10k - 5k) x7
+    p = actual["metrics"][
+        "profit"
+    ]  # the stored product profit is already after ads: 25k x7 -> 5k x7
     assert p["hien_tai"] == 175_000 and p["thuc_te"] == 35_000 and p["delta"] == -140_000
     assert (
         actual["metrics"]["orders"]["hien_tai"] == 14

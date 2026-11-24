@@ -151,7 +151,7 @@ def test_comparisons_are_an_enum_not_metrics() -> None:
 
 
 def test_derivation_version_is_dated() -> None:
-    assert DERIVATION_VERSION == "2026-11-23.1"
+    assert DERIVATION_VERSION == "2026-11-24.1"
 
 
 @pytest.mark.parametrize("metric_id", sorted(METRICS))

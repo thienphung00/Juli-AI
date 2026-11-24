@@ -75,9 +75,10 @@ from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 logger = logging.getLogger(__name__)
 
 #: version of the rule the stored rows are built with (``shop row detail.rows_v``). 2 (F7.10): the
-#: stored profit is the unscaled known-cost profit (P100 B.5). Bump it to rebuild every shop's
-#: stored days automatically (:func:`rebuild_outdated`).
-ROWS_VERSION = 2
+#: stored profit is the unscaled known-cost profit (P100 B.5); 3 (decision #39): a product's
+#: ad cost is the ads report by product (:mod:`product_ads`), ad-only days get a row. Bump it to
+#: rebuild every shop's stored days automatically (:func:`rebuild_outdated`).
+ROWS_VERSION = 3
 ROWS_VERSION_KEY = "rows_v"
 
 #: ingest datasets that cannot change a day's shop or product numbers
@@ -92,6 +93,12 @@ ITEM_TRAFFIC_DAILY = "item_traffic_sources"
 #: P101 W3: the platforms whose days are materialized (TikTok's from its canonical order lines
 #: and A-34 analytics, :mod:`tiktok_days`). Data, not a platform check.
 MATERIALIZED_PLATFORMS = stored.MATERIALIZED_PLATFORMS
+#: period reports that change a stored day: the ads report by product is every product's ad cost
+#: (decision #39), so an upload rebuilds the days it covers
+PRODUCT_AD_DATASETS = frozenset({"ads_campaign_period"})
+#: per-run day budget of :func:`rebuild_outdated` (newest days first): a 400-day shop is rebuilt
+#: over several daily runs instead of one run that times out
+OUTDATED_DAYS_PER_RUN = 90
 #: the nightly rebuild's reach (TikTok revises its analytics; the re-read fills old days)
 NIGHTLY_DAYS = 90
 
@@ -399,6 +406,31 @@ def day_rows(
                 in ("scaled_order_lines", SPLIT_PRODUCT_PERIOD, SPLIT_SPREAD_PERIOD),
             }
         )
+    # decision #39: a product with an ad cost this day but no order is not dropped: its row has no
+    # sale, the day's ad cost, and the profit it makes (minus that cost; no order = no cost gap)
+    for item_id, ad_cost in sorted(view.ads.product_spend.items()):
+        if item_id in m.splits or item_id == RESIDUAL_ITEM:
+            continue
+        products.append(
+            {
+                "shop_id": shop_id,
+                "day": day,
+                "order_type": ORDER_TYPE,
+                "item_id": item_id,
+                "variation_id": None,
+                "gmv": ZERO,
+                "orders": 0,
+                "units": 0,
+                "views": None,
+                "clicks": None,
+                "ads_spend": _money(ad_cost),
+                "profit": _money(-ad_cost),
+                "line_gmv": ZERO,
+                "line_orders": 0,
+                "source": "order_lines",
+                "scaled_to_totals": False,
+            }
+        )
     residual = (m.gmv - spent) if m.gmv is not None else ZERO
     products.append(
         {
@@ -703,7 +735,9 @@ async def outdated_days(session: AsyncSession, shop_id: uuid.UUID) -> list[date]
     )
 
 
-async def rebuild_outdated(session: AsyncSession, shop_id: uuid.UUID, *, limit: int = 400) -> int:
+async def rebuild_outdated(
+    session: AsyncSession, shop_id: uuid.UUID, *, limit: int = OUTDATED_DAYS_PER_RUN
+) -> int:
     """F7.10: rebuild the stored days an older rule built (automatic, no manual step; the daily
     learning / measurement job calls it first). Never raises: a failed rebuild is logged and
     retried next day. Returns the days rebuilt."""
@@ -763,7 +797,7 @@ async def after_ingest(
     if (
         platform not in MATERIALIZED_PLATFORMS
         or dataset in IGNORED_DATASETS
-        or dataset.endswith("_period")
+        or (dataset.endswith("_period") and dataset not in PRODUCT_AD_DATASETS)
     ):
         return
     days = days_between(start, end)[-HOOK_MAX_DAYS:]

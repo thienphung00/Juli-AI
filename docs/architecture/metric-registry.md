@@ -60,7 +60,7 @@ field), `basis` (platform / juli / estimated), `none_rule`.
 `gmv`, `orders`, `units` (platform shop totals) · `line_gmv`, `line_orders`,
 `line_units` (order lines, confirmed, **GMT+7 day**) · `net_revenue` (buyer paid: deal×qty −
 seller voucher − combo − output VAT; 0 for an accepted refund) · `cogs` (+ `cogs_known_gmv`) ·
-`packaging` · `fees` · `shipping_net` · `ads_spend` (one resolver: §5) · `ads_gmv_platform`
+`packaging` · `fees` · `shipping_net` · `ads_spend` (one resolver: §5) · `ads_spend_product` (a product's ad cost, §5b) · `ads_gmv_platform`
 · `affiliate_commission` · `offer_promo`, `offer_voucher`, `offer_combo` · `other_marketing`
 · `views`, `clicks` (per source) · `samples_cost` · `stock_units`.
 
@@ -111,9 +111,20 @@ Product profit = the same formula on the product's lines **after ad allocation (
 ### Costs (ask 2: every cost line + % of net revenue, same list per product)
 `cost_cogs`, `cost_packaging`, `cost_fees`, `cost_shipping`, `cost_ads`, `cost_affiliate`,
 `cost_offers` (= `offer_promo + offer_voucher + offer_combo`, on non-cancelled confirmed lines;
-parts shown as sub-lines), `cost_other`, `cost_total` (Σ all), `cost_marketing` (ads +
+parts shown as sub-lines), `cost_ads_product` (**chi phí quảng cáo của sản phẩm**, product level; see below), `cost_other`, `cost_total` (Σ all), `cost_marketing` (ads +
 affiliate + offers), and for each `*_pct` = cost ÷ net_revenue. Retired: `exports/collect.
 _offer_cost` (voucher + combo, skipped in-transit).
+
+**One ad cost per product (`cost_ads_product`, owner decision #39).** A product's ad cost is the
+spend of the campaigns that advertise it, from the ads report by product: per campaign and day,
+the Connector's daily spend × the product's share of that campaign's spend in the report (the
+shortest report window that covers the day, else the campaign's nearest one; overlapping windows
+are never summed; a day the Connector did not read takes the covering report window spread over
+its days). A product with no basis on a day has no value (`None`, shown "—"), never 0. A window
+is the sum of its days, so the daily table, Phân tích, the Excel exports, Đo lường and Chat all
+show the same figure (`ProductProfit.ad_spend`). Code: `shopee_analytics/product_ads.py`. The
+shop-level `cost_ads` is unchanged. A product with an ad cost and no order that day has a day row
+with 0 GMV, 0 orders and profit = −ad cost.
 
 ### Returns on cost
 | id | Label | Formula |

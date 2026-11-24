@@ -112,6 +112,14 @@ _ALL = (
     _c("fees", V, "platform fees (actual, else formula)", "order_income", _C, "fees"),
     _c("shipping_net", V, "shipping paid by the seller, net", "order_income", _C, "shipping"),
     _c("ads_spend", V, "ads spend, one resolver (ads days)", "ads_report", _N, "expense"),
+    _c(
+        "ads_spend_product",
+        V,
+        "a product's ad cost: the campaigns that advertise it, from the ads report by product",
+        "ads_report_by_product",
+        _N,
+        "expense",
+    ),
     _c("ads_gmv_platform", V, "ads GMV, broad, placed", "ads_report", OrderBasis.placed, "gmv"),
     _c(
         "ads_gmv_direct",

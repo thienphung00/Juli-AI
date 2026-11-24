@@ -42,6 +42,7 @@ async def load_period_data(
         promotions=await loaders.load_promotions(session, shop_id, window),
         affiliate=await loaders.load_affiliate(session, shop_id, window),
         ad_spend=await loaders.load_resolved_ad_spend(session, shop_id, window),
+        product_ads=await loaders.load_product_ads_input(session, shop_id, window),
         voucher_join=await readers.load_voucher_join(session, shop_id),
         stored=await stored_mod.load_stored(session, shop_id, window),
     )

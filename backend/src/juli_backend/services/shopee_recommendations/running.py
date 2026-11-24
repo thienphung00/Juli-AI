@@ -23,7 +23,6 @@ import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
-from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func, select
@@ -280,8 +279,10 @@ async def load_days(
         if row is None:  # a data day with no row for the product = no sales that day
             out[d] = Day(0.0, 0.0, 0.0)
             continue
-        ads = float(row.ads_spend or Decimal(0))
-        profit = None if row.profit is None else float(row.profit) - ads
+        # the stored product profit is already after the product's ad cost (decision #39: the one
+        # ad cost per product, ``ProductProfit.profit`` = contribution - ad_spend); a day with an
+        # ad cost and no sale is a row of -ad cost, a day with no row is no sale and no ad cost
+        profit = None if row.profit is None else float(row.profit)
         out[d] = Day(float(row.gmv or 0), float(row.orders or 0), profit)
     return out, data
 
