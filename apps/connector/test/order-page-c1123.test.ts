@@ -232,7 +232,8 @@ describe("a line the order page cannot name (0.3.32, verifier)", () => {
     const job = { id: "order_income" as const, orderIds: ["5001"], orderSns: [""], incomeFor: [false], fixBodies: [comboAnswer()], fixLast: [false] };
     const outcome = await runReaderJob(job, env);
     expect(outcome.responses).toEqual([]);
-    expect(outcome.detail).toBe("page_lines_unmatched");
+    // 0.3.34 C-H5: page lines vs the answer's lines (the combo parent + its 2 children)
+    expect(outcome.detail).toBe("page_lines_unmatched:page_3:answer_1+2");
   });
 
   it("the last read posts the lines as unresolved_item", async () => {

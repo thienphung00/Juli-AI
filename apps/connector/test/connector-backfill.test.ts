@@ -333,7 +333,7 @@ describe("gateway refusal: 403 consent_required (PR #2199)", () => {
     const other = setup();
     other.client.failWith = new GatewayError(403, "platform_not_allowed");
     expect(await other.connector.handleCapture({ url: URL_OK, body: overview, capturedAt: other.clock.now })).toBe(
-      "rejected",
+      "rejected:platform_not_allowed",
     );
     expect(other.storage.data.consentBlocked).toBeUndefined();
   });
