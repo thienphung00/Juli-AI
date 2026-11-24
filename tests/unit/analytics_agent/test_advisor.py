@@ -324,3 +324,72 @@ async def test_a_priority_question_routes_to_advise_not_jev() -> None:
     )
     rows = _rows(sink)
     assert rows[0]["value_vi"] == "Đã có thẻ JC-0001" and len(llm.agent_calls) == 2
+
+
+THINKING = {"type": "thinking", "thinking": "hmm", "signature": "sig"}
+
+
+async def test_a_thinking_block_is_never_replayed_to_the_next_turn() -> None:
+    plan = {"why": "Mở thẻ đang có.", "action": "Mở thẻ", "card_ref": "open:JC-0001"}
+    llm = FakeLLM(
+        agent_script=[[THINKING, tool_use("open_cards", "a")], [THINKING, *plan_turn(plan)]]
+    )
+    sink, _, _ = await _ask_with(llm)
+    assert _rows(sink)[0]["value_vi"] == "Đã có thẻ JC-0001"
+    replayed = llm.agent_calls[1]["replayed"]
+    kinds = [
+        b["type"]
+        for m in replayed
+        for b in (m["content"] if isinstance(m["content"], list) else [])
+    ]
+    assert "thinking" not in kinds and kinds[0] == "tool_use"
+
+
+async def test_the_second_turn_body_passes_the_real_gate_inspection() -> None:
+    from juli_backend.services.juli_agent_api.ports import GateLLM, Vendors
+    from juli_backend.services.llm_gate.vendors import Usage as GateUsage
+    from juli_backend.services.llm_gate.vendors import inspect_messages_body
+
+    bodies: list[dict[str, Any]] = []
+    turns = [
+        [THINKING, tool_use("open_cards", "a")],
+        [
+            THINKING,
+            tool_use(
+                "emit_plan",
+                "p",
+                items=[{"why": "Mở thẻ.", "action": "Mở thẻ", "card_ref": "open:JC-0001"}],
+            ),
+        ],
+    ]
+
+    async def messages(gate: Any, *, purpose: str, body: dict[str, Any], timeout: float) -> Any:
+        bodies.append(inspect_messages_body(body, shop_identifiers=()))  # PayloadRefused = fail
+        return {"content": turns.pop(0)}, GateUsage(100, 50)
+
+    async def never(*a: Any, **k: Any) -> Any:
+        raise AssertionError("unused")
+
+    v = Vendors(
+        messages=messages, stream=never, system_one=never, call_failed=OSError, refused=ValueError
+    )
+    ctx = await _ctx()
+    advice = await advisor.run_advice(
+        GateLLM(object(), v),
+        ctx.data,
+        ctx.engine,
+        ctx.jev,
+        L,
+        YDAY,
+        "nên làm gì",
+        "none",
+        advisor.Budget(cap=1.0),
+    )
+    assert advice.turns == 2 and len(bodies) == 2
+    assert all(b["thinking"] == {"type": "disabled"} for b in bodies)
+    assert all(
+        b["type"] != "thinking"
+        for m in bodies[1]["messages"]
+        if isinstance(m["content"], list)
+        for b in m["content"]
+    )

@@ -205,11 +205,18 @@ class GateLLM:
         body = self._body(model, system, "", AGENT_MAX_TOKENS)
         body["messages"] = messages
         body["tools"] = tools
+        # Haiku 5.5 may return `thinking` blocks, which the gate's block allowlist refuses on the
+        # replay turn (payload_shape); a forced tool_choice also needs thinking off.
+        body["thinking"] = {"type": "disabled"}
         if force_tool:
             body["tool_choice"] = {"type": "tool", "name": force_tool}
         response, usage = await self._call(self._v.purpose_write, body)
         content = response.get("content") if isinstance(response, Mapping) else None
-        blocks = [dict(b) for b in content or [] if isinstance(b, Mapping)]
+        blocks = [
+            dict(b)
+            for b in content or []
+            if isinstance(b, Mapping) and b.get("type") not in ("thinking", "redacted_thinking")
+        ]
         return blocks, llm_usage(model, usage)
 
     async def text(self, system: str, user: str) -> tuple[str, Usage]:
