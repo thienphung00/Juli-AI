@@ -184,20 +184,18 @@ def unmeasured_facts(**kw):
     return ComboFacts(**d)
 
 
-def test_unmeasured_combo_reach_is_cost_and_break_even_only():
+def test_unmeasured_combo_reach_uses_the_kind_prior_and_the_exact_cost():
     o = combo_option(combo("pct", [(2, 5), (3, 10)]), unmeasured_facts())
-    assert all(d.basis == "not_estimable" for d in o.drivers)
-    assert all(d.basis != "prior" for d in o.drivers)
+    # decision #27: the AOV driver is the kind's prior (+3-12 %), floored at 5 %, never blank
+    assert [d.basis for d in o.drivers] == ["prior"] and o.drivers[0].metric == "aov"
+    assert o.drivers[0].lift.p50 == D("0.075") and o.drivers[0].lift.p10 == D("0.03")
     assert o.offers[0].use_share == Band(D("0.15"), D("0.15"), D("0.15"))
     r = run(base(), o, n=200)
     j = r.json()
-    assert not r.estimable and j["basis_weak"] is False
-    assert j["delta"]["profit"] is None
+    assert r.estimable and j["delta"]["profit"] is not None
     # cost = the buyers who already qualify × the tier's discount over 30 days
     assert float(r.cost_total) == pytest.approx(255 * 0.15 * 4000)
     assert j["cost"]["break_even_orders"] is not None
-    assert any("chưa ước tính được" in n for n in r.notes)
-    assert not any("ước tính chung" in n for n in r.notes)
 
 
 def test_measured_combo_reach_still_estimates():
@@ -436,13 +434,13 @@ def _one_unit_orders(n, bundle=D(0)):
     ]
 
 
-def test_a_shop_that_never_ran_a_combo_gets_cost_and_break_even_only():
+def test_a_shop_that_never_ran_a_combo_gets_the_kind_prior():
     # every order holds one unit: E2 would call all of them "reaching" Mua 2 (an upper bound)
     f = adapters.combo_facts(combo("pct", [(2, 10)]), fake_env(_one_unit_orders(40)))
     assert f.reach is None
     o = combo_option(combo("pct", [(2, 10)]), f)
-    assert o.drivers[0].basis == "not_estimable"
-    assert "chưa chạy combo" in o.drivers[0].note
+    assert o.drivers[0].basis == "prior" and o.drivers[0].lift.p50 >= D("0.05")
+    assert f.reach_note is not None and "chưa chạy combo" in f.reach_note
 
 
 def _orders(prefix, day, ones, twos, bundle=D(0)):
@@ -493,7 +491,7 @@ def test_a_combo_that_ran_the_whole_window_cannot_measure_its_reach():
     lines = _orders("d", DURING, 30, 10, bundle=D(20_000))
     f = adapters.combo_facts(combo("pct", [(2, 10)]), fake_env(lines))
     assert f.reach is None and f.reach_note == NOTE_COMBO_REACH
-    assert combo_option(combo("pct", [(2, 10)]), f).drivers[0].basis == "not_estimable"
+    assert combo_option(combo("pct", [(2, 10)]), f).drivers[0].basis == "prior"
 
 
 def test_the_combo_aov_lift_is_relative_to_the_base_it_moves():
