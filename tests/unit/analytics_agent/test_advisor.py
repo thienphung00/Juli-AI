@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from juli_backend.services.analytics_agent import AskRequest, advisor, run
+from juli_backend.services.analytics_agent.types import Usage
 from tests.unit.analytics_agent.fakes import (
     FakeCardEngine,
     FakeJev,
@@ -74,16 +75,23 @@ async def _ask(
     return sink, res, llm
 
 
-async def _two_step(final_items: list[dict[str, Any]]) -> tuple[ListSink, Any, FakeLLM]:
+class _PlanAfterDrafts(FakeLLM):
     """Reads, drafts, then the plan. A card_ref "@ads" / "@title" becomes the draft ref the
     draft_card tool returned (tool ids t6 / t7)."""
-    llm = FakeLLM(agent_script=[READ_ALL, DRAFTS])
-    orig = llm.agent
 
-    async def scripted(  # type: ignore[no-untyped-def]
-        system, tools, messages, *, force_tool=None
-    ):
-        if len(llm.agent_script) == 0:
+    def __init__(self, final_items: list[dict[str, Any]]) -> None:
+        super().__init__(agent_script=[READ_ALL, DRAFTS])
+        self.final_items = final_items
+
+    async def agent(
+        self,
+        system: str,
+        tools: list[dict[str, Any]],
+        messages: list[dict[str, Any]],
+        *,
+        force_tool: str | None = None,
+    ) -> tuple[list[dict[str, Any]], Usage]:
+        if len(self.agent_script) == 0:
             refs: dict[str, str] = {}
             for m in messages:
                 if m["role"] == "user" and isinstance(m["content"], list):
@@ -91,17 +99,19 @@ async def _two_step(final_items: list[dict[str, Any]]) -> tuple[ListSink, Any, F
                         if r.get("tool_use_id") in ("t6", "t7"):
                             card = json.loads(r["content"]).get("card_ref")
                             refs["@ads" if r["tool_use_id"] == "t6" else "@title"] = card
-            llm.agent_script.append(
+            self.agent_script.append(
                 plan_turn(
                     *(
                         {**i, "card_ref": refs.get(i["card_ref"], i["card_ref"])}
-                        for i in final_items
+                        for i in self.final_items
                     )
                 )
             )
-        return await orig(system, tools, messages, force_tool=force_tool)
+        return await super().agent(system, tools, messages, force_tool=force_tool)
 
-    llm.agent = scripted  # type: ignore[method-assign]
+
+async def _two_step(final_items: list[dict[str, Any]]) -> tuple[ListSink, Any, FakeLLM]:
+    llm = _PlanAfterDrafts(final_items)
     sink, res, _ = await _ask_with(llm)
     return sink, res, llm
 
