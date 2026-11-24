@@ -29,6 +29,7 @@ import json
 import logging
 import os
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
@@ -47,6 +48,7 @@ from juli_backend.services.analytics_agent.types import (
 from juli_backend.services.analytics_agent.windows import (
     anchor_for,
     build_windows,
+    campaign_days,
     clip_to_freshness,
     sale_days_vi,
 )
@@ -61,7 +63,18 @@ MAX_DRAFTS = 3
 MAX_ITEMS = 6
 MAX_REPAIR_TURNS = 2  # extra turns after a refused plan: draft the missing cards, emit again
 TOP = 5
+UPCOMING_DAYS = 21  # the sale calendar the model sees ahead (double days, 15th, 25th)
 NO_PLAN_TOOL_VI = "Juli chưa tính được phương án cho việc này"
+#: Why draft_card made no card (the engine's reason codes), in words the model can act on.
+NO_DRAFT_REASON_VI = {
+    "kind_needs_a_product": "lever này cần item: truyền id một sản phẩm đã thấy ở công cụ khác "
+    "(ví dụ sản phẩm chính của chiến dịch hoặc sản phẩm lỗ)",
+    "generator_returned_none": "engine chưa thấy cơ hội cho lever này ở sản phẩm này; thử sản "
+    "phẩm khác hoặc lever khác",
+    "not_estimable": "chưa đủ dữ liệu để tính thẻ này",
+    "no_shopee_data": "chưa có dữ liệu Shopee",
+    "no_generator_for_kind": "Juli chưa tạo được thẻ loại này",
+}
 
 #: The windows a tool may read (a validated enum; the model never writes a date).
 WINDOWS = (
@@ -103,6 +116,7 @@ class AdviceAborted(RuntimeError):
     def __init__(self, reason: str, detail: str = "") -> None:
         super().__init__(f"{reason}: {detail}" if detail else reason)
         self.reason = reason
+        self.detail = detail
 
 
 @dataclass
@@ -136,9 +150,10 @@ FEW_SHOT: tuple[dict[str, Any], ...] = (
         "câu_hỏi": "Tuần sau shop nên làm gì?",
         "đọc_được": "Sản phẩm A lỗ sau quảng cáo (chi quảng cáo 200.000đ, đóng góp trước quảng cáo "
         "âm); chiến dịch X ROAS 3,4 so với hoà vốn 3,0; 2 ngày chi dưới ngân sách và không có "
-        "đơn; tuần có ngày sale kéo GMV; sản phẩm B chiếm 70% GMV.",
+        "đơn; sản phẩm C thiếu giá vốn; tuần trước có ngày sale kéo GMV; sản phẩm B chiếm 70% GMV; "
+        "open_cards có thẻ ngân sách JC-0001 (lever ads_budget).",
         "emit_plan": {
-            "lead": "Tuần này có ngày sale kéo GMV lên, nên đừng lấy làm nền so sánh. Sản phẩm B "
+            "lead": "Tuần trước có ngày sale kéo GMV lên, nên đừng lấy làm nền so sánh. Sản phẩm B "
             "chiếm 70% GMV, shop đang phụ thuộc vào một sản phẩm.",
             "actions": [
                 {
@@ -156,49 +171,77 @@ FEW_SHOT: tuple[dict[str, Any], ...] = (
                     "card_ref": "draft:d2",
                     "why": "Chiến dịch X lãi nhưng ROAS 3,4 chỉ hơn hoà vốn 3,0 một chút.",
                 },
+                {
+                    "lever": "nhap_gia_von",
+                    "card_ref": "none",
+                    "why": "Sản phẩm C thiếu giá vốn nên lợi nhuận chưa đáng tin.",
+                },
             ],
         },
     },
     {
-        "câu_hỏi": "Doanh thu tuần này sụp mạnh, mình cứu kiểu gì đây?",
-        "đọc_được": "GMV tuần này tăng so với tuần trước nhờ một ngày sale; sản phẩm A lỗ sau "
-        "quảng cáo.",
+        "câu_hỏi": "Quảng cáo đang lỗ nặng, tắt hết chiến dịch đúng không?",
+        "đọc_được": "Cả hai chiến dịch X và Y đều lãi (ROAS cao hơn hoà vốn); chỉ sản phẩm A "
+        "lỗ sau quảng cáo trong chiến dịch nhóm X.",
         "emit_plan": {
-            "lead": "Doanh thu tuần này không sụp: GMV tăng so với tuần trước, chủ yếu nhờ ngày "
-            "sale. Việc đáng làm là cắt chỗ đang lỗ.",
+            "lead": "Quảng cáo không lỗ nặng: cả hai chiến dịch đều lãi nên không cần tắt. Chỉ có "
+            "sản phẩm A đang lỗ.",
             "actions": [
                 {
                     "lever": "ads_remove_product",
                     "card_ref": "draft:d1",
-                    "why": "Sản phẩm A lỗ sau quảng cáo.",
+                    "why": "Sản phẩm A lỗ sau quảng cáo trong chiến dịch nhóm X, chỉ gỡ sản phẩm "
+                    "này.",
                 }
             ],
         },
     },
     {
-        "câu_hỏi": "Giá vốn của mình thiếu nhiều không?",
-        "đọc_được": "cogs_gaps: không sản phẩm nào thiếu giá vốn.",
+        "câu_hỏi": "Mai là ngày 25, shop nên chuẩn bị gì?",
+        "đọc_được": "week_summary: ngày_sale_sắp_tới gồm 25/11 và 12/12; chưa có thẻ nào cho ngày "
+        "sale; sản phẩm B bán chạy nhất.",
         "emit_plan": {
-            "lead": "Giá vốn đã đủ cho các sản phẩm lớn, nên lợi nhuận đáng tin.",
-            "actions": [],
+            "lead": "Ngày 25/11 là ngày sale, kế tiếp là 12/12.",
+            "actions": [
+                {
+                    "lever": "flash_sale",
+                    "card_ref": "draft:d1",
+                    "why": "Sản phẩm B bán chạy nhất, đặt Flash Sale cho ngày 25/11.",
+                },
+                {
+                    "lever": "min_spend_voucher",
+                    "card_ref": "draft:d2",
+                    "why": "Mã giảm giá đơn tối thiểu để kéo giá trị đơn trong ngày sale.",
+                },
+                {
+                    "lever": "program_registration",
+                    "card_ref": "draft:d3",
+                    "why": "Đăng ký chương trình Shopee cho ngày sale sắp tới.",
+                },
+            ],
         },
     },
     {
-        "câu_hỏi": "Tháng này nên ưu tiên gì?",
-        "đọc_được": "Kỳ tháng này tính đến hết hôm qua (mtd_vs_same_days_last_month); chiến dịch X "
-        "lãi rõ; sản phẩm C thiếu giá vốn.",
+        "câu_hỏi": "Khách xem nhiều mà ít chốt đơn, mình nên làm gì?",
+        "đọc_được": "metric_view ctor: tỷ lệ chốt đơn giảm so với kỳ trước; ctr ổn định.",
         "emit_plan": {
-            "lead": "Số liệu là từ đầu tháng đến hết hôm qua, so với cùng số ngày tháng trước.",
+            "lead": "Khách vào xem đủ nhưng ít chốt đơn, vấn đề nằm ở trang sản phẩm chứ "
+            "không phải lượt xem.",
             "actions": [
                 {
-                    "lever": "ads_budget",
-                    "card_ref": "open:JC-0002",
-                    "why": "Chiến dịch X lãi rõ, xem lại ngân sách để tận dụng.",
+                    "lever": "review_voucher",
+                    "card_ref": "draft:d1",
+                    "why": "Tỷ lệ chốt đơn giảm: thêm lý do tin tưởng bằng mã cho khách đánh giá.",
                 },
                 {
-                    "lever": "nhap_gia_von",
-                    "card_ref": "none",
-                    "why": "Sản phẩm C thiếu giá vốn nên lợi nhuận chưa đáng tin.",
+                    "lever": "description_first_line",
+                    "card_ref": "draft:d2",
+                    "why": "Dòng đầu mô tả là chỗ khách đọc trước khi quyết định.",
+                },
+                {
+                    "lever": "cover_image",
+                    "card_ref": "draft:d3",
+                    "why": "Ảnh bìa cần nói rõ lợi ích chính để khách chốt đơn.",
                 },
             ],
         },
@@ -210,26 +253,34 @@ SYSTEM = (
     "tiên gì. Hãy gọi các công cụ để đọc số liệu của chính shop (chỉ đọc), suy luận, rồi gọi "
     "emit_plan để trả lời. Quy tắc:\n"
     "- Mọi con số trong 'lead' và 'why' lấy nguyên văn từ kết quả công cụ (đã định dạng sẵn), "
-    "không tự tính, không thêm số nào khác.\n"
-    "- Mỗi kết quả công cụ có 'phát_hiện_và_lever': những phát hiện có thể thấy ở đó và các lever "
-    "cho phép. Chỉ đưa vào 'actions' việc có phát hiện thật trong dữ liệu; chọn lever trong danh "
-    "sách cho phát hiện đó. Phát hiện không có lever, câu hỏi có tiền đề sai (số liệu nói khác), "
-    "kỳ có ngày sale, dữ liệu thiếu: viết vào 'lead', không đưa vào 'actions'. Khi tiền đề của "
+    "không tự tính, không thêm số nào khác. Tên sản phẩm chép nguyên văn như trong kết quả công "
+    "cụ, hoặc không nêu tên.\n"
+    "- Mô tả mỗi công cụ cho biết nó có thể thấy phát hiện nào và lever nào cho phép; kết quả có "
+    "'phát_hiện_và_lever'. Đọc dữ liệu theo câu hỏi trước (chiến dịch, sản phẩm, kênh, chỉ số, "
+    "lịch sale); open_cards chỉ để xem thẻ có sẵn nào khớp lever, đọc sau cùng, đừng lấy danh "
+    "sách thẻ làm danh sách việc.\n"
+    "- Chỉ đưa vào 'actions' việc có phát hiện thật trong dữ liệu, chọn lever trong danh sách "
+    "cho phát hiện đó. Phát hiện không có lever, câu hỏi có tiền đề sai (số liệu nói khác), kỳ "
+    "có ngày sale, dữ liệu thiếu: viết vào 'lead', không đưa vào 'actions'. Khi tiền đề của "
     "người bán sai, nói đúng sự thật ở 'lead' trước, rồi vẫn liệt kê việc thật nếu có.\n"
-    "- 'actions' sắp theo ưu tiên: mục đầu là việc nên làm trước. Mỗi mục: lever, card_ref, why "
-    "(1-2 câu: điều dữ liệu cho thấy).\n"
+    "- 'actions' sắp theo tác động: chỗ đang mất tiền trước (lỗ sau quảng cáo, chi quảng cáo "
+    "không ra đơn), rồi ngân sách và ROAS, rồi tăng trưởng. Mỗi lever chỉ một mục: nhiều sản "
+    "phẩm hoặc chiến dịch cùng lever thì gộp thành một mục và nêu trong why. Mỗi mục: lever, "
+    "card_ref, why (1-2 câu: điều dữ liệu cho thấy).\n"
+    "- Câu hỏi về ngày sale / sự kiện sắp tới: đọc week_summary (ngày_sale_sắp_tới) và chọn lever "
+    "sự kiện (flash_sale, program_registration, mega_sale, min_spend_voucher). Câu hỏi khách xem "
+    "nhiều ít chốt đơn hoặc CTR thấp: đọc metric_view (ctor, ctr) và chọn lever trang sản phẩm "
+    "(review_voucher, description_first_line, cover_image, price_display, title).\n"
     "- card_ref bắt buộc: 'open:<mã thẻ>' của một thẻ đang có trong open_cards, hoặc "
     "'draft:<ref>' do draft_card trả về. Mỗi thẻ trong open_cards có trường 'lever' (loại của "
     "thẻ): chỉ dùng open:<mã> cho action có lever đúng bằng lever của thẻ đó; việc khác lever "
-    "thì gọi draft_card. Chưa có thẻ thì gọi "
-    "draft_card với đúng lever (kèm item nếu cần) trước khi emit_plan. Nếu draft_card báo chưa "
-    "có phương án thì đưa việc đó vào 'lead' hoặc bỏ. Riêng lever nhap_gia_von (không phải thẻ) "
-    "dùng card_ref 'none'.\n"
+    "thì gọi draft_card với đúng lever (kèm item là id sản phẩm đã thấy ở công cụ khác khi lever "
+    "cần sản phẩm) trước khi emit_plan. Nếu draft_card báo chưa có phương án, đọc 'lý_do': thử "
+    "lại với item khác nếu được, không thì đưa việc đó vào 'lead' hoặc bỏ. Riêng lever "
+    "nhap_gia_von (không phải thẻ) dùng card_ref 'none'.\n"
     "- Chiến dịch có nhiều sản phẩm mà một sản phẩm lỗ: ads_remove_product (chỉ ads_pause khi nó "
     "là sản phẩm duy nhất). Ngày chi dưới ngân sách là ngày chi dưới 30% ngân sách ngày và không "
     "có đơn quảng cáo. Câu hỏi về tháng: gọi công cụ với window mtd_vs_same_days_last_month.\n"
-    "- Mỗi chiến dịch quảng cáo, mỗi sản phẩm chỉ nhắc một lần. Nếu có dữ liệu, hãy xét cả kênh "
-    "lưu lượng (Organic / TTLK / Quảng cáo) và thiếu giá vốn.\n"
     "- Không lặp lại số liệu mà không kèm quyết định. Không viết giá trị hay dự báo của thẻ, "
     "không dùng từ kỹ thuật, không mã, không tiếng Anh.\n"
     "- Tối đa 3 lượt gọi công cụ, rồi emit_plan.\n"
@@ -252,6 +303,13 @@ _OPT_WINDOW: dict[str, Any] = {
 
 
 def tool_specs(kinds: list[str]) -> list[dict[str, Any]]:
+    specs = _tool_specs(kinds)
+    for spec in specs:  # each tool says which findings it can show and their allowed levers
+        spec["description"] += levers.describe(spec["name"])
+    return specs
+
+
+def _tool_specs(kinds: list[str]) -> list[dict[str, Any]]:
     return [
         {
             "name": "week_summary",
@@ -342,7 +400,7 @@ def tool_specs(kinds: list[str]) -> list[dict[str, Any]]:
     ]
 
 
-def plan_tool(kinds: Any = None) -> dict[str, Any]:
+def plan_tool(kinds: Iterable[str] | None = None) -> dict[str, Any]:
     """`emit_plan`: `lead` (no-lever findings, premise corrections) + `actions` {lever from the
     table's enum, card_ref (required), why}."""
     return {
@@ -442,8 +500,10 @@ async def _week_summary(ctx: Ctx, _a: dict[str, Any]) -> dict[str, Any]:
     assert w.prev is not None
     last = w.sale_prev or w.prev
     table = weekly.week_table(await ctx.shop_rows(), w, last)
+    ahead = campaign_days(ctx.as_of + timedelta(days=1), ctx.as_of + timedelta(days=UPCOMING_DAYS))
     return {
         **ctx.head(w),
+        "ngày_sale_sắp_tới": [f"{d:%d/%m}" for d in ahead],
         "so_với": weekly.rng(last),
         "dòng": [
             {
@@ -686,7 +746,12 @@ async def _draft_card(ctx: Ctx, a: dict[str, Any]) -> dict[str, Any]:
                 "kết_quả": "chưa có phương án mới, đã có thẻ cùng loại",
                 "card_ref": f"open:{code}",
             }
-        return {"kết_quả": NO_PLAN_TOOL_VI, "card_ref": None}
+        reason = str(res.get("reason") or "")
+        return {
+            "kết_quả": NO_PLAN_TOOL_VI,
+            "card_ref": None,
+            "lý_do": NO_DRAFT_REASON_VI.get(reason.split(":")[0], "chưa tính được thẻ"),
+        }
     ref = str(res["ref"])
     ctx.drafts[ref] = {"acc": ctx.out.accepted[-1], "event": res["event"]}
     out: dict[str, Any] = {"kết_quả": "đã tạo thẻ nháp", "card_ref": f"draft:{ref}"}
@@ -769,6 +834,8 @@ _PROBLEM_VI = {
     "unknown_ref": "card_ref không có trong open_cards hay thẻ nháp",
     "kind_mismatch": "thẻ của card_ref không đúng loại với lever",
     "bad_lever": "lever không nằm trong danh sách",
+    "dup_lever": "lever đã dùng ở mục trước: gộp các việc cùng lever thành một mục, nêu các sản "
+    "phẩm hoặc chiến dịch trong why",
 }
 
 
@@ -792,6 +859,7 @@ def check_plan(
     non-card levers need no card)."""
     allowed = set(levers.lever_enum(ctx.labels.kinds))
     out: list[_Checked] = []
+    seen: set[str] = set()
     for raw in actions[:MAX_ITEMS]:
         if not isinstance(raw, dict):
             continue
@@ -802,6 +870,8 @@ def check_plan(
         )
         if lever not in allowed:
             c.problem = "bad_lever"
+        elif lever in seen:
+            c.problem = "dup_lever"
         elif lever in levers.CARD_EXEMPT:
             pass
         elif not c.ref or c.ref == "none":
@@ -824,6 +894,8 @@ def check_plan(
                 c.problem = "kind_mismatch"
         else:
             c.problem = "unknown_ref"
+        if not c.problem:
+            seen.add(lever)
         out.append(c)
     return out
 
@@ -929,6 +1001,18 @@ def _replay_block(block: dict[str, Any]) -> dict[str, Any]:
     return {k: block[k] for k in _REPLAY_KEYS[block["type"]] if k in block}
 
 
+def _normalise(raw: Any) -> dict[str, Any] | None:
+    """The plan as {lead: str, actions: list}: a missing lead or actions field is empty, not a
+    failure (the model's tool input is not trusted to be complete)."""
+    if not isinstance(raw, dict):
+        return None
+    lead, actions = raw.get("lead"), raw.get("actions")
+    return {
+        "lead": lead if isinstance(lead, str) else "",
+        "actions": [a for a in actions if isinstance(a, dict)] if isinstance(actions, list) else [],
+    }
+
+
 def _blocks(content: list[dict[str, Any]], kind: str) -> list[dict[str, Any]]:
     return [b for b in content if b.get("type") == kind]
 
@@ -982,7 +1066,7 @@ async def run_advice(
         uses = _blocks(content, "tool_use")
         final = next((u for u in uses if u.get("name") == "emit_plan"), None)
         if final is not None:
-            plan = final.get("input") if isinstance(final.get("input"), dict) else None
+            plan = _normalise(final.get("input"))
             if plan is None:
                 break
             open_by_code = {str(c["code"]): c for c in await ctx.open_cards() if c.get("code")}
@@ -1030,12 +1114,7 @@ async def run_advice(
                 }
             )
         messages.append({"role": "user", "content": results})
-    if (
-        not isinstance(plan, dict)
-        or not isinstance(plan.get("actions"), list)
-        or not isinstance(plan.get("lead"), str)
-        or not (plan["actions"] or plan["lead"].strip())
-    ):
+    if plan is None or not (plan["actions"] or plan["lead"].strip()):
         raise AdviceAborted("no_plan")
     fact_set = summary.given_facts({"answers": ctx.results})
     advice = await render(ctx, plan, fact_set, checked)

@@ -543,7 +543,9 @@ async def _answer_inner(
                 )  # fmt: skip
             except advisor.AdviceAborted as exc:  # cap / LLM error / no plan: today's sections
                 result.cost_usd = max(result.cost_usd, budget.cost)
-                result.routing.append({"step": "advise_fallback", "reason": exc.reason})
+                result.routing.append(
+                    {"step": "advise_fallback", "reason": exc.reason, "detail": exc.detail[:300]}
+                )
                 logger.info("juli_advise_fallback", extra={"reason": exc.reason})
             else:
                 result.cost_usd = max(result.cost_usd, budget.cost)

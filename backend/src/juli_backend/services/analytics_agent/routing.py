@@ -332,7 +332,8 @@ INTENT_TOOL: dict[str, Any] = {
                             "prioritise, what to do first or which card to open, or asks "
                             "whether to do something (raise the ads budget, stop a campaign "
                             "or a product's ads), what to fix (a title, a price, a cover "
-                            "image, a description) or what to do about a problem, over the "
+                            "image, a description) or how to handle or what to do about a problem "
+                            "in the shop's own data, over the "
                             "shop's own data (a plan, a priority, a recommendation)",
                         },
                         "goal": {
@@ -412,9 +413,11 @@ PARSE_SYSTEM = (
     "what the shop should do next week is question_type 'plan' (only that, not how-to "
     "questions). A question that asks what to do, what to prioritise, what to do first or which "
     "card to open, or asks whether to do something (raise the ads budget, turn off campaigns, stop "
-    "a product's ads) or what to fix or do about a problem (titles, prices, cover image, "
-    "description, unspent ads budget), about the shop's own numbers (not a how-to or knowledge "
-    "question, not an order to create or change something), sets needs_advice true and a goal; "
+    "a product's ads) or what to fix, how to handle or what to do about a problem in the shop's "
+    "own data (expired deal prices, titles, prices, cover image, description, unspent ads "
+    "budget), about the shop's own numbers (not a general how-to or knowledge question about "
+    "how Shopee works, not an order to create or change something), sets needs_advice true and a "
+    "goal; "
     "every other question has needs_advice false and goal none. A question about ONE "
     "product's profit, margin, revenue or orders is question_type 'status' with product_phrase, "
     "never 'other'. "

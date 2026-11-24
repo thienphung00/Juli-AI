@@ -65,11 +65,19 @@ def test_the_prompt_carries_three_or_four_valid_few_shot_examples() -> None:
             assert set(a) == {"lever", "card_ref", "why"} and a["lever"] in enum
             assert a["card_ref"].split(":")[0] in ("open", "draft", "none")
             assert (a["card_ref"] == "none") == (a["lever"] in levers.CARD_EXEMPT)
-    # a premise correction, a lead-only answer and a non-card lever are all shown
-    assert any(not ex["emit_plan"]["actions"] for ex in advisor.FEW_SHOT)
+    shown = {a["lever"] for ex in advisor.FEW_SHOT for a in ex["emit_plan"]["actions"]}
+    # an ads-loss question, a sale-day question, a conversion question and a non-card lever
+    assert {"ads_remove_product", "ads_roas_target", "nhap_gia_von"} <= shown
+    assert {"flash_sale", "min_spend_voucher", "program_registration"} <= shown
+    assert {"review_voucher", "cover_image", "description_first_line"} <= shown
     assert any(
-        a["lever"] == "nhap_gia_von" for ex in advisor.FEW_SHOT for a in ex["emit_plan"]["actions"]
-    )
+        "không" in ex["emit_plan"]["lead"] and "lỗ" in ex["emit_plan"]["lead"]
+        for ex in advisor.FEW_SHOT
+    )  # a premise correction
+    # no example repeats a lever (the validator refuses it)
+    for ex in advisor.FEW_SHOT:
+        ls = [a["lever"] for a in ex["emit_plan"]["actions"]]
+        assert len(ls) == len(set(ls))
     assert "Chưa có phương án" not in advisor.SYSTEM
 
 
@@ -233,3 +241,130 @@ def test_the_parser_slot_sends_should_i_questions_to_advise_not_unsupported() ->
     assert "whether to do something" in routing.PARSE_SYSTEM
     props = routing.INTENT_TOOL["input_schema"]["properties"]["intents"]["items"]["properties"]
     assert "whether to do something" in props["needs_advice"]["description"]
+
+
+# ------------------------------------------------ recorded 24/11 shapes (live run 2)
+
+
+async def test_a31_shape_a_repeated_lever_is_refused_and_merged() -> None:
+    """A31: three actions on the same affiliate lever (one per open card) pushed the ads card to
+    #4. A repeated lever is refused; the model merges and the other levers surface."""
+    from tests.unit.analytics_agent.fakes import FakeLLM, tool_use
+    from tests.unit.analytics_agent.test_advisor import _ask_with, _rows, plan
+
+    cards = [
+        {**LIVE_CARDS[1], "code": f"JC-2611-02{n}", "item_id": f"p{n}"} for n in (75, 76, 90)
+    ] + [LIVE_CARDS[0]]
+
+    def aff(code: str) -> dict[str, Any]:
+        return {
+            "lever": "affiliate_commission",
+            "card_ref": f"open:{code}",
+            "why": "Hoa hồng đang chờ trên sản phẩm lỗ.",
+        }
+
+    budget = {"lever": "ads_budget", "card_ref": "open:JC-2611-0298", "why": "Giữ ngân sách."}
+    llm = FakeLLM(
+        agent_script=[
+            [tool_use("open_cards", "t1")],
+            plan(aff("JC-2611-0275"), aff("JC-2611-0276"), aff("JC-2611-0290"), budget),
+            plan(budget, aff("JC-2611-0275")),  # the repair: merged, ads first
+        ]
+    )
+    data = _live_data()
+    data.cards = cards
+    sink, res, _ = await _ask_with(llm, data)
+    assert [r["lever"] for r in _rows(sink)] == ["ads_budget", "affiliate_commission"]
+    refused = json.dumps(llm.agent_calls[2]["replayed"], ensure_ascii=False)
+    assert "gộp các việc cùng lever" in refused
+
+
+async def test_a13_shape_a_removal_card_drafts_without_a_number_and_a_miss_says_why() -> None:
+    """A13: ads_remove_product / ads_pause have no volume estimate by design; the draft was
+    refused as 'not estimable'. They draft now; a real miss tells the model the reason."""
+    from juli_backend.services.analytics_agent import cards as cardstage
+    from tests.unit.analytics_agent.fakes import FakeCardEngine, FakeLLM, tool_use
+    from tests.unit.analytics_agent.test_advisor import _ask_with, _rows, plan
+
+    no_est = {
+        "ok": True,
+        "card": {
+            "title": "Gỡ sản phẩm khỏi chiến dịch nhóm",
+            "versions": [{"label": "Gỡ", "inputs": {}, "result": {"estimable": False}}],
+        },
+    }
+    assert cardstage.estimable(no_est["card"], "ads_remove_product")
+    assert cardstage.estimable(no_est["card"], "ads_pause")
+    assert not cardstage.estimable(no_est["card"], "ads_budget")  # sized kinds still need a number
+
+    ctx = await _ctx()
+    ctx.engine = FakeCardEngine(per_kind={"ads_budget": no_est})
+    await advisor.run_tool(ctx, "product_margins", {})
+    miss = await advisor.run_tool(ctx, "draft_card", {"kind": "ads_budget", "item": "p1"})
+    assert miss["card_ref"] is None and miss["lý_do"] == advisor.NO_DRAFT_REASON_VI["not_estimable"]
+
+    def ref_of(m: Any) -> str:
+        return next(
+            json.loads(r["content"])["card_ref"]
+            for x in m
+            if x["role"] == "user" and isinstance(x["content"], list)
+            for r in x["content"]
+            if r.get("tool_use_id") == "d1"
+        )
+
+    class A13(FakeLLM):
+        async def agent(self, system: Any, tools: Any, messages: Any, *, force_tool: Any = None):
+            if not self.agent_script:
+                self.agent_script.append(
+                    plan(
+                        {
+                            "lever": "ads_remove_product",
+                            "card_ref": ref_of(messages),
+                            "why": "Sản phẩm lỗ sau quảng cáo.",
+                        },
+                        lead="",
+                    )
+                )
+            return await super().agent(system, tools, messages, force_tool=force_tool)
+
+    llm = A13(
+        agent_script=[
+            [tool_use("product_margins", "t1")],
+            [tool_use("draft_card", "d1", kind="ads_remove_product", item="p1")],
+        ]
+    )
+    sink, _, _ = await _ask_with(llm, card_engine=FakeCardEngine(result=no_est))
+    rows = _rows(sink)
+    assert rows[0]["lever"] == "ads_remove_product" and rows[0]["value_vi"] == "Thẻ nháp"
+
+
+async def test_tool_descriptions_list_their_findings_and_levers_and_week_shows_sale_days() -> None:
+    specs = {t["name"]: t for t in advisor.tool_specs(sorted(L.kinds))}
+    assert "ads_remove_product" in specs["product_profit"]["description"]
+    assert "flash_sale" in specs["week_summary"]["description"]
+    assert "review_voucher" in specs["metric_view"]["description"]
+    assert (
+        specs["draft_card"]["description"]
+        == next(t for t in advisor._tool_specs(sorted(L.kinds)) if t["name"] == "draft_card")[
+            "description"
+        ]
+    )
+    ctx = await _ctx()
+    res = await advisor.run_tool(ctx, "week_summary", {})
+    ahead = res["ngày_sale_sắp_tới"]
+    assert ahead and all(len(d) == 5 and d[2] == "/" for d in ahead)
+
+
+async def test_a_plan_missing_its_lead_field_is_still_a_plan() -> None:
+    """A07: the model's tool input is not trusted to be complete (no_plan before)."""
+    from tests.unit.analytics_agent.fakes import FakeLLM, tool_use
+    from tests.unit.analytics_agent.test_advisor import OPEN_BUDGET, _ask_with, _rows
+
+    llm = FakeLLM(
+        agent_script=[
+            [tool_use("open_cards", "t1")],
+            [tool_use("emit_plan", "p1", actions=[OPEN_BUDGET])],  # no `lead`
+        ]
+    )
+    sink, _, _ = await _ask_with(llm)
+    assert _rows(sink)[0]["lever"] == "ads_budget"

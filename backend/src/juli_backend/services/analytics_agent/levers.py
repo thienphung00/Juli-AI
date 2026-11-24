@@ -12,6 +12,7 @@ Labels hold no digits (they sit in the tool results, which are the fact set for 
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from juli_backend.services.shopee_recommendations.kinds import KINDS
@@ -200,15 +201,15 @@ FINDINGS: tuple[Finding, ...] = (
 FINDING_BY_KEY: dict[str, Finding] = {f.key: f for f in FINDINGS}
 
 
-def lever_enum(available: object = None) -> list[str]:
+def lever_enum(available: Iterable[str] | None = None) -> list[str]:
     """The levers `emit_plan` accepts: `kinds.py` kinds minus the out-set (limited to the kinds
     the platform's label table knows when given), plus the non-card actions. Stable order."""
-    allowed = None if available is None else set(available)  # type: ignore[call-overload]
+    allowed = None if available is None else set(available)
     cards = [k for k in KINDS if k not in OUT_LEVERS and (allowed is None or k in allowed)]
     return [*cards, *NON_CARD_LEVERS]
 
 
-def card_kinds(available: object = None) -> list[str]:
+def card_kinds(available: Iterable[str] | None = None) -> list[str]:
     """The kinds `draft_card` may create (the lever enum without the non-card actions)."""
     return [k for k in lever_enum(available) if k not in NON_CARD_LEVERS]
 
@@ -225,6 +226,17 @@ def tags_for(tool: str) -> list[dict[str, object]]:
                 else {"phát_hiện": f.label_vi, "lever": "không có: chỉ ghi ở lead"}
             )
     return out
+
+
+def describe(tool: str) -> str:
+    """The findings a tool can show with their allowed levers, as one sentence for the tool's
+    description (the model picks tools and ranks by finding impact from it)."""
+    parts = [
+        f"{f.label_vi} -> {', '.join(f.levers) if f.levers else 'chỉ ghi ở lead'}"
+        for f in FINDINGS
+        if tool in f.tools
+    ]
+    return " Có thể thấy: " + "; ".join(parts) + "." if parts else ""
 
 
 def check_table() -> list[str]:
