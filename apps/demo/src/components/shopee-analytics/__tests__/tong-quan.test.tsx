@@ -95,20 +95,18 @@ describe("Tổng quan (P100 board)", () => {
     expect(screen.getByTestId("sa-shift-roi")).toHaveTextContent("▲ 23 %");
   });
 
-  it("D5: the ladder (gộp / đóng góp / ròng) with its three margins, Tổng chi phí and ROI on it", async () => {
+  it("D5 (owner #51): only Lợi nhuận ròng with Biên lợi nhuận; gộp / đóng góp are export-only; Tổng chi phí and ROI", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
     await screen.findByTestId("sa-tile-gmv");
-    expect(screen.getByTestId("sa-tile-gross")).toHaveTextContent("Lợi nhuận gộp");
-    expect(screen.getByTestId("sa-tile-gross")).toHaveTextContent("5,50 tr đ");
-    expect(screen.getByTestId("sa-margin_gross")).toHaveTextContent("Biên gộp48,2%");
-    expect(screen.getByTestId("sa-tile-contribution")).toHaveTextContent("Lợi nhuận đóng góp");
-    expect(screen.getByTestId("sa-margin_contribution")).toHaveTextContent("Biên đóng góp32,5%");
+    expect(screen.queryByTestId("sa-tile-gross")).toBeNull();
+    expect(screen.queryByTestId("sa-tile-contribution")).toBeNull();
+    expect(screen.queryByTestId("sa-margin_gross")).toBeNull();
+    expect(screen.queryByTestId("sa-margin_contribution")).toBeNull();
     expect(screen.getByTestId("sa-tile-profit")).toHaveTextContent("Lợi nhuận ròng");
     expect(screen.getByTestId("sa-margin")).toHaveTextContent("Biên lợi nhuận23,7%");
     const total = screen.getByTestId("sa-tile-cost-total");
     expect(total).toHaveTextContent("Tổng chi phí");
     expect(total).toHaveTextContent("7,25 tr đ");
-    expect(screen.getByTestId("sa-cost-cogs")).toHaveTextContent("Giá vốn");
     expect(screen.getByTestId("sa-tile-roi")).toHaveTextContent("ROI");
   });
 
@@ -116,6 +114,8 @@ describe("Tổng quan (P100 board)", () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
     const table = await screen.findByTestId("sa-split");
     expect(within(table).getByText("Ưu đãi")).toBeTruthy();
+    expect(within(table).queryByText("Lợi nhuận đóng góp")).toBeNull();
+    expect(within(table).queryByTestId("sa-split-total-contribution")).toBeNull();
     expect(within(table).getByTestId("sa-split-organic")).toHaveTextContent("Organic");
     expect(within(table).getByTestId("sa-split-affiliate")).toHaveTextContent("TTLK");
     expect(within(table).getByTestId("sa-split-ads")).toHaveTextContent("Quảng cáo");
