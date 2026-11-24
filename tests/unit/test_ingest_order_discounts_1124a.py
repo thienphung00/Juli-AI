@@ -248,3 +248,42 @@ def test_owner_49_a_non_code_voucher_value_is_refused_at_the_gateway(code):
     with pytest.raises(ValidationError) as refused:
         ShopeeOrderIncomeRow.model_validate({"order_ref": REF, "voucher_code": code})
     assert "voucher_code" in str(refused.value)
+
+
+async def test_a_combo_split_after_the_voucher_split_re_splits_the_order_totals(session):
+    """batch-1124-b CONN (verifier): the income split ran on the combo parent (line 0) alone; the
+    order page then splits it into lines 0 and 1. Each voucher total is split again over the
+    order's current lines by line value, the totals unchanged."""
+    shop = await _shop(session)
+    parent = _line(0, 190_000, variation_sku=None, promo_kind="bundle")
+    await _ingest(session, shop, "order_lines", _lines_body([parent]))
+    await _ingest(session, shop, "order_income", _income(buyer_shop=10_000, buyer_platform=3_001))
+    (line,) = await _lines(session, shop)
+    assert (line.shop_voucher_share, line.platform_voucher_share) == (
+        Decimal(10_000),
+        Decimal(3_001),
+    )
+    split = [
+        _line(0, 95_000, promo_kind="bundle", bundle_discount=5_000),
+        _line(1, 95_000, promo_kind="bundle", bundle_discount=5_000),
+    ]
+    await _ingest(
+        session, shop, "order_lines", _lines_body(split, captured_at="2026-11-04T03:00:00Z")
+    )
+    lines = await _lines(session, shop)
+    assert [ln.shop_voucher_share for ln in lines] == [Decimal(5_000), Decimal(5_000)]
+    assert [ln.platform_voucher_share for ln in lines] == [Decimal("1500.50"), Decimal("1500.50")]
+
+
+async def test_a_file_line_in_the_order_blocks_the_re_split(session):
+    shop = await _shop(session)
+    await _ingest(session, shop, "order_lines", _lines_body([_line(0, 100_000)]))
+    await _ingest(session, shop, "order_income", _income(buyer_shop=10_000))
+    await _ingest(
+        session,
+        shop,
+        "order_lines",
+        _lines_body([_line(1, 100_000)], source="file", source_version="t"),
+    )
+    lines = await _lines(session, shop)
+    assert [ln.shop_voucher_share for ln in lines] == [Decimal(10_000), Decimal(0)]

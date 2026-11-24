@@ -273,6 +273,60 @@ async def split_order_vouchers(
     return filled
 
 
+async def resplit_order_vouchers(
+    session: AsyncSession, shop_id: Any, platform: str, order_refs: set[str]
+) -> int:
+    """batch-1124-b CONN (verifier): when an order's line set changes after its voucher split (a
+    combo parent posted first, its page-split lines later), each voucher column's order total is
+    split again over the order's CURRENT lines by line value (``deal_price x qty``), the total
+    unchanged. Only an order whose every line is the Connector's (rule B: a file import's value
+    is never touched). Returns the lines changed."""
+    if not order_refs:
+        return 0
+    table = ShopeeOrderLine.__table__
+    columns = [column for _, column in ORDER_VOUCHER_COLUMNS]
+    found = await session.execute(
+        select(
+            table.c.id,
+            table.c.order_ref,
+            table.c.deal_price,
+            table.c.qty,
+            table.c.source,
+            *(table.c[column] for column in columns),
+        )
+        .where(
+            table.c.shop_id == shop_id,
+            table.c.platform == platform,
+            table.c.order_ref.in_(sorted(order_refs)),
+        )
+        .order_by(table.c.order_ref, table.c.line_no)
+    )
+    lines: dict[str, list[Any]] = {}
+    for line in found:
+        lines.setdefault(line.order_ref, []).append(line)
+    changed = 0
+    for order_lines in lines.values():
+        if len(order_lines) < 2 or any(line.source != SOURCE_EXTENSION for line in order_lines):
+            continue
+        weights = [Decimal(line.deal_price) * line.qty for line in order_lines]
+        for column in columns:
+            total = sum((Decimal(getattr(line, column) or 0) for line in order_lines), Decimal(0))
+            if total <= 0:
+                continue
+            for line, share in zip(order_lines, _shares(total, weights), strict=True):
+                if Decimal(getattr(line, column) or 0) == share:
+                    continue
+                await session.execute(
+                    update(ShopeeOrderLine)
+                    .where(ShopeeOrderLine.id == line.id)
+                    .values({column: share})
+                )
+                changed += 1
+    if changed:
+        logger.info("order_line_voucher_resplit", extra={"shop_id": str(shop_id), "lines": changed})
+    return changed
+
+
 async def upsert_settlement_values(session: AsyncSession, values: list[dict[str, Any]]) -> None:
     """The one ``order_settlements`` upsert (the gateway and ``DbCanonicalWriter`` share it)."""
     insert = _insert(session)

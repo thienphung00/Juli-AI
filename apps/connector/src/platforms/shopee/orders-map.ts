@@ -167,17 +167,27 @@ const joinId = (value: unknown): string | undefined => {
   return id !== undefined && id !== "0" ? id : undefined;
 };
 
-/** One combo sub-line (`item_list` entry, trimmed) with the SKUs its model id has on the combo's lists. */
+/**
+ * One combo sub-line (`item_list` entry, trimmed) with the SKUs the combo's lists give it: the
+ * variation SKU by model id (`bundle_deal_model`), the product SKU by model id, or by item id for
+ * an item with no variation (model id 0), from `bundle_deal_product`.
+ */
 function withComboSkus(sub: Record<string, unknown>, parent: Record<string, unknown>): void {
   const modelId = joinId(sub.model_id);
-  if (modelId === undefined) return;
-  const entry = (list: unknown) => (Array.isArray(list) ? list.filter(isRecord).find((m) => joinId(m.model_id) === modelId) : undefined);
-  const model = entry(parent.bundle_deal_model);
+  const itemId = joinId(sub.item_id);
+  const records = (list: unknown) => (Array.isArray(list) ? list.filter(isRecord) : []);
+  const model = modelId === undefined ? undefined : records(parent.bundle_deal_model).find((m) => joinId(m.model_id) === modelId);
   if (model) {
     if (typeof model.sku === "string" && model.sku.trim() !== "" && sub.model_sku === undefined) sub.model_sku = model.sku;
     if (typeof model.name === "string" && model.name.trim() !== "" && sub.model_name === undefined) sub.model_name = model.name;
   }
-  const product = entry(parent.bundle_deal_product);
+  const products = records(parent.bundle_deal_product);
+  const product =
+    modelId !== undefined
+      ? products.find((m) => joinId(m.model_id) === modelId)
+      : itemId !== undefined
+        ? products.find((m) => joinId(m.item_id) === itemId && joinId(m.model_id) === undefined)
+        : undefined;
   if (product && typeof product.sku === "string" && product.sku.trim() !== "" && sub.item_sku === undefined) sub.item_sku = product.sku;
 }
 
@@ -441,6 +451,8 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       // unknown (not posted) until the order page has been read
       const listUnit = isCombo ? num(item[PAGE_LIST_PRICE]) : undefined;
       if (listUnit !== undefined && listUnit > 0) extra.list_price = listUnit;
+      const pageQty = isCombo ? num(item[PAGE_QTY]) : undefined;
+      if (pageQty !== undefined) extra.page_qty = pageQty;
       if (Object.keys(extra).length > 0) row.extra = extra;
       const returned = num(item.returned_qty);
       if (returned !== undefined && returned >= 0) row.returned_qty = returned;
@@ -707,6 +719,8 @@ export interface PageItem {
 
 /** The line key a combo line carries its page list price under (never sent: the mapper reads it). */
 export const PAGE_LIST_PRICE = "page_list_price";
+/** D4: the page's quantity of a combo line when it differs from the API's (posted in `extra`). */
+export const PAGE_QTY = "page_qty";
 
 const hasSku = (item: Record<string, unknown>): boolean =>
   [item.item_sku, item.sku, item.model_sku, item.variation_sku].some((v) => typeof v === "string" && v.trim() !== "");
@@ -833,25 +847,43 @@ export function withPageSkus(body: unknown, page: readonly PageItem[]): unknown 
   };
   let fixed: Record<string, unknown>[] | null = null;
   const subsOf = (item: Record<string, unknown>) => (Array.isArray(item.sub_items) ? item.sub_items.filter(isRecord) : []);
-  // batch-1124-b CONN: the page shows a combo as one line per sub-line (`.bundle-deal-item`), so a
-  // SKU-less combo parent with N sub-lines takes the next N page lines (split exactly, each with its
-  // page quantity); every other line takes one.
+  // batch-1124-b CONN: the page shows a combo as one line per sub-line (`.bundle-deal-item`). Each
+  // SKU-less combo parent is one slot per sub-line, every other line one slot; slots and page lines
+  // are paired by SKU where both name one, else in order (pairSlots). Each combo is then split
+  // exactly over its own page lines with the API's quantities.
   const combo = (item: Record<string, unknown>) => (num(item.bundle_deal_id) ?? 0) > 0 && !hasSku(item) && subsOf(item).length > 0;
-  const width = (item: Record<string, unknown>) => (combo(item) ? subsOf(item).length : 1);
-  if (items.some(combo) && items.reduce((n, item) => n + width(item), 0) === page.length) {
+  const slots: Record<string, unknown>[] = items.flatMap((item) => (combo(item) ? subsOf(item) : [item]));
+  if (items.some(combo) && slots.length === page.length) {
+    const paired = pairSlots(slots, page);
+    if (!paired) return null;
     fixed = [];
     let at = 0;
     for (const item of items) {
-      const n = width(item);
-      const slice = page.slice(at, at + n);
-      at += n;
       if (!combo(item)) {
-        fixed.push(hasSku(item) ? item : named(item, slice[0] as PageItem));
+        fixed.push(hasSku(item) ? item : named(item, paired[at] as PageItem));
+        at += 1;
         continue;
       }
-      const lines = splitCombo(item, slice);
+      const subs = subsOf(item);
+      const parentQty = num(item.amount ?? item.quantity ?? item.qty) ?? 1;
+      // D4: the API's quantity (sub-line amount x combo amount); the page's only cross-checks it
+      const own = paired.slice(at, at + subs.length).map((p, i) => {
+        const apiQty = num((subs[i] as Record<string, unknown>).amount);
+        const qty = apiQty !== undefined && apiQty > 0 ? apiQty * parentQty : p.qty;
+        return { ...p, ...(qty !== undefined ? { qty } : {}), ...(p.listPrice !== undefined && qty !== undefined ? { lineTotal: p.listPrice * qty } : {}) };
+      });
+      const pageQtys = paired.slice(at, at + subs.length).map((p) => p.qty);
+      at += subs.length;
+      const lines = splitCombo(item, own);
       if (!lines) return null;
-      fixed.push(...lines.map((line, i) => fromSub(named(line, slice[i] as PageItem), subsOf(item)[i])));
+      fixed.push(
+        ...lines.map((line, i) => {
+          const out = fromSub(named(line, own[i] as PageItem), subs[i]);
+          const shown = pageQtys[i];
+          if (shown !== undefined && shown !== own[i]!.qty) out[PAGE_QTY] = shown;
+          return out;
+        }),
+      );
     }
   } else if (items.length === page.length) {
     fixed = items.map((item, i) => (hasSku(item) ? item : named(item, page[i] as PageItem)));
@@ -863,6 +895,43 @@ export function withPageSkus(body: unknown, page: readonly PageItem[]): unknown 
   }
   if (!fixed || !fixed.every(hasSku)) return null;
   return { ...body, data: { ...order, items: fixed } };
+}
+
+/** The SKUs an answer line names (variation first, then product). */
+function skusOf(line: Record<string, unknown>): string[] {
+  return [line.model_sku, line.variation_sku, line.item_sku, line.sku].flatMap((v) => (typeof v === "string" && v.trim() !== "" ? [v.trim()] : []));
+}
+
+/**
+ * batch-1124-b CONN (D1): the page line of each answer line (a plain line or a combo's sub-line),
+ * or null. A line whose SKU the page shows takes that page line, wherever it is on the page; the
+ * other lines take the page lines left, in order. A line that names a SKU paired with a page line
+ * that shows another SKU is a contradiction: null (the order is read again), never one line's SKU
+ * with another's price or quantity.
+ */
+function pairSlots(slots: Record<string, unknown>[], page: readonly PageItem[]): PageItem[] | null {
+  if (slots.length !== page.length) return null;
+  const out: (PageItem | undefined)[] = slots.map(() => undefined);
+  const used = new Set<number>();
+  slots.forEach((slot, i) => {
+    const skus = skusOf(slot);
+    if (skus.length === 0) return;
+    const j = page.findIndex((p, k) => !used.has(k) && p.sku !== undefined && skus.includes(p.sku));
+    if (j >= 0) {
+      out[i] = page[j];
+      used.add(j);
+    }
+  });
+  const rest = page.map((_, k) => k).filter((k) => !used.has(k));
+  let r = 0;
+  for (let i = 0; i < slots.length; i += 1) {
+    if (out[i]) continue;
+    const p = page[rest[r] as number] as PageItem;
+    r += 1;
+    if (p.sku !== undefined && skusOf(slots[i] as Record<string, unknown>).length > 0) return null;
+    out[i] = p;
+  }
+  return out as PageItem[];
 }
 
 /**

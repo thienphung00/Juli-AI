@@ -230,3 +230,73 @@ describe("combo lines posted with the real SKU", () => {
     expect(lines?.rows.map((r) => r.variation_sku)).toEqual(["SKU-A01", "SKU-A02"]);
   });
 });
+
+describe("pairing page lines to answer lines (verifier D1, D2, D4, D5)", () => {
+  const post = (items: unknown[], html: string) => mapOrderLines([detail(withPageSkus(answer(items), pageItemsIn(page(html))))], NOW).rows;
+  const shape = (rows: Record<string, unknown>[]) => rows.map((r) => [r.variation_sku, (r.extra as Record<string, unknown>).model_id, r.qty, r.deal_price, r.bundle_discount]);
+
+  it("D1: sub-lines shown in reversed order are paired by SKU, not by place", () => {
+    const rows = post([comboParent(MODELS)], comboBlock(bundleLine("Vị B", "SKU-A02", "120.000") + bundleLine("Vị A", "SKU-A01", "80.000")));
+    // 190.000 split by list 80.000 (A) / 120.000 (B): 76.000 / 114.000
+    expect(shape(rows)).toEqual([
+      ["SKU-A01", "8001", 1, 76_000, 4_000],
+      ["SKU-A02", "8002", 1, 114_000, 6_000],
+    ]);
+  });
+
+  it("D1: a plain line and a combo pair by SKU whichever comes first on the page", () => {
+    const expected = [
+      ["SKU-P01", "8100", 1, 50_000, undefined],
+      ["SKU-A01", "8001", 1, 95_000, 5_000],
+      ["SKU-A02", "8002", 1, 95_000, 5_000],
+    ];
+    const combo = comboBlock(bundleLine("Vị A", "SKU-A01") + bundleLine("Vị B", "SKU-A02"));
+    expect(shape(post([plainItem, comboParent(MODELS)], plainLine + combo))).toEqual(expected);
+    expect(shape(post([plainItem, comboParent(MODELS)], combo + plainLine))).toEqual(expected);
+  });
+
+  it("D1: a page SKU that contradicts the answer's SKU leaves the order unmatched (read again)", () => {
+    const doc = page(comboBlock(bundleLine("Vị A", "SKU-A01") + bundleLine("Vị X", "SKU-OTHER")));
+    expect(withPageSkus(answer([comboParent(MODELS)]), pageItemsIn(doc))).toBeNull();
+  });
+
+  it("D1: a page without SKU phân loại falls back to place, with the answer's SKUs", () => {
+    const rows = post([comboParent(MODELS)], comboBlock(bundleLine("Vị A", null, "80.000") + bundleLine("Vị B", null, "120.000")));
+    expect(shape(rows)).toEqual([
+      ["SKU-A01", "8001", 1, 76_000, 4_000],
+      ["SKU-A02", "8002", 1, 114_000, 6_000],
+    ]);
+  });
+
+  it("D2: an item with no variation (model id 0) takes its product SKU from bundle_deal_product by item id", () => {
+    const parent = {
+      ...comboParent(MODELS),
+      item_list: [{ item_id: 7201, model_id: 0, amount: 1 }, { item_id: 7202, model_id: 0, amount: 1 }],
+      bundle_deal_model: [],
+      bundle_deal_product: [{ item_id: 7201, model_id: 0, sku: "SP-201" }, { item_id: 7202, model_id: 0, sku: "SP-202" }],
+    };
+    const trimmed = answer([parent]) as { data: { items: { sub_items: Record<string, unknown>[] }[] } };
+    expect(trimmed.data.items[0]!.sub_items.map((sub) => sub.item_sku)).toEqual(["SP-201", "SP-202"]);
+    const rows = post([parent], comboBlock(bundleLine("", null) + bundleLine("", null)));
+    expect(rows.map((r) => [r.sku, r.variation_sku])).toEqual([["SP-201", undefined], ["SP-202", undefined]]);
+  });
+
+  it("D4: the quantity is the API's (sub-line amount x combo amount); a different page quantity is posted for the check", () => {
+    const parent = { ...comboParent(MODELS), amount: 2 };
+    // the combo bought twice: 2 x 190.000 = 380.000, 2 of each variation
+    const rows = post([parent], comboBlock(bundleLine("Vị A", "SKU-A01", "100.000", "2") + bundleLine("Vị B", "SKU-A02", "100.000", "1")));
+    expect(rows.map((r) => [r.qty, r.deal_price, r.bundle_discount, (r.extra as Record<string, unknown>).page_qty])).toEqual([
+      [2, 95_000, 10_000, undefined],
+      [2, 95_000, 10_000, 1],
+    ]);
+  });
+
+  it("D5: two sub-lines with the same model id each take one page line", () => {
+    const parent = { ...comboParent([MODELS[0]!]), item_list: [{ item_id: 7001, model_id: 8001, amount: 1 }, { item_id: 7001, model_id: 8001, amount: 1 }] };
+    const rows = post([parent], comboBlock(bundleLine("Vị A", "SKU-A01") + bundleLine("Vị A", "SKU-A01")));
+    expect(shape(rows)).toEqual([
+      ["SKU-A01", "8001", 1, 95_000, 5_000],
+      ["SKU-A01", "8001", 1, 95_000, 5_000],
+    ]);
+  });
+});
