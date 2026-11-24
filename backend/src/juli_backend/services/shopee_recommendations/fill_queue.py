@@ -1395,6 +1395,42 @@ def _live_tokens(shop_id: uuid.UUID, now: datetime) -> Any:
     )
 
 
+async def release_token_leases(
+    session: AsyncSession,
+    *,
+    shop_id: uuid.UUID,
+    token_ids: set[uuid.UUID],
+    to_token: uuid.UUID | None = None,
+) -> int:
+    """batch-1124-a C3: the leases of tokens that just died (revoked, superseded) are freed at
+    once, not when they expire, so another computer's next poll takes the job. ``to_token`` (a
+    rotation: the same browser under its new token) moves them instead, lease time unchanged.
+    Returns how many jobs changed."""
+    if not token_ids:
+        return 0
+    values: dict[str, Any] = (
+        {"claimed_by_token_id": to_token}
+        if to_token is not None
+        else {"claimed_by_token_id": None, "lease_until": None}
+    )
+    moved = await session.execute(
+        update(ShopeeFillJob)
+        .where(
+            ShopeeFillJob.shop_id == shop_id,
+            ShopeeFillJob.claimed_by_token_id.in_(token_ids),
+        )
+        .values(**values)
+        .execution_options(synchronize_session=False)
+    )
+    count = int(getattr(moved, "rowcount", 0) or 0)
+    if count:
+        logger.info(
+            "fill_leases_released",
+            extra={"shop_id": str(shop_id), "jobs": count, "moved": to_token is not None},
+        )
+    return count
+
+
 #: The card statuses whose fill jobs the Connector may be served. ONE place: F3 adds the revert
 #: jobs of executed cards here (batch-1118f F1.2).
 SERVABLE_CARD_STATUSES: tuple[str, ...] = (STATUS_APPROVED, STATUS_PLANNED)
