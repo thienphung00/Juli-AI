@@ -284,7 +284,7 @@ function Tiles({ data, mode, product, state }: { readonly data: ChannelSplit; re
         <Shift good={-1} pct={change(v, before)} />
       </span>
     );
-  const marginLine = (id: "margin_gross" | "margin_contribution" | "margin", v: number | null | undefined) =>
+  const marginLine = (id: "margin", v: number | null | undefined) =>
     v === null || v === undefined ? null : (
       <span className="sa-tq__line" data-testid={`sa-${id}`} key={id}>
         <span>{metricLabel(id)}</span>
@@ -296,8 +296,6 @@ function Tiles({ data, mode, product, state }: { readonly data: ChannelSplit; re
       <DataThrough day={data.data_through?.kpis} testId="sa-through-kpis" />
       <div className="sa-tiles sa-tq__tiles" data-testid="sa-tiles">
         {tile("gmv", `GMV${suffix(mode)}`, money(k.gmv), change(k.gmv, p?.gmv), "gmv", 1)}
-        {tile("gross", `${metricLabel("gross_profit")}${suffix(mode)}`, money(k.gross_profit), change(k.gross_profit, p?.gross_profit), "margin", 1, marginLine("margin_gross", k.margin_gross_pct))}
-        {tile("contribution", `${metricLabel("contribution")}${suffix(mode)}`, money(k.contribution), change(k.contribution, p?.contribution), "margin", 1, marginLine("margin_contribution", k.margin_contribution_pct))}
         {tile("profit", `${metricLabel("profit")}${suffix(mode)}`, money(k.profit), change(k.profit, p?.profit), "margin", 1, marginLine("margin", k.margin_pct))}
         {tile(
           "cost",

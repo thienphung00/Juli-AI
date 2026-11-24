@@ -28,7 +28,8 @@ const COLUMN_ID: Readonly<Record<SplitColumn, MetricId>> = {
 const UNATTRIBUTED_LABEL = "Chưa gán sản phẩm";
 
 export function ProfitSplitTable({ split, days, mode }: { readonly split: ProfitSplit; readonly days: number; readonly mode: ValueMode }) {
-  const cols = split.columns;
+  // owner #51: Lợi nhuận đóng góp is export-only; the screen keeps the other columns (the total row still adds up)
+  const cols = split.columns.filter((c) => c !== "contribution");
   const cell = (row: SplitRow, c: SplitColumn): string => {
     const v = row[c];
     if (v === null || v === undefined) return DASH;
