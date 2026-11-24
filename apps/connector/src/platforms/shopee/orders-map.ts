@@ -147,15 +147,38 @@ function trimItem(item: Record<string, unknown>, depth = 0): Record<string, unkn
   const product = isRecord(item.product) ? item.product : undefined;
   if (product && typeof product.sku === "string" && out.item_sku === undefined) out.item_sku = product.sku;
   if (depth === 0) {
-    for (const key of SUB_ITEM_LISTS) {
-      const list = item[key];
-      if (Array.isArray(list) && list.some(isRecord)) {
-        out.sub_items = list.filter(isRecord).map((sub) => trimItem(sub, depth + 1));
-        break;
-      }
+    // batch-1124-b CONN (P-CONN capture, 24/11): a combo's own lines are `item_list[]` (item id,
+    // model id, quantity; no price, no SKU). Their SKUs are on `bundle_deal_model[]` (the variation
+    // SKU + Phân loại, like `item_model`) and `bundle_deal_product[]` (the product SKU, like
+    // `product`), joined by model id. An answer without `item_list` keeps the first list (0.3.20).
+    const key = Array.isArray(item.item_list) && item.item_list.some(isRecord) ? "item_list" : SUB_ITEM_LISTS.find((k) => Array.isArray(item[k]) && (item[k] as unknown[]).some(isRecord));
+    if (key) {
+      const subs = (item[key] as unknown[]).filter(isRecord).map((sub) => trimItem(sub, depth + 1));
+      if (key === "item_list") for (const sub of subs) withComboSkus(sub, item);
+      out.sub_items = subs;
     }
   }
   return out;
+}
+
+/** A positive id as text (0 is Shopee's "none"), for the model-id join of a combo's lists. */
+const joinId = (value: unknown): string | undefined => {
+  const id = idOf(value);
+  return id !== undefined && id !== "0" ? id : undefined;
+};
+
+/** One combo sub-line (`item_list` entry, trimmed) with the SKUs its model id has on the combo's lists. */
+function withComboSkus(sub: Record<string, unknown>, parent: Record<string, unknown>): void {
+  const modelId = joinId(sub.model_id);
+  if (modelId === undefined) return;
+  const entry = (list: unknown) => (Array.isArray(list) ? list.filter(isRecord).find((m) => joinId(m.model_id) === modelId) : undefined);
+  const model = entry(parent.bundle_deal_model);
+  if (model) {
+    if (typeof model.sku === "string" && model.sku.trim() !== "" && sub.model_sku === undefined) sub.model_sku = model.sku;
+    if (typeof model.name === "string" && model.name.trim() !== "" && sub.model_name === undefined) sub.model_name = model.name;
+  }
+  const product = entry(parent.bundle_deal_product);
+  if (product && typeof product.sku === "string" && product.sku.trim() !== "" && sub.item_sku === undefined) sub.item_sku = product.sku;
 }
 
 /** One order record (flattened from its wrappers) with only allowlisted keys. */
@@ -831,14 +854,53 @@ export function withPageSkus(body: unknown, page: readonly PageItem[]): unknown 
     return out;
   };
   let fixed: Record<string, unknown>[] | null = null;
-  if (items.length === page.length) {
+  const subsOf = (item: Record<string, unknown>) => (Array.isArray(item.sub_items) ? item.sub_items.filter(isRecord) : []);
+  // batch-1124-b CONN: the page shows a combo as one line per sub-line (`.bundle-deal-item`), so a
+  // SKU-less combo parent with N sub-lines takes the next N page lines (split exactly, each with its
+  // page quantity); every other line takes one.
+  const combo = (item: Record<string, unknown>) => (num(item.bundle_deal_id) ?? 0) > 0 && !hasSku(item) && subsOf(item).length > 0;
+  const width = (item: Record<string, unknown>) => (combo(item) ? subsOf(item).length : 1);
+  if (items.some(combo) && items.reduce((n, item) => n + width(item), 0) === page.length) {
+    fixed = [];
+    let at = 0;
+    for (const item of items) {
+      const n = width(item);
+      const slice = page.slice(at, at + n);
+      at += n;
+      if (!combo(item)) {
+        fixed.push(hasSku(item) ? item : named(item, slice[0] as PageItem));
+        continue;
+      }
+      const lines = splitCombo(item, slice);
+      if (!lines) return null;
+      fixed.push(...lines.map((line, i) => fromSub(named(line, slice[i] as PageItem), subsOf(item)[i])));
+    }
+  } else if (items.length === page.length) {
     fixed = items.map((item, i) => (hasSku(item) ? item : named(item, page[i] as PageItem)));
   } else if (items.length === 1 && page.length > 1 && !hasSku(items[0] as Record<string, unknown>)) {
-    const lines = splitCombo(items[0] as Record<string, unknown>, page);
-    fixed = lines ? lines.map((line, i) => named(line, page[i] as PageItem)) : null;
+    const parent = items[0] as Record<string, unknown>;
+    const lines = splitCombo(parent, page);
+    const subs = subsOf(parent);
+    fixed = lines ? lines.map((line, i) => (subs.length === page.length ? fromSub(named(line, page[i] as PageItem), subs[i] as Record<string, unknown>) : named(line, page[i] as PageItem))) : null;
   }
   if (!fixed || !fixed.every(hasSku)) return null;
   return { ...body, data: { ...order, items: fixed } };
+}
+
+/**
+ * A combo line split from its parent, with its own sub-line's ids and the SKUs the answer gives it
+ * (`bundle_deal_model` / `bundle_deal_product`, joined in the page by model id): the same fields a
+ * plain line takes from `item_model` / `product`. The page's "SKU phân loại" stays only where the
+ * answer names none.
+ */
+function fromSub(line: Record<string, unknown>, sub: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!sub) return line;
+  const out: Record<string, unknown> = { ...line };
+  for (const key of ["item_id", "model_id", "line_item_id"] as const) if (sub[key] !== undefined) out[key] = sub[key];
+  for (const key of ["model_sku", "item_sku", "model_name"] as const) {
+    if (typeof sub[key] === "string" && (sub[key] as string).trim() !== "") out[key] = sub[key];
+  }
+  return out;
 }
 
 
