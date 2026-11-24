@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+from juli_backend.services.metrics.compute import _Context
 from juli_backend.services.shopee_analytics.channel_split import (
     kpis_of,
     split_rows,
@@ -17,6 +18,7 @@ from juli_backend.services.shopee_analytics.channel_split import (
 from juli_backend.services.shopee_analytics.funnel import FunnelRows, SourceDay, base_from_rows
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_builder.engine.contract import SOURCES
+from juli_backend.services.shopee_profit.ladder import LADDER_METRICS, Ladder
 from tests.support.api import authenticate, build_app, client_for
 from tests.support.shopee_analytics import CUR_END, seed_shopee_shop
 
@@ -84,15 +86,34 @@ def test_shares_of_the_three_channels_add_up_to_the_whole_on_the_traffic_base():
     assert r["ads_product"]["share"] is None and r["ads_shop"]["share"] is None  # other base
 
 
-def test_roi_is_profit_over_the_total_cost_and_unknown_without_a_cost():
-    k = kpis_of(D(12_890_000), D(85), D(2_700_000), D(500_000), D(0), D(0))
-    assert k["cost_total"] == 500_000 and k["roi"] == 5.4
-    k = kpis_of(D(1), D(1), D(100), D(200), D(100), D(300))
-    assert k["cost_total"] == 600 and k["roi"] == round(100 / 600, 4)
-    assert kpis_of(D(1), D(1), D(100), D(0), D(0), D(0))["roi"] is None
-    unknown = kpis_of(D(1), D(1), D(100), None, None, None)
+def _ladder(cogs: str = "300", ads: str | None = "200") -> Ladder:
+    comps = {
+        "net_revenue_known": D(1000), "cogs": D(cogs), "packaging": D(0), "fees": D(100),
+        "shipping_net": D(0), "affiliate_commission": D(50), "offer_promo": D(40),
+        "offer_voucher": D(10), "offer_combo": D(0),
+        "ads_spend": None if ads is None else D(ads), "other_marketing": D(0),
+    }  # fmt: skip
+    ctx = _Context(comps, None, {})
+    values = {m: v if isinstance(v := ctx.ref(m), Decimal) else None for m in LADDER_METRICS}
+    return Ladder(comps, values)
+
+
+def test_roi_is_net_profit_over_the_total_cost_incl_goods_and_unknown_without_a_cost():
+    """Decision #44 (P8): ROI = Lợi nhuận ròng ÷ Tổng chi phí (giá vốn + đóng gói + phí + vận
+    chuyển + QC + AFF + Ưu đãi + khác); Chi phí marketing (QC + AFF + Ưu đãi) is its own line."""
+    k = kpis_of(D(1), D(1), D(350), D(200), D(50), D(50), _ladder())
+    assert k["cost_total"] == 700 and k["roi"] == 0.5
+    assert k["cost_marketing"] == 300
+    assert k["gross_profit"] == 700 and k["contribution"] == 600
+    assert (k["margin_gross_pct"], k["margin_contribution_pct"]) == (70.0, 60.0)
+    assert k["margin_pct"] == 35.0
+    # no ladder (no covered line): Tổng chi phí and ROI are unknown, never ÷ marketing only
+    bare = kpis_of(D(12_890_000), D(85), D(2_700_000), D(500_000), D(0), D(0))
+    assert bare["cost_marketing"] == 500_000
+    assert bare["cost_total"] is None and bare["roi"] is None
+    unknown = kpis_of(D(1), D(1), D(100), None, None, None, _ladder(ads=None))
     assert unknown["cost_total"] is None and unknown["roi"] is None
-    assert kpis_of(D(1), D(1), None, D(5), None, None)["roi"] is None
+    assert kpis_of(D(1), D(1), None, D(5), None, None, _ladder())["roi"] is None
 
 
 def test_affiliate_has_no_views_but_clicks_ctor_and_aov():
@@ -210,8 +231,14 @@ async def test_the_seller_route_answers_both_levels_and_the_picker(session):
     assert body["level"] == "shop" and body["product_id"] is None
     assert [r["key"] for r in body["rows"]][:2] == ["organic", "organic_card"]
     assert set(body["kpis"]) == {
-        "gmv", "orders", "profit", "cost_total", "cost_ads", "cost_affiliate", "cost_offers", "roi",
+        "gmv", "orders", "profit", "cost_total", "cost_marketing", "cost_ads", "cost_affiliate",
+        "cost_offers", "cost_cogs", "cost_packaging", "cost_fees", "cost_shipping", "cost_other",
+        "gross_profit", "contribution", "margin_gross_pct", "margin_contribution_pct",
+        "margin_pct", "roi",
     }  # fmt: skip
+    k = body["kpis"]
+    if k["roi"] is not None:  # ROI = Lợi nhuận ròng ÷ Tổng chi phí (decision #44)
+        assert abs(k["roi"] - k["profit"] / k["cost_total"]) < 1e-4
     assert body["days"] == 7 and "kpis_prev" in body
     assert all("prev" in r and "share" in r for r in body["rows"])
     assert picker.status_code == 200 and picker.json()["products"]

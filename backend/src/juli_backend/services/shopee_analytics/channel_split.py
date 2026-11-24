@@ -84,6 +84,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
     SourceFunnel,
 )
 from juli_backend.services.shopee_profit import shop_profit
+from juli_backend.services.shopee_profit.ladder import Ladder, ladder_of
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 
 LOG = logging.getLogger(__name__)
@@ -711,6 +712,9 @@ def _offers_cost(view: PeriodView, product_id: str | None) -> Decimal | None:
     return sum((pb.promo_discount + pb.voucher + pb.bundle for _, pb in pairs), Decimal(0))
 
 
+ZERO_D = Decimal(0)
+
+
 def kpis_of(
     gmv: Decimal | None,
     orders: Decimal | None,
@@ -718,22 +722,40 @@ def kpis_of(
     cost_ads: Decimal | None,
     cost_affiliate: Decimal | None,
     cost_offers: Decimal | None,
+    ladder: Ladder | None = None,
 ) -> dict[str, Any]:
-    """Tổng quan's KPIs: Tổng chi phí = Quảng cáo (ads report) + Tiếp thị liên kết + Ưu đãi (the
-    known ones; ``None`` when none is known); ROI = Lợi nhuận ÷ Tổng chi phí (``None`` when the
-    cost is 0 or unknown)."""
-    total = _sum([cost_ads, cost_affiliate, cost_offers])
-    roi = None if profit is None else _div(profit, total)
-    return {
+    """Tổng quan's KPIs (decision #44). ``cost_marketing`` = Quảng cáo (ads report) + Tiếp thị
+    liên kết + Ưu đãi (the known ones; ``None`` when none is known). With the scope's ``ladder``
+    (the registry's ladder on its covered lines): Lợi nhuận gộp / đóng góp, the three margins,
+    ``cost_total`` = Tổng chi phí (giá vốn + đóng gói + phí + vận chuyển + QC + AFF + Ưu đãi +
+    khác) and ROI = Lợi nhuận ròng ÷ Tổng chi phí. No ladder: ``cost_total`` / ROI are ``None``
+    (never ÷ the marketing costs)."""
+    marketing = _sum([cost_ads, cost_affiliate, cost_offers])
+
+    def lv(mid: str) -> Decimal | None:
+        return None if ladder is None else ladder.get(mid)
+
+    total = lv("cost_total")
+    roi = None if profit is None or total is None else _div(profit, total)
+    out = {
         "gmv": num(gmv),
         "orders": num(orders),
         "profit": num(profit),
         "cost_total": num(total),
+        "cost_marketing": num(marketing),
         "cost_ads": num(cost_ads),
         "cost_affiliate": num(cost_affiliate),
         "cost_offers": num(cost_offers),
         "roi": frac(roi, 4),
     }
+    for mid in ("cost_cogs", "cost_packaging", "cost_fees", "cost_shipping", "cost_other"):
+        out[mid] = num(lv(mid))
+    for mid in ("gross_profit", "contribution"):
+        out[mid] = num(lv(mid))
+    for mid in ("margin_gross", "margin_contribution", "margin"):
+        v = lv(mid)
+        out[f"{mid}_pct"] = None if v is None else float(v * 100)
+    return out
 
 
 def _kpis(
@@ -743,10 +765,18 @@ def _kpis(
     if product_id is None:
         profit = shop_profit_of(view).profit
         ads_cost: Decimal | None = view.profit.total_ad_spend
+        other: Decimal | None = view.profit.other_marketing_costs
     else:
         pp = view.profit.products.get(product_id)
         profit = None if pp is None else pp.profit
         ads_cost = None if pp is None else pp.ad_spend
+        other = ZERO_D
+    pairs = [(ln, pb) for ln, pb in view.pairs if product_id is None or ln.product_id == product_id]
+    ladder = (
+        ladder_of(pairs, ads_spend=ads_cost, other_marketing=other, profit=profit)
+        if pairs
+        else None
+    )
     return kpis_of(
         base.total("gmv"),
         base.total("orders"),
@@ -754,6 +784,7 @@ def _kpis(
         ads_cost,
         _affiliate_cost(view, product_id),
         _offers_cost(view, product_id),
+        ladder,
     )
 
 

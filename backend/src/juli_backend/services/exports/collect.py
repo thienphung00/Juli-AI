@@ -126,10 +126,14 @@ def _figures(split: dict[str, Any]) -> tq.Figures:
             _f(r.get("views")), _f(r.get("clicks")), _f(r.get("orders")), _f(r.get("gmv")),
             {"ads": _f(k["cost_ads"]), "affiliate": _f(k["cost_affiliate"])}.get(key),
         )  # fmt: skip
+    ops = [k.get(m) for m in ("cost_cogs", "cost_packaging", "cost_fees", "cost_shipping",
+                               "cost_other")]  # fmt: skip
     return tq.Figures(
         channels=channels, gmv=_f(k["gmv"]), orders=_f(k["orders"]), profit=_f(k["profit"]),
         ads_cost=_f(k["cost_ads"]), aff_cost=_f(k["cost_affiliate"]),
         offer_cost=_f(k["cost_offers"]),
+        gross_profit=_f(k.get("gross_profit")), contribution=_f(k.get("contribution")),
+        cost_ops=None if any(v is None for v in ops) else float(sum(ops)),
     )  # fmt: skip
 
 
@@ -161,6 +165,9 @@ def _residual(shop: tq.Figures, parts: list[tq.Figures]) -> tq.Figures:
         aff_cost=sub(shop.aff_cost, [p.aff_cost for p in parts]),
         offer_cost=sub(shop.offer_cost, [p.offer_cost for p in parts]),
         net_revenue_known=sub(shop.net_revenue_known, [p.net_revenue_known for p in parts]),
+        gross_profit=sub(shop.gross_profit, [p.gross_profit for p in parts]),
+        contribution=sub(shop.contribution, [p.contribution for p in parts]),
+        cost_ops=sub(shop.cost_ops, [p.cost_ops for p in parts]),
     )  # fmt: skip
 
 

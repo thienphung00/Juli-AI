@@ -70,7 +70,13 @@ def test_overview_cells_and_formulas():
     assert ws["B6"].value == '=IFERROR(B4/B5,"—")'
     assert ws["B11"].value == "=SUM(B8:B10)"  # QC + TTLK + ưu đãi (registry cost_marketing)
     assert ws["A10"].value == tq.OFFER_LABEL
-    assert ws["B12"].value == '=IFERROR(B7/B11,"—")' and ws["B12"].number_format == "0.0"
+    # decision #44: ROI = Lợi nhuận ròng ÷ Tổng chi phí (row 24 = marketing + giá vốn ... khác)
+    assert ws["B12"].value == '=IFERROR(B7/B24,"—")' and ws["B12"].number_format == "0.0"
+    assert ws["B24"].value == '=IF(ISNUMBER(B23),B11+B23,"—")'
+    assert ws["A24"].value == f"{METRICS['cost_total'].label_vi} (đ)"
+    assert ws["A19"].value == f"{METRICS['gross_profit'].label_vi} (đ)"
+    assert ws["A20"].value == f"{METRICS['contribution'].label_vi} (đ)"
+    assert ws["B21"].value == '=IFERROR(B19/B14,"—")'  # Biên gộp ÷ doanh thu thực
     assert ws["A12"].value == f"{METRICS['roi'].label_vi} (lần)"
     assert ws["A11"].value == f"{METRICS['cost_marketing'].label_vi} (đ)"
     assert ws["A13"].value == METRICS["margin"].label_vi
@@ -380,7 +386,7 @@ def test_all_shops_overview_has_a_column_per_shop_and_a_total_from_the_registry_
         assert ws.cell(r[key], 4).value == f"=SUM(B{r[key]}:C{r[key]})", key
     # ratios: recomputed from the Tổng parts, never summed or averaged
     assert ws.cell(r["aov"], 4).value == f'=IFERROR(D{r["gmv"]}/D{r["orders"]},"")'
-    assert ws.cell(r["roi"], 4).value == f'=IFERROR(D{r["profit"]}/D{r["cost"]},"")'
+    assert ws.cell(r["roi"], 4).value == f'=IFERROR(D{r["profit"]}/D{r["cost_total"]},"")'
     assert ws.cell(r["aov"], 3).value == f'=IFERROR(C{r["gmv"]}/C{r["orders"]},"")'
     assert ws.cell(r["gmv"], 2).value == 5_500_000 and ws.cell(r["gmv"], 3).value == 11_000_000
     assert tq.summable_row("gmv") and not tq.summable_row("aov") and not tq.summable_row("roi")

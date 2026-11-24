@@ -259,6 +259,15 @@ class ProfitBreakdown:
             return ZERO
         return self.buyer_paid - self.vat_output
 
+    @property
+    def organic_contribution(self) -> Decimal | None:
+        """Decision #44: the ladder's Lợi nhuận đóng góp -- ``contribution`` before the affiliate
+        commission too (revenue − fees − giá vốn − đóng gói − vận chuyển ròng). ``None`` when the
+        contribution is unknown."""
+        if self.contribution is None:
+            return None
+        return self.contribution + (self.commission or ZERO)
+
 
 def allocate_ads(pool: AdsPool, line_ad_revenue: Decimal) -> Decimal | None:
     """SKU ad cost x (line ad revenue / SKU ad revenue), whole đồng; None if no revenue base."""
