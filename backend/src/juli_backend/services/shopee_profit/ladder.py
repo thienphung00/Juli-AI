@@ -79,7 +79,7 @@ def components_of(pairs: Iterable[tuple[OrderLine, ProfitBreakdown]]) -> dict[st
         c["shipping_net"] += pb.income_costs_total or ZERO
         c["affiliate_commission"] += pb.commission or ZERO
         c["offer_promo"] += pb.promo_discount
-        c["offer_voucher"] += pb.voucher_borne or ZERO  # what the seller bore (settlement)
+        c["offer_voucher"] += pb.voucher  # the voucher the seller bore (#50)
         c["offer_combo"] += pb.bundle
     return c
 
