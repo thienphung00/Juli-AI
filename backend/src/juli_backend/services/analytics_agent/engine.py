@@ -25,6 +25,7 @@ from juli_backend.services.analytics_agent import (
     lookup,
     present,
     routing,
+    summary,
     weekly,
     windows,
     writer,
@@ -395,6 +396,7 @@ async def _run(
             restated,
             template,
             carry,
+            latest=latest,
         )
         if (
             intent.get("asks_why")
@@ -427,6 +429,7 @@ async def _run(
                 restated,
                 template,
                 carry,
+                latest=latest,
             )
     if more:
         await out.emit(
@@ -444,6 +447,46 @@ async def _run(
 
 
 async def _answer(
+    req: AskRequest,
+    out: _Out,
+    result: AnswerResult,
+    data: DataPort,
+    engine: CardEnginePort | None,
+    llm: LLMPort,
+    jev: JevPort,
+    labels: LabelTable,
+    as_of: date,
+    intent: dict[str, Any],
+    dec: dict[str, Any],
+    restated: str,
+    template: Template | None,
+    carry: dict[str, Any] | None = None,
+    latest: date | None = None,
+) -> None:
+    """One intent's answer, then (J-H1) a written summary of its structured events. The chain path
+    writes its own explanation; a text stream already present means nothing is added."""
+    mark = len(result.events)
+    await _answer_inner(
+        req, out, result, data, engine, llm, jev, labels, as_of, intent, dec, restated, template,
+        carry,
+    )  # fmt: skip
+    new = result.events[mark:]
+    if any(e.get("type") in ("text_delta", "text_replace") for e in new):
+        return
+    meta = await summary.write_summary(
+        llm,
+        lambda t: out.emit({"type": "text_delta", "text": t}),
+        lambda t: out.emit({"type": "text_replace", "text": t}),
+        new,
+        fresh_vi=f"Số liệu đến hết {latest:%d/%m}" if latest else None,
+    )
+    if meta is not None:
+        result.routing.append(
+            {"step": "summary", "template": meta["template"], "issues": meta["issues"]}
+        )
+
+
+async def _answer_inner(
     req: AskRequest,
     out: _Out,
     result: AnswerResult,
