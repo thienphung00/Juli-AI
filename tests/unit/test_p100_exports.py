@@ -74,6 +74,7 @@ def test_overview_cells_and_formulas():
     assert ws["B12"].value == '=IFERROR(B7/B19,"—")' and ws["B12"].number_format == "0.0"
     assert ws["A19"].value == f"{METRICS['cost_total'].label_vi} (đ)"
     assert ws["A12"].value == f"{METRICS['roi'].label_vi} (lần)"
+    assert ws["A7"].value == f"{METRICS['profit'].label_vi} (đ)"  # Lợi nhuận ròng (#51)
     assert ws["A11"].value == f"{METRICS['cost_marketing'].label_vi} (đ)"
     assert ws["A13"].value == METRICS["margin"].label_vi
     assert ws["B13"].value.endswith('IFERROR(B7/B14,"—"),"—")')  # profit ÷ net_revenue_known
@@ -409,11 +410,16 @@ def test_the_profit_sheet_lists_each_cost_once_and_sums_to_the_profit():
     ws = wb[tq.SHEET_PROFIT]
     rows = {ws.cell(r, 1).value: r for r in range(1, ws.max_row + 1) if ws.cell(r, 1).value}
     base = rows["Doanh thu tính lợi nhuận (sau VAT đầu ra)"]
-    profit = rows["Lợi nhuận bán hàng trên sàn"]
-    assert ws.cell(profit, 2).value == f"=SUM(B{base}:B{profit - 1})"
+    profit = rows[METRICS["profit"].label_vi]
+    # #51: the bridge ends at Lợi nhuận ròng, with the gộp and đóng góp subtotals inside it
+    gross, contrib = rows[METRICS["gross_profit"].label_vi], rows[METRICS["contribution"].label_vi]
+    assert base < gross < contrib < profit
+    assert ws.cell(gross, 2).value == f"=B{base}+SUM(B{base + 1}:B{gross - 1})"
+    assert ws.cell(profit, 2).value == f"=B{contrib}+SUM(B{contrib + 1}:B{profit - 1})"
     # the costs below the revenue are negatives that sum to the profit; no marketing-other row
-    values = [ws.cell(r, 2).value for r in range(base, profit)]
+    values = [ws.cell(r, 2).value for r in range(base, profit) if r not in (gross, contrib)]
     assert sum(values) == 200_000 and "− Chi phí marketing khác" not in rows
+    assert not any("ngoài sàn" in str(ws.cell(r, 1).value) for r in range(1, ws.max_row + 1))
     offer = next(k for k in rows if k.startswith("Ưu đãi của shop"))
     # the Tổng quan sheet's ưu đãi figure, so the two sheets never show two numbers
     assert "thuộc chi phí marketing" in offer and ws.cell(rows[offer], 2).value == 30_000
@@ -454,3 +460,75 @@ def test_channel_sheet_takes_the_profit_split_with_one_combined_cost_per_channel
     assert [ws.cell(r, 10).value for r in range(4, 8)] == [600_000, 200_000, 140_000, -40_000]
     assert ws["J8"].value == "=SUM(J4:J7)"
     assert 600_000 + 200_000 + 140_000 - 40_000 == now.profit  # adds up to the shop's profit
+
+
+def _sheet_value(ws, r: int) -> float:
+    """The value of a bridge cell: a number, or ``=B{n}+SUM(B{a}:B{b})`` evaluated."""
+    import re
+
+    v = ws.cell(r, 2).value
+    if not isinstance(v, str):
+        return float(v)
+    m = re.fullmatch(r"=B(\d+)(?:\+SUM\(B(\d+):B(\d+)\))?", v)
+    assert m, v
+    out = _sheet_value(ws, int(m.group(1)))
+    if m.group(2):
+        out += sum(_sheet_value(ws, i) for i in range(int(m.group(2)), int(m.group(3)) + 1))
+    return out
+
+
+def test_the_bridge_subtotals_equal_the_registry_ladder():
+    """#51: Lợi nhuận gộp / đóng góp / ròng on the Lợi nhuận sheet are the registry's ladder on
+    the bridge's own components (no second formula)."""
+    from decimal import Decimal
+
+    from juli_backend.services.exports.profit_bridge import ProfitBridge
+    from juli_backend.services.metrics.compute import _Context
+
+    b = ProfitBridge(
+        gmv=1_000_000, orders=10, lost_gmv=0, lost_orders=0, pending_gmv=0, pending_orders=0,
+        refund_gmv=0, refund_orders=0, refunds_in_gmv=False, paid_success=900_000,
+        success_orders=10, offers=0, payout=None, payout_orders=0, known_orders=10,
+        known_gmv_share_pct=100.0, revenue=800_000, vat_output=0, fees=120_000,
+        fees_real_pct=100.0, cogs=300_000, cogs_real_pct=100.0, packaging=20_000,
+        packaging_real_pct=100.0, commission=15_000, shipping_other=5_000, ads=60_000,
+        ads_no_order_days=0, other_marketing=10_000, profit=270_000, margin_pct=33.75,
+    )  # fmt: skip
+    data = _data()
+    data.bridge = b
+    ws = tq.build(data)[tq.SHEET_PROFIT]
+    rows = {ws.cell(r, 1).value: r for r in range(1, ws.max_row + 1) if ws.cell(r, 1).value}
+    comps = {
+        "net_revenue_known": b.revenue, "cogs": b.cogs, "packaging": b.packaging,
+        "fees": b.fees, "shipping_net": b.shipping_other, "affiliate_commission": b.commission,
+        "ads_spend": b.ads, "other_marketing": b.other_marketing,
+    }  # fmt: skip
+    ctx = _Context({k: Decimal(str(v)) for k, v in comps.items()}, None, {})
+    for metric in ("gross_profit", "contribution", "profit"):
+        row = rows[METRICS[metric].label_vi]
+        assert _sheet_value(ws, row) == float(ctx.ref(metric)), metric
+    assert _sheet_value(ws, rows[METRICS["profit"].label_vi]) == b.profit
+
+
+def test_the_overview_sheet_carries_the_ladder_rows_export_only():
+    """#51: Lợi nhuận gộp, Biên gộp, Lợi nhuận đóng góp, Biên đóng góp (registry labels) beside
+    Lợi nhuận ròng and Biên lợi nhuận; kỳ này and kỳ trước like the other rows."""
+    from dataclasses import replace
+
+    data = _data()
+    now = replace(data.now, gross_profit=2_000_000, contribution=1_200_000)
+    prev = replace(data.prev, gross_profit=1_800_000, contribution=1_000_000)
+    ws = tq.build(replace(data, now=now, prev=prev))[tq.SHEET_OVERVIEW]
+    ov = tq.OV
+    assert ws.cell(ov["gross"], 1).value == f"{METRICS['gross_profit'].label_vi} (đ)"
+    assert ws.cell(ov["contribution"], 1).value == f"{METRICS['contribution'].label_vi} (đ)"
+    assert ws.cell(ov["margin_gross"], 1).value == METRICS["margin_gross"].label_vi
+    assert ws.cell(ov["margin_contribution"], 1).value == METRICS["margin_contribution"].label_vi
+    assert ws.cell(ov["gross"], 2).value == 2_000_000 and ws.cell(ov["gross"], 4).value == 1_800_000
+    assert ws.cell(ov["margin_gross"], 2).value.endswith(
+        f'IFERROR(B{ov["gross"]}/B{ov["base"]},"—"),"—")'
+    )
+    # Biên đóng góp kỳ trước = 1.000.000 ÷ doanh thu thực kỳ trước
+    assert ws.cell(ov["margin_contribution"], 4).value == pytest.approx(
+        1_000_000 / prev.net_revenue_known
+    )

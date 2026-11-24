@@ -141,6 +141,7 @@ def _figures(split: dict[str, Any]) -> tq.Figures:
         ads_cost=_f(k["cost_ads"]), aff_cost=_f(k["cost_affiliate"]),
         offer_cost=_f(k["cost_offers"]), cost_total=_f(k.get("cost_total")),
         rest_cost=rest_cost, rest_profit=None if rest is None else _f(rest["profit"]),
+        gross_profit=_f(k.get("gross_profit")), contribution=_f(k.get("contribution")),
     )  # fmt: skip
 
 
@@ -173,6 +174,8 @@ def _residual(shop: tq.Figures, parts: list[tq.Figures]) -> tq.Figures:
         offer_cost=sub(shop.offer_cost, [p.offer_cost for p in parts]),
         net_revenue_known=sub(shop.net_revenue_known, [p.net_revenue_known for p in parts]),
         cost_total=sub(shop.cost_total, [p.cost_total for p in parts]),
+        gross_profit=sub(shop.gross_profit, [p.gross_profit for p in parts]),
+        contribution=sub(shop.contribution, [p.contribution for p in parts]),
     )  # fmt: skip
 
 
