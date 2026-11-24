@@ -10,7 +10,7 @@ Two blocks:
   buyer paid, so never a cost again) and the payout Shopee transferred (orders with an
   income-export row). GMV - lost - pending - refunds (when held) = the GMV of the delivered
   orders, whose buyer paid is that GMV less the offers.
-- **Lợi nhuận bán hàng trên sàn** -- over exactly the orders the dashboard profit counts
+- **Lợi nhuận (gộp → đóng góp → ròng, #51)** -- over exactly the orders the dashboard profit counts
   (:func:`known_cost_profit`: every counted line of the order has its costs): revenue after
   output VAT, then each cost on its own line, then the profit and its margin over that revenue.
   The costs are the same terms :func:`line_profit` takes off each line and the ads are the
@@ -63,7 +63,7 @@ class ProfitBridge:
     offers: float  # khuyến mãi + voucher + combo of the counted lines: inside the buyer paid
     payout: float | None  # Shopee's payout of the orders with an income row
     payout_orders: int
-    # Lợi nhuận bán hàng trên sàn (the known-cost orders, as the dashboard profit)
+    # the profit ladder (the known-cost orders, as the dashboard profit)
     known_orders: int
     known_gmv_share_pct: float | None
     revenue: float  # buyer paid - output VAT (0 for an accepted refund)
