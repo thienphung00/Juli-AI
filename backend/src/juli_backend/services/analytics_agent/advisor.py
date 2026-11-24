@@ -720,6 +720,16 @@ async def render(ctx: Ctx, items: list[dict[str, Any]], fact_set: facts.Facts) -
 # ------------------------------------------------------------------ the loop
 
 
+#: The keys a replayed block keeps: the API adds others to its answers (e.g. ``caller`` on a
+#: ``tool_use``), which the gate's block allowlist refuses (payload_shape) on the next turn.
+_REPLAY_KEYS = {"text": ("type", "text"), "tool_use": ("type", "id", "name", "input")}
+
+
+def _replay_block(block: dict[str, Any]) -> dict[str, Any]:
+    """The block as the next turn sends it back: only the keys the Messages API needs."""
+    return {k: block[k] for k in _REPLAY_KEYS[block["type"]] if k in block}
+
+
 def _blocks(content: list[dict[str, Any]], kind: str) -> list[dict[str, Any]]:
     return [b for b in content if b.get("type") == kind]
 
@@ -763,7 +773,7 @@ async def run_advice(
         budget.cost += usage.cost_usd
         # the loop replays its turns: only text / tool_use go back (the gate refuses other blocks;
         # `GateLLM.agent` runs with thinking disabled, so none is needed for the next turn)
-        content = [b for b in content if b.get("type") in ("text", "tool_use")]
+        content = [_replay_block(b) for b in content if b.get("type") in ("text", "tool_use")]
         messages.append({"role": "assistant", "content": content})
         uses = _blocks(content, "tool_use")
         final = next((u for u in uses if u.get("name") == "emit_plan"), None)

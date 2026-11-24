@@ -351,8 +351,14 @@ async def test_the_second_turn_body_passes_the_real_gate_inspection() -> None:
     from juli_backend.services.llm_gate.vendors import inspect_messages_body
 
     bodies: list[dict[str, Any]] = []
+    # the live API (24/11) adds keys the gate refuses on replay: ``caller`` on a tool_use,
+    # ``citations`` on a text block; they must be dropped before the next turn
     turns = [
-        [THINKING, tool_use("open_cards", "a")],
+        [
+            THINKING,
+            {"type": "text", "text": "Xem thẻ.", "citations": None},
+            {**tool_use("open_cards", "a"), "caller": {"type": "direct"}},
+        ],
         [
             THINKING,
             tool_use(
