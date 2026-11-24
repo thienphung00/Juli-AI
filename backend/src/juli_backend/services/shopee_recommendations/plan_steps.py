@@ -129,14 +129,17 @@ def build_steps(
     for k, (card, j) in enumerate(zip(cards, joints, strict=True)):
         total_p50 = j.total["p50"]["dprofit"]
         step_p50 = None if total_p50 is None or prev_p50 is None else round(total_p50 - prev_p50, 2)
-        margin_after = _margin_pct(j.five, "pct_after")
-        if margin_after is None:
-            # P99b: on the option-result path the step's Δ is the results' P50 (an unknown
-            # stays unknown); the money layer's certain figures only on the legacy path
-            if getattr(j, "result_basis", None):
-                p50 = j.total["p50"]
-                margin_after = _derived_margin(base, p50["dprofit"], p50["dgmv"])
-            else:
+        if getattr(j, "result_basis", None):
+            # P4 (#44): ONE plan margin -- on the option-result path the step's margin is the
+            # results' P50 on doanh thu thực (the new offers lower it), never the money layer's
+            # stacked figure (③); an unknown stays unknown
+            p50 = j.total["p50"]
+            d_gmv = p50["dgmv"]
+            d_net = None if d_gmv is None else d_gmv - (p50.get("drevoffer") or 0.0)
+            margin_after = _derived_margin(base, p50["dprofit"], d_net)
+        else:
+            margin_after = _margin_pct(j.five, "pct_after")
+            if margin_after is None:
                 margin_after = _derived_margin(base, j.certain["dprofit"], j.certain["dgmv"])
         items.append(
             {

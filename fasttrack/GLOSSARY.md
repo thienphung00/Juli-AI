@@ -25,9 +25,9 @@ Every term here was misread by an agent at least once and then corrected by the 
 | Term | Means |
 |---|---|
 | **GMV (headline)** | the Seller Centre shop total. **Doanh thu thực** (net) sits beside it. There is one shop-GMV source; screens must not compute their own. |
-| **Biên cuối ở giá hiện tại** vs **Biên thực hiện 30 ngày** | the only two margins. Both are labelled every time and never mixed. Profit and margins use net revenue. |
+| **Profit ladder (decision #44, 24/11)** | Doanh thu thực → **Lợi nhuận gộp** (− giá vốn − đóng gói) → **Lợi nhuận đóng góp** (− phí sàn − vận chuyển ròng; before ads AND affiliate; the basis of every card, "organic contribution") → **Lợi nhuận ròng** (− QC − AFF − marketing khác; the shop/plan profit). Three margins, all ÷ doanh thu thực: **Biên gộp**, **Biên đóng góp** (cards), **Biên lợi nhuận** (plan, Tổng quan). Registry ids `gross_profit`, `contribution`, `profit`, `margin_gross`, `margin_contribution`, `margin`. Replaces the two-margin rule and "Lợi nhuận trước quảng cáo". |
 | **Δ lợi nhuận / Δ GMV** | totals for the whole period (the plan's or version's days), with "≈ …/ngày" as the secondary figure |
-| **ROI** | "ROI (lợi nhuận ÷ chi phí QC + AFF)": profit ÷ (ads + affiliate), shown in points ("5,4"), **never as %**. Ưu đãi is deducted from revenue, never a cost (owner 2026-11-18, option A). |
+| **ROI** | Lợi nhuận ròng ÷ **Tổng chi phí** (`cost_total` = giá vốn + đóng gói + phí + vận chuyển + QC + AFF + Ưu đãi + khác), shown in points ("0,5"), **never as %** (decision #44, 24/11; replaces "÷ (QC + AFF)" of 2026-11-18). Chi phí marketing (QC + AFF + Ưu đãi) stays its own line. A card's ΔGMV ÷ cost is `card_return`, never "ROI". |
 | **Tax** | Juli doesn't calculate withheld VAT or PIT. Don't add tax settings or "trước thuế" labels. |
 
 ## Order statuses (owner 2026-11-18, D2; Shopee and TikTok the same)

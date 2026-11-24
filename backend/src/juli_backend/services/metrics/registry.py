@@ -33,7 +33,7 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
 
-DERIVATION_VERSION = "2026-11-24.1"
+DERIVATION_VERSION = "2026-11-24.2"
 
 #: an expression: a bare id, or ``(operator, *operands)``
 Expr = str | tuple[Any, ...]
@@ -410,7 +410,8 @@ def _build() -> dict[str, MetricDef]:
         shopee=_src("order_lines", _SC, "buyer_paid", "deal×qty − seller voucher − combo − VAT"),
     )
 
-    # Profit and margin (two labelled margins, ask 1)
+    # Profit ladder (decision #44): Doanh thu thực -> Lợi nhuận gộp -> Lợi nhuận đóng góp (the card
+    # basis, before ads and affiliate) -> Lợi nhuận ròng; three margins, all ÷ doanh thu thực
     b.add(
         "cost_coverage",
         "Độ phủ giá vốn",
@@ -421,20 +422,30 @@ def _build() -> dict[str, MetricDef]:
         shopee=_src("order_lines", _SC, "cogs_coverage", "known-cost GMV ÷ line GMV"),
     )
     b.add(
-        "profit",
-        "Lợi nhuận",
+        "gross_profit",
+        "Lợi nhuận gộp",
         V,
         D,
-        sub(
-            "net_revenue_known",
-            "cogs",
-            "packaging",
-            "fees",
-            "shipping_net",
-            "affiliate_commission",
-            "ads_spend",
-            "other_marketing",
-        ),
+        sub("net_revenue_known", "cogs", "packaging"),
+        summable=True,
+        known=True,
+    )
+    b.add(
+        "contribution",
+        "Lợi nhuận đóng góp",
+        V,
+        D,
+        sub("gross_profit", "fees", "shipping_net"),
+        summable=True,
+        known=True,
+        note="before ads, affiliate and other marketing: the card basis (#42 / #44)",
+    )
+    b.add(
+        "profit",
+        "Lợi nhuận ròng",
+        V,
+        D,
+        sub("contribution", "ads_spend", "affiliate_commission", "other_marketing"),
         summable=True,
         known=True,
         shopee=_src(
@@ -443,6 +454,24 @@ def _build() -> dict[str, MetricDef]:
             "known_cost_profit",
             "shared.shop_profit_of; ads and other marketing are shop-level",
         ),
+    )
+    b.add(
+        "margin_gross",
+        "Biên gộp",
+        PP,
+        P1,
+        div("gross_profit", "net_revenue_known"),
+        summable=False,
+        known=True,
+    )
+    b.add(
+        "margin_contribution",
+        "Biên đóng góp",
+        PP,
+        P1,
+        div("contribution", "net_revenue_known"),
+        summable=False,
+        known=True,
     )
     b.add(
         "margin",
@@ -467,22 +496,13 @@ def _build() -> dict[str, MetricDef]:
         shopee=_src("catalog", OrderBasis.none, "price_margin", "one unit at the selling price"),
     )
     b.add(
-        "contribution",
-        "Lợi nhuận trước quảng cáo",
-        V,
-        D,
-        s("profit", "ads_spend"),
-        summable=True,
-        known=True,
-    )
-    b.add(
         "contribution_rate",
         "Tỷ lệ đóng góp",
         PP,
         P1,
-        div(s("contribution", "affiliate_commission"), "net_revenue_known"),
+        div("contribution", "net_revenue_known"),
         summable=False,
-        note="before ads and commission: the rate channel profit uses (§6)",
+        note="margin_contribution as a fraction: the rate channel profit uses (§6)",
     )
 
     # Costs (ask 2)
@@ -610,7 +630,7 @@ def _build() -> dict[str, MetricDef]:
         "ROI",
         X,
         X1,
-        div("profit", "cost_marketing"),
+        div("profit", "cost_total"),
         summable=False,
         levels=(Level.shop, Level.product, Level.channel),
         known=True,

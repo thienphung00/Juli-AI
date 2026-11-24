@@ -108,6 +108,13 @@ class ProductProfit:
     excluded_orders: int = 0  # cancelled / undelivered: in ``gmv`` only, outside the profit base
     ads: AdsFigures | None = None  # the report row, when given
     missing: dict[str, int] = field(default_factory=dict)  # reason -> uncovered lines
+    #: the covered lines' affiliate commission (already inside ``contribution``)
+    affiliate_commission: Decimal = ZERO
+
+    @property
+    def organic_contribution(self) -> Decimal:
+        """Decision #44: Lợi nhuận đóng góp of the covered lines, before ads AND affiliate."""
+        return self.contribution + self.affiliate_commission
 
     @property
     def cost_coverage_rate(self) -> Decimal | None:
@@ -131,9 +138,11 @@ class ProductProfit:
 
     @property
     def break_even_roas(self) -> Decimal | None:
-        if self.contribution <= 0:
+        """ROAS hoà vốn = doanh thu thực ÷ Lợi nhuận đóng góp (registry ``roas_break_even``, the
+        ladder's contribution before ads and affiliate, decision #44)."""
+        if self.organic_contribution <= 0:
             return None
-        return safe_div(self.buyer_paid_covered, self.contribution)
+        return safe_div(self.buyer_paid_covered, self.organic_contribution)
 
     @property
     def roas_broad(self) -> Decimal | None:
@@ -184,6 +193,13 @@ class ShopProfit:
     reconciliation: GmvReconciliation
     missing: dict[str, int]
     products: dict[str, ProductProfit]
+    #: the covered lines' affiliate commission (already inside ``contribution``)
+    affiliate_commission: Decimal = ZERO
+
+    @property
+    def organic_contribution(self) -> Decimal:
+        """Decision #44: Lợi nhuận đóng góp of the covered lines, before ads AND affiliate."""
+        return self.contribution + self.affiliate_commission
 
     @property
     def cost_coverage_rate(self) -> Decimal | None:
@@ -211,9 +227,9 @@ class ShopProfit:
 
     @property
     def break_even_roas(self) -> Decimal | None:
-        if self.contribution <= 0:
+        if self.organic_contribution <= 0:
             return None
-        return safe_div(self.buyer_paid_covered, self.contribution)
+        return safe_div(self.buyer_paid_covered, self.organic_contribution)
 
 
 def reconcile_gmv(pairs: Pairs, export_gmv: Decimal | None) -> GmvReconciliation:
@@ -287,6 +303,7 @@ def product_profits(
             missing=dict(missing),
             excluded_orders=len({ln.order_id for ln, pb in all_items if pb.excluded_reason}),
             ads=(product_ads or {}).get(product),
+            affiliate_commission=sum((pb.commission or ZERO for _, pb in covered), ZERO),
         )
     return out
 
@@ -343,6 +360,7 @@ def shop_profit(
         reconciliation=reconcile_gmv(pairs, export_gmv),
         missing=dict(missing),
         products=products,
+        affiliate_commission=sum((p.affiliate_commission for p in products.values()), ZERO),
     )
 
 

@@ -81,15 +81,23 @@ def order_values(lines: Sequence[OrderLine]) -> dict[str, Decimal]:
     return dict(out)
 
 
+def _organic(pb: Any) -> Decimal | None:
+    """A line's Lợi nhuận đóng góp: its contribution before the affiliate commission too."""
+    c: Decimal | None = pb.contribution
+    return None if c is None else c + (getattr(pb, "commission", None) or ZERO)
+
+
 def profit_per_order(env: RecoEnv, order_ids: set[str]) -> Decimal | None:
-    """Contribution per order of the orders (None when any line's cost is unknown)."""
+    """Lợi nhuận đóng góp (before ads and affiliate, #42) per order of the orders (None when any
+    line's cost is unknown)."""
     total = ZERO
     for ln, pb in env.view.pairs:
         if ln.order_id not in order_ids or pb.excluded_reason is not None:
             continue
-        if pb.contribution is None:
+        c = _organic(pb)
+        if c is None:
             return None
-        total += pb.contribution
+        total += c
     return total / len(order_ids) if order_ids else None
 
 
@@ -196,7 +204,10 @@ def gift_offer(certain: Mapping[str, Any]) -> OfferCost | None:
     if per is None or not n:
         return None
     share = Decimal(str(q or 0)) / Decimal(str(n))
-    return OfferCost(Decimal(str(per)), Band(share, share, share), None, "quà tặng")
+    # a gift is goods the shop gives: a cost, never a lower doanh thu thực
+    return OfferCost(
+        Decimal(str(per)), Band(share, share, share), None, "quà tặng", reduces_revenue=False
+    )
 
 
 def add_on_offer(certain: Mapping[str, Any], aov_lift: Band) -> OfferCost | None:

@@ -55,6 +55,9 @@ SHOP_ROW_NAME = "Cả shop — quảng cáo và chi phí chưa gán sản phẩm
 ROI_LABEL = METRICS["roi"].label_vi
 COST_LABEL = METRICS["cost_marketing"].label_vi
 MARGIN_LABEL = METRICS["margin"].label_vi
+#: decision #44: ROI = Lợi nhuận ÷ Tổng chi phí (giá vốn + đóng gói + phí + vận chuyển + QC + AFF
+#: + Ưu đãi + khác), one row below the notes; Chi phí marketing stays the combined cost row
+COST_TOTAL_LABEL = METRICS["cost_total"].label_vi
 #: the margin's base is a component, which has no label of its own in the registry
 BASE_LABEL = "Doanh thu thực của đơn đủ chi phí"
 
@@ -77,6 +80,9 @@ class Channel:
     orders: float | None = None
     gmv: float | None = None
     cost: float | None = None
+    #: P7 (#46 / #49): the channel's Lợi nhuận ròng from the profit split (``channel_split.
+    #: profit_split``); ``None`` = no split (the sheet then uses the shop-margin formula)
+    profit: float | None = None
 
 
 @dataclass
@@ -96,6 +102,13 @@ class Figures:
     #: "overlay" (Seller Centre's ads overlay) | "report" (ads report): the basis of the Quảng cáo
     #: GMV; periods on different bases do not compare ("—")
     ads_basis: str | None = None
+    #: decision #44: Tổng chi phí of the scope (registry ``cost_total``, ``channel_split.kpis_of``);
+    #: ``None`` = unknown (the ROI is then "—", never ÷ the marketing cost alone)
+    cost_total: float | None = None
+    #: P7: the shop's remainder no product owns (ads of no product + other marketing): its cost
+    #: and its profit (−cost); ``None`` = no profit split
+    rest_cost: float | None = None
+    rest_profit: float | None = None
 
     def channel(self, key: str) -> Channel:
         return self.channels.get(key) or Channel()
@@ -237,6 +250,7 @@ OVERVIEW_HEADER = [
 OV = {  # row of each metric on the "Tổng quan" sheet
     "gmv": 4, "orders": 5, "aov": 6, "profit": 7, "ads": 8, "aff": 9, "offer": 10, "cost": 11,
     "roi": 12, "margin": 13, "base": 14,
+    "cost_total": 19,  # decision #44: below the notes; the ROI's denominator
 }  # fmt: skip
 #: rows that are costs / profit: shown as a % of the revenue (GMV)
 SHARE_ROWS = ("profit", "ads", "aff", "offer", "cost")
@@ -249,7 +263,8 @@ def _overview_values(fig: Figures) -> dict[str, float | None]:
     return {
         "gmv": fig.gmv, "orders": fig.orders, "aov": _div(fig.gmv, fig.orders),
         "profit": fig.profit, "ads": fig.ads_cost, "aff": fig.aff_cost, "offer": fig.offer_cost,
-        "cost": cost or 0.0, "roi": None if fig.profit is None else _div(fig.profit, cost),
+        "cost": cost or 0.0, "cost_total": fig.cost_total,
+        "roi": None if fig.profit is None else _div(fig.profit, fig.cost_total),
         "margin": None if fig.profit is None else _div(fig.profit, fig.net_revenue_known),
         "base": fig.net_revenue_known,
     }  # fmt: skip
@@ -271,6 +286,7 @@ def _overview(wb: Workbook, data: TongQuanData) -> None:
         ("cost", f"{COST_LABEL} (đ)", MONEY),
         ("roi", f"{ROI_LABEL} (lần)", POINTS), ("margin", MARGIN_LABEL, PCT),
         ("base", f"{BASE_LABEL} (đ)", MONEY),
+        ("cost_total", f"{COST_TOTAL_LABEL} (đ)", MONEY),
     ]  # fmt: skip
     prev = _overview_values(data.prev)
     now = _overview_values(data.now)
@@ -285,7 +301,7 @@ def _overview(wb: Workbook, data: TongQuanData) -> None:
         elif key == "cost":
             v = f"=SUM(B{OV['ads']}:B{OV['offer']})"
         elif key == "roi":
-            v = f'=IFERROR(B{OV["profit"]}/B{OV["cost"]},"{DASH}")'
+            v = f'=IFERROR(B{OV["profit"]}/B{OV["cost_total"]},"{DASH}")'
         elif key == "margin":
             b = OV["base"]
             v = (
@@ -454,6 +470,13 @@ CH_HEADER = [
     "Chi phí / doanh thu", "Lợi nhuận kênh (đ)",
 ]  # fmt: skip
 CH_LABELS = {**CHANNEL_LABELS, "ads": "Quảng cáo (Lưu lượng / Báo cáo DVHT)"}
+REST_LABEL = "Cả shop — quảng cáo chưa gán sản phẩm và marketing khác"
+CH_SPLIT_NOTE = (
+    "Chi phí kênh = quảng cáo / hoa hồng của kênh + ưu đãi của kênh. TTLK = các dòng đơn tiếp thị "
+    "liên kết; Quảng cáo = phần còn lại × (GMV báo cáo DVHT ÷ GMV còn lại, tối đa 1); Organic = "
+    "phần còn lại. Lợi nhuận kênh = lợi nhuận đóng góp − quảng cáo − hoa hồng; các dòng cộng lại "
+    "bằng lợi nhuận của shop."
+)
 CH_NOTE = (
     "Lợi nhuận kênh = GMV kênh × biên lợi nhuận của shop trước chi phí marketing "
     "((lợi nhuận + chi phí marketing) ÷ GMV) − chi phí của kênh; dòng Ưu đãi nhận phần ưu đãi "
@@ -477,6 +500,7 @@ def _channels(wb: Workbook, data: TongQuanData) -> None:
     put(ws, 1, 1, title_of(data)).font = TITLE
     header(ws, 3, CH_HEADER)
     prev_total = _sum(*(data.prev.channel(k).gmv for k in CHANNELS))
+    split = data.now.rest_cost is not None
     differs = basis_differs(data.now, data.prev)
     ov = f"'{SHEET_OVERVIEW}'!"
     margin0 = f"({ov}$B${OV['profit']}+{ov}$B${OV['cost']})/{ov}$B${OV['gmv']}"
@@ -491,12 +515,15 @@ def _channels(wb: Workbook, data: TongQuanData) -> None:
         put(
             ws, r, 7, ch.cost if ch.cost is not None else (0.0 if key == "organic" else DASH), MONEY
         )
-        put(
-            ws, r, 10,
-            f'=IF(AND(ISNUMBER({ov}$B${OV["profit"]}),ISNUMBER(B{r})),'
-            f'IFERROR(B{r}*{margin0}-N(G{r}),"{DASH}"),"{DASH}")',
-            MONEY,
-        )  # fmt: skip
+        if split:  # P7: the channel's own lợi nhuận ròng (đóng góp − QC/AFF of the channel)
+            put(ws, r, 10, _dash(ch.profit), MONEY)
+        else:
+            put(
+                ws, r, 10,
+                f'=IF(AND(ISNUMBER({ov}$B${OV["profit"]}),ISNUMBER(B{r})),'
+                f'IFERROR(B{r}*{margin0}-N(G{r}),"{DASH}"),"{DASH}")',
+                MONEY,
+            )  # fmt: skip
         has_cost = key != "organic"
         put(
             ws,
@@ -505,10 +532,18 @@ def _channels(wb: Workbook, data: TongQuanData) -> None:
             f'=IF(ISNUMBER(G{r}),IFERROR(J{r}/G{r},"{DASH}"),"{DASH}")' if has_cost else DASH,
             POINTS,
         )
-    put(ws, CH_OFFER, 1, "Ưu đãi của shop (thuộc chi phí marketing)")
-    put(ws, CH_OFFER, 2, DASH)
-    put(ws, CH_OFFER, 7, _dash(data.now.offer_cost), MONEY)
-    put(ws, CH_OFFER, 10, f'=IF(ISNUMBER(G{CH_OFFER}),-G{CH_OFFER},"{DASH}")', MONEY)
+    if split:
+        # P7: each channel's cost holds its own Ưu đãi (one combined Chi phí marketing); the row
+        # below is what no product owns (ads of no product, other marketing), never dropped
+        put(ws, CH_OFFER, 1, REST_LABEL)
+        put(ws, CH_OFFER, 2, DASH)
+        put(ws, CH_OFFER, 7, _dash(data.now.rest_cost), MONEY)
+        put(ws, CH_OFFER, 10, _dash(data.now.rest_profit), MONEY)
+    else:
+        put(ws, CH_OFFER, 1, "Ưu đãi của shop (thuộc chi phí marketing)")
+        put(ws, CH_OFFER, 2, DASH)
+        put(ws, CH_OFFER, 7, _dash(data.now.offer_cost), MONEY)
+        put(ws, CH_OFFER, 10, f'=IF(ISNUMBER(G{CH_OFFER}),-G{CH_OFFER},"{DASH}")', MONEY)
     put(ws, CH_TOTAL, 1, "Tổng", bold=True)
     for c, fmt in ((2, MONEY), (5, INT), (7, MONEY), (10, MONEY)):
         L = col(c)
@@ -523,7 +558,7 @@ def _channels(wb: Workbook, data: TongQuanData) -> None:
         put(ws, r, 6, f'=IFERROR(B{r}/E{r},"{DASH}")', MONEY)
     for r in (*range(CH_FIRST, CH_OFFER + 1), CH_TOTAL):
         put(ws, r, 9, f'=IFERROR(G{r}/{ov}$B${OV["gmv"]},"{DASH}")', PCT)
-    put(ws, CH_TOTAL + 2, 1, CH_NOTE)
+    put(ws, CH_TOTAL + 2, 1, CH_SPLIT_NOTE if split else CH_NOTE)
     widths(ws, {1: 38}, 14)
     finish(ws, "B4")
 
@@ -685,7 +720,7 @@ def _sku_formulas(ws, r: int, need: bool = True) -> None:
 ROW_METRIC = {
     "gmv": "gmv", "orders": "orders", "profit": "profit", "ads": "cost_ads",
     "aff": "cost_affiliate", "offer": "cost_offers", "cost": "cost_marketing", "aov": "aov",
-    "roi": "roi", "margin": "margin",
+    "roi": "roi", "margin": "margin", "cost_total": "cost_total",
 }  # fmt: skip
 #: ratio rows: never summed or averaged; the Tổng column recomputes them from its own parts
 RATIO_ROWS = ("aov", "roi", "margin")
@@ -724,6 +759,7 @@ def _multi(wb: Workbook, datas: list[TongQuanData]) -> None:
         "cost": (f"{COST_LABEL} (đ)", MONEY),
         "roi": (f"{ROI_LABEL} (lần)", POINTS), "margin": (MARGIN_LABEL, PCT),
         "base": (f"{BASE_LABEL} (đ)", MONEY),
+        "cost_total": (f"{COST_TOTAL_LABEL} (đ)", MONEY),
     }  # fmt: skip
     values = [_overview_values(d.now) for d in datas]
     row = {k: OV[k] for k in OV}  # the single-shop layout: same rows
@@ -737,7 +773,7 @@ def _multi(wb: Workbook, datas: list[TongQuanData]) -> None:
             elif key == "cost":
                 v = f"=SUM({L}{row['ads']}:{L}{row['offer']})"
             elif key == "roi":
-                v = f'=IFERROR({L}{row["profit"]}/{L}{row["cost"]},"")'
+                v = f'=IFERROR({L}{row["profit"]}/{L}{row["cost_total"]},"")'
             elif key == "margin":
                 v = f'=IFERROR({L}{row["profit"]}/{L}{row["base"]},"")'
             else:
@@ -747,7 +783,7 @@ def _multi(wb: Workbook, datas: list[TongQuanData]) -> None:
         if key == "aov":
             total: object = f'=IFERROR({T}{row["gmv"]}/{T}{row["orders"]},"")'
         elif key == "roi":
-            total = f'=IFERROR({T}{row["profit"]}/{T}{row["cost"]},"")'
+            total = f'=IFERROR({T}{row["profit"]}/{T}{row["cost_total"]},"")'
         elif key == "margin":
             total = f'=IFERROR({T}{row["profit"]}/{T}{row["base"]},"")'
         elif summable_row(key):

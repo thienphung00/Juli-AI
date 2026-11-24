@@ -350,6 +350,7 @@ async def load_income(
             seller_coin_borne=r.seller_coin_borne,
             trade_in_bonus_seller=r.trade_in_bonus_seller,
             payout=r.payout,
+            seller_voucher_borne=r.seller_voucher_borne,
         )
         for r in rows
     }

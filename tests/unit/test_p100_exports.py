@@ -70,7 +70,9 @@ def test_overview_cells_and_formulas():
     assert ws["B6"].value == '=IFERROR(B4/B5,"—")'
     assert ws["B11"].value == "=SUM(B8:B10)"  # QC + TTLK + ưu đãi (registry cost_marketing)
     assert ws["A10"].value == tq.OFFER_LABEL
-    assert ws["B12"].value == '=IFERROR(B7/B11,"—")' and ws["B12"].number_format == "0.0"
+    # decision #44: ROI = Lợi nhuận ròng ÷ Tổng chi phí (row 19, the registry's cost_total)
+    assert ws["B12"].value == '=IFERROR(B7/B19,"—")' and ws["B12"].number_format == "0.0"
+    assert ws["A19"].value == f"{METRICS['cost_total'].label_vi} (đ)"
     assert ws["A12"].value == f"{METRICS['roi'].label_vi} (lần)"
     assert ws["A11"].value == f"{METRICS['cost_marketing'].label_vi} (đ)"
     assert ws["A13"].value == METRICS["margin"].label_vi
@@ -380,7 +382,7 @@ def test_all_shops_overview_has_a_column_per_shop_and_a_total_from_the_registry_
         assert ws.cell(r[key], 4).value == f"=SUM(B{r[key]}:C{r[key]})", key
     # ratios: recomputed from the Tổng parts, never summed or averaged
     assert ws.cell(r["aov"], 4).value == f'=IFERROR(D{r["gmv"]}/D{r["orders"]},"")'
-    assert ws.cell(r["roi"], 4).value == f'=IFERROR(D{r["profit"]}/D{r["cost"]},"")'
+    assert ws.cell(r["roi"], 4).value == f'=IFERROR(D{r["profit"]}/D{r["cost_total"]},"")'
     assert ws.cell(r["aov"], 3).value == f'=IFERROR(C{r["gmv"]}/C{r["orders"]},"")'
     assert ws.cell(r["gmv"], 2).value == 5_500_000 and ws.cell(r["gmv"], 3).value == 11_000_000
     assert tq.summable_row("gmv") and not tq.summable_row("aov") and not tq.summable_row("roi")
@@ -431,3 +433,24 @@ def test_the_profit_sheet_lists_each_cost_once_and_sums_to_the_profit():
     lines_ws = tq.build(data)[tq.SHEET_PROFIT]
     labels = {lines_ws.cell(r, 1).value for r in range(1, lines_ws.max_row + 1)}
     assert "− Đơn hoàn tiền / trả hàng" not in labels and "− Đơn hủy" in labels
+
+
+def test_channel_sheet_takes_the_profit_split_with_one_combined_cost_per_channel():
+    """P7 (#46 / #49): with the profit split, each channel's Chi phí holds its QC / AFF and its
+    own Ưu đãi, Lợi nhuận kênh is the split's lợi nhuận ròng, and the remainder no product owns
+    is its own row: the rows add up to the shop's profit."""
+    from dataclasses import replace
+
+    data = _data()
+    ch = {
+        "organic": replace(data.now.channel("organic"), cost=10_000, profit=600_000),
+        "ads": replace(data.now.channel("ads"), cost=415_000, profit=200_000),
+        "affiliate": replace(data.now.channel("affiliate"), cost=55_000, profit=140_000),
+    }
+    now = replace(data.now, channels=ch, rest_cost=40_000, rest_profit=-40_000)
+    ws = tq.build(replace(data, now=now))[tq.SHEET_CHANNEL]
+    assert ws["A7"].value == tq.REST_LABEL
+    assert [ws.cell(r, 7).value for r in range(4, 8)] == [10_000, 415_000, 55_000, 40_000]
+    assert [ws.cell(r, 10).value for r in range(4, 8)] == [600_000, 200_000, 140_000, -40_000]
+    assert ws["J8"].value == "=SUM(J4:J7)"
+    assert 600_000 + 200_000 + 140_000 - 40_000 == now.profit  # adds up to the shop's profit

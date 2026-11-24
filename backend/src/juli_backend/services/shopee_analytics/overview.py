@@ -301,6 +301,8 @@ def _profit_block(view: PeriodView) -> dict[str, Any]:
         "margin_pct": fig.json()["margin_pct"],
         "margin_basis": "profit ÷ doanh thu thực (sau voucher và combo)",
         "contribution_before_ads": num(p.contribution),
+        # decision #44: Lợi nhuận đóng góp (before ads AND affiliate), the ladder's
+        "contribution": num(p.organic_contribution),
         "net_revenue": num(p.buyer_paid),
         "orders": p.orders,
         "cost_coverage": cov.json(),

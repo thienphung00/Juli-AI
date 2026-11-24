@@ -240,6 +240,10 @@ class ProfitBreakdown:
     vat_input_credit: Decimal = ZERO
     #: ``before_vat`` until the seller says whether the prices carry VAT.
     vat_basis: str = BASIS_BEFORE
+    #: the shop voucher the seller BORE on this line (its share of the settlement's
+    #: ``seller_voucher_borne``); ``None`` without a settlement. The voucher part of Ưu đãi:
+    #: never ``voucher`` (the buyer-side shop_voucher_share).
+    voucher_borne: Decimal | None = None
 
     @property
     def margin_pct(self) -> Decimal | None:
@@ -258,6 +262,22 @@ class ProfitBreakdown:
         if self.status in REFUND_STATUSES:
             return ZERO
         return self.buyer_paid - self.vat_output
+
+    @property
+    def offer_cost(self) -> Decimal:
+        """Ưu đãi (one combined cost, #46): Chương Trình Của Shop / Flash Sale price + combo +
+        the shop voucher the seller BORE (settlement). The buyer-side shop voucher share and the
+        Shopee voucher are never a seller cost (Track S rule, 24/11)."""
+        return self.promo_discount + self.bundle + (self.voucher_borne or ZERO)
+
+    @property
+    def organic_contribution(self) -> Decimal | None:
+        """Decision #44: the ladder's Lợi nhuận đóng góp -- ``contribution`` before the affiliate
+        commission too (revenue − fees − giá vốn − đóng gói − vận chuyển ròng). ``None`` when the
+        contribution is unknown."""
+        if self.contribution is None:
+            return None
+        return self.contribution + (self.commission or ZERO)
 
 
 def allocate_ads(pool: AdsPool, line_ad_revenue: Decimal) -> Decimal | None:
@@ -393,6 +413,7 @@ def line_profit(
         vat_output=vat_out or ZERO,
         vat_input_credit=vat_credit or ZERO,
         vat_basis=vat_basis,
+        voucher_borne=None if income is None else income.seller_voucher,
     )
 
 
