@@ -3,6 +3,7 @@ are invented. FakeData implements `DataPort`; the fake ports answer from recorde
 
 from __future__ import annotations
 
+import copy
 import random
 from collections.abc import AsyncIterator, Callable
 from datetime import date, timedelta
@@ -205,7 +206,12 @@ class FakeLLM:
         """Scripted turns: each call pops the next list of content blocks; none left = an LLM
         error (the engine must fall back)."""
         self.agent_calls.append(
-            {"tools": [t["name"] for t in tools], "messages": len(messages), "force": force_tool}
+            {
+                "tools": [t["name"] for t in tools],
+                "messages": len(messages),
+                "force": force_tool,
+                "replayed": copy.deepcopy(messages),
+            }
         )
         if not self.agent_script:
             raise RuntimeError("no scripted agent turn")

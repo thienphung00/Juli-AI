@@ -761,6 +761,9 @@ async def run_advice(
             raise AdviceAborted("llm_error", type(exc).__name__) from exc
         turns += 1
         budget.cost += usage.cost_usd
+        # the loop replays its turns: only text / tool_use go back (the gate refuses other blocks;
+        # `GateLLM.agent` runs with thinking disabled, so none is needed for the next turn)
+        content = [b for b in content if b.get("type") in ("text", "tool_use")]
         messages.append({"role": "assistant", "content": content})
         uses = _blocks(content, "tool_use")
         final = next((u for u in uses if u.get("name") == "emit_plan"), None)
