@@ -13,6 +13,7 @@ import { buyerItemsIn, incomeItemsIn } from "../src/platforms/shopee/order-page-
 import { incomeReadIds, mapOrderIncome, mapOrderLines, trimOrderDetail } from "../src/platforms/shopee/orders-map";
 import type { ReaderResponse } from "../src/platforms/shopee/reader";
 import { gmt7DateStart } from "../src/core/time";
+import { orderBackfillSinceDay, ordersSinceDay, planJobs } from "../src/platforms/shopee/background/scheduler";
 
 const NOW = Date.UTC(2026, 10, 24, 3, 0, 0);
 const CREATED = gmt7DateStart("2026-11-20") + 9 * 3600;
@@ -185,5 +186,34 @@ describe("S1 row 2: the buyer-payment block", () => {
     const buyerOnly = income([{ name: "Giá sản phẩm", amount: 100000 }], [{ name: "Doanh Thu Đơn Hàng", amount: 1 }]);
     expect(incomeReadIds([buyerOnly]).size).toBe(0);
     expect(mapOrderIncome([buyerOnly], NOW).rows).toEqual([]);
+  });
+});
+
+describe("S1 #48: the one re-read of the order days an older Connector read", () => {
+  const TODAY = "2026-11-24";
+  const holes = { order_lines_backfill: ["2026-10-26", "2026-11-01", "2026-11-10", "2026-11-18"] };
+  const since = ordersSinceDay(TODAY, "2026-11-23"); // the usual catch-up: 3 days of overlap
+
+  it("reads back to the oldest backfill day the backfill's budget affords", () => {
+    expect(orderBackfillSinceDay(TODAY, since, holes, 550)).toBe("2026-10-26"); // 36 days of room, capped at 30
+    expect(orderBackfillSinceDay(TODAY, since, holes, 300)).toBe("2026-11-10"); // 20 days of room
+    expect(orderBackfillSinceDay(TODAY, since, holes, 100)).toBe("2026-11-18"); // 6 days
+  });
+
+  it("no backfill day, no budget room, or only days the usual read covers: the usual read", () => {
+    expect(orderBackfillSinceDay(TODAY, since, undefined, 550)).toBeUndefined();
+    expect(orderBackfillSinceDay(TODAY, since, holes, 0)).toBeUndefined();
+    expect(orderBackfillSinceDay(TODAY, since, holes, 14)).toBeUndefined();
+    expect(orderBackfillSinceDay(TODAY, "2026-10-20", holes, 550)).toBeUndefined();
+  });
+
+  const plan = (extra: Record<string, unknown>) =>
+    planJobs({ shopId: "s1", nowMs: NOW, stopped: new Set(), adsDone: [], readers: ["orders"], ordersCoveredDay: "2026-11-23", ...extra }).find((j) => j.id === "orders");
+
+  it("the orders job carries the backfill (once a day: a job already run today waits for tomorrow)", () => {
+    expect(plan({ holes, holeRoom: 300 })).toEqual({ id: "orders", sinceDay: "2026-11-10", orderBackfill: true });
+    expect(plan({ holeRoom: 300 })).toEqual({ id: "orders", sinceDay: since });
+    expect(plan({ holes, holeRoom: 0 })).toEqual({ id: "orders", sinceDay: since });
+    expect(plan({ holes, holeRoom: 300, ordersDay: TODAY })).toBeUndefined();
   });
 });

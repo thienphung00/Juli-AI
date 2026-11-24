@@ -389,3 +389,26 @@ def test_the_old_ads_topup_header_still_loads(tmp_path):
     write_income(tmp_path, orders, fees=[(A, 0, 0)])
     read = income.read_income(next(tmp_path.glob("Income*")), KEY)
     assert _row(read, A)["fee_nttd"] == 3000
+
+
+def test_owner_49_a_code_shaped_voucher_is_read_and_anything_else_is_dropped(tmp_path):
+    """Owner decision #49: "Mã voucher" is not buyer data. One code (A-Z / 0-9, at most 64) is
+    posted as ``voucher_code``; the canary text (lower case, hyphens), several codes, or an
+    over-long value are dropped, and every other buyer column stays undecoded."""
+    orders = [
+        order_row(A, **{"Giá sản phẩm": 100000, "Mã voucher": "SHOPXMAS10"}),
+        order_row(B, **{"Giá sản phẩm": 100000}),  # the canary text
+        order_row(C, **{"Giá sản phẩm": 100000, "Mã voucher": "ABC10, XYZ20"}),
+        order_row(D, **{"Giá sản phẩm": 100000, "Mã voucher": "A" * 65}),
+        order_row(E, **{"Giá sản phẩm": 100000, "Mã voucher": ""}),
+    ]
+    write_income(tmp_path, orders, fees=[])
+    read = income.read_income(next(tmp_path.glob("Income*")), KEY)
+    assert _row(read, A)["voucher_code"] == "SHOPXMAS10"
+    for ref in (B, C, D, E):
+        assert "voucher_code" not in _row(read, ref)
+    assert "Mã voucher" in read.value_columns_read
+    assert read.value_columns_read.isdisjoint(income.BUYER_HEADERS)
+    assert "CANARY-VOUCHER-TEXT" not in repr(read.orders)
+    assert income.voucher_code(" SHOPXMAS10 ") == "SHOPXMAS10"
+    assert income.voucher_code("shopxmas10") is None
