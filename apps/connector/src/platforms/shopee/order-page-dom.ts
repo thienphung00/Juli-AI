@@ -11,7 +11,7 @@
 // No buyer name, address, phone, chat or note is read. Nothing is clicked: when the breakdown is
 // folded ("Xem chi tiết doanh thu") only its totals are there and the reader takes what it sees.
 
-import type { PageItem } from "./orders-map";
+import { type PageItem, plainLabel } from "./orders-map";
 
 /** "₫65.735", "-₫35.700", "− 16.000 ₫" -> 65735, -35700, -16000; undefined without digits. */
 export function moneyOf(raw: string | null | undefined): number | undefined {
@@ -62,6 +62,46 @@ export function incomeItemsIn(doc: Document): { name: string; amount: number }[]
     const value = Array.from(row.querySelectorAll(".income-value")).find((el) => !el.closest(LABEL_NOISE));
     const amount = moneyOf(value?.textContent);
     if (name && amount !== undefined) out.push({ name: name.slice(0, 120), amount });
+  }
+  return out;
+}
+
+/**
+ * batch-1124-a S1 (P-S3 capture, 24/11): the buyer's payment block ("Thanh toán của Người Mua":
+ * Tổng tiền sản phẩm | Phí vận chuyển | Shopee Voucher | Mã giảm giá của Shop | Tổng tiền Thanh
+ * toán) is outside `.income-container`. Only the two voucher rows are read (an ALLOWLIST of labels,
+ * nothing else of the block). The block is found by its heading text and bounded by its total row;
+ * each allowed label takes the first ₫ amount shown after it. The buyer-side shop voucher is NOT the
+ * seller's cost (that is the income block's own row): it is posted apart, as `buyer_items`.
+ */
+const BUYER_HEADING = /^thanh toan cua nguoi mua$/;
+const BUYER_TOTAL = /^tong tien thanh toan$/;
+const BUYER_LABELS = /^(shopee voucher|ma giam gia cua shop)$/;
+
+const plainText = plainLabel;
+
+export function buyerItemsIn(doc: Document): { name: string; amount: number }[] {
+  const leaves = Array.from(doc.querySelectorAll("body *")).filter((el) => el.children.length === 0 && !el.closest(LABEL_NOISE));
+  const start = leaves.findIndex((el) => BUYER_HEADING.test(plainText(el.textContent ?? "")));
+  if (start < 0) return [];
+  const out: { name: string; amount: number }[] = [];
+  let pending: string | undefined;
+  for (const el of leaves.slice(start + 1)) {
+    const raw = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+    if (!raw) continue;
+    const key = plainText(raw);
+    if (BUYER_TOTAL.test(key)) break;
+    if (BUYER_LABELS.test(key)) {
+      pending = raw.slice(0, 120);
+      continue;
+    }
+    if (pending !== undefined && MONEY.test(raw)) {
+      const amount = moneyOf(raw);
+      if (amount !== undefined && !out.some((o) => plainText(o.name) === plainText(pending as string))) out.push({ name: pending, amount });
+      pending = undefined;
+    } else if (pending !== undefined && /[a-z]/.test(key)) {
+      pending = undefined; // another label came first: that row shows no amount
+    }
   }
   return out;
 }

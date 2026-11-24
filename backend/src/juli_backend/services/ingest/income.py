@@ -13,10 +13,11 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.shopee_profit import ShopeeOrderIncome
+from juli_backend.models.ingest import SOURCE_EXTENSION
+from juli_backend.models.shopee_profit import ShopeeOrderIncome, ShopeeOrderLine
 from juli_backend.services.ingest.precedence import count_gap_fills, log_gap_fills
 from juli_backend.services.ingest.rank_guard import (
     excluded_payload_captured_at,
@@ -150,7 +151,96 @@ async def write_order_income(
         return []
     warnings = await _seller_support_warning(session, rows, provenance)
     await upsert_settlement_values(session, income_values(rows, provenance))
+    await split_buyer_vouchers(session, rows, provenance)
     return warnings
+
+
+#: batch-1124-a S1: the buyer-side voucher of an income row -> the ``order_lines`` column it fills.
+BUYER_VOUCHER_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("buyer_shop_voucher", "shop_voucher_share"),
+    ("buyer_platform_voucher", "platform_voucher_share"),
+)
+CENT = Decimal("0.01")
+
+
+def _shares(amount: Decimal, weights: list[Decimal]) -> list[Decimal]:
+    """``amount`` split by ``weights`` to the cent; the last share takes the rounding rest."""
+    total = sum(weights, Decimal(0))
+    if total <= 0:
+        return []
+    out = [(amount * w / total).quantize(CENT) for w in weights[:-1]]
+    return [*out, amount - sum(out, Decimal(0))]
+
+
+async def split_buyer_vouchers(
+    session: AsyncSession, rows: list[ShopeeOrderIncomeRow], provenance: dict[str, Any]
+) -> int:
+    """batch-1124-a S1 (owner 2026-11-24, rule B): the Connector's buyer-side shop / Shopee voucher
+    of an order is split onto that order's lines by line value (``deal_price x qty``). It may
+    overwrite only a 0 that a Connector line post wrote (line ``source`` = extension); a file
+    import's value, or any non-zero, is never touched. Each fill is logged with the income post's
+    raw payload (``order_line_voucher_split``) so it can be audited. Returns the lines filled."""
+    if provenance["source"] != SOURCE_EXTENSION:
+        return 0
+    wanted = {
+        row.order_ref: row
+        for row in rows
+        if any(getattr(row, field) for field, _ in BUYER_VOUCHER_COLUMNS)
+    }
+    if not wanted:
+        return 0
+    table = ShopeeOrderLine.__table__
+    found = await session.execute(
+        select(
+            table.c.id,
+            table.c.order_ref,
+            table.c.deal_price,
+            table.c.qty,
+            table.c.source,
+            table.c.shop_voucher_share,
+            table.c.platform_voucher_share,
+        )
+        .where(
+            table.c.shop_id == provenance["shop_id"],
+            table.c.platform == provenance["platform"],
+            table.c.order_ref.in_(sorted(wanted)),
+        )
+        .order_by(table.c.order_ref, table.c.line_no)
+    )
+    lines: dict[str, list[Any]] = {}
+    for line in found:
+        lines.setdefault(line.order_ref, []).append(line)
+    filled = 0
+    for ref, row in wanted.items():
+        order_lines = lines.get(ref, [])
+        weights = [Decimal(line.deal_price) * line.qty for line in order_lines]
+        for field, column in BUYER_VOUCHER_COLUMNS:
+            amount: Decimal | None = getattr(row, field)
+            if not amount:
+                continue
+            # rule B: every line of the order must still hold the Connector's 0, else none moves
+            if not order_lines or any(
+                line.source != SOURCE_EXTENSION or getattr(line, column) != 0
+                for line in order_lines
+            ):
+                continue
+            for line, share in zip(order_lines, _shares(amount, weights), strict=True):
+                await session.execute(
+                    update(ShopeeOrderLine)
+                    .where(ShopeeOrderLine.id == line.id, getattr(ShopeeOrderLine, column) == 0)
+                    .values({column: share, "updated_at": provenance["updated_at"]})
+                )
+                filled += 1
+    if filled:
+        logger.info(
+            "order_line_voucher_split",
+            extra={
+                "shop_id": str(provenance["shop_id"]),
+                "lines": filled,
+                "raw_payload_id": str(provenance["raw_payload_id"]),
+            },
+        )
+    return filled
 
 
 async def upsert_settlement_values(session: AsyncSession, values: list[dict[str, Any]]) -> None:
