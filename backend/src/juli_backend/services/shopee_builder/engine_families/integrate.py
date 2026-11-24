@@ -356,17 +356,31 @@ def _one(
     if isinstance(spec, sp.AdsSpec):  # P100 B.15: an edit of a running campaign
         return ads_edit_result(ctx, spec, shop_id)
     deal_soc = isinstance(spec, sp.AddOnSpec | sp.GiftSpec)
+    few = False
     if deal_soc:
         base = deal_soc_base(ctx, spec, base)
+        few = isinstance(spec, sp.AddOnSpec) and "aov" in base.low_data
+        if few:  # P10 (#43 Q7): Mua Kèm on too few main orders runs on the kind's prior
+            base = replace(base, low_data=tuple(m for m in base.low_data if m not in ("aov",)))
     try:
         option = option_for(spec, ctx, extras_for(base))
     except FamilyRefused as exc:
         return Evaluated(base, None, exc)
-    if deal_soc and "aov" in base.low_data:
+    if few:
+        option = replace(
+            option, drivers=tuple(replace(d, basis=on_prior(d.basis)) for d in option.drivers)
+        )
+    elif deal_soc and "aov" in base.low_data:
         # fewer than MIN_ATTACH_ORDERS main orders: say exactly that, not the generic "ít dữ liệu"
         note = common.NOTE_ATTACH_FEW_ORDERS
         option = replace(option, note=f"{note} {option.note}" if option.note else note)
     return Evaluated(base, run(base, option, seed_of(spec.model_dump(mode="json"))))
+
+
+def on_prior(basis: Basis) -> Basis:
+    """P10: a driver measured on too few orders falls back to the kind's prior (a not-estimable
+    driver stays not estimable)."""
+    return basis if basis == "not_estimable" else "prior"
 
 
 def deal_soc_base(ctx: BuilderContext, spec: sp.VersionSpec, base: FunnelBase) -> FunnelBase:

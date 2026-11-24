@@ -133,12 +133,13 @@ async def test_the_other_prior_kinds_are_estimable_on_a_shop_with_no_data(sessio
     assert result["estimable"] is True
 
 
-async def test_add_on_needs_ten_main_orders_for_its_attach_rate(session, bare_shop):
-    # OWNER ASK: Mua Kèm Deal Sốc multiplies the shop's own attach rate; with fewer than
-    # MIN_ATTACH_ORDERS main-product orders it still says why instead of showing a prior
+async def test_add_on_on_too_few_main_orders_uses_the_kind_prior(session, bare_shop):
+    # P10 (#43 Q7): with fewer than MIN_ATTACH_ORDERS main-product orders, Mua Kèm Deal Sốc runs
+    # on the kind's prior (tagged "ước tính chung"), never "chưa ước tính được" for that reason
     v, result = await _outcome(session, bare_shop, _VERSIONS["add_on"])
     assert v["ok"] is True
-    assert result["estimable"] is False and result["reason_code"] == "attach_few_orders"
+    assert result["estimable"] is True and result.get("reason_code") is None
+    assert result["basis"] == "prior" and result["basis_weak"] is True
 
 
 @pytest.mark.parametrize("kind", ["product_discount", "price", "flash_sale"])

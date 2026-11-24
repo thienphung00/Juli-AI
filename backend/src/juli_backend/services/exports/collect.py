@@ -119,17 +119,28 @@ def _figures(split: dict[str, Any]) -> tq.Figures:
     """One scope's Figures from a ``channel_split`` answer."""
     by = {r["key"]: r for r in split["rows"]}
     k = split["kpis"]
+    ps = split.get("profit_split")  # P7: the channel profit split (None off Shopee)
     channels: dict[str, tq.Channel] = {}
     for key in tq.CHANNELS:
         r = by.get(key) or {}
+        cost = {"ads": _f(k["cost_ads"]), "affiliate": _f(k["cost_affiliate"])}.get(key)
+        profit = None
+        if ps is not None:
+            pr = ps["rows"][key]
+            # one combined Chi phí marketing per channel: its QC / AFF + its Ưu đãi
+            cost = float(pr["cost_ads"] + pr["cost_affiliate"] + pr["cost_offers"])
+            profit = _f(pr["profit"])
         channels[key] = tq.Channel(
             _f(r.get("views")), _f(r.get("clicks")), _f(r.get("orders")), _f(r.get("gmv")),
-            {"ads": _f(k["cost_ads"]), "affiliate": _f(k["cost_affiliate"])}.get(key),
+            cost, profit,
         )  # fmt: skip
+    rest = None if ps is None else ps.get("unattributed")
+    rest_cost = None if rest is None else float(rest["cost_ads"] + rest.get("other_marketing", 0))
     return tq.Figures(
         channels=channels, gmv=_f(k["gmv"]), orders=_f(k["orders"]), profit=_f(k["profit"]),
         ads_cost=_f(k["cost_ads"]), aff_cost=_f(k["cost_affiliate"]),
         offer_cost=_f(k["cost_offers"]), cost_total=_f(k.get("cost_total")),
+        rest_cost=rest_cost, rest_profit=None if rest is None else _f(rest["profit"]),
     )  # fmt: skip
 
 
@@ -839,7 +850,10 @@ async def collect_ke_hoach_shop(
         shop_name, platform, _f(plan.get("baseline_gmv")), _f(plan.get("goal_gmv")),
         sum(actual_gmv.values()) if actual_gmv else None,
         _f(plan.get("baseline_profit")), _f(plan.get("goal_profit")),
-        sum(actual_profit.values()) if actual_profit else None,
+        # P9 (audit P4): the period's actual on the screen's basis (the Kế hoạch card's known-cost
+        # profit, ``month_plan``), the same basis as its baseline and goal -- not a sum of days
+        _f(plan.get("actual_profit")) if "actual_profit" in plan
+        else (sum(actual_profit.values()) if actual_profit else None),
     )  # fmt: skip
     days = [
         kh.GoalDay(

@@ -715,6 +715,124 @@ def _offers_cost(view: PeriodView, product_id: str | None) -> Decimal | None:
 ZERO_D = Decimal(0)
 
 
+# -- P7 (#42 / #46 / #49): the profit split Organic / Quảng cáo / TTLK ---------------------------
+
+#: the split's columns (registry ids where one exists); every one adds up over the channels
+SPLIT_COLUMNS = (
+    "gmv", "orders", "net_revenue", "cost_offers", "contribution", "cost_ads", "cost_affiliate",
+    "profit",
+)  # fmt: skip
+SPLIT_CHANNELS = ("organic", "ads", "affiliate")
+#: the shop's remainder no product owns: ads of no product, other marketing (its own row)
+UNATTRIBUTED = "unattributed"
+
+
+def _zero_row() -> dict[str, Decimal]:
+    return dict.fromkeys(SPLIT_COLUMNS, ZERO_D)
+
+
+def _sums(pairs: Sequence[tuple[Any, Any]]) -> dict[str, Decimal]:
+    """GMV and đơn of the sale lines; doanh thu thực and Lợi nhuận đóng góp of the covered lines
+    (every cost known); Ưu đãi (the combined seller cost, ``ProfitBreakdown.offer_cost``) of all
+    lines; the affiliate commission of the covered lines."""
+    sale = [ln for ln, _ in pairs if counts_in_sales(ln)]
+    covered = [
+        pb for _, pb in pairs if pb.excluded_reason is None and pb.organic_contribution is not None
+    ]
+    return {
+        "gmv": sum((ln.order_value for ln in sale), ZERO_D),
+        "orders": Decimal(len({ln.order_id for ln in sale})),
+        "net_revenue": sum((pb.revenue for pb in covered), ZERO_D),
+        "cost_offers": sum((pb.offer_cost for _, pb in pairs), ZERO_D),
+        "contribution": sum((pb.organic_contribution or ZERO_D for pb in covered), ZERO_D),
+        "cost_affiliate": sum((pb.commission or ZERO_D for pb in covered), ZERO_D),
+    }
+
+
+def split_scope(
+    pairs: Sequence[tuple[Any, Any]], *, ads_gmv: Decimal | None, ads_spend: Decimal | None
+) -> dict[str, dict[str, Decimal]]:
+    """One scope (a product, or lines no product owns) split into Organic / Quảng cáo / TTLK
+    (owner decision #49):
+
+    - TTLK = the affiliate lines, exactly (their GMV, đơn, doanh thu thực, Ưu đãi, đóng góp,
+      commission).
+    - The rest (N): s = min(1, GMV_QC ÷ GMV_N), GMV_QC = the ads report's GMV of the scope (the M
+      rule); Quảng cáo = s x each of N's columns (GMV, đơn, doanh thu thực, Ưu đãi, đóng góp)
+      plus the scope's ads spend; Organic = N − Quảng cáo. No ads report row: s = 0.
+    - Lợi nhuận ròng of a channel = its đóng góp − its QC − its AFF.
+    Every column adds up to the scope's total exactly."""
+    aff = _sums([(ln, pb) for ln, pb in pairs if ln.affiliate])
+    rest = _sums([(ln, pb) for ln, pb in pairs if not ln.affiliate])
+    s = ZERO_D
+    if ads_gmv is not None and ads_gmv > 0 and rest["gmv"] > 0:
+        s = min(Decimal(1), ads_gmv / rest["gmv"])
+    ads = {k: v * s for k, v in rest.items() if k != "cost_affiliate"}
+    organic = {k: rest[k] - ads[k] for k in ads}
+    out = {
+        "organic": {**_zero_row(), **organic},
+        "ads": {**_zero_row(), **ads, "cost_ads": ads_spend or ZERO_D},
+        "affiliate": {**_zero_row(), **aff},
+    }
+    # an affiliate line's commission is TTLK's cost; a non-affiliate line carries none
+    out["organic"]["cost_affiliate"] = ZERO_D
+    out["ads"]["cost_affiliate"] = ZERO_D
+    for row in out.values():
+        row["profit"] = row["contribution"] - row["cost_ads"] - row["cost_affiliate"]
+    return out
+
+
+def _add_rows(a: dict[str, Decimal], b: Mapping[str, Decimal]) -> dict[str, Decimal]:
+    return {k: a[k] + b.get(k, ZERO_D) for k in SPLIT_COLUMNS}
+
+
+def profit_split(view: PeriodView, product_id: str | None = None) -> dict[str, Any]:
+    """Tổng quan's Organic / Quảng cáo / TTLK split (P7) of the shop or one product.
+
+    Product level: :func:`split_scope` on its lines, its ads report GMV (direct, else broad) and
+    its ad cost (``ProductProfit.ad_spend``, the M rule). Shop level: the SUM of every product's
+    split (so Σ products = shop per channel) plus the ``unattributed`` row -- the ads no product
+    owns (total campaign spend − the products' ad cost) and the other marketing costs -- stated
+    as its own row, never dropped. ``total`` = the rows' sum."""
+    by_product: dict[str, list[tuple[Any, Any]]] = {}
+    for ln, pb in view.pairs:
+        if product_id is None or ln.product_id == product_id:
+            by_product.setdefault(ln.product_id, []).append((ln, pb))
+    if product_id is not None and product_id not in by_product:
+        by_product[product_id] = []
+    rows = {ch: _zero_row() for ch in SPLIT_CHANNELS}
+    claimed = ZERO_D
+    for pid, pairs in sorted(by_product.items()):
+        fig = view.ads.product_figures.get(pid)
+        gmv = None if fig is None else (fig.direct_gmv if fig.direct_gmv is not None else fig.gmv)
+        pp = view.profit.products.get(pid)
+        spend = None if pp is None else pp.ad_spend
+        claimed += spend or ZERO_D
+        for ch, row in split_scope(pairs, ads_gmv=gmv, ads_spend=spend).items():
+            rows[ch] = _add_rows(rows[ch], row)
+    unattributed = _zero_row()
+    if product_id is None:
+        ads_rest = view.profit.total_ad_spend - claimed
+        other = view.profit.other_marketing_costs
+        unattributed["cost_ads"] = ads_rest
+        unattributed["profit"] = -ads_rest - other
+        unattributed["other_marketing"] = other
+    total = _zero_row()
+    for row in (*rows.values(), unattributed):
+        total = _add_rows(total, row)
+
+    def js(row: Mapping[str, Decimal]) -> dict[str, Any]:
+        return {k: num(v) for k, v in row.items()}
+
+    return {
+        "level": "shop" if product_id is None else "product",
+        "columns": list(SPLIT_COLUMNS),
+        "rows": {ch: js(r) for ch, r in rows.items()},
+        UNATTRIBUTED: None if product_id is not None else js(unattributed),
+        "total": js(total),
+    }
+
+
 def kpis_of(
     gmv: Decimal | None,
     orders: Decimal | None,
@@ -879,7 +997,8 @@ async def split_figures(
     """``{"rows", "kpis"}`` of ``channel_split`` for a view the caller already loaded (no second
     read of the window, no previous period, no plan block): what a per-product loop needs."""
     body_rows, kpis = await _figures(session, shop_id, view, window, product_id, platform)
-    return {"rows": body_rows, "kpis": kpis}
+    split = profit_split(view, product_id) if platform == "shopee" else None
+    return {"rows": body_rows, "kpis": kpis, "profit_split": split}
 
 
 _CELLS = ("views", "clicks", "ctr", "ctor", "aov", "gmv", "orders")
@@ -953,6 +1072,9 @@ async def channel_split(
         "kpis": kpis,
         "kpis_prev": prev_kpis,
         "plan": plan,
+        # P7 (#42 / #49): Organic / Quảng cáo / TTLK of GMV, đơn, doanh thu thực, Ưu đãi, đóng góp,
+        # QC, AFF and lợi nhuận ròng; None where the platform has no profit (D23)
+        "profit_split": profit_split(view, product_id) if platform == "shopee" else None,
     }
 
 

@@ -4,8 +4,9 @@
 ``N`` days, the daily job reads the stored daily rows (``product_metrics_daily`` for a product set,
 ``shop_metrics_daily`` for a shop-wide one) for the ``k`` days measured so far (``k <= N``: the
 start day up to the newest day with data) and compares them with the ``k`` days just before the
-start ("hiện tại"). Five metrics: profit (a product's profit is before ads: profit after ads =
-profit - ads_spend; a shop's profit already carries ads), gmv, orders, aov, margin_pct. Nothing
+start ("hiện tại"). Five metrics: profit (after ads: a product's stored profit already carries
+its ad cost, decision #39, as a shop's does), gmv, orders, aov, margin_pct (÷ doanh thu thực,
+P9). Nothing
 is estimated: the figures are the stored days' sums. At ``k == N`` the profit Δ is judged against
 the forecast band (Trong / Vượt / Dưới khoảng, G16).
 
@@ -57,6 +58,8 @@ class Day:
     orders: float = 0.0
     #: profit after ads; ``None`` = the day's profit is unknown (a cost is missing)
     profit: float | None = None
+    #: P9 (#44): doanh thu thực of the day (the margin's denominator); ``None`` = unknown
+    net: float | None = None
 
 
 @dataclass
@@ -142,12 +145,15 @@ def totals(days: Mapping[date, Day], keys: Sequence[date]) -> dict[str, float | 
     known = [days[d].profit for d in keys if d in days and days[d].profit is not None]
     unknown = any(d in days and days[d].profit is None for d in keys)
     profit = None if unknown or not known else float(sum(v for v in known if v is not None))
+    nets = [days[d].net for d in keys if d in days]
+    net = None if not nets or any(v is None for v in nets) else sum(v or 0.0 for v in nets)
     return {
         "profit": profit,
         "gmv": gmv,
         "orders": orders,
         "aov": gmv / orders if orders else None,
-        "margin_pct": None if profit is None or not gmv else profit / gmv * 100,
+        # P9 (#44): Biên lợi nhuận = lợi nhuận ÷ doanh thu thực, the forecast's basis (never ÷ GMV)
+        "margin_pct": None if profit is None or not net else profit / net * 100,
     }
 
 
@@ -232,6 +238,19 @@ def build_actual(
 # --------------------------------------------------------------------------------- DB reads
 
 
+def _net(r: ShopeeShopMetricsDaily) -> float | None:
+    """The shop day's doanh thu thực (covered buyer paid, the margin's denominator)."""
+    return None if r.buyer_paid_known is None else float(r.buyer_paid_known)
+
+
+def _net_ratio(r: ShopeeShopMetricsDaily) -> float | None:
+    """The shop day's doanh thu thực per đồng of line GMV: a product row carries no doanh thu
+    thực of its own, so its line GMV x this ratio stands for it (one basis with the shop)."""
+    if r.buyer_paid_known is None or not r.line_gmv:
+        return None
+    return float(r.buyer_paid_known) / float(r.line_gmv)
+
+
 async def load_days(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -258,7 +277,7 @@ async def load_days(
     if product_id is None:
         for r in srows:
             profit = None if r.profit is None else float(r.profit)
-            out[r.day] = Day(float(r.gmv or 0), float(r.orders or 0), profit)
+            out[r.day] = Day(float(r.gmv or 0), float(r.orders or 0), profit, _net(r))
         return out, data
     p = ShopeeProductMetricsDaily
     prows = (
@@ -274,16 +293,20 @@ async def load_days(
         )
     ).all()
     by_day = {r.day: r for r in prows}
+    by_shop = {r.day: r for r in srows}
     for d in data:
         row = by_day.get(d)
         if row is None:  # a data day with no row for the product = no sales that day
-            out[d] = Day(0.0, 0.0, 0.0)
+            out[d] = Day(0.0, 0.0, 0.0, 0.0)
             continue
         # the stored product profit is already after the product's ad cost (decision #39: the one
         # ad cost per product, ``ProductProfit.profit`` = contribution - ad_spend); a day with an
         # ad cost and no sale is a row of -ad cost, a day with no row is no sale and no ad cost
         profit = None if row.profit is None else float(row.profit)
-        out[d] = Day(float(row.gmv or 0), float(row.orders or 0), profit)
+        shop_row = by_shop.get(d)
+        ratio = None if shop_row is None else _net_ratio(shop_row)
+        net = None if ratio is None else float(row.line_gmv or 0) * ratio
+        out[d] = Day(float(row.gmv or 0), float(row.orders or 0), profit, net)
     return out, data
 
 

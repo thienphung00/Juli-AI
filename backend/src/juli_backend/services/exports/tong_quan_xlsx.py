@@ -80,6 +80,9 @@ class Channel:
     orders: float | None = None
     gmv: float | None = None
     cost: float | None = None
+    #: P7 (#46 / #49): the channel's Lợi nhuận ròng from the profit split (``channel_split.
+    #: profit_split``); ``None`` = no split (the sheet then uses the shop-margin formula)
+    profit: float | None = None
 
 
 @dataclass
@@ -102,6 +105,10 @@ class Figures:
     #: decision #44: Tổng chi phí of the scope (registry ``cost_total``, ``channel_split.kpis_of``);
     #: ``None`` = unknown (the ROI is then "—", never ÷ the marketing cost alone)
     cost_total: float | None = None
+    #: P7: the shop's remainder no product owns (ads of no product + other marketing): its cost
+    #: and its profit (−cost); ``None`` = no profit split
+    rest_cost: float | None = None
+    rest_profit: float | None = None
 
     def channel(self, key: str) -> Channel:
         return self.channels.get(key) or Channel()
@@ -463,6 +470,13 @@ CH_HEADER = [
     "Chi phí / doanh thu", "Lợi nhuận kênh (đ)",
 ]  # fmt: skip
 CH_LABELS = {**CHANNEL_LABELS, "ads": "Quảng cáo (Lưu lượng / Báo cáo DVHT)"}
+REST_LABEL = "Cả shop — quảng cáo chưa gán sản phẩm và marketing khác"
+CH_SPLIT_NOTE = (
+    "Chi phí kênh = quảng cáo / hoa hồng của kênh + ưu đãi của kênh. TTLK = các dòng đơn tiếp thị "
+    "liên kết; Quảng cáo = phần còn lại × (GMV báo cáo DVHT ÷ GMV còn lại, tối đa 1); Organic = "
+    "phần còn lại. Lợi nhuận kênh = lợi nhuận đóng góp − quảng cáo − hoa hồng; các dòng cộng lại "
+    "bằng lợi nhuận của shop."
+)
 CH_NOTE = (
     "Lợi nhuận kênh = GMV kênh × biên lợi nhuận của shop trước chi phí marketing "
     "((lợi nhuận + chi phí marketing) ÷ GMV) − chi phí của kênh; dòng Ưu đãi nhận phần ưu đãi "
@@ -486,6 +500,7 @@ def _channels(wb: Workbook, data: TongQuanData) -> None:
     put(ws, 1, 1, title_of(data)).font = TITLE
     header(ws, 3, CH_HEADER)
     prev_total = _sum(*(data.prev.channel(k).gmv for k in CHANNELS))
+    split = data.now.rest_cost is not None
     differs = basis_differs(data.now, data.prev)
     ov = f"'{SHEET_OVERVIEW}'!"
     margin0 = f"({ov}$B${OV['profit']}+{ov}$B${OV['cost']})/{ov}$B${OV['gmv']}"
@@ -500,12 +515,15 @@ def _channels(wb: Workbook, data: TongQuanData) -> None:
         put(
             ws, r, 7, ch.cost if ch.cost is not None else (0.0 if key == "organic" else DASH), MONEY
         )
-        put(
-            ws, r, 10,
-            f'=IF(AND(ISNUMBER({ov}$B${OV["profit"]}),ISNUMBER(B{r})),'
-            f'IFERROR(B{r}*{margin0}-N(G{r}),"{DASH}"),"{DASH}")',
-            MONEY,
-        )  # fmt: skip
+        if split:  # P7: the channel's own lợi nhuận ròng (đóng góp − QC/AFF of the channel)
+            put(ws, r, 10, _dash(ch.profit), MONEY)
+        else:
+            put(
+                ws, r, 10,
+                f'=IF(AND(ISNUMBER({ov}$B${OV["profit"]}),ISNUMBER(B{r})),'
+                f'IFERROR(B{r}*{margin0}-N(G{r}),"{DASH}"),"{DASH}")',
+                MONEY,
+            )  # fmt: skip
         has_cost = key != "organic"
         put(
             ws,
@@ -514,10 +532,18 @@ def _channels(wb: Workbook, data: TongQuanData) -> None:
             f'=IF(ISNUMBER(G{r}),IFERROR(J{r}/G{r},"{DASH}"),"{DASH}")' if has_cost else DASH,
             POINTS,
         )
-    put(ws, CH_OFFER, 1, "Ưu đãi của shop (thuộc chi phí marketing)")
-    put(ws, CH_OFFER, 2, DASH)
-    put(ws, CH_OFFER, 7, _dash(data.now.offer_cost), MONEY)
-    put(ws, CH_OFFER, 10, f'=IF(ISNUMBER(G{CH_OFFER}),-G{CH_OFFER},"{DASH}")', MONEY)
+    if split:
+        # P7: each channel's cost holds its own Ưu đãi (one combined Chi phí marketing); the row
+        # below is what no product owns (ads of no product, other marketing), never dropped
+        put(ws, CH_OFFER, 1, REST_LABEL)
+        put(ws, CH_OFFER, 2, DASH)
+        put(ws, CH_OFFER, 7, _dash(data.now.rest_cost), MONEY)
+        put(ws, CH_OFFER, 10, _dash(data.now.rest_profit), MONEY)
+    else:
+        put(ws, CH_OFFER, 1, "Ưu đãi của shop (thuộc chi phí marketing)")
+        put(ws, CH_OFFER, 2, DASH)
+        put(ws, CH_OFFER, 7, _dash(data.now.offer_cost), MONEY)
+        put(ws, CH_OFFER, 10, f'=IF(ISNUMBER(G{CH_OFFER}),-G{CH_OFFER},"{DASH}")', MONEY)
     put(ws, CH_TOTAL, 1, "Tổng", bold=True)
     for c, fmt in ((2, MONEY), (5, INT), (7, MONEY), (10, MONEY)):
         L = col(c)
@@ -532,7 +558,7 @@ def _channels(wb: Workbook, data: TongQuanData) -> None:
         put(ws, r, 6, f'=IFERROR(B{r}/E{r},"{DASH}")', MONEY)
     for r in (*range(CH_FIRST, CH_OFFER + 1), CH_TOTAL):
         put(ws, r, 9, f'=IFERROR(G{r}/{ov}$B${OV["gmv"]},"{DASH}")', PCT)
-    put(ws, CH_TOTAL + 2, 1, CH_NOTE)
+    put(ws, CH_TOTAL + 2, 1, CH_SPLIT_NOTE if split else CH_NOTE)
     widths(ws, {1: 38}, 14)
     finish(ws, "B4")
 

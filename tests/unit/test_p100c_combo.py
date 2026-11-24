@@ -277,12 +277,14 @@ def test_wire_keys_carry_roi_and_margin():
     assert j["roi"]["text"].startswith("ΔGMV / chi phí ")
     assert j["roi"]["metric_id"] == "card_return"
     m = j["margin"]
-    # T1: profit / doanh thu thuc (the dashboard's), never / GMV
-    assert m["before_pct"] == 10.0
-    # on the card's horizon: m0 x R_before + Δ profit over R_after, R = GMV x net/GMV
+    # #42 / #44: Biên đóng góp = the card's own profit ÷ doanh thu thực on its days, R = GMV x
+    # net/GMV less the offers that lower it (the combo's discount); never ÷ GMV
+    assert m["metric_id"] == "margin_contribution"
     ratio = D(10_000_000) / D(10_500_000)
-    r_before, r_after = r.before.gmv * ratio, r.likely.gmv * ratio
-    after = (D("0.1") * r_before + r.likely.profit - r.before.profit) / r_after * 100
+    r_before = r.before.gmv * ratio
+    r_after = r.likely.gmv * ratio - r.likely.revenue_offer_cost
+    assert m["before_pct"] == pytest.approx(float(r.before.profit / r_before * 100), abs=0.06)
+    after = r.likely.profit / r_after * 100
     assert m["after_pct"] == pytest.approx(float(after), abs=0.06)
     assert m["shift_pts"] == pytest.approx(m["after_pct"] - m["before_pct"])
 

@@ -158,3 +158,35 @@ def test_the_plan_margin_is_on_doanh_thu_thuc_after_the_new_offers():
     # the same Δ profit on a doanh thu thực the voucher lowered: a different margin than ÷ GMV
     no_offer = pa.result_deltas(env, {"p50": {**p50, "drevoffer": 0.0}})
     assert no_offer["bien"] != pytest.approx(d["bien"])
+
+
+# ----------------------------------------------------------------- P7: the plan's channel Δ
+
+
+def test_the_plan_channel_delta_adds_up_to_the_plan_total():
+    from decimal import Decimal as D
+
+    lever = _leaf("v", 60_000)
+    # 20 % of the lever's Δ orders land on the Tiếp thị liên kết source
+    res = lever.result
+    assert res is not None and res.likely is not None
+    before_src = {"lien_ket": {"orders": D(10), "gmv": D(1_000_000), "profit": D(200_000)}}
+    likely_src = {"lien_ket": {"orders": D("10.4"), "gmv": D(1_020_000), "profit": D(212_000)}}
+    from dataclasses import replace
+
+    lever.result = replace(
+        res,
+        before=replace(res.before, by_source=before_src),
+        likely=replace(res.likely, by_source=likely_src),
+    )
+    ads = _leaf("a", -30_000)
+    ads.campaign = "C"
+    results = {"v": lever, "a": ads}
+    counted = pa.count_in_horizon(list(results.values()), H)
+    split = pa.split_delta(counted, results)
+    total = pa.combine_counted(list(counted.values()))["p50"]
+    for name in pa.SPLIT_FIELDS:
+        assert sum(split[ch][name] for ch in split) == pytest.approx(total[name]), name
+    assert split["ads"]["dprofit"] == pytest.approx(-30_000)
+    assert split["affiliate"]["dorders"] == pytest.approx(0.4)  # 20 % of the lever's 2 orders
+    assert split["affiliate"]["dprofit"] == pytest.approx(12_000)

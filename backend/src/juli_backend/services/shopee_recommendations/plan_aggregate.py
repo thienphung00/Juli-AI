@@ -1218,6 +1218,8 @@ class Joint:
     ads_campaigns: dict[str, Mapping[str, Any]] = field(default_factory=dict)
     #: card id -> its share of its campaign's cost inside the horizon
     ads_cost: dict[str, float] = field(default_factory=dict)
+    #: the leaf results this joint counted (P7's channel attribution)
+    leaves: list[CardResult] = field(default_factory=list)
 
     @property
     def floor_ok(self) -> bool:
@@ -1383,6 +1385,7 @@ def joint(
         none_estimable=none_estimable,
         ads_campaigns=ads_blocks,
         ads_cost=ads_cost,
+        leaves=[] if results is None else [results[i] for i in sorted(counted)],
     )
 
 
@@ -1743,6 +1746,84 @@ def _after_of(
     }
 
 
+#: P7: the plan's split channels and the Δ fields a channel carries
+SPLIT_FIELDS = ("dgmv", "dorders", "dprofit")
+AFFILIATE_SOURCE = "lien_ket"
+
+
+def _channel_of(r: CardResult) -> str | None:
+    """The channel a card's own Δ belongs to as a whole: an ads card (it spends a campaign) ->
+    Quảng cáo, an affiliate / KOL card -> TTLK; ``None`` = a lever on the shop's own funnel
+    (Organic, its Tiếp thị liên kết source's part -> TTLK)."""
+    kind = "" if r.result is None else r.result.kind
+    if r.campaign:
+        return "ads"
+    if kind.startswith("affiliate") or kind.startswith("kol"):
+        return "affiliate"
+    return None
+
+
+def _ttlk_share(r: CardResult, name: str) -> float:
+    """The part of a lever card's P50 Δ ``name`` that lands on the Tiếp thị liên kết source."""
+    res = r.result
+    if res is None or res.likely is None:
+        return 0.0
+    field = RESULT_FIELDS[name]
+    total_a, total_b = getattr(res.likely, field), getattr(res.before, field)
+    a = (res.likely.by_source.get(AFFILIATE_SOURCE) or {}).get(field)
+    b = (res.before.by_source.get(AFFILIATE_SOURCE) or {}).get(field)
+    if total_a is None or total_b is None or a is None or b is None or total_a == total_b:
+        return 0.0
+    return float((a - b) / (total_a - total_b))
+
+
+def split_delta(
+    counted: Mapping[str, Counted], results: Mapping[str, CardResult]
+) -> dict[str, dict[str, float | None]]:
+    """P7: the plan's P50 Δ per channel (Organic / Quảng cáo / TTLK) from the SEPARATE card
+    results as the plan counts them (an ads card's campaign share, #47's exclusions): an ads card
+    -> Quảng cáo, an affiliate card -> TTLK, a lever card -> Organic but the part of its Δ on the
+    Tiếp thị liên kết source -> TTLK. The channels add up to the plan's P50 exactly; an unknown
+    Δ stays unknown."""
+    out: dict[str, dict[str, float | None]] = {
+        ch: dict.fromkeys(SPLIT_FIELDS, 0.0) for ch in ("organic", "ads", "affiliate")
+    }
+    for cid, c in counted.items():
+        r = results.get(cid)
+        if r is None:
+            continue
+        whole = _channel_of(r)
+        for name in SPLIT_FIELDS:
+            v = c.cols["p50"].get(name)
+            if v is None:
+                for ch in out:
+                    out[ch][name] = None
+                continue
+            if whole is not None:
+                if out[whole][name] is not None:
+                    out[whole][name] = float(out[whole][name] or 0.0) + v
+                continue
+            share = _ttlk_share(r, name)
+            for ch, part in (("affiliate", v * share), ("organic", v * (1 - share))):
+                if out[ch][name] is not None:
+                    out[ch][name] = float(out[ch][name] or 0.0) + part
+    return out
+
+
+def _split_block(env: RecoEnv, j: Joint, product_id: str | None) -> dict[str, Any] | None:
+    """P7: today's Organic / Quảng cáo / TTLK of the scope (Tổng quan's split, 30 days) and the
+    plan's Δ per channel; ``None`` without results (the legacy path)."""
+    from juli_backend.services.shopee_analytics.channel_split import profit_split
+
+    if j.result_basis is None or j.horizon is None or not hasattr(env.view, "pairs"):
+        return None
+    results = {r.card_id: r for r in j.leaves}
+    return {
+        "today": profit_split(env.view, product_id),
+        "delta_p50": split_delta(j.counted, results),
+    }
+
+
 def _product_block(env: RecoEnv, pid: str, evs: Sequence[Evaluated], memo: _Memo) -> dict[str, Any]:
     j = memo.of([e.entry.card_id for e in evs])
     base = float(sum((ln.order_value for ln in env.lines_for([pid]) if counts_in_sales(ln)), ZERO))
@@ -1763,6 +1844,7 @@ def _product_block(env: RecoEnv, pid: str, evs: Sequence[Evaluated], memo: _Memo
         "joint": j.brief(),
         "predicted_rel_gmv": rel,
         "base_gmv_30d": base,
+        "split": _split_block(env, j, pid),
         "orders_per_day": stats.orders_per_day,
         "window": plan.window_options("orders", stats),
         "steps": plan_steps.build_steps(
@@ -1963,6 +2045,8 @@ def aggregate(
         },
         "dorders_month": {q: full.total[q]["dorders"] for q in ("p10", "p50", "p90")},
         "drevoffer_month": {q: full.total[q]["drevoffer"] for q in ("p10", "p50", "p90")},
+        # P7: Organic / Quảng cáo / TTLK today (Tổng quan's split) and the plan's Δ per channel
+        "split": _split_block(env, full, None),
         # P4: the plan's ONE "Biên lợi nhuận" (registry ``margin``: lợi nhuận ròng ÷ doanh thu
         # thực) before and after; ``after.margin_pct`` and the steps summary read the same figure
         "margin": {
@@ -2157,6 +2241,7 @@ def merge_groups(
             "after_pct": out["after"]["margin_pct"],
         }
     out["drevoffer_month"] = totals["drevoffer"]
+    out["split"] = _merge_split(sides, twice)
     out["cost"] = _merge_cost(agg, groups)
     if back and out["cost"] is not None:
         cost = dict(out["cost"])
@@ -2167,6 +2252,27 @@ def merge_groups(
         out["cost"] = cost
     out["totals_note"] = _merge_note(out, estimable)
     return out
+
+
+def _merge_split(
+    sides: Sequence[Mapping[str, Any]], twice: Mapping[str, float]
+) -> dict[str, Any] | None:
+    """P7: the plan's channel Δ over its own cards and every group's (the campaign counted twice
+    across sides goes back to Quảng cáo, as in the total)."""
+    blocks = [s["split"] for s in sides if s.get("split")]
+    if not blocks:
+        return None
+    delta: dict[str, dict[str, float | None]] = {
+        ch: dict.fromkeys(SPLIT_FIELDS, 0.0) for ch in ("organic", "ads", "affiliate")
+    }
+    for b in blocks:
+        for ch, row in b["delta_p50"].items():
+            for name, v in row.items():
+                cur = delta[ch][name]
+                delta[ch][name] = None if v is None or cur is None else cur + v
+    if delta["ads"]["dprofit"] is not None:
+        delta["ads"]["dprofit"] = float(delta["ads"]["dprofit"] or 0.0) + sum(twice.values())
+    return {"today": blocks[0]["today"], "delta_p50": delta}
 
 
 def _once_shares(sides: Sequence[Mapping[str, Any]], twice: Mapping[str, float]) -> None:

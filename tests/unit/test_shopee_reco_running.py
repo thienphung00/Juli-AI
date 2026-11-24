@@ -8,6 +8,8 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal as D
 from types import SimpleNamespace
 
+import pytest
+
 from juli_backend.models.shopee_metrics import ShopeeProductMetricsDaily, ShopeeShopMetricsDaily
 from juli_backend.models.shopee_plans import ShopRecoChangeSet
 from juli_backend.services.shopee_recommendations import change_sets, measure, running
@@ -274,3 +276,15 @@ async def test_a_group_result_is_read_but_feeds_no_calibration(session):
     obs = await measure.read_groups(session, sid, date(2026, 11, 1), report, grouping)
     assert obs == []
     assert change_sets.SET_MEASURING == a.status
+
+
+def test_thuc_te_margin_is_profit_over_doanh_thu_thuc_never_gmv():
+    """P9 (#44): Thực tế's margin is on the forecast's basis, lợi nhuận ÷ doanh thu thực; a day
+    without doanh thu thực leaves it unknown (never ÷ GMV)."""
+    from juli_backend.services.shopee_recommendations.running import totals
+
+    keys = [START + timedelta(days=i) for i in range(2)]
+    days = {d: Day(100_000.0, 2.0, 18_000.0, 90_000.0) for d in keys}
+    assert totals(days, keys)["margin_pct"] == pytest.approx(20.0)  # 36.000 ÷ 180.000
+    days[keys[1]] = Day(100_000.0, 2.0, 18_000.0)
+    assert totals(days, keys)["margin_pct"] is None
