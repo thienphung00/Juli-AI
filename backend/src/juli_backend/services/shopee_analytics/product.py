@@ -72,7 +72,9 @@ def _rates(view: PeriodView, product_id: str, sku: str | None) -> Rates | None:
     """The 30-day rates of one SKU (``sku``) or the whole product (None); None without sales.
     One math with the builder (``shopee_analytics.margins``, ADR-122 d.12)."""
     pairs = list(_lines_of(view, product_id))
-    product_rates, by_sku = measured_rates(pairs, view.ads.product_spend.get(product_id, ZERO))
+    product_rates, by_sku = measured_rates(
+        pairs, view.ads.product_spend.get(product_id, ZERO), affiliate_cost_basis=True
+    )
     return product_rates if sku is None else by_sku.get(sku)
 
 
@@ -209,7 +211,8 @@ def sku_waterfall(
         fee = view.fees.rate(product_id)
         formula = view.fees.schedule(product_id).formula_on(view.window.end)
         paid = sum((pb.revenue for _, pb in carrying), ZERO)
-        commission = affiliate_cost(carrying) or ZERO
+        commission = sum((pb.commission or ZERO for _, pb in carrying), ZERO)  # the floor's input
+        commission_shown = affiliate_cost(carrying) or ZERO  # the waterfall's displayed line
         unit = Decimal(units) if units else None
 
         def per_unit(total: Decimal | None, unit: Decimal | None = unit) -> int | float | None:
@@ -280,7 +283,7 @@ def sku_waterfall(
                     "platform_fees": per_unit(fees_total),
                     "cogs": per_unit(cogs_total) if stated else None,
                     "packaging": per_unit(pack_total),
-                    "commission": per_unit(commission),
+                    "commission": per_unit(commission_shown),
                     "contribution_before_ads": per_unit(contribution) if stated else None,
                     "ads": per_unit(ad_cost),
                     "profit": per_unit(contribution - ad_cost) if stated else None,

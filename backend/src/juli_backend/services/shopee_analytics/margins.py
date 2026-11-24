@@ -42,11 +42,17 @@ class Rates:
 
 
 def measured_rates(
-    pairs: Iterable[tuple[Any, Any]], product_spend: Decimal | None
+    pairs: Iterable[tuple[Any, Any]],
+    product_spend: Decimal | None,
+    *,
+    affiliate_cost_basis: bool = False,
 ) -> tuple[Rates | None, dict[str, Rates]]:
     """``(the product's rates, SKU key -> rates)`` from the product's ``(OrderLine, breakdown)``
     pairs of the window; cancelled / excluded lines are left out. ``product_spend`` = the ads
-    spend allocated to the product in the same window. ``(None, {})`` without a paid line."""
+    spend allocated to the product in the same window. ``(None, {})`` without a paid line.
+    ``affiliate_cost_basis`` False (default, the builder's combo pricing: card estimates stay as
+    they were) sums every carrying line's commission; True (the margin breakdown shown on the
+    product page) uses the registry's one affiliate cost, ``affiliate_cost``."""
     paid: dict[str, Decimal] = {}
     voucher: dict[str, Decimal] = {}
     commission: dict[str, Decimal] = {}
@@ -55,7 +61,8 @@ def measured_rates(
             continue
         paid[ln.sku] = paid.get(ln.sku, ZERO) + pb.revenue
         voucher[ln.sku] = voucher.get(ln.sku, ZERO) + pb.voucher
-        commission[ln.sku] = commission.get(ln.sku, ZERO) + (affiliate_cost([(ln, pb)]) or ZERO)
+        own = affiliate_cost([(ln, pb)]) if affiliate_cost_basis else pb.commission
+        commission[ln.sku] = commission.get(ln.sku, ZERO) + (own or ZERO)
     total = sum(paid.values(), ZERO)
     if total <= 0:
         return None, {}

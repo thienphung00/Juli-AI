@@ -148,12 +148,7 @@ def test_the_plans_split_block_adds_up_to_the_same_kpi_totals():
     assert p2 is not None and p2["today"]["total"]["gmv"] == p2_gmv
 
 
-def test_product_page_and_margin_rates_read_the_one_affiliate_cost():
-    from pathlib import Path
-
-    import juli_backend.services.shopee_analytics.product as product_page
-    from juli_backend.services.shopee_analytics.margins import measured_rates
-
+def _p1_pairs_with_uncovered():
     uncovered = (
         line("u1", product_id="P1", affiliate=True, commission=D(50000)),
         line_profit(
@@ -162,10 +157,29 @@ def test_product_page_and_margin_rates_read_the_one_affiliate_cost():
             schedule=SCHEDULE,
         ),
     )
-    pairs = [p for p in _pairs() if p[0].product_id == "P1"] + [uncovered]
-    rates, _ = measured_rates(pairs, None)
-    assert rates is not None
+    return [p for p in _pairs() if p[0].product_id == "P1"] + [uncovered]
+
+
+def test_margin_display_reads_the_one_affiliate_cost_but_the_builder_keeps_its_basis():
+    from juli_backend.services.shopee_analytics.margins import measured_rates
+
+    pairs = _p1_pairs_with_uncovered()
     paid = sum((pb.revenue for _, pb in pairs if pb.excluded_reason is None), D(0))
-    # the commission share x revenue is the KPI product AFF (covered lines only)
-    assert rates.commission * paid == affiliate_cost(pairs)
-    assert "affiliate_cost(" in Path(product_page.__file__).read_text(encoding="utf-8")
+    shown, _ = measured_rates(pairs, None, affiliate_cost_basis=True)
+    builder, _ = measured_rates(pairs, None)  # default: the builder's combo pricing, unchanged
+    assert shown is not None and builder is not None
+    assert shown.commission * paid == affiliate_cost(pairs)
+    old = sum((pb.commission or D(0) for _, pb in pairs if pb.excluded_reason is None), D(0))
+    assert builder.commission * paid == old and old > affiliate_cost(pairs)
+
+
+def test_product_page_shows_the_one_cost_and_keeps_the_floor_input_on_the_old_basis():
+    from pathlib import Path
+
+    import juli_backend.services.shopee_analytics.product as product_page
+
+    src = Path(product_page.__file__).read_text(encoding="utf-8")
+    assert "commission_shown = affiliate_cost(carrying)" in src
+    assert '"commission": per_unit(commission_shown)' in src
+    assert "affiliate_rate=safe_div(commission, paid)" in src
+    assert "affiliate_cost_basis=True" in src
