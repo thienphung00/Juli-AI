@@ -45,6 +45,7 @@ from juli_backend.services.shopee_builder.engine_families.facts import (
     SimpleFacts,
     VoucherFacts,
 )
+from juli_backend.services.shopee_recommendations import kinds as reco_kinds
 
 ZERO = Decimal(0)
 ONE = Decimal(1)
@@ -157,26 +158,28 @@ def voucher_option(spec: sp.VoucherSpec, facts: VoucherFacts) -> OptionInput:
 
 def combo_option(spec: sp.ComboSpec, facts: ComboFacts) -> OptionInput:
     """E2: orders within 20 % (at least one unit) under the tier reach it, measured from the
-    order lines -- only once the shop has run a combo (P100 B.10, owner 2026-11-13). With no
-    combo history, or too few orders to measure that reach, the option is cost and break-even
-    only ("chưa ước tính được"): the buyers who already qualify get the discount (its cost); no
-    prior reach ("ước tính chung") is ever passed off as an estimate. The cost per use is the
-    discount net of the % fees it saves (J: fees are on the post-combo total)."""
+    order lines once the shop has run a combo (P100 B.10). With no combo history, or too few
+    orders to measure that reach, the AOV driver is the kind's typical result (decision #27):
+    its generic prior (AOV +3-12 %), floored at 5 %, basis "prior". The measured reach is never
+    mixed in (it overstated reach, B.10); the discount cost is still exact. The cost per use is
+    the discount net of the % fees it saves (J: fees are on the post-combo total)."""
     label = _label(spec, spec.name or "Combo khuyến mãi")
     per_use = facts.per_use * (ONE - facts.fee_rate)
     if facts.reach is None or not facts.aov_now:
         now = facts.use_share_now
+        p10, p90 = reco_kinds.spec("bundle_deal").prior
+        typical = Band(
+            *reco_kinds.floor_prior_band(
+                "bundle_deal",
+                Decimal(str(p10)),
+                (Decimal(str(p10)) + Decimal(str(p90))) / 2,
+                Decimal(str(p90)),
+            )
+        )
         return OptionInput(
             kind="bundle_deal",
             label=label,
-            drivers=(
-                DriverEffect(
-                    "aov",
-                    ALL_SOURCES,
-                    "not_estimable",
-                    note=facts.reach_note or common.NOTE_COMBO_REACH,
-                ),
-            ),
+            drivers=(DriverEffect("aov", ALL_SOURCES, "prior", lift=typical),),
             duration_days=spec.days,
             offers=(OfferCost(per_use, point(now), None, "giảm giá combo"),),
         )
@@ -448,31 +451,6 @@ def simple_option(spec: sp.VersionSpec, facts: SimpleFacts) -> OptionInput:
         offers=facts.offers,
         profit_per_order_after=facts.profit_per_order_after,
     )
-
-
-def _not_estimable_listing(spec: sp.VersionSpec, note: str) -> OptionInput:
-    """A listing lever with no figure: its lead driver is "chưa ước tính được" and the cost is 0
-    (the card is still saveable, as a combo without history is)."""
-    try:
-        change_kind, label, lead, _co = _SIMPLE[spec.kind]
-    except KeyError:
-        raise FamilyRefused("kind_not_supported") from None
-    return OptionInput(
-        kind=change_kind,
-        label=_label(spec, label),
-        drivers=(DriverEffect(lead[0], lead[1], "not_estimable", note=note),),
-        duration_days=None,
-    )
-
-
-def keyword_not_estimable_option(spec: sp.VersionSpec) -> OptionInput:
-    """Tiêu đề / dòng đầu mô tả of a product with no keyword data."""
-    return _not_estimable_listing(spec, common.NOTE_NO_KEYWORD_DATA)
-
-
-def unmeasured_listing_option(spec: sp.VersionSpec) -> OptionInput:
-    """Ảnh bìa / Hiển thị giá: measured after the run, until the banner checks exist."""
-    return _not_estimable_listing(spec, common.NOTE_MEASURE_AFTER)
 
 
 # -- ads, new campaign (d.8) ---------------------------------------------------------------------

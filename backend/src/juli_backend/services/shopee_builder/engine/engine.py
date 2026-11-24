@@ -120,6 +120,7 @@ class _Draw:
     price_term: float
     aov_term: float
     aov_orders: float  # orders after the change on the sources an AOV lever acts on
+    revenue_offer_cost: float = 0.0  # the offers that lower doanh thu thực
 
 
 def _neutral(n_src: int, n_offers: int) -> _Eff:
@@ -245,7 +246,7 @@ def _scenario(
             orders_term += t
             ps[i] += t
     total_o = sum(os_)
-    offer_cost = 0.0
+    offer_cost = rev_offer = 0.0
     uses: list[float] = []
     for offer, share in zip(option.offers, eff.use_shares, strict=True):
         n_use = total_o * share
@@ -253,6 +254,8 @@ def _scenario(
             n_use = min(n_use, float(offer.use_cap))
         uses.append(n_use)
         offer_cost += n_use * float(offer.per_use)
+        if offer.reduces_revenue:
+            rev_offer += n_use * float(offer.per_use)
     costs = offer_cost + (float(option.fixed_cost) if with_fixed else 0.0)
     rows: list[tuple[float | None, float | None, float, float, float | None]] = []
     for i in range(n_src):
@@ -271,6 +274,7 @@ def _scenario(
         price_term,
         aov_term,
         aov_orders,
+        rev_offer,
     )
 
 
@@ -325,6 +329,7 @@ def _to_scenario(draw: _Draw, keys: list[str]) -> Scenario:
         profit,
         _d(draw.offer_cost),
         by_source,
+        _d(draw.revenue_offer_cost),
     )
 
 

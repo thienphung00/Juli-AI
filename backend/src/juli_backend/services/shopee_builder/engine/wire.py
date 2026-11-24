@@ -28,6 +28,9 @@ NOT_ESTIMABLE_NOTE = "Chưa ước tính được"
 CARD_RETURN_ID = "card_return"
 CARD_RETURN_LABEL = "ΔGMV / chi phí"
 PER_30D_LABEL = "Quy đổi 30 ngày (tham khảo)"
+#: #42 / #44: the registry id of the card's profit figures (Lợi nhuận đóng góp) and its margin
+PROFIT_BASIS = "contribution"
+MARGIN_ID = "margin_contribution"
 
 
 def _f(x: Decimal | None) -> float | None:
@@ -107,32 +110,22 @@ def _margin_pct(profit: Decimal | None, net: Decimal | None) -> float | None:
 
 
 def _margin(r: OptionResult) -> dict[str, Any]:
-    """T1 (A1.1-A1.3): the card's one margin, profit ÷ doanh thu thực, the same figure as the
-    dashboard (``shop_profit.scope_margin_pct``). Before = the scope's covered profit ÷ its covered
-    net revenue (m0). The dashboard basis is its own window, but the card's GMV and Δ profit are
-    over the card's ``days``, so after is built on the card's horizon: with ratio = net/GMV of the
-    basis, R_before = before GMV × ratio and R_after = likely GMV × ratio,
-    after = (m0 × R_before + Δ profit) ÷ R_after. A secondary line -- the headline is Δ tổng
-    lợi nhuận."""
+    """P3 (#42 / #44): the card's Biên đóng góp = Lợi nhuận đóng góp ÷ doanh thu thực, before and
+    after on the card's OWN days (one denominator). Doanh thu thực of a column = its GMV x the
+    scope's net/GMV ratio (``margin_basis``) less the offers that lower it (voucher, combo, add-on
+    price: ``Scenario.revenue_offer_cost``). So Δ lợi nhuận and Δ biên are on one basis and can
+    move in opposite directions (a voucher that adds profit at a lower margin)."""
     mb = r.margin_basis
-    if mb is None:
+    if mb is None or mb.net_revenue <= 0 or mb.gmv <= 0:
         return {"before_pct": None, "after_pct": None, "shift_pts": None}
-    before = _margin_pct(mb.profit, mb.net_revenue)
-    after = None
-    s = r.likely
-    if (
-        s is not None
-        and mb.profit is not None
-        and mb.net_revenue > 0
-        and mb.gmv > 0
-        and s.profit is not None
-        and r.before.profit is not None
-    ):
-        ratio = mb.net_revenue / mb.gmv
-        m0 = mb.profit / mb.net_revenue
-        after = _margin_pct(
-            m0 * (r.before.gmv * ratio) + (s.profit - r.before.profit), s.gmv * ratio
-        )
+    ratio = mb.net_revenue / mb.gmv
+
+    def pct(s: Scenario | None) -> float | None:
+        if s is None or s.profit is None:
+            return None
+        return _margin_pct(s.profit, s.gmv * ratio - s.revenue_offer_cost)
+
+    before, after = pct(r.before), pct(r.likely)
     shift = None if before is None or after is None else after - before
     return {"before_pct": before, "after_pct": after, "shift_pts": shift}
 
@@ -170,6 +163,8 @@ def result_json(r: OptionResult) -> dict[str, Any]:
             "pct": _ratio(d_profit, b_profit),
             "low": None if lo is None else _whole(lo - b_profit),
             "high": None if hi is None else _whole(hi - b_profit),
+            # #42: the card's Δ is Lợi nhuận đóng góp (before ads and affiliate)
+            "basis": PROFIT_BASIS,
         }
     aov_only = r.estimable and bool(r.drivers) and all(m == "aov" for m in r.drivers)
     if aov_only:
@@ -270,7 +265,7 @@ def result_json(r: OptionResult) -> dict[str, Any]:
             "label": PER_30D_LABEL,
         },
         "roi": _roi(r, d_gmv),  # wire key kept; the metric is card_return (G4)
-        "margin": _margin(r),
+        "margin": {"metric_id": MARGIN_ID, **_margin(r)},
         "detail": {
             "before": _column(r.before),
             "low": None if r.low is None else _column(r.low),

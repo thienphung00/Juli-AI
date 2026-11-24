@@ -79,21 +79,23 @@ async def test_a_deep_combo_cannot_lose_more_than_its_combos_lose(session, shop)
     assert v["ok"]
     margin = v["details"]["tiers"][0]["margin_pct"]
     assert margin is not None and margin < 0  # sold below cost
-    # P100-C (B.10): the seeded shop has too few orders to measure who moves up to the tier, so
-    # the card has no ΔGMV / Δ profit estimate -- the loss shows through what is certain: the
-    # combos already bought lose money, every order at the tier loses money, and the result
-    # carries the cost and a break-even
+    # batch-1124-a R (#27 / #29): the seeded shop has too few orders to measure who moves up to
+    # the tier, so the card takes the combo prior (an AOV lift) -- was "no estimate" (P100-C).
+    # The estimated loss is bounded by the discount money the card gives (its cost total): the
+    # P96e bug (a margin ratio times the scope's GMV) lost far more than that
     d = v["delta"]
-    assert d["profit"]["p50"] is None
+    r = v["result"]
+    assert r["estimable"] is True and r["basis"] == "prior"
+    assert d["gmv"]["p50"] > 0
+    cost = r["cost"]["total"]
+    assert -cost <= d["profit"]["low"] <= d["profit"]["p50"] <= d["profit"]["high"] < 0
     existing = v["cost"]["existing"]
     assert existing > 0
     # the P96e bug: the loss is the combos' own discount, never a ratio times the scope's GMV
     assert -existing <= d["certain_profit"] < 0
     band = d["per_order"]["profit"]
     assert band["low"] <= band["p50"] <= band["high"] < 0
-    r = v["result"]
-    assert r["estimable"] is False
-    assert r["cost"]["total"] > 0 and r["cost"]["break_even_orders"] is not None
+    assert cost > 0 and r["cost"]["break_even_orders"] is not None
 
 
 async def test_bands_per_order_run_low_to_high(session, shop):

@@ -233,6 +233,10 @@ describe("noticing a saved voucher", () => {
   it("knows a combo create endpoint and reads only digits of its id; nothing else is captured", () => {
     expect(savedBundlePath("/api/marketing/v3/bundle_deal/create/")).toBe(true);
     expect(savedBundlePath("/api/marketing/v3/bundle_deal/list/")).toBe(false);
+    // 0.3.35: the detail's own path (GET reads it; a POST there is the save)
+    expect(savedBundlePath("/api/marketing/v3/bundle_deal/")).toBe(true);
+    expect(savedBundlePath("/api/marketing/v3/bundle_deal/item/")).toBe(false);
+    expect(savedSignal({ method: "GET", pathname: "/api/marketing/v3/bundle_deal/", body: { data: { bundle_deal_id: 9001 } } } as never)).toBeNull();
     expect(savedBundlePath("/api/marketing/v3/voucher/create/")).toBe(false);
     expect(bundleIdFrom({ code: 0, data: { bundle_deal_id: 555000111 } })).toBe("555000111");
     expect(bundleIdFrom({ bundle_id: "77" })).toBe("77");

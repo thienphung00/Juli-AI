@@ -93,7 +93,7 @@ describe("P100 step ③ Phương án", () => {
     renderStep3(res(150000, -1170000));
     expect(screen.getByTestId("p3-title")).toHaveTextContent("Chiến dịch đang có lãi: CPA 33.333đ, hoà vốn 50.000đ");
     expect(screen.queryByTestId("p3-verdict")).toBeNull();
-    expect(screen.getByTestId("p3-fc-profit")).toHaveTextContent("Lợi nhuận dự kiến (30 ngày): 3.150.000 đ");
+    expect(screen.getByTestId("p3-fc-profit")).toHaveTextContent("Lợi nhuận đóng góp dự kiến (30 ngày): 3.150.000 đ");
     expect(screen.getByTestId("p3-fc-profit-sub")).toHaveTextContent("hiện tại: 3.000.000 đ · +150.000 đ (+5,0 %)");
     expect(screen.getByTestId("p3-fc-gmv")).toHaveTextContent("GMV dự kiến: 16.830.000 đ");
     expect(screen.getByTestId("p3-fc-gmv-sub")).toHaveTextContent("hiện tại: 18.000.000 đ · −1.170.000 đ (−6,5 %)");
@@ -209,7 +209,7 @@ describe("P100 step ④ So sánh & lưu", () => {
     expect(row).toHaveTextContent("72 (−18)");
     expect(row).toHaveTextContent("33.333 / 50.000");
     expect(row).toHaveTextContent("5,0");
-    expect(row).toHaveTextContent("1,95");
+    expect(row).toHaveTextContent("2,0");
     expect(screen.queryByTestId("p4-verdict-1")).toBeNull();
     expect(screen.getByTestId("p4-verdict-2")).toHaveTextContent("Lỗ");
   });

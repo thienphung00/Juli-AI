@@ -151,8 +151,8 @@ class ServiceData:
         pr = {
             r["day"]: r
             for r in await self._q(
-                """select day, sum(gmv) gmv, sum(orders) orders, sum(units) units from
-                product_metrics_daily
+                """select day, sum(gmv) gmv, sum(orders) orders, sum(units) units,
+                sum(ads_spend) ads_spend, count(ads_spend) n_ads from product_metrics_daily
                 where shop_id = :s and order_type = 'confirmed' and item_id = :i and day <= :e
                 group by day""",
                 e=end,
@@ -181,7 +181,8 @@ class ServiceData:
                     "units": (p_ or {}).get("units") or 0,
                     "views": t_["views"] if t_ and t_["n"] else None,
                     "clicks": t_["clicks"] if t_ and t_["n"] else None,
-                    "ads_spend": None,
+                    # decision #39: the product's own ad cost (NULL = no basis, never 0)
+                    "ads_spend": (p_ or {}).get("ads_spend") if (p_ or {}).get("n_ads") else None,
                     "ads_gmv": None,
                 }
             )

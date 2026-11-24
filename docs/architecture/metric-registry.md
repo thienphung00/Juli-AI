@@ -60,7 +60,7 @@ field), `basis` (platform / juli / estimated), `none_rule`.
 `gmv`, `orders`, `units` (platform shop totals) · `line_gmv`, `line_orders`,
 `line_units` (order lines, confirmed, **GMT+7 day**) · `net_revenue` (buyer paid: deal×qty −
 seller voucher − combo − output VAT; 0 for an accepted refund) · `cogs` (+ `cogs_known_gmv`) ·
-`packaging` · `fees` · `shipping_net` · `ads_spend` (one resolver: §5) · `ads_gmv_platform`
+`packaging` · `fees` · `shipping_net` · `ads_spend` (one resolver: §5) · `ads_spend_product` (a product's ad cost, §5b) · `ads_gmv_platform`
 · `affiliate_commission` · `offer_promo`, `offer_voucher`, `offer_combo` · `other_marketing`
 · `views`, `clicks` (per source) · `samples_cost` · `stock_units`.
 
@@ -89,14 +89,25 @@ Components the code adds (all sums over the window unless noted):
 Retired: `aov_seller_centre` (screen line), five-numbers line AOV (uses `aov`), every
 `line_gmv ÷ line_orders` shown as AOV.
 
-### Profit and margin (two labelled margins, ask 1)
+### Profit ladder and three margins (decision #44, 24/11)
+Doanh thu thực → **Lợi nhuận gộp** (− giá vốn − đóng gói) → **Lợi nhuận đóng góp** (− phí sàn −
+vận chuyển ròng; the card basis) → **Lợi nhuận ròng** (− QC − AFF − marketing khác = `profit`).
+All on **known-cost orders**; all three margins ÷ `net_revenue_known` (doanh thu thực).
+
 | id | Label | Formula |
 |---|---|---|
-| `profit` | Lợi nhuận | net_revenue − cogs − packaging − fees − shipping_net − affiliate_commission − ads_spend − other_marketing, on **known-cost orders** (today's `known_cost_profit`); `coverage` = known-cost GMV share; `partial` below 100 % (a base of `net_revenue_known`, not `net_revenue`) |
-| `margin` | Biên lợi nhuận | profit ÷ net_revenue_known (same known-cost orders) |
+| `gross_profit` | Lợi nhuận gộp | net_revenue_known − cogs − packaging |
+| `contribution` | Lợi nhuận đóng góp | gross_profit − fees − shipping_net (before ads, affiliate and other marketing: the basis of every card, of break-even ROAS and of channel profit) |
+| `profit` | Lợi nhuận ròng | contribution − ads_spend − affiliate_commission − other_marketing (today's `known_cost_profit`); `coverage` = known-cost GMV share; `partial` below 100 % |
+| `margin_gross` | Biên gộp | gross_profit ÷ net_revenue_known |
+| `margin_contribution` | Biên đóng góp | contribution ÷ net_revenue_known (the card margin) |
+| `margin` | Biên lợi nhuận | profit ÷ net_revenue_known (plan and Tổng quan) |
 | `margin_sale` | Biên ở giá bán | one unit at the selling price: (revenue after VAT − fees − cogs − packaging) ÷ revenue after VAT; product/SKU only; no marketing |
-| `contribution` | Lợi nhuận trước quảng cáo | profit + ads_spend (used by break-even ROAS, KOL net) |
-| `contribution_rate` | Tỷ lệ đóng góp | (contribution + affiliate_commission) ÷ net_revenue_known — the rate channel profit uses (§6) |
+| `contribution_rate` | Tỷ lệ đóng góp | contribution ÷ net_revenue_known as a rate — the rate channel profit uses (§6) |
+
+Retired 24/11: `contribution` = profit + ads_spend ("Lợi nhuận trước quảng cáo", after affiliate).
+In code the ladder's contribution is `ProfitBreakdown.organic_contribution` /
+`ProductProfit.organic_contribution` (line `contribution` + commission).
 
 `cost_total` includes `cost_offers`, but offers are already netted out of net revenue (deal ×
 qty − voucher − combo), so **profit ≠ net_revenue − cost_total**: subtracting `cost_total` from
@@ -111,17 +122,28 @@ Product profit = the same formula on the product's lines **after ad allocation (
 ### Costs (ask 2: every cost line + % of net revenue, same list per product)
 `cost_cogs`, `cost_packaging`, `cost_fees`, `cost_shipping`, `cost_ads`, `cost_affiliate`,
 `cost_offers` (= `offer_promo + offer_voucher + offer_combo`, on non-cancelled confirmed lines;
-parts shown as sub-lines), `cost_other`, `cost_total` (Σ all), `cost_marketing` (ads +
+parts shown as sub-lines), `cost_ads_product` (**chi phí quảng cáo của sản phẩm**, product level; see below), `cost_other`, `cost_total` (Σ all), `cost_marketing` (ads +
 affiliate + offers), and for each `*_pct` = cost ÷ net_revenue. Retired: `exports/collect.
 _offer_cost` (voucher + combo, skipped in-transit).
+
+**One ad cost per product (`cost_ads_product`, owner decision #39).** A product's ad cost is the
+spend of the campaigns that advertise it, from the ads report by product: per campaign and day,
+the Connector's daily spend × the product's share of that campaign's spend in the report (the
+shortest report window that covers the day, else the campaign's nearest one; overlapping windows
+are never summed; a day the Connector did not read takes the covering report window spread over
+its days). A product with no basis on a day has no value (`None`, shown "—"), never 0. A window
+is the sum of its days, so the daily table, Phân tích, the Excel exports, Đo lường and Chat all
+show the same figure (`ProductProfit.ad_spend`). Code: `shopee_analytics/product_ads.py`. The
+shop-level `cost_ads` is unchanged. A product with an ad cost and no order that day has a day row
+with 0 GMV, 0 orders and profit = −ad cost.
 
 ### Returns on cost
 | id | Label | Formula |
 |---|---|---|
-| `roi` | ROI | profit ÷ cost_marketing (shop, product, channel) |
+| `roi` | ROI | profit ÷ cost_total (shop, product, channel; decision #44: giá vốn + đóng gói + phí + vận chuyển + QC + AFF + Ưu đãi + khác) |
 | `roas` | ROAS | ads_gmv_platform ÷ cost_ads (Shopee broad, placed — labelled) |
 | `roas_direct` | ROAS trực tiếp | direct ads GMV ÷ cost_ads |
-| `roas_break_even` | ROAS hoà vốn | net_revenue_known ÷ contribution |
+| `roas_break_even` | ROAS hoà vốn | net_revenue_known ÷ contribution (the ladder's, before ads and affiliate; value moved 24/11) |
 | `roi_kol` | ROI KOL | (kol_net − samples_cost) ÷ (kol_commission + samples_cost) — one function (today ×3) |
 | `card_return` | ΔGMV / chi phí | a card's ΔGMV ÷ its cost — not labelled "ROI" any more |
 

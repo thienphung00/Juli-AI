@@ -326,12 +326,14 @@ async def test_sample_shop_price_and_promotion_estimates_stay_within_their_bound
     assert 0 < parts["price"] < 309_750
     d_profit = float(price.likely.profit or 0) - float(price.before.profit or 0)
     assert d_profit < 309_750
-    assert d_profit == pytest.approx(
-        147_788, rel=0.02
-    )  # was 141_818 at 7,9 %: +5 % on 309.750đ pays 2,04 points less fee
+    # Track P (#42): the orders a higher price loses are valued at Lợi nhuận đóng góp (before
+    # ads and affiliate, one rate), more per order than the after-ads profit: 122_968 (was
+    # 151_884 on the after-ads basis; 147_788 after 1123-e5)
+    assert d_profit == pytest.approx(122_968, rel=0.02)
 
     # 3. a 2-hour slot on one day: 2/24 of the day's 3,6 orders get the −15 %
     assert flash.days == 1
     d_flash = float(flash.likely.profit or 0) - float(flash.before.profit or 0)
     assert -10_000 < d_flash < 0
-    assert d_flash == pytest.approx(-3_523, rel=0.05)
+    # Track P (#42): the slot's extra orders at Lợi nhuận đóng góp (was −3.523 after ads)
+    assert d_flash == pytest.approx(-3_131, rel=0.05)

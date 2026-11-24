@@ -1,0 +1,41 @@
+{
+ "source": "extension",
+ "source_version": "0.3.35",
+ "captured_at": "2026-11-03T03:00:00.000Z",
+ "period": {
+  "start": "2026-11-03",
+  "end": "2026-11-03",
+  "granularity": "period"
+ },
+ "order_type": null,
+ "rows": [
+  {
+   "combo_id": "7001",
+   "program_name": "Combo mua 2 giảm 5%",
+   "starts_at": "2026-11-18T18:06:40",
+   "ends_at": "2026-11-25T16:46:40",
+   "status": "2",
+   "product_count": 2,
+   "usage_limit": 5,
+   "discount_type": "pct",
+   "tiers": [
+    {
+     "qty": 2,
+     "value": 5
+    },
+    {
+     "qty": 3,
+     "value": 10
+    }
+   ]
+  },
+  {
+   "combo_id": "7000",
+   "program_name": "Combo cũ",
+   "starts_at": "2026-09-21T21:13:20",
+   "ends_at": "2026-09-28T19:53:20",
+   "status": "3",
+   "product_count": 1
+  }
+ ]
+}

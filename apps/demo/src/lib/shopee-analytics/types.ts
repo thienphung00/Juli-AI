@@ -737,13 +737,40 @@ export interface ChannelKpis {
   readonly gmv: number | null;
   readonly orders: number | null;
   readonly profit: number | null;
+  /** Tổng chi phí (giá vốn + đóng gói + phí + vận chuyển + QC + AFF + Ưu đãi + khác); null without a ladder. */
   readonly cost_total: number | null;
+  /** Chi phí marketing = Quảng cáo + Tiếp thị liên kết + Ưu đãi (the old `cost_total` meaning). */
+  readonly cost_marketing?: number | null;
+  /** The ladder (registry ids): Lợi nhuận gộp → đóng góp → ròng, and the three margins in percent points. */
+  readonly gross_profit?: number | null;
+  readonly contribution?: number | null;
+  readonly cost_cogs?: number | null;
+  readonly cost_packaging?: number | null;
+  readonly cost_fees?: number | null;
+  readonly cost_shipping?: number | null;
+  readonly cost_other?: number | null;
+  readonly margin_gross_pct?: number | null;
+  readonly margin_contribution_pct?: number | null;
+  readonly margin_pct?: number | null;
   /** Quảng cáo (ads report), Tiếp thị liên kết, Ưu đãi. */
   readonly cost_ads: number | null;
   readonly cost_affiliate: number | null;
   readonly cost_offers: number | null;
   /** Lợi nhuận ÷ Tổng chi phí, in points (5.4). */
   readonly roi: number | null;
+}
+
+export type SplitChannel = "organic" | "ads" | "affiliate";
+export type SplitColumn = "gmv" | "orders" | "net_revenue" | "cost_offers" | "contribution" | "cost_ads" | "cost_affiliate" | "profit";
+export type SplitRow = Readonly<Record<SplitColumn, number | null>>;
+
+/** Track P: the profit split of a scope; `total` = the rows (and `unattributed` at shop level) added up. */
+export interface ProfitSplit {
+  readonly level: "shop" | "product";
+  readonly columns: readonly SplitColumn[];
+  readonly rows: Readonly<Record<SplitChannel, SplitRow>>;
+  readonly unattributed: SplitRow | null;
+  readonly total: SplitRow;
 }
 
 export interface ChannelSplit {
@@ -759,6 +786,8 @@ export interface ChannelSplit {
   readonly kpis: ChannelKpis;
   readonly kpis_prev?: ChannelKpis | null;
   readonly plan?: PlanMonth | null;
+  /** Organic / Quảng cáo / TTLK of this scope (shop or one product); null/absent where the platform has no profit. */
+  readonly profit_split?: ProfitSplit | null;
   /** P100 B.5: per section, the last complete day of the data it uses (ISO; null = none). */
   readonly data_through?: { readonly kpis: string | null; readonly profit?: string | null; readonly channels: string | null; readonly plan: string | null } | null;
 }

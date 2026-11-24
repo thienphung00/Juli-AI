@@ -6,14 +6,15 @@ import { useMemo, useState, type ReactNode } from "react";
 import { PLATFORM_NAME_TABLE, channelCellBlank, channelName, channelOutsideTotal, channelRowsForDisplay } from "../../lib/platform-labels";
 import { useShopee } from "../../lib/shopee-analytics/context";
 import { saveBlob, tongQuanFileName } from "../../lib/shopee-analytics/download";
-import { DASH, dayMonth, fmt, pc, vnCount, vnd } from "../../lib/shopee-analytics/format";
+import { DASH, dayMonth, fmt, pc, pp, vnCount, vnd } from "../../lib/shopee-analytics/format";
 import { readWindow, type WindowState, windowParams } from "../../lib/shopee-analytics/params";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import type { ShopeeLinks } from "../../lib/shopee-analytics/links";
 import type { AdBase, ChannelCells, ChannelKey, ChannelProduct, ChannelRow, ChannelSplit, PlanBar, PlanMonth, WeakestMetric } from "../../lib/shopee-analytics/types";
-import { METRIC_NAME, inMode, roiText, shift, type MetricKey, type ValueMode } from "../../lib/metrics";
+import { METRIC_NAME, inMode, metricLabel, roiText, shift, type MetricKey, type ValueMode } from "../../lib/metrics";
 import { MetricChip, Shift } from "../metrics/metric-chip";
 import { PeriodBar } from "./period-bar";
+import { ProfitSplitTable } from "./profit-split";
 import { DataThrough, Ini, ResourceState, initialsOf } from "./ui";
 
 /**
@@ -239,6 +240,7 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
             <Tiles data={data} mode={mode} product={pid} state={linkWindow(state, data)} />
             <Composition data={data} mode={mode} product={pid} state={linkWindow(state, data)} />
             <ChannelTable data={data} mode={mode} product={pid} state={linkWindow(state, data)} weakest={level === "product" ? (chosen?.weakest_metric ?? null) : null} />
+            {data.profit_split ? <ProfitSplitTable days={daysOf(data)} mode={mode} split={data.profit_split} /> : null}
           </>
         )}
       </ResourceState>
@@ -271,36 +273,60 @@ function Tiles({ data, mode, product, state }: { readonly data: ChannelSplit; re
       {lines}
     </Link>
   );
-  const line = (key: string, label: string, v: number | null, before: number | null | undefined, tag?: string) => (
-    <span className="sa-tq__line" data-testid={`sa-cost-${key}`} key={key}>
-      <span>
-        {label}
-        {tag ? <span className="sa-tq__src"> {tag}</span> : null}
+  const line = (key: string, label: string, v: number | null | undefined, before: number | null | undefined, tag?: string) =>
+    v === null || v === undefined ? null : (
+      <span className="sa-tq__line" data-testid={`sa-cost-${key}`} key={key}>
+        <span>
+          {label}
+          {tag ? <span className="sa-tq__src"> {tag}</span> : null}
+        </span>
+        <span>{money(v)}</span>
+        <Shift good={-1} pct={change(v, before)} />
       </span>
-      <span>{money(v)}</span>
-      <Shift good={-1} pct={change(v, before)} />
-    </span>
-  );
+    );
+  const marginLine = (id: "margin", v: number | null | undefined) =>
+    v === null || v === undefined ? null : (
+      <span className="sa-tq__line" data-testid={`sa-${id}`} key={id}>
+        <span>{metricLabel(id)}</span>
+        <span>{pp(v, 1)}</span>
+      </span>
+    );
   return (
     <>
       <DataThrough day={data.data_through?.kpis} testId="sa-through-kpis" />
       <div className="sa-tiles sa-tq__tiles" data-testid="sa-tiles">
         {tile("gmv", `GMV${suffix(mode)}`, money(k.gmv), change(k.gmv, p?.gmv), "gmv", 1)}
-        {tile("profit", `Lợi nhuận${suffix(mode)}`, money(k.profit), change(k.profit, p?.profit), "margin", 1)}
+        {tile("profit", `${metricLabel("profit")}${suffix(mode)}`, money(k.profit), change(k.profit, p?.profit), "margin", 1, marginLine("margin", k.margin_pct))}
         {tile(
           "cost",
-          `Chi phí marketing${suffix(mode)}`,
+          `${metricLabel("cost_marketing")}${suffix(mode)}`,
+          money(k.cost_marketing),
+          change(k.cost_marketing, p?.cost_marketing),
+          "margin",
+          -1,
+          <>
+            {line("ads", metricLabel("cost_ads"), k.cost_ads, p?.cost_ads, AD_BASE.ads_report)}
+            {line("affiliate", "Tiếp thị liên kết", k.cost_affiliate, p?.cost_affiliate)}
+            {line("offers", metricLabel("cost_offers"), k.cost_offers, p?.cost_offers)}
+          </>,
+        )}
+        {tile(
+          "cost-total",
+          `${metricLabel("cost_total")}${suffix(mode)}`,
           money(k.cost_total),
           change(k.cost_total, p?.cost_total),
           "margin",
           -1,
           <>
-            {line("ads", "Quảng cáo", k.cost_ads, p?.cost_ads, AD_BASE.ads_report)}
-            {line("affiliate", "Tiếp thị liên kết", k.cost_affiliate, p?.cost_affiliate)}
-            {line("offers", "Ưu đãi", k.cost_offers, p?.cost_offers)}
+            {line("cogs", metricLabel("cost_cogs"), k.cost_cogs, p?.cost_cogs)}
+            {line("packaging", metricLabel("cost_packaging"), k.cost_packaging, p?.cost_packaging)}
+            {line("fees", metricLabel("cost_fees"), k.cost_fees, p?.cost_fees)}
+            {line("shipping", metricLabel("cost_shipping"), k.cost_shipping, p?.cost_shipping)}
+            {line("marketing", metricLabel("cost_marketing"), k.cost_marketing, p?.cost_marketing)}
+            {line("other", metricLabel("cost_other"), k.cost_other, p?.cost_other)}
           </>,
         )}
-        {tile("roi", "ROI", roiText(k.roi), change(k.roi, p?.roi), "margin", 1)}
+        {tile("roi", metricLabel("roi"), roiText(k.roi), change(k.roi, p?.roi), "margin", 1)}
       </div>
     </>
   );

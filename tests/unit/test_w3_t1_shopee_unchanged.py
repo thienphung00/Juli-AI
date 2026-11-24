@@ -20,8 +20,12 @@ from juli_backend.models.shopee_metrics import (
 from juli_backend.services.shopee_analytics import materialize
 from tests.support.shopee_analytics import seed_shopee_shop
 
-#: sha256 of the rows on the base commit (866ba281).
-BASE_DIGEST = "07cd6d48bf3ff5b42347fbe2cc79de1a6aafa230660d331c250473c1f652a2d7"
+#: sha256 of the rows on the base commit (866ba281) was 07cd6d48…652a2d7. Re-pinned on
+#: batch-1124-a for owner decisions #39 (one product ad cost: a product-day with ad spend and no
+#: sale now gets its own order_lines row, profit = -ad cost; 8 such rows in the fixture) and
+#: #39/#50 (ROWS_VERSION 2 -> 4 in every shop row's ``detail.rows_v``). Every other row and
+#: every source row is unchanged against 3ff94165.
+BASE_DIGEST = "fc4de35745f00147bf79aa432f8b50dbaf4f5e5acda96fa28204b5d635eb2598"
 _SKIP = {"id", "shop_id", "built_at"}
 
 

@@ -1,4 +1,6 @@
-"""T1 (batch 1119): the card's margin is profit / doanh thu thuc, the dashboard's own margin.
+"""T1 (batch 1119) as amended by #42 / #44 (Track P): the card's margin is Biên đóng góp =
+Lợi nhuận đóng góp ÷ doanh thu thực, before and after on the card's OWN days (doanh thu thực of a
+column = its GMV x the scope's net/GMV ratio less the offers that lower it).
 
 Synthetic shops only. Net revenue is ``buyer_paid`` (covered); the dashboard's function is
 ``shop_profit.scope_margin_pct``.
@@ -75,13 +77,13 @@ BASIS = MarginBasis(profit=D(188_000), net_revenue=D(940_000), gmv=D(1_000_000))
 
 
 def test_t1_1_before_margin_is_profit_over_net_revenue_not_gmv():
-    m = _margin(result(scen(1_000_000, 0), scen(1_000_000, 0), BASIS))
+    m = _margin(result(scen(1_000_000, 188_000), scen(1_000_000, 188_000), BASIS))
     assert m["before_pct"] == 20.0  # 188.000 / 940.000; over GMV it would be 18,8
 
 
 def test_t1_2_after_margin_uses_after_gmv_times_the_before_net_gmv_ratio():
     # +20 % GMV, +50.000 profit: after = (188.000 + 50.000) / (1.200.000 x 0,94) = 21,1 %
-    m = _margin(result(scen(1_000_000, 10_000), scen(1_200_000, 60_000), BASIS))
+    m = _margin(result(scen(1_000_000, 188_000), scen(1_200_000, 238_000), BASIS))
     assert m["after_pct"] == 21.1
     assert m["shift_pts"] == pytest.approx(21.1 - 20.0)
 
@@ -92,16 +94,17 @@ def test_t1_2_after_margin_uses_after_gmv_times_the_before_net_gmv_ratio():
         None,
         MarginBasis(D(1), D(0), D(100)),
         MarginBasis(D(1), D(-5), D(100)),
-        MarginBasis(None, D(100), D(100)),
     ],
 )
 def test_t1_3_no_net_revenue_or_profit_means_no_margin_never_a_gmv_fallback(basis):
     m = _margin(result(scen(1_000_000, 100_000), scen(1_100_000, 150_000), basis))
     assert m == {"before_pct": None, "after_pct": None, "shift_pts": None}
+    unknown = _margin(result(scen(1_000_000, None), scen(1_100_000, None), BASIS))
+    assert unknown == {"before_pct": None, "after_pct": None, "shift_pts": None}
 
 
 def test_not_estimable_card_keeps_only_the_before_margin():
-    m = _margin(result(scen(1_000_000, 0), None, BASIS))
+    m = _margin(result(scen(1_000_000, 188_000), None, BASIS))
     assert m["before_pct"] == 20.0 and m["after_pct"] is None and m["shift_pts"] is None
 
 
@@ -116,14 +119,20 @@ def _shop():
 
 
 @pytest.mark.parametrize("items", [(), ("P1",), ("P1", "P2")])
-def test_t1_4_card_margin_equals_the_dashboard_margin_on_the_same_scope(items):
+def test_t1_4_card_margin_equals_the_scopes_bien_dong_gop(items):
+    """#44: on the scope's own window the card's before margin is the scope's Biên đóng góp
+    (Lợi nhuận đóng góp ÷ doanh thu thực of its covered lines); with no ad or affiliate cost it
+    is the dashboard's margin too."""
     sp = _shop()
     assert sp.buyer_paid_covered != sp.gmv  # net is not GMV here
     basis = margin_basis(sp, items)
-    m = _margin(result(scen(int(basis.gmv), 0), scen(int(basis.gmv), 0), basis))
-    dash = scope_margin_pct(sp, items)
+    assert basis is not None and basis.profit is not None
+    one = scen(int(basis.gmv), int(basis.profit))
+    m = _margin(result(one, one, basis))
+    want = round(float(basis.profit / basis.net_revenue * 100), 1)
+    assert m["before_pct"] == want and m["after_pct"] == want
+    dash = scope_margin_pct(sp, items)  # no ads, no affiliate: ròng = đóng góp here
     assert dash is not None and m["before_pct"] == float(dash)
-    assert m["after_pct"] == float(dash)  # nothing changed: the same margin after
 
 
 def test_basis_is_none_without_covered_revenue():
@@ -243,26 +252,25 @@ def test_estimable_result_keeps_its_notes_and_reason_text():
 
 
 def test_after_margin_of_a_2_day_card_is_on_the_cards_own_horizon():
-    # 2 days: before GMV 100.000 (profit 18.800), after GMV 120.000 (profit 25.000, Δ +6.200)
-    # R_before = 94.000, R_after = 112.800; m0 = 20 % -> (0,2 x 94.000 + 6.200) / 112.800 = 22,2 %
-    # (the old formula added 6.200 to the 30-day profit: (188.000 + 6.200) / 112.800 = 172 %)
+    # 2 days: before GMV 100.000 (profit 18.800), after GMV 120.000 (profit 25.000)
+    # R_before = 94.000, R_after = 112.800: 18.800 / 94.000 = 20 %, 25.000 / 112.800 = 22,2 %
     m = _margin(result(scen(100_000, 18_800), scen(120_000, 25_000), BASIS, days=2))
     assert m["before_pct"] == 20.0 and m["after_pct"] == 22.2
 
 
 def test_after_margin_of_a_14_day_card_is_on_the_cards_own_horizon():
-    # R_before = 470.000, R_after = 564.000: (0,2 x 470.000 + 26.000) / 564.000 = 21,3 %
+    # R_before = 470.000, R_after = 564.000: 120.000 / 564.000 = 21,3 %
     m = _margin(result(scen(500_000, 94_000), scen(600_000, 120_000), BASIS, days=14))
     assert m["after_pct"] == 21.3
 
 
 def test_after_margin_of_a_30_day_card_is_unchanged():
-    m = _margin(result(scen(1_000_000, 10_000), scen(1_200_000, 60_000), BASIS, days=30))
+    m = _margin(result(scen(1_000_000, 188_000), scen(1_200_000, 238_000), BASIS, days=30))
     assert m["after_pct"] == 21.1
 
 
 @pytest.mark.parametrize("days", [2, 14, 30])
 def test_no_change_means_no_margin_shift_on_any_horizon(days):
-    one = scen(100_000 * days, 5_000 * days)
+    one = scen(100_000 * days, 18_800 * days)
     m = _margin(result(one, one, BASIS, days=days))
     assert m["after_pct"] == m["before_pct"] == 20.0 and m["shift_pts"] == 0

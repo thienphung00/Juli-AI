@@ -42,6 +42,11 @@ _ADS = (
 )
 _PRODUCT_PROFIT = ("profit", "margin_pct", "contribution", "ad_spend", "break_even_roas")
 _LEVER = ("contribution", "profit", "margin_pct")
+#: Tổng quan KPIs on the profit ladder (decision #44): unknown with the ads scope
+_KPI_PROFIT = (
+    "profit", "cost_total", "cost_marketing", "cost_ads", "roi", "gross_profit", "contribution",
+    "margin_gross_pct", "margin_contribution_pct", "margin_pct",
+)  # fmt: skip
 _FIVE: Spec = (
     ("five_numbers.margin", ("profit_before", "profit_after", "pct_before", "pct_after")),
     (
@@ -76,6 +81,7 @@ SPECS: dict[str, Spec] = {
                 "profit_vnd",
                 "profit_on_covered_vnd",
                 "contribution_before_ads",
+                "contribution",
                 "margin_pct",
                 "break_even_roas",
                 "other_marketing_costs",
@@ -116,8 +122,8 @@ SPECS: dict[str, Spec] = {
         ),
     ),
     "channel_split": (
-        ("kpis", ("profit", "cost_total", "cost_ads", "roi")),
-        ("kpis_prev", ("profit", "cost_total", "cost_ads", "roi")),
+        ("kpis", _KPI_PROFIT),
+        ("kpis_prev", _KPI_PROFIT),
     ),
     "channel_split_products": (("products[]", ("margin",)),),
     "kols": (

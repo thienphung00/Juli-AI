@@ -881,6 +881,49 @@ class ShopeeVoucherSettingRow(PeriodRowBase):
         return (self.voucher_id,)
 
 
+class ShopeeComboTier(BaseModel):
+    """One tier of a combo: buy ``qty`` (2..9999), get ``value`` (a percent, or VND off / the
+    special price, per the row's ``discount_type``)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    qty: Annotated[int, Field(ge=1, le=9999)]
+    value: Money
+
+
+class ShopeeComboSettingRow(PeriodRowBase):
+    """``shopee.combo_settings`` (Connector 0.3.35, batch-1124-a C4): one Combo Khuyến Mãi of the
+    shop on the day the connector read the discount list's Combo tab
+    (``POST /api/marketing/v3/public/discount/list/``, ``discount_type`` 3) and, for an upcoming
+    or running combo, its detail (``GET /api/marketing/v3/bundle_deal/``). Lands in
+    ``platform_promotions`` as ``promo_type = bundle`` with ``extra`` ``{combo_id, tiers,
+    discount_type, product_count, usage_limit}``: what the combo read-back compares."""
+
+    combo_id: _Digits
+    program_name: Annotated[str, StringConstraints(min_length=1, max_length=255)]
+    starts_at: datetime
+    ends_at: datetime | None = None
+    #: The list's ``time_status`` (2 running, 3 ended; 1 assumed upcoming), as text.
+    status: Annotated[str, StringConstraints(max_length=64)] | None = None
+    #: The kind of every tier: percent off, VND off, or a special price (fill_queue's codes).
+    discount_type: Literal["pct", "amount", "special_price"] | None = None
+    tiers: Annotated[list[ShopeeComboTier], Field(max_length=10)] | None = None
+    product_count: Count | None = None
+    #: "Giới hạn đặt hàng": orders per buyer.
+    usage_limit: Count | None = None
+
+    @model_validator(mode="after")
+    def _percent_tiers(self) -> ShopeeComboSettingRow:
+        if self.discount_type == "pct" and any(t.value > 100 for t in self.tiers or []):
+            raise ValueError("a percent tier is above 100")
+        if (self.tiers is None) != (self.discount_type is None):
+            raise ValueError("tiers and discount_type come together")
+        return self
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.combo_id,)
+
+
 #: ``item_traffic_sources`` (the Connector's per-product ``traffic/details`` read): the level-1
 #: stream and the level-2 source of one row. ``total`` is the L1 total (``segment = 'all'``).
 #: A level-2 label may come with or without Seller Centre's ``psd_label_`` prefix.
@@ -1122,6 +1165,15 @@ class ShopeeOrderIncomeRow(PeriodRowBase):
     seller_coin_borne: SignedCount | None = None
     trade_in_bonus_seller: SignedCount | None = None
     transaction_fee_rate: Rate | None = None
+    #: batch-1124-a S1 (order page "Thanh toán của Người Mua", P-S3 capture 24/11): what the buyer
+    #: saved with the shop's voucher and with a Shopee voucher. NOT the seller's cost (that is
+    #: ``seller_voucher_borne``) and not stored on ``order_settlements``: the gateway splits them
+    #: onto the order's ``order_lines`` (``shop_voucher_share`` / ``platform_voucher_share``).
+    order_shop_voucher: Money | None = None
+    order_platform_voucher: Money | None = None
+    #: Owner decision #49: the voucher code of the income export ("Mã voucher"), code-shaped
+    #: only; filled onto the order's lines where ``order_lines.voucher_code`` is still NULL.
+    voucher_code: Annotated[str, StringConstraints(pattern=r"^[A-Z0-9]{1,64}$")] | None = None
 
     def key(self) -> tuple[Any, ...]:
         return (self.order_ref,)

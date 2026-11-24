@@ -166,7 +166,9 @@ async def observed_row(
     since: datetime,
 ) -> PlatformPromotion | None:
     """The newest list row (captured after ``since``) of the object the read-back targets: by id,
-    else code, else name."""
+    else code, else name. A combo is read only from the combos reader's rows (they carry
+    ``combo_id``; a Khuyến mãi của Shop snapshot row of the same name has no tiers), and among
+    same-name combos the newest id wins (the one just saved)."""
     rows = (
         await session.scalars(
             select(PlatformPromotion)
@@ -183,6 +185,11 @@ async def observed_row(
     code = str(target.get("voucher_code") or target.get("code") or "").upper()
     suffix = str(target.get("code_suffix") or "").upper()
     name = str(target.get("name") or target.get("combo_name") or "").casefold().strip()
+    if kind == "combo":
+        rows = [r for r in rows if _num((r.extra or {}).get("combo_id")) is not None]
+        rows.sort(
+            key=lambda r: (r.captured_at, _num((r.extra or {}).get("combo_id")) or 0), reverse=True
+        )
     for r in rows:
         x = r.extra or {}
         if oid and oid in (str(x.get("voucher_id")), str(x.get("combo_id")), str(x.get("id"))):

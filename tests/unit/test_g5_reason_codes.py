@@ -9,9 +9,7 @@ from juli_backend.services.shopee_builder.engine_families import common
 
 NOTES = {
     common.NOTE_ADS_NOT_ESTIMABLE: "needs_trial_run",
-    common.NOTE_NO_KEYWORD_DATA: "no_keyword_data",
     common.NOTE_NO_GAIN: "no_keyword_gain",
-    common.NOTE_MEASURE_AFTER: "measure_after_run",
     common.NOTE_KOL_NOT_ESTIMABLE: "kol_first_sample",
     common.NOTE_NO_PACK_EVIDENCE: "no_pack_evidence",
     common.NOTE_FOLLOWER: "followers_unknown",

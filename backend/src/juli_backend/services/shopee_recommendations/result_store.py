@@ -109,6 +109,7 @@ def _scenario_core(s: Scenario | None) -> dict[str, Any] | None:
         "gmv": _s(s.gmv),
         "profit": _s(s.profit),
         "offer_cost": _s(s.offer_cost),
+        "revenue_offer_cost": _s(s.revenue_offer_cost),
     }
 
 
@@ -164,6 +165,7 @@ def _scenario_of(raw: Mapping[str, Any] | None) -> Scenario | None:
         gmv=_d(raw.get("gmv")) or Decimal(0),
         profit=_d(raw.get("profit")),
         offer_cost=_d(raw.get("offer_cost")) or Decimal(0),
+        revenue_offer_cost=_d(raw.get("revenue_offer_cost")) or Decimal(0),
     )
 
 

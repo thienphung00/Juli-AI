@@ -35,12 +35,10 @@ from juli_backend.services.shopee_builder.engine_families.families import (
     affiliate_option,
     affiliate_rate_option,
     combo_option,
-    keyword_not_estimable_option,
     listing_combo_option,
     new_listing_option,
     price_option,
     simple_option,
-    unmeasured_listing_option,
     voucher_option,
 )
 from juli_backend.services.shopee_recommendations.model import Candidate
@@ -229,20 +227,20 @@ def option_for(
     if spec.kind in _SIMPLE_KINDS:
         lead = adapters.lift_evidence(spec.kind, items, env)
         keyword_note: str | None = None
-        if isinstance(spec, sp.CoverSpec | sp.PriceDisplaySpec):
-            return unmeasured_listing_option(spec)  # no banner checks yet: measured after the run
+        # Cover / price display have no banner checks yet and Title / description no keyword
+        # data of their own: the kind's (floored) prior is the typical result (decision #27).
+        # Keyword gain scaling applies only when the product has keyword weights.
         if isinstance(spec, sp.TitleSpec | sp.DescriptionSpec):
             weights = ctx.keyword_weights.get(spec.item_id)
-            if not weights:
-                return keyword_not_estimable_option(spec)
-            li = env.listings.get(spec.item_id)
-            current = (li.title if li and li.title else None) or env.name(spec.item_id)
-            if isinstance(spec, sp.TitleSpec):
-                share = kwc.gain_share(current, spec.title, weights)
-            else:
-                share = kwc.gain_share(None, spec.first_line, weights)
-            lead = replace(lead, band=scaled(lead.band, share))
-            keyword_note = common.NOTE_NO_GAIN if share == 0 else None
+            if weights:
+                li = env.listings.get(spec.item_id)
+                current = (li.title if li and li.title else None) or env.name(spec.item_id)
+                if isinstance(spec, sp.TitleSpec):
+                    share = kwc.gain_share(current, spec.title, weights)
+                else:
+                    share = kwc.gain_share(None, spec.first_line, weights)
+                lead = replace(lead, band=scaled(lead.band, share))
+                keyword_note = common.NOTE_NO_GAIN if share == 0 else None
         if isinstance(spec, sp.GiftSpec) and spec.trigger.type == "min_spend":
             # a gift on a minimum spend converts only the buyers whose basket qualifies
             q = adapters.qualifying_share(env, Decimal(spec.trigger.amount or 0))

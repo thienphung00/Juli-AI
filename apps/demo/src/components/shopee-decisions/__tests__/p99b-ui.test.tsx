@@ -82,8 +82,9 @@ describe("P99b Kế hoạch: horizon, counted days, cost", () => {
     const p = withAgg(result());
     const agg = { ...p.aggregate!, deltas_p50: { gmv: null, orders: null, aov: null, bien: null }, dprofit_month: { ...p.aggregate!.dprofit_month!, certain: null }, dorders_month: { p10: null, p50: null, p90: null } };
     open({ ...p, aggregate: agg });
-    expect(await screen.findByTestId("kh-agg-sure")).toHaveTextContent("— (chưa tách được phần chắc chắn)");
-    expect(screen.getByTestId("kh-agg-sure")).not.toHaveTextContent("+0");
+    // D3: the dead "chắc chắn" row is gone when the server gives no certain figure
+    expect(await screen.findByTestId("kh-agg-exp")).toBeInTheDocument();
+    expect(screen.queryByTestId("kh-agg-sure")).toBeNull();
     expect(screen.getByTestId("kh-agg-orders")).not.toHaveTextContent("+0");
     expect(screen.getByTestId("kh-agg-orders")).toHaveTextContent("—");
   });
@@ -234,5 +235,45 @@ describe("P99c cost and break-even on the version's days", () => {
     const rows = [{ index: 0, id: "a" }, { index: 1, id: "b" }, { index: 2, id: "c" }];
     expect(serverOrder([2, 0, 1], rows).map((r) => r.id)).toEqual(["c", "a", "b"]);
     expect(serverOrder(undefined, rows).map((r) => r.id)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("Track D (batch-1124-a): Kế hoạch display", () => {
+  it("D3: ≈/ngày is the counted Δ over the COUNTED days (16), not the card's own 20", async () => {
+    open(withAgg(result()));
+    const row = (await screen.findAllByTestId("kh-row-profit"))[0]!.closest("div")!.parentElement!;
+    // 90.000 ÷ 16 = 5.625, never 90.000 ÷ 20 = 4.500
+    expect(row).toHaveTextContent("≈ +5.625đ/ngày");
+    expect(row).not.toHaveTextContent("4.500");
+  });
+
+  it("D3: the draft total shows the server total, with the not-counted card out of it", async () => {
+    const p = withAgg(result({ not_counted_reason: "exclusive_programme", replaced_by: "JC-2611-0099" }));
+    open(p);
+    const first = await screen.findByTestId("kh-row-not-counted");
+    expect(first).toHaveTextContent("Không tính vào tổng · JC-2611-0099");
+    expect(first.textContent).not.toMatch(/[+−]\d/);
+    // the server total (150.000), not a sum of the rows
+    expect(screen.getByTestId("kh-total-profit")).toHaveTextContent("+150.000đ");
+    expect(screen.getByTestId("kh-total-gmv")).toHaveTextContent("+950.000đ");
+  });
+
+  it("D5: the plan shows Δ per channel (Organic / Quảng cáo / TTLK) that adds up in a total row", async () => {
+    const base = withAgg(result());
+    const split = { delta_p50: { organic: { dgmv: 500_000, dorders: 4, dprofit: 120_000 }, ads: { dgmv: 400_000, dorders: 3, dprofit: -20_000 }, affiliate: { dgmv: 50_000, dorders: 1, dprofit: 50_000 } } };
+    open({ ...base, aggregate: { ...base.aggregate!, split } });
+    const t = await screen.findByTestId("kh-split");
+    expect(screen.getByTestId("kh-split-organic")).toHaveTextContent("Organic");
+    expect(screen.getByTestId("kh-split-ads")).toHaveTextContent("Quảng cáo");
+    expect(screen.getByTestId("kh-split-affiliate")).toHaveTextContent("TTLK");
+    expect(screen.getByTestId("kh-split-total-profit")).toHaveTextContent("+150.000đ");
+    expect(t).toHaveTextContent("Tổng");
+  });
+
+  it("D2: the plan margin is the registry's Biên lợi nhuận, from the server's one figure", async () => {
+    const base = withAgg(result());
+    open({ ...base, aggregate: { ...base.aggregate!, margin: { metric_id: "margin", before_pct: 13.1, after_pct: 12.4 } } });
+    expect(await screen.findByTestId("kh-agg-bien")).toHaveTextContent("③ Biên lợi nhuận");
+    expect(screen.getByTestId("kh-agg-bien")).toHaveTextContent("12,4%");
   });
 });

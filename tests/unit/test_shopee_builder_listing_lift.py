@@ -113,21 +113,21 @@ async def test_a_description_first_line_follows_the_keywords(session, shop):
     assert _profit(dot) == 0 and _profit(rich) > 0
 
 
-async def test_no_keyword_data_is_not_estimable_but_saveable(session, bare_shop):
+async def test_no_keyword_data_uses_the_kind_prior_floored_at_5_percent(session, bare_shop):
+    # decision #27 / #29: no keyword weights = the typical result of the kind, never a stop
     for version in (
         {"kind": "title", "item_id": "1001", "title": "Găng tay nitrile hộp 100"},
         {"kind": "description_first_line", "item_id": "1001", "first_line": "Găng tay nitrile."},
     ):
         v = await one(session, bare_shop, **version)
         assert v["ok"] is True
-        assert v["result"]["estimable"] is False
-        assert v["result"]["basis"] == "not_estimable"
-        assert v["result"]["reason_code"] == "no_keyword_data" and v["result"]["notes"] == [
-            "Chưa ước tính được"
-        ]
+        assert v["result"]["estimable"] is True
+        assert v["result"]["basis"] != "not_estimable"
+        assert v["result"].get("reason_code") is None
+        assert _profit(v) is not None and _profit(v) > 0
 
 
-async def test_cover_image_and_price_display_are_not_estimable_but_saveable(session, shop):
+async def test_cover_image_and_price_display_use_the_kind_prior(session, shop):
     cover = await one(
         session,
         shop,
@@ -140,9 +140,6 @@ async def test_cover_image_and_price_display_are_not_estimable_but_saveable(sess
     )
     for v in (cover, display):
         assert v["ok"] is True
-        assert v["result"]["estimable"] is False
-        assert v["result"]["basis"] == "not_estimable"
-        assert v["result"]["reason_code"] == "measure_after_run" and v["result"]["notes"] == [
-            "Chưa ước tính được"
-        ]
+        assert v["result"]["estimable"] is True
+        assert v["result"]["basis"] != "not_estimable"
         assert v["result"]["cost"]["total"] == 0

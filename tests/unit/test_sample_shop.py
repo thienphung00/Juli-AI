@@ -970,10 +970,21 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # changes each draw's profit, so a different draw is the middle one, exactly as in
             # the 437bea66 note above (350_716 vs 669_480 for a service fee on / off): 341_945 and
             # 2,79 orders here. Only the choice of draw moved, not the combo's reach or take-up.
-            # Batch 1123-e5: hạ tầng is now its own line inside Phí Dịch Vụ, so the learned rate is
-            # 7,71 % (was 5,86 %) and the middle draw moved again: 620_589 / 4,49 orders.
-            assert cd["gmv"] == pytest.approx(620_589, rel=0.02)
-            assert round(cd["orders"]) == 4  # 4,49 rounded (was 3: the middle draw moved, above)
+            # Batch 1123-e5: hạ tầng is its own line inside Phí Dịch Vụ (learned rate 7,71 %), and
+            # batch 1124-a (decision #39): each product's ad cost is the campaign's Connector day
+            # spend x its share in the ads report by product. Both shift the draws' profits, so a
+            # different draw is the middle one. The combo's reach and take-up are unchanged.
+            # Track P (#42-#44): every draw's extra orders are now valued at Lợi nhuận đóng góp (one
+            # rate, before ads and affiliate) instead of the after-ads profit per order, so a
+            # different draw is the middle-PROFIT one: 389_340 on 3,17 orders (was 336_249 /
+            # 2,74). The combo's reach and take-up are unchanged.
+            assert cd["gmv"] == pytest.approx(389_340, rel=0.02)
+            assert round(cd["orders"]) == 3
+            # the combo's only lever here is the badge's CTOR prior: the middle draw's ΔGMV is its
+            # Δ orders at today's AOV -- never a GMV with almost no orders (445.900đ on 0,31 đơn)
+            aov = c["detail"]["before"]["aov"]
+            assert c["detail"]["likely"]["aov"] == pytest.approx(aov)
+            assert cd["gmv"] == pytest.approx(cd["orders"] * aov, rel=1e-6)
             assert cd["profit"] < 0
             ctx = await builder.build_context(session, report.shop_id, [set2], as_of=END, now=NOW)
             base = integrate.base_for(ctx.env, [nrc], "")
@@ -986,9 +997,9 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             set_done, _ = integrate.evaluate(ctx, set2)
             sd = _own_delta(s, set_done.result)
             # F2: the base is the adaptive window's level (was 791_214 on the fixed 30 days)
-            assert sd["gmv"] == pytest.approx(
-                808_002, rel=0.02
-            )  # was 859_189 at a 7,9 % service fee (middle draw)
+            # Track P (#42-#44): the middle-profit draw on the contribution basis (one rate for
+            # the extra orders and the AOV effect): 806_567 (was 856_463 on the after-ads basis)
+            assert sd["gmv"] == pytest.approx(806_567, rel=0.02)
             assert s["cost"]["total"] > 0 and sd["profit"] < 0
 
 

@@ -83,6 +83,7 @@ READER_DATASETS: dict[str, tuple[str, ...]] = {
     "products": ("item_catalog", "item_snapshot"),
     "item_traffic": ("item_traffic_sources",),
     "vouchers": ("voucher_settings",),
+    "combos": ("combo_settings",),
     "ads": ("ads_campaign_daily", "ads_campaign_settings"),
     "ads_detail": ("ads_campaign_detail",),
     "health": ("shop_health_daily",),

@@ -24,7 +24,9 @@ from juli_backend.models.ingest import (
     IngestRawPayload,
     PlatformDailyMetric,
 )
+from juli_backend.models.shopee_connector import ShopeeConnectorState
 from juli_backend.models.shopee_profit import ShopeeOrderLine
+from juli_backend.services.ingest import min_version
 from juli_backend.services.ingest.writers import UNRESOLVED_PREFIX
 
 #: The order line the list page gave with no item and no SKU (``writers._line_item``).
@@ -176,15 +178,76 @@ async def covered_days(
     return covered
 
 
+#: Owner decision #48 (batch-1124-a S1): Connector 0.3.35 reads each order's combo amount, Mua Kèm
+#: flag and the order page's buyer vouchers. Once a shop's Connector is at least this version, the
+#: window's order days read only by an older Connector are handed out ONCE more, as their own hole
+#: set (not an ``order_lines`` hole, so the "Đang đọc đến" status is unchanged).
+ORDER_LINES_BACKFILL = "order_lines_backfill"
+ORDER_DISCOUNTS_VERSION = (0, 3, 35)
+
+
+async def order_lines_backfill_days(
+    session: AsyncSession, shop_id: uuid.UUID, platform: str, today: date
+) -> list[date]:
+    """The window days holding Connector order lines but no ``order_lines`` post from a Connector
+    at least :data:`ORDER_DISCOUNTS_VERSION`, oldest first; ``[]`` until the shop's Connector
+    reports that version. A day with no order is never handed out (nothing to re-read).
+    Idempotent by its record: the re-read's own accepted post (``ingest_raw_payloads``) spans the
+    day, so each day is handed out until it is read once, never again."""
+    state = await session.get(ShopeeConnectorState, shop_id)
+    live = min_version.parse(state.connector_version if state else None)
+    if live is None or live < ORDER_DISCOUNTS_VERSION:
+        return []
+    first, last = today - timedelta(days=WINDOW_DAYS), today - timedelta(days=1)
+    lined = await session.execute(
+        select(ShopeeOrderLine.day)
+        .where(
+            ShopeeOrderLine.shop_id == shop_id,
+            ShopeeOrderLine.platform == platform,
+            ShopeeOrderLine.source == SOURCE_EXTENSION,
+            ShopeeOrderLine.day >= first,
+            ShopeeOrderLine.day <= last,
+        )
+        .distinct()
+    )
+    old = {d for (d,) in lined}
+    if not old:
+        return []
+    posts = await session.execute(
+        select(
+            IngestRawPayload.period_start,
+            IngestRawPayload.period_end,
+            IngestRawPayload.source_version,
+        ).where(
+            IngestRawPayload.shop_id == shop_id,
+            IngestRawPayload.platform == platform,
+            IngestRawPayload.source == SOURCE_EXTENSION,
+            IngestRawPayload.dataset == "order_lines",
+            IngestRawPayload.period_end >= first,
+            IngestRawPayload.period_start <= last,
+        )
+    )
+    new: set[date] = set()
+    for start, end, version in posts:
+        parsed = min_version.parse(version)
+        if parsed is not None and parsed >= ORDER_DISCOUNTS_VERSION:
+            new.update(_span(start, end, first, last))
+    return sorted(old - new)
+
+
 async def read_days(
     session: AsyncSession, shop_id: uuid.UUID, platform: str, *, now: datetime | None = None
 ) -> dict[str, object]:
     today = vietnam_today(now)
     covered = await covered_days(session, shop_id, platform, today)
+    datasets = missing_by_dataset(covered, today)
+    backfill = await order_lines_backfill_days(session, shop_id, platform, today)
+    if backfill:
+        datasets[ORDER_LINES_BACKFILL] = {"missing": [d.isoformat() for d in backfill]}
     return {
         "as_of": today.isoformat(),
         "window_days": WINDOW_DAYS,
-        "datasets": missing_by_dataset(covered, today),
+        "datasets": datasets,
     }
 
 

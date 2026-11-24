@@ -56,6 +56,8 @@ export interface ClientIdentity {
   version?: string;
   installId?: () => Promise<string>;
   onUpgradeRequired?: (minimum: string) => void;
+  /** batch-1124-a C3: Juli refused this token (401): the pairing that holds it stops by itself. */
+  onTokenDead?: (token: string, code: string) => void;
 }
 let identity: ClientIdentity = {};
 export function configureClientIdentity(next: ClientIdentity): void {
@@ -118,6 +120,7 @@ export class IngestClient {
       if (response.status === 426 && detail?.code === "connector_upgrade_required" && detail.minimum) {
         identity.onUpgradeRequired?.(detail.minimum);
       }
+      if (response.status === 401 && token) identity.onTokenDead?.(token, detail?.code ?? "http_error");
       throw new GatewayError(response.status, detail?.code ?? "http_error");
     }
     return payload;

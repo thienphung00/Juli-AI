@@ -1,6 +1,8 @@
+import { metricLabel, roundHalfAway } from "../metrics";
 import { DASH, fmt, pp, signedOrders, vnd } from "../shopee-analytics/format";
 import type { Breach, N } from "./types";
-import type { MeasurementCut, PlanBreach, PlanCard, PlanEvaluation, PlanResponse, WindowProductRow } from "./plan-types";
+import { SPLIT_CHANNEL_ORDER, splitChannelName } from "../metrics/split";
+import type { MeasurementCut, PlanBreach, PlanSplit, PlanCard, PlanEvaluation, PlanResponse, WindowProductRow } from "./plan-types";
 import { perDayText } from "../../components/shopee-decisions/option-card/format";
 import { rangeK, roundK, svk } from "./versions";
 
@@ -30,14 +32,19 @@ export interface AggRow {
   readonly bad?: boolean;
 }
 
-/** P100: the plan's Δ are totals over its 30-day horizon; the secondary line is the same total per day. */
-const perDay30 = (total: number): string => perDayText(total, 30) ?? "";
+/** D3: the plan's Δ are totals over its counted horizon; the secondary line is the same total per COUNTED day (default 30). */
+const perDayOver = (total: number, days: number | null | undefined): string => perDayText(total, num(days) && days > 0 ? days : 30) ?? "";
+
+/** "Bỏ thẻ này" works over the default 30-day horizon. */
+const perDay30 = (total: number): string => perDayOver(total, null);
 
 const toneOf = (good: 1 | -1, d: number): AggRow["tone"] => (Math.abs(d) < 1e-9 ? "flat" : d * good > 0 ? "up" : "down");
 
 /** The plan's table, today -> after the plan (the backend's P50), with the P10 - P90 range where it gives one. */
 export function aggRows(p: PlanResponse): AggRow[] {
   const a = p.aggregate;
+  const hzDays = a?.horizon?.days ?? null;
+  const perDayH = (total: number): string => perDayOver(total, hzDays);
   if (!a || a.data_missing || a.empty || a.n_cards === 0 || !a.today || !a.after || !a.cost || !a.dprofit_month || !a.dgmv_month || !a.dorders_month || !a.floor) return [];
   const t = a.today;
   const five = a.five_numbers ?? null;
@@ -56,14 +63,16 @@ export function aggRows(p: PlanResponse): AggRow[] {
       d: "",
       tone: "plain",
     });
-    const m = five.margin;
+    // D2: the one plan margin (registry "margin": after ads and affiliate ÷ doanh thu thực), else the legacy figure
+    const m = a.margin && (num(a.margin.before_pct) || num(a.margin.after_pct)) ? { pct_before: a.margin.before_pct, pct_after: a.margin.after_pct } : five.margin;
     const dBien = num(m.pct_before) && num(m.pct_after) ? m.pct_after - m.pct_before : null;
-    rows.push({ key: "bien", label: "③ Biên lợi nhuận", today: pp(m.pct_before, 1), after: pp(m.pct_after, 1), d: dBien === null ? DASH : `${arrow(dBien)}${pts(dBien)}`, tone: dBien === null ? "plain" : toneOf(1, dBien) });
+    rows.push({ key: "bien", label: `③ ${metricLabel("margin")}`, today: pp(m.pct_before, 1), after: pp(m.pct_after, 1), d: dBien === null ? DASH : `${arrow(dBien)}${pts(dBien)}`, tone: dBien === null ? "plain" : toneOf(1, dBien) });
   }
 
   const o = a.dorders_month;
   // The server's P50 only; never a subtraction of two other numbers (they may be on another basis).
-  const dOrd = num(o.p50) ? o.p50 : null;
+  // D1: the change of the SHOWN figures (today and today + P50, each rounded half away from zero)
+  const dOrd = num(o.p50) ? roundHalfAway(t.orders_30d + o.p50) - roundHalfAway(t.orders_30d) : null;
   rows.push({
     key: "orders",
     label: "④ Số đơn / 30 ngày",
@@ -72,7 +81,7 @@ export function aggRows(p: PlanResponse): AggRow[] {
     d: dOrd === null ? DASH : signed(dOrd, "đơn"),
     tone: dOrd === null ? "plain" : toneOf(1, dOrd),
   });
-  const dAov = num(a.after.aov) && num(t.aov) ? a.after.aov - t.aov : null;
+  const dAov = num(a.after.aov) && num(t.aov) ? roundK(a.after.aov) - roundK(t.aov) : null;
   rows.push({ key: "aov", label: "⑤ AOV", today: vnd(num(t.aov) ? roundK(t.aov) : null), after: vnd(num(a.after.aov) ? roundK(a.after.aov) : null), d: dAov === null ? DASH : `${arrow(dAov)}${svk(dAov)}`, tone: dAov === null ? "plain" : toneOf(1, dAov) });
   const g = a.dgmv_month.total;
   rows.push({
@@ -80,7 +89,7 @@ export function aggRows(p: PlanResponse): AggRow[] {
     label: "GMV / 30 ngày",
     today: vnd(roundK(t.gmv_30d)),
     after: rangeOf(num(g.p10) ? t.gmv_30d + g.p10 : null, num(g.p90) ? t.gmv_30d + g.p90 : null, (x) => vnd(roundK(x))),
-    d: num(g.p50) ? `${svk(g.p50)} · ${perDay30(g.p50)}` : svk(g.p50),
+    d: num(g.p50) ? `${svk(roundK(t.gmv_30d + g.p50) - roundK(t.gmv_30d))} · ${perDayH(g.p50)}` : svk(g.p50),
     tone: "flat",
   });
   const c = a.cost;
@@ -124,17 +133,13 @@ export function aggRows(p: PlanResponse): AggRow[] {
       bad: c.over_cap,
     });
   }
+  // D3: the "chắc chắn" row only when the server fills it (it is null on the contribution-basis path)
   const sure = a.dprofit_month.certain;
-  rows.push({
-    key: "sure",
-    label: "Δ lợi nhuận cả 30 ngày · chắc chắn",
-    today: DASH,
-    after: num(sure) ? svk(sure) : `${DASH} (chưa tách được phần chắc chắn)`,
-    d: num(sure) ? perDay30(sure) : "",
-    tone: !num(sure) ? "plain" : sure >= 0 ? "up" : "down",
-  });
+  if (num(sure)) {
+    rows.push({ key: "sure", label: "Δ lợi nhuận cả 30 ngày · chắc chắn", today: DASH, after: svk(sure), d: perDayH(sure), tone: sure >= 0 ? "up" : "down" });
+  }
   const q = a.dprofit_month.total;
-  rows.push({ key: "exp", label: "Δ lợi nhuận cả 30 ngày", today: DASH, after: rangeK(q.p10, q.p90), d: num(q.p50) ? perDay30(q.p50) : "", tone: num(q.p10) && q.p10 >= 0 ? "up" : num(q.p90) && q.p90 <= 0 ? "down" : "plain" });
+  rows.push({ key: "exp", label: "Δ lợi nhuận cả 30 ngày", today: DASH, after: rangeK(q.p10, q.p90), d: num(q.p50) ? perDayH(q.p50) : "", tone: num(q.p10) && q.p10 >= 0 ? "up" : num(q.p90) && q.p90 <= 0 ? "down" : "plain" });
   const floorBad = !a.floor.ok;
   rows.push({ key: "floor", label: "Giá sàn", today: DASH, after: floorBad ? "✕ Có thẻ chạm giá sàn khi xếp chồng" : "✓ Mọi thẻ trên giá sàn vận hành", d: "", tone: floorBad ? "down" : "up", bad: floorBad });
   return rows;
@@ -203,6 +208,16 @@ export function confirmWarnings(p: PlanResponse): string[] {
     }
   }
   return out;
+}
+
+/** The plan's per-channel Δ lợi nhuận (P50) rows: Organic / Quảng cáo / TTLK and their total, from `split.delta_p50`. */
+export function splitRows(split: PlanSplit | null | undefined): { readonly key: string; readonly label: string; readonly dprofit: string; readonly dgmv: string; readonly dorders: string }[] {
+  const d = split?.delta_p50;
+  if (!d) return [];
+  const chans = SPLIT_CHANNEL_ORDER.map((ch) => ({ key: ch as string, label: splitChannelName(ch), v: d[ch] }));
+  const sum = (f: "dprofit" | "dgmv" | "dorders"): number | null => (chans.some((c) => !num(c.v[f])) ? null : chans.reduce((a, c) => a + (c.v[f] as number), 0));
+  const row = (key: string, label: string, v: { dprofit: N; dgmv: N; dorders: N }) => ({ key, label, dprofit: svk(v.dprofit), dgmv: svk(v.dgmv), dorders: num(v.dorders) ? signed(roundHalfAway(v.dorders), "đơn") : DASH });
+  return [...chans.map((c) => row(c.key, c.label, c.v)), row("total", "Tổng", { dprofit: sum("dprofit"), dgmv: sum("dgmv"), dorders: sum("dorders") })];
 }
 
 export const hasBreach = (p: PlanResponse): boolean => planBreaches(p).length > 0;
@@ -279,7 +294,7 @@ export function kolSummary(p: PlanResponse): KolPlanSummary | null {
   const cards = p.cards.filter((c) => c.change_kind !== null && KOL_KINDS.has(c.change_kind));
   if (cards.length === 0) return null;
   const evs = cards.map((c) => c.evaluation).filter((e): e is PlanEvaluation => e !== null);
-  const sampleCost = evs.some((e) => !num(e.alone.dprofit.certain)) ? null : evs.reduce((s, e) => s - Math.min(0, e.alone.dprofit.certain as number), 0);
+  const sampleCost = evs.length === 0 || evs.some((e) => !num(e.alone.dprofit.certain)) ? null : evs.reduce((s, e) => s - Math.min(0, e.alone.dprofit.certain as number), 0);
   const sum = (q: "p10" | "p50" | "p90"): number | null => (evs.some((e) => !num(e.alone.dprofit[q])) ? null : evs.reduce((s, e) => s + (e.alone.dprofit[q] as number), 0));
   const p50 = sum("p50");
   const spread = (q: "p10" | "p90"): number | null => {
@@ -290,10 +305,10 @@ export function kolSummary(p: PlanResponse): KolPlanSummary | null {
   return { samples: cards.filter((c) => c.change_kind === "affiliate_sample").length, invites: cards.filter((c) => c.change_kind === "affiliate_invite").length, sampleCost, profit: { p10: spread("p10"), p50, p90: spread("p90") } };
 }
 
+/** D3: the sample-cost row only when the server gives the certain cost (else it was a dead "—"). */
 export function kolRows(k: KolPlanSummary): { readonly k: string; readonly v: string }[] {
-  return [
-    { k: "Số thẻ", v: `${k.samples} Gửi mẫu · ${k.invites} Mời KOL` },
-    { k: "Tổng chi phí mẫu (chắc chắn, chi một lần)", v: k.sampleCost === null ? `${DASH} (chưa tách được phần chắc chắn)` : vnd(k.sampleCost) },
-    { k: "Lợi nhuận ròng sau mẫu", v: `${rangeK(k.profit.p10, k.profit.p90)}/tháng` },
-  ];
+  const rows = [{ k: "Số thẻ", v: `${k.samples} Gửi mẫu · ${k.invites} Mời KOL` }];
+  if (k.sampleCost !== null) rows.push({ k: "Tổng chi phí mẫu (chắc chắn, chi một lần)", v: vnd(k.sampleCost) });
+  rows.push({ k: "Lợi nhuận ròng sau mẫu", v: `${rangeK(k.profit.p10, k.profit.p90)}/tháng` });
+  return rows;
 }

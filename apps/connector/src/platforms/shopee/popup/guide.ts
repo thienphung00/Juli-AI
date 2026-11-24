@@ -35,6 +35,11 @@ export const READER_GUIDE: Record<ReaderId, PageGuide> = {
     path: "/portal/marketing/vouchers/list",
     pulls: "Voucher của shop: mức giảm, đơn tối thiểu, thời gian, lượt đã dùng.",
   },
+  combos: {
+    title: "Kênh Marketing › Combo Khuyến Mãi",
+    path: "/portal/marketing/list/discount?discountType=bundle&status=all&page=1",
+    pulls: "Combo của shop: mức ưu đãi, thời gian, số sản phẩm.",
+  },
   ads: {
     title: "Kênh Marketing › Quảng Cáo Shopee",
     path: "/portal/marketing/pas/index",
@@ -143,6 +148,7 @@ export const DATASET_LABELS: Record<Dataset, string> = {
   ads_campaign_detail: "Chi tiết chiến dịch quảng cáo",
   ads_campaign_period: "Quảng cáo theo sản phẩm",
   voucher_settings: "Voucher của shop",
+  combo_settings: "Combo Khuyến Mãi của shop",
   shop_health_daily: "Sức khỏe tài khoản",
   market_search: "Giá thị trường",
   shop_overview: "Tổng quan shop theo ngày",

@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { actualText, baselineLine, dataThroughText, finalVerdict, measuredWithText, metricView, newestDataThrough } from "../forecast-display";
+import { roiText, roundHalfAway } from "../../metrics";
+import { actualText, baselineLine, changeText, deltaText, forecastOfResult, dataThroughText, finalVerdict, measuredWithText, metricView, newestDataThrough } from "../forecast-display";
 
 describe("forecast display (F7.8)", () => {
   it("headline with the days for profit, the grey line with sign and percent", () => {
     const v = metricView("profit", { hien_tai: 162572, du_kien: 153500, delta: -9072, delta_pct: -5.6, days: 30 });
-    expect(v.label).toBe("Lợi nhuận dự kiến (30 ngày)");
+    expect(v.label).toBe("Lợi nhuận đóng góp dự kiến (30 ngày)");
     expect(v.value).toBe("153.500 đ");
     expect(v.sub).toBe("hiện tại: 162.572 đ · −9.072 đ (−5,6 %)");
     expect(v.loss).toBe(false);
@@ -44,5 +45,35 @@ describe("forecast display (F7.8)", () => {
     expect(finalVerdict({ final: false, verdict: { label: "Vượt khoảng" } })).toBeNull();
     expect(measuredWithText(["GIA-1", "DS-01b"])).toBe("đo chung với GIA-1, DS-01b");
     expect(measuredWithText([])).toBeNull();
+  });
+
+  it("D1: the change is the difference of the SHOWN figures (52 → 53 reads +1, never +2)", () => {
+    expect(baselineLine("orders", { hien_tai: 52.4, du_kien: 52.6, delta: 0.2, delta_pct: 0.4 })).toBe("hiện tại: 52 đơn · +1 (+0,4 %)");
+    expect(baselineLine("orders", { hien_tai: 52.4, du_kien: 53.6, delta: 1.2, delta_pct: 2.3 })).toContain("· +2 ");
+    expect(metricView("gmv", { hien_tai: 100.4, du_kien: 100.6, delta: 0.2, delta_pct: 0 }).sub).toContain("+1 đ");
+  });
+
+  it("D1: rounding is half away from zero, like the server (−1,5 → −2)", () => {
+    expect(roundHalfAway(-1.5)).toBe(-2);
+    expect(roundHalfAway(2.5)).toBe(3);
+    expect(deltaText("orders", -1.5)).toBe("−2");
+    expect(changeText("gmv", -2.5, null)).toBe("−3 đ");
+    const f = forecastOfResult({ estimable: true, days: 7, after: { days: 7 }, detail: { before: { gmv: 100, orders: 51.5, profit: 10, views: null, ctr: null, ctor: null, aov: null, by_source: {} }, likely: { gmv: 100, orders: 50, profit: 10, views: null, ctr: null, ctor: null, aov: null, by_source: {} }, low: null, high: null } } as never);
+    // shown 52 → 50 is −2, not the unrounded −1,5
+    expect(f?.metrics?.orders?.delta).toBe(-2);
+  });
+
+  it("D2: the card profit line is the registry's Lợi nhuận đóng góp, and ROI has one decimal", () => {
+    expect(metricView("profit", { hien_tai: 1, du_kien: 2, delta: 1, delta_pct: 1, days: 14 }).label).toBe("Lợi nhuận đóng góp dự kiến (14 ngày)");
+    expect(roiText(1.95)).toBe("2,0");
+    expect(roiText(5.44)).toBe("5,4");
+  });
+
+  it("D4: a profit inside the noise carries the tag (the F5 design), a gmv does not", () => {
+    const noisy = metricView("profit", { hien_tai: 100, du_kien: 112, delta: 12, delta_pct: 12 }, { days: 30, noise: true });
+    expect(noisy.value).toBe("112 đ · trong dao động");
+    expect(metricView("profit", { hien_tai: 100, du_kien: 112, delta: 12, delta_pct: 12 }, { days: 30 }).value).toBe("112 đ");
+    const f = forecastOfResult({ estimable: true, days: 7, after: { days: 7 }, within_noise: ["gmv", "profit"], detail: { before: { gmv: 1, orders: 1, profit: 1, views: null, ctr: null, ctor: null, aov: null, by_source: {} }, likely: { gmv: 2, orders: 2, profit: 2, views: null, ctr: null, ctor: null, aov: null, by_source: {} }, low: null, high: null } } as never);
+    expect(f?.noise).toEqual(["profit"]);
   });
 });

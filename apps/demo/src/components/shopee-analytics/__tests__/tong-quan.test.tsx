@@ -84,6 +84,7 @@ describe("Tổng quan (P100 board)", () => {
     expect(screen.getByTestId("sa-shift-gmv")).toHaveTextContent("▲ 17 %");
     expect(screen.getByTestId("sa-tile-profit")).toHaveTextContent("2,70 tr đ");
     const cost = screen.getByTestId("sa-tile-cost");
+    expect(cost).toHaveTextContent("Chi phí marketing");
     expect(cost).toHaveTextContent("500.000đ");
     expect(screen.getByTestId("sa-cost-ads")).toHaveTextContent("Quảng cáo");
     expect(screen.getByTestId("sa-cost-ads")).toHaveTextContent("Báo cáo DVHT");
@@ -92,6 +93,39 @@ describe("Tổng quan (P100 board)", () => {
     expect(screen.getByTestId("sa-tile-roi")).toHaveTextContent("5,4");
     expect(screen.getByTestId("sa-tile-roi")).not.toHaveTextContent("%5,4");
     expect(screen.getByTestId("sa-shift-roi")).toHaveTextContent("▲ 23 %");
+  });
+
+  it("D5 (owner #51): only Lợi nhuận ròng with Biên lợi nhuận; gộp / đóng góp are export-only; Tổng chi phí and ROI", async () => {
+    renderWith(<TongQuanView params={params()} />, fakeApi());
+    await screen.findByTestId("sa-tile-gmv");
+    expect(screen.queryByTestId("sa-tile-gross")).toBeNull();
+    expect(screen.queryByTestId("sa-tile-contribution")).toBeNull();
+    expect(screen.queryByTestId("sa-margin_gross")).toBeNull();
+    expect(screen.queryByTestId("sa-margin_contribution")).toBeNull();
+    expect(screen.getByTestId("sa-tile-profit")).toHaveTextContent("Lợi nhuận ròng");
+    expect(screen.getByTestId("sa-margin")).toHaveTextContent("Biên lợi nhuận23,7%");
+    const total = screen.getByTestId("sa-tile-cost-total");
+    expect(total).toHaveTextContent("Tổng chi phí");
+    expect(total).toHaveTextContent("7,25 tr đ");
+    expect(screen.getByTestId("sa-tile-roi")).toHaveTextContent("ROI");
+  });
+
+  it("D5: the Organic / Quảng cáo / TTLK profit table has the combined Ưu đãi column and a total row that adds up", async () => {
+    renderWith(<TongQuanView params={params()} />, fakeApi());
+    const table = await screen.findByTestId("sa-split");
+    expect(within(table).getByText("Ưu đãi")).toBeTruthy();
+    expect(within(table).queryByText("Lợi nhuận đóng góp")).toBeNull();
+    expect(within(table).queryByTestId("sa-split-total-contribution")).toBeNull();
+    expect(within(table).getByTestId("sa-split-organic")).toHaveTextContent("Organic");
+    expect(within(table).getByTestId("sa-split-affiliate")).toHaveTextContent("TTLK");
+    expect(within(table).getByTestId("sa-split-ads")).toHaveTextContent("Quảng cáo");
+    expect(within(table).getByTestId("sa-split-total-profit")).toHaveTextContent("2,70 tr đ");
+    expect(within(table).getByTestId("sa-split-total-cost_offers")).toHaveTextContent("154.000đ");
+    // the rows add up to the total line (profit column, in đồng)
+    const split = channelSplit().profit_split!;
+    const rows = [...Object.values(split.rows), split.unattributed!];
+    expect(rows.reduce((a, r) => a + (r.profit ?? 0), 0)).toBe(split.total.profit);
+    expect(rows.reduce((a, r) => a + (r.cost_offers ?? 0), 0)).toBe(split.total.cost_offers);
   });
 
   it("GMV composition: Organic / Quảng cáo / Tiếp thị liên kết with % and value", async () => {

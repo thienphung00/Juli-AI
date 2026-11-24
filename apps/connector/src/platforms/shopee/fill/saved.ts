@@ -26,13 +26,16 @@ export function voucherIdFrom(body: unknown, depth = 0): string | null {
 }
 
 /** A POST to a marketing bundle-deal (Combo Khuyến Mãi) create / add / save endpoint. Like the
- * voucher one, a pattern and not a recorded fact; a missed answer leaves the combo without an id
- * (its read-back stays "executed_no_readback"). */
+ * voucher one, a pattern and not a recorded fact. 0.3.35 (P-C2 capture, 24/11): a combo's detail is
+ * `GET /api/marketing/v3/bundle_deal/`, so a POST to that same path (the REST create) counts too.
+ * This is the secondary signal only: the combos reader's list read after the save finds the new
+ * combo by its name (Juli, `readback_compare.observed_row`), so a missed answer costs nothing. */
 export function savedBundlePath(pathname: string): boolean {
+  if (/^\/api\/marketing\/v\d+\/bundle_deal\/?$/i.test(pathname)) return true;
   return /^\/api\/marketing\/.*bundle.*\/(create|add|save)[a-z_]*\/?$/i.test(pathname);
 }
 
-/** The new combo id in a create answer (`bundle_deal_id` or `bundle_id`), digits only; else null. */
+/** The new combo id in a create answer (`bundle_deal_id`, the detail's key in P-C2, or `bundle_id`), digits only; else null. */
 export function bundleIdFrom(body: unknown, depth = 0): string | null {
   if (!isRecord(body) || depth > 3) return null;
   for (const id of [body.bundle_deal_id, body.bundle_id]) {
