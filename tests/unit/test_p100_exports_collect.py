@@ -152,7 +152,8 @@ async def test_the_profit_sheet_adds_up_to_the_dashboard_profit(session, shop):
     assert b.revenue == float(kp.buyer_paid)  # the margin base
     sheet = tq.build(data)[tq.SHEET_PROFIT]
     labels = [sheet.cell(r, 1).value for r in range(1, sheet.max_row + 1)]
-    assert "Lợi nhuận bán hàng trên sàn" in labels
+    # decision #51: the bridge runs the ladder and ends at Lợi nhuận ròng (= the screen profit)
+    assert {"Lợi nhuận gộp", "Lợi nhuận đóng góp", "Lợi nhuận ròng"} <= {str(x) for x in labels}
     assert not any(isinstance(v, str) and v.startswith("Tổng chi phí") for v in labels)
     product = data.products[0].product_id
     one = await collect_tong_quan(
