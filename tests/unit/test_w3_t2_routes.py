@@ -68,7 +68,7 @@ def _by_key(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
 
 def test_registry_version_is_bumped_for_the_tiktok_source_rules() -> None:
-    assert DERIVATION_VERSION == "2026-11-23.1"
+    assert DERIVATION_VERSION == "2026-11-24.1"
 
 
 @pytest.mark.parametrize("source", ["the_san_pham_khac", "trang_shop", "live", "video", "lien_ket"])

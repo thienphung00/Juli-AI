@@ -46,7 +46,7 @@ class _Scope:
 
 @pytest.fixture
 def stubs(monkeypatch: pytest.MonkeyPatch):
-    state = SimpleNamespace(log=[], ran=[], raises={}, nows=set())
+    state = SimpleNamespace(log=[], ran=[], raises={}, nows=set(), every=[], rebuilt=[])
 
     async def ids(_session):
         return list(SHOPS)
@@ -58,7 +58,16 @@ def stubs(monkeypatch: pytest.MonkeyPatch):
         state.ran.append(shop_id)
         return SimpleNamespace(observations_total=5, states=2)
 
+    async def every(_session):
+        return list(state.every)
+
+    async def rebuild_outdated(_session, shop_id, **_kw):
+        state.rebuilt.append(shop_id)
+        return 7
+
     monkeypatch.setattr(daily, "pilot_shop_ids", ids)
+    monkeypatch.setattr(daily, "shopee_shop_ids", every)
+    monkeypatch.setattr(daily.materialize, "rebuild_outdated", rebuild_outdated)
     monkeypatch.setattr(daily.measure, "run_learning", run_learning)
     monkeypatch.setattr(daily, "with_shop_scope", lambda _s, shop_id: _Scope(shop_id, state.log))
     state.factory = lambda: _Session(state.log)
@@ -71,6 +80,16 @@ async def test_each_pilot_shop_learns_in_its_own_scope_and_commits(stubs):
     assert stubs.log.count("commit") == len(SHOPS)
     assert [e for e in stubs.log if e.startswith("scope")] == [f"scope:{s.int}" for s in SHOPS]
     assert summary == daily.DailyLearningSummary(3, 0, 15, 6)
+
+
+async def test_the_outdated_rebuild_reaches_a_non_pilot_shopee_shop(stubs):
+    # decision #39: a rule change rebuilds every Shopee shop's stored days, not only the pilots
+    non_pilot = uuid.UUID(int=99)
+    stubs.every = [*SHOPS, non_pilot]
+    summary = await daily.run_daily_learning(stubs.factory, now=NOW)
+    assert non_pilot in stubs.rebuilt and stubs.rebuilt == stubs.every
+    assert summary.rebuilt_days == 7 * len(stubs.every)
+    assert non_pilot not in stubs.ran  # learning stays pilot-only
 
 
 async def test_a_failing_shop_is_counted_and_never_stops_the_rest(stubs):

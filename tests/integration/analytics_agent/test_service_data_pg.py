@@ -144,7 +144,10 @@ async def test_item_daily_has_shop_rows_shape_and_zero_sales_days(world: Any) ->
     assert all(
         r["orders"] is not None and r["gmv"] is not None for r in item
     )  # no row = 0 sales, not NULL
-    assert all(r["ads_spend"] is None for r in item)
+    # decision #39: the product's own ad cost (the ads report by product), NULL = no basis
+    spend = [r["ads_spend"] for r in item if r["ads_spend"] is not None]
+    assert spend and all(v >= 0 for v in spend)
+    assert any(r["ads_spend"] is None for r in item)  # a day with no basis is not 0
 
 
 async def test_source_and_product_rows(world: Any) -> None:

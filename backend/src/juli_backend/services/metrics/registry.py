@@ -33,7 +33,7 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
 
-DERIVATION_VERSION = "2026-11-23.1"
+DERIVATION_VERSION = "2026-11-24.1"
 
 #: an expression: a bare id, or ``(operator, *operands)``
 Expr = str | tuple[Any, ...]
@@ -533,6 +533,22 @@ def _build() -> dict[str, MetricDef]:
     }
     for cid, (label, comp, src) in cost_parts.items():
         b.add(cid, label, V, D, comp, summable=True, shopee=src)
+    b.add(
+        "cost_ads_product",
+        "Chi phí quảng cáo của sản phẩm",
+        V,
+        D,
+        "ads_spend_product",
+        summable=True,
+        levels=(Level.product,),
+        shopee=_src(
+            "ads_report_by_product",
+            OrderBasis.none,
+            "expense",
+            "campaign spend per day x the product's share in the ads report by product "
+            "(shopee_analytics.product_ads); no basis = None, never 0",
+        ),
+    )
     b.add(
         "cost_offers",
         "Ưu đãi",
