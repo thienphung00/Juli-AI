@@ -272,9 +272,18 @@ function collectOrders(responses: ReaderResponse[]): Map<string, CollectedOrder>
       }
     }
   }
-  // a card keyed by order_id only and its detail keyed by order_sn are one order: the detail stays
-  const detailed = new Set([...orders.values()].filter((o) => o.__detail && o.__api !== undefined).map((o) => o.__api));
-  for (const [key, order] of orders) if (!order.__detail && order.__api !== undefined && detailed.has(order.__api)) orders.delete(key);
+  // a card keyed by order_id only and its detail keyed by order_sn are one order. 0.3.34 (C-H3): the
+  // detail's lines REPLACE the card's under the card's key, so the order keeps the order_ref its
+  // card lines were (or will be) posted with: one set of lines, never the card's beside the detail's.
+  const detailKeyOf = new Map<string, string>();
+  for (const [key, order] of orders) if (order.__detail && order.__api !== undefined) detailKeyOf.set(order.__api, key);
+  for (const [key, order] of [...orders]) {
+    if (order.__detail || order.__api === undefined) continue;
+    const detailKey = detailKeyOf.get(order.__api);
+    if (detailKey === undefined || detailKey === key) continue;
+    orders.set(key, orders.get(detailKey) as CollectedOrder);
+    orders.delete(detailKey);
+  }
   return orders;
 }
 
@@ -518,6 +527,11 @@ export function pageIncomeFinal(items: readonly { name: string }[]): boolean {
 }
 /** A cost is stored as a positive amount the seller bore; these are signed as sent. */
 const SIGNED = new Set(["payout", "product_price"]);
+
+/** A label without diacritics, lower case, single-spaced (what the income labels are matched on). */
+export function plainLabel(label: string): string {
+  return plain(label);
+}
 
 function plain(label: string): string {
   return label
