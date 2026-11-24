@@ -17,7 +17,7 @@ import comboBody from "./fixtures/contract/combo_settings.body.json";
 import orderLinesBody from "./fixtures/contract/order_lines.body.json";
 import orderIncomeBody from "./fixtures/contract/order_income.body.json";
 import { RAW_ORDER_ID } from "../src/platforms/shopee/affiliate-map";
-import { mapOrderIncome, mapOrderLines, trimOrderDetail } from "../src/platforms/shopee/orders-map";
+import { mapOrderIncome, mapOrderLines, trimOrderDetail, withPageSkus } from "../src/platforms/shopee/orders-map";
 import type { Mapped } from "../src/platforms/shopee/map";
 import type { ReaderResponse } from "../src/platforms/shopee/reader";
 import { mapAdsDaily, mapComboList, mapItemTraffic, mapProductList, mapShopHealth, mapVoucherList } from "../src/platforms/shopee/reader-map";
@@ -113,7 +113,9 @@ describe("extension ↔ gateway contract", () => {
       }),
     });
     const S1_CREATED = Date.UTC(2026, 10, 2, 2, 0, 0) / 1000;
-    const s1Detail = reply("order_detail", trimOrderDetail({
+    // batch-1124-b CONN (P-CONN shape): the combo parent's sub-lines (item_list) named by
+    // bundle_deal_model, priced and discounted by its order page (list 100.000 + 100.000 -> 190.000)
+    const s1Detail = reply("order_detail", withPageSkus(trimOrderDetail({
       code: 0,
       data: {
         order_id: 8001,
@@ -125,17 +127,32 @@ describe("extension ↔ gateway contract", () => {
         order_items: [
           {
             amount: 1,
+            item_id: 1,
+            model_id: 0,
+            item_model: { model_id: 0, sku: "" },
             order_price: "190000",
             bundle_deal_id: 77,
+            item_list: [
+              { item_id: 9001, model_id: 9101, amount: 1 },
+              { item_id: 9003, model_id: 9301, amount: 1 },
+            ],
             bundle_deal_model: [
-              { item_id: 9001, model_id: 9101, amount: 1, order_price: "100000", item_model: { sku: "SKU-A1", model_id: 9101 } },
-              { item_id: 9003, model_id: 9301, amount: 1, order_price: "90000", item_model: { sku: "SKU-C1", model_id: 9301 } },
+              { item_id: 9001, model_id: 9101, sku: "SKU-A1", name: "Vị A" },
+              { item_id: 9003, model_id: 9301, sku: "SKU-C1", name: "Vị C" },
+            ],
+            bundle_deal_product: [
+              { item_id: 9001, model_id: 9101, sku: "" },
+              { item_id: 9003, model_id: 9301, sku: "" },
             ],
           },
           { item_id: 9011, model_id: 9211, amount: 1, order_price: "30000", item_model: { sku: "SKU-ADD", model_id: 9211 }, add_on_deal_id: 55, is_add_on_sub_item: true },
         ],
       },
-    }));
+    }), [
+      { sku: "SKU-A1", variationName: "Vị A", qty: 1, listPrice: 100000, lineTotal: 100000 },
+      { sku: "SKU-C1", variationName: "Vị C", qty: 1, listPrice: 100000, lineTotal: 100000 },
+      { sku: "SKU-ADD", qty: 1, lineTotal: 30000 },
+    ]));
     const s1Income = reply(
       "order_income_components",
       {

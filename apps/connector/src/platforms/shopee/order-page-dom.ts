@@ -139,7 +139,10 @@ function bundleItem(line: Element): PageItem {
   const qty = Number(QTY.exec((line.querySelector(".qty")?.textContent ?? "").trim())?.[1]);
   if (Number.isInteger(qty) && qty > 0) item.qty = qty;
   const unit = moneyOf(line.querySelector(".price")?.textContent);
-  if (unit !== undefined && unit > 0 && item.qty !== undefined) item.lineTotal = unit * item.qty;
+  if (unit !== undefined && unit > 0) {
+    item.listPrice = unit;
+    if (item.qty !== undefined) item.lineTotal = unit * item.qty;
+  }
   return item;
 }
 

@@ -325,46 +325,6 @@ function linesOf(order: Record<string, unknown>): Record<string, unknown>[] {
   });
 }
 
-/**
- * batch-1124-a S1 (P-S2 capture, 24/11): get_one_order states no combo discount amount. Its
- * `order_items[].order_price x amount` is each group's list value and `total_price` what the buyer
- * pays for the goods (equal to `price_before_discount`: no voucher in it), so
- * Σ (order_price x amount) − total_price is the order's item-level discount. It is the combo's when
- * the order has a combo line, shared over the combo lines (and only those) by line list value.
- * Unknown (no map) when the order has no combo line, no total, or the gap does not fit the combo
- * lines; never a guess.
- */
-function comboDiscounts(
-  order: Record<string, unknown>,
-  lines: Record<string, unknown>[],
-  lineValue: (item: Record<string, unknown>) => number,
-  money: (value: unknown) => number | undefined,
-): Map<number, number> | undefined {
-  const paid = money(order.total_price);
-  const groups = Array.isArray(order.items) ? order.items.filter(isRecord) : [];
-  if (paid === undefined || paid <= 0 || groups.length === 0) return undefined;
-  let listed = 0;
-  for (const group of groups) {
-    const price = money(group.order_price ?? group.deal_price ?? group.item_price);
-    const qty = num(group.amount ?? group.quantity ?? group.qty);
-    if (price === undefined || qty === undefined) return undefined;
-    listed += price * qty;
-  }
-  const comboLines = lines.map((line, index) => ({ index, value: lineValue(line) })).filter(({ index }) => (num(lines[index]!.bundle_deal_id) ?? 0) > 0);
-  const comboValue = comboLines.reduce((sum, line) => sum + line.value, 0);
-  const gap = Math.round((listed - paid) * 100) / 100;
-  if (comboLines.length === 0 || comboValue <= 0 || gap <= 0 || gap > comboValue) return undefined;
-  const out = new Map<number, number>();
-  let left = gap;
-  comboLines.forEach(({ index, value }, n) => {
-    // the last combo line takes the rounding rest, so the lines add up to the order's discount
-    const share = n === comboLines.length - 1 ? Math.round(left * 100) / 100 : Math.round(((gap * value) / comboValue) * 100) / 100;
-    left -= share;
-    out.set(index, share);
-  });
-  return out;
-}
-
 /** The order is still waiting for the buyer's payment (not yet a confirmed order). */
 export function awaitingPayment(order: Record<string, unknown>): boolean {
   const t = String(order.status_text ?? (typeof order.status === "string" ? order.status : "") ?? "").toLowerCase();
@@ -421,7 +381,6 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
     const lineValue = (item: Record<string, unknown>) =>
       (money(item.order_price ?? item.deal_price ?? item.item_price) ?? 0) * (num(item.amount ?? item.quantity ?? item.qty) ?? 1);
     const total = items.reduce((sum, item) => sum + lineValue(item), 0);
-    const combo = order.__detail ? comboDiscounts(order, items, lineValue, money) : undefined;
     const split = (value: unknown, item: Record<string, unknown>): number | undefined => {
       const amount = money(value);
       if (amount === undefined) return undefined;
@@ -439,9 +398,14 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       // gives it, else the line's paid price (no seller subsidy claimed).
       const single = items.length === 1 && qty !== undefined && qty > 0 ? money(order.price_before_discount) : undefined;
       const singleUnit = single !== undefined && qty ? Math.round((single / qty) * 100) / 100 : undefined;
+      const isCombo = (num(item.bundle_deal_id) ?? 0) > 0;
+      // batch-1124-b CONN (owner Q4): a combo line's price is its share of the combo price, and
+      // its original price the same (the combo discount is bundle_discount, never seller_subsidy)
       const original =
-        money(item.original_price ?? item.price_before_discount ?? item.item_price) ??
-        (order.__detail ? (singleUnit !== undefined && deal !== undefined && singleUnit >= deal ? singleUnit : deal) : undefined);
+        order.__detail && isCombo
+          ? deal
+          : (money(item.original_price ?? item.price_before_discount ?? item.item_price) ??
+            (order.__detail ? (singleUnit !== undefined && deal !== undefined && singleUnit >= deal ? singleUnit : deal) : undefined));
       if (qty === undefined || qty < 0 || original === undefined || deal === undefined) {
         miss("orders[].items[].price_or_qty");
         return;
@@ -467,9 +431,17 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       const modelId = idOf(item.model_id);
       if (itemId) extra.item_id = itemId;
       if (modelId) extra.model_id = modelId;
-      if (Object.keys(extra).length > 0) row.extra = extra;
-      if ((num(item.bundle_deal_id) ?? 0) > 0) row.promo_kind = "bundle";
+      if (isCombo) {
+        row.promo_kind = "bundle";
+        const bundleId = num(item.bundle_deal_id);
+        if (bundleId !== undefined && Number.isSafeInteger(bundleId)) extra.bundle_deal_id = bundleId;
+      }
       else if ((num(item.add_on_deal_id) ?? 0) > 0 || item.is_add_on_sub_item === true) row.promo_kind = "add_on";
+      // owner Q4: the combo discount of a line = (the page's list price − its combo price) x qty;
+      // unknown (not posted) until the order page has been read
+      const listUnit = isCombo ? num(item[PAGE_LIST_PRICE]) : undefined;
+      if (listUnit !== undefined && listUnit > 0) extra.list_price = listUnit;
+      if (Object.keys(extra).length > 0) row.extra = extra;
       const returned = num(item.returned_qty);
       if (returned !== undefined && returned >= 0) row.returned_qty = returned;
       const shopVoucher = split(order.shop_voucher_amount ?? order.seller_voucher, item);
@@ -479,8 +451,8 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       const bank = split(order.bank_promo_amount, item);
       if (shopVoucher !== undefined) row.shop_voucher_share = shopVoucher;
       if (platformVoucher !== undefined) row.platform_voucher_share = platformVoucher;
-      if (bundle !== undefined) row.bundle_discount = bundle;
-      else if (combo?.has(index)) row.bundle_discount = combo.get(index) as number;
+      if (listUnit !== undefined && listUnit > 0) row.bundle_discount = Math.round(Math.max(0, listUnit - deal) * qty * 100) / 100;
+      else if (bundle !== undefined) row.bundle_discount = bundle;
       if (shipping !== undefined) row.buyer_shipping_fee = shipping;
       if (bank !== undefined) row.bank_promo = bank;
       if (completedAt) row.completed_at = completedAt;
@@ -729,7 +701,12 @@ export interface PageItem {
   lineTotal?: number;
   /** The line's quantity as the page shows it. */
   qty?: number;
+  /** batch-1124-b CONN: a combo sub-line's unit list price (before the combo discount). */
+  listPrice?: number;
 }
+
+/** The line key a combo line carries its page list price under (never sent: the mapper reads it). */
+export const PAGE_LIST_PRICE = "page_list_price";
 
 const hasSku = (item: Record<string, unknown>): boolean =>
   [item.item_sku, item.sku, item.model_sku, item.variation_sku].some((v) => typeof v === "string" && v.trim() !== "");
@@ -851,6 +828,7 @@ export function withPageSkus(body: unknown, page: readonly PageItem[]): unknown 
     delete out.sub_items;
     if (at.sku) out.model_sku = at.sku;
     if (at.variationName) out.model_name = at.variationName;
+    if (at.listPrice !== undefined) out[PAGE_LIST_PRICE] = at.listPrice;
     return out;
   };
   let fixed: Record<string, unknown>[] | null = null;

@@ -140,7 +140,8 @@ describe("SKUs from the order page (C1)", () => {
     expect(rows.map((r) => r.qty)).toEqual(pageLines.map((p) => p.qty));
     const total = (field: "deal_price" | "original_price") => rows.reduce((a, r) => a + Math.round((r[field] as number) * (r.qty as number) * 100), 0);
     expect(total("deal_price")).toBe(190_001 * 100);
-    expect(total("original_price")).toBe(200_001 * 100);
+    // owner Q4 (batch-1124-b CONN): a combo line's original price is its combo price (no seller subsidy)
+    expect(total("original_price")).toBe(190_001 * 100);
   });
 
   it("a page line without a quantity: the combo is not split (nothing guessed)", () => {

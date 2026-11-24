@@ -121,8 +121,8 @@ describe("a combo on the order page (P-CONN DOM)", () => {
   it("reads one line per .bundle-deal-item: SKU phân loại, quantity, unit list price x quantity", () => {
     const doc = page(comboBlock(bundleLine("Vị A", "SKU-A01") + bundleLine("Vị B", "SKU-A02", "100.000", "2")));
     expect(pageItemsIn(doc)).toEqual([
-      { variationName: "Vị A", sku: "SKU-A01", qty: 1, lineTotal: 100_000 },
-      { variationName: "Vị B", sku: "SKU-A02", qty: 2, lineTotal: 200_000 },
+      { variationName: "Vị A", sku: "SKU-A01", qty: 1, listPrice: 100_000, lineTotal: 100_000 },
+      { variationName: "Vị B", sku: "SKU-A02", qty: 2, listPrice: 100_000, lineTotal: 200_000 },
     ]);
   });
 
@@ -137,9 +137,39 @@ describe("combo lines posted with the real SKU", () => {
     const doc = page(comboBlock(bundleLine("Vị A", "SKU-A01") + bundleLine("Vị B", "SKU-A02")));
     const rows = mapOrderLines([detail(withPageSkus(answer([comboParent(MODELS)]), pageItemsIn(doc)))], NOW).rows;
     expect(rows.map((r) => [r.line_no, r.sku, r.variation_sku, r.variation_name, r.qty, r.deal_price, r.promo_kind, r.extra])).toEqual([
-      [0, undefined, "SKU-A01", "Vị A", 1, 95_000, "bundle", { item_id: "7001", model_id: "8001" }],
-      [1, undefined, "SKU-A02", "Vị B", 1, 95_000, "bundle", { item_id: "7001", model_id: "8002" }],
+      [0, undefined, "SKU-A01", "Vị A", 1, 95_000, "bundle", { item_id: "7001", model_id: "8001", bundle_deal_id: 88, list_price: 100_000 }],
+      [1, undefined, "SKU-A02", "Vị B", 1, 95_000, "bundle", { item_id: "7001", model_id: "8002", bundle_deal_id: 88, list_price: 100_000 }],
     ]);
+  });
+
+  it("owner Q4: bundle_discount = (list price − combo price share) x qty; original = deal, no seller subsidy", () => {
+    // the P-CONN order: list 100.000 x 2 -> combo 190.000 -> lines 95.000 / 95.000, 5.000 each
+    const doc = page(comboBlock(bundleLine("Vị A", "SKU-A01") + bundleLine("Vị B", "SKU-A02")));
+    const rows = mapOrderLines([detail(withPageSkus(answer([comboParent(MODELS)]), pageItemsIn(doc)))], NOW).rows;
+    expect(rows.map((r) => [r.original_price, r.deal_price, r.seller_subsidy, r.bundle_discount])).toEqual([
+      [95_000, 95_000, 0, 5_000],
+      [95_000, 95_000, 0, 5_000],
+    ]);
+    // the order's total_price (171.000: vouchers / coins below the combo price) is not the combo's
+    expect(rows.reduce((a, r) => a + (r.bundle_discount as number), 0)).toBe(10_000);
+  });
+
+  it("owner Q4: with quantities, Σ bundle_discount = Σ list x qty − the combo price, exactly", () => {
+    const parent = { ...comboParent(MODELS), order_price: "250000", item_list: [
+      { item_id: 7001, model_id: 8001, amount: 1 },
+      { item_id: 7001, model_id: 8002, amount: 2 },
+    ] };
+    const doc = page(comboBlock(bundleLine("Vị A", "SKU-A01", "100.000", "1") + bundleLine("Vị B", "SKU-A02", "90.000", "2")));
+    const rows = mapOrderLines([detail(withPageSkus(answer([parent]), pageItemsIn(doc)))], NOW).rows;
+    const cents = (f: string) => rows.reduce((a, r) => a + Math.round((r[f] as number) * 100), 0);
+    expect(cents("bundle_discount")).toBe((100_000 + 2 * 90_000 - 250_000) * 100);
+    expect(rows.reduce((a, r) => a + Math.round((r.deal_price as number) * (r.qty as number) * 100), 0)).toBe(250_000 * 100);
+    expect(rows.every((r) => r.seller_subsidy === 0 && r.original_price === r.deal_price)).toBe(true);
+  });
+
+  it("owner Q4: before the page is read the combo line posts no bundle_discount (never the old gap)", () => {
+    const rows = mapOrderLines([detail(answer([comboParent(MODELS)]))], NOW).rows;
+    expect(rows.map((r) => [r.promo_kind, r.original_price, r.deal_price, r.seller_subsidy, r.bundle_discount])).toEqual([["bundle", 190_000, 190_000, 0, undefined]]);
   });
 
   it("a combo line carries its SKU in the same fields as a plain line of the same reader", () => {

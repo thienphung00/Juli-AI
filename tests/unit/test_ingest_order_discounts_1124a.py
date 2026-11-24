@@ -99,14 +99,15 @@ async def test_the_connector_contract_posts_land_combo_add_on_and_split_vouchers
     await _ingest(session, shop, "order_income", _contract("order_income.body.json"))
     lines = await _lines(session, shop)
     assert [(ln.promo_kind, ln.bundle_discount) for ln in lines] == [
-        ("bundle", Decimal("22105.26")),
-        ("bundle", Decimal("19894.74")),
+        # batch-1124-b CONN (owner Q4): (list 100.000 - combo share 95.000) x 1 per line
+        ("bundle", Decimal(5_000)),
+        ("bundle", Decimal(5_000)),
         ("add_on", Decimal(0)),
     ]
-    # buyer vouchers 10.000 (shop) and 20.000 (Shopee) split by line value 100k / 90k / 30k
+    # buyer vouchers 10.000 (shop) and 20.000 (Shopee) split by line value 95k / 95k / 30k
     assert [ln.shop_voucher_share for ln in lines] == [
-        Decimal("4545.45"),
-        Decimal("4090.91"),
+        Decimal("4318.18"),
+        Decimal("4318.18"),
         Decimal("1363.64"),
     ]
     assert sum(ln.platform_voucher_share for ln in lines) == Decimal(20_000)

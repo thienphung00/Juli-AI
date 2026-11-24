@@ -51,6 +51,7 @@ from juli_backend.models.shopee_profit import (
     vn_day,
 )
 from juli_backend.services.ingest.affiliate_commission import seller_commission
+from juli_backend.services.ingest.combo_discount_check import log_combo_discount_mismatches
 from juli_backend.services.ingest.kol_key import kol_key
 from juli_backend.services.ingest.precedence import count_gap_fills, log_gap_fills
 from juli_backend.services.ingest.rank_guard import (
@@ -306,6 +307,8 @@ async def write_order_lines(
             extra={"shop_id": str(shop_id), "lines": unresolved},
         )
     await upsert_line_values(session, values)
+    # batch-1124-b CONN (owner Q4): a combo discount that misses its percent tier is logged only
+    await log_combo_discount_mismatches(session, shop_id, platform, rows)
 
 
 async def upsert_line_values(session: AsyncSession, values: list[dict[str, Any]]) -> None:
