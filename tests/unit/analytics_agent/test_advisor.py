@@ -259,7 +259,9 @@ async def test_what_is_still_invalid_after_the_repair_round_is_dropped() -> None
 
 async def test_the_non_card_lever_needs_no_card_and_a_lead_only_plan_is_an_answer() -> None:
     gap = {"why": "Túi đay thiếu giá vốn.", "lever": "nhap_gia_von", "card_ref": "none"}
-    sink, _, llm = await _ask_with(FakeLLM(agent_script=[READ_ALL, plan(gap)]))
+    sink, _, llm = await _ask_with(
+        FakeLLM(agent_script=[[tool_use("cogs_gaps", "g1")], plan(gap)])  # a real gap was read
+    )
     rows = _rows(sink)
     assert rows[0]["value_vi"] == "" and rows[0]["label_vi"] == "1. Nhập giá vốn"
     assert len(llm.agent_calls) == 2  # no repair round: the lever is card-exempt

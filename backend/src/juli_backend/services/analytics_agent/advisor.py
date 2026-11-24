@@ -139,6 +139,7 @@ class Advice:
     turns: int = 0
     tools: list[str] = field(default_factory=list)
     dropped: list[str] = field(default_factory=list)
+    drafts: list[dict[str, Any]] = field(default_factory=list)  # draft_card outcomes (diagnosis)
 
 
 # ------------------------------------------------------------------ prompt and tool schemas
@@ -277,7 +278,10 @@ SYSTEM = (
     "thì gọi draft_card với đúng lever (kèm item là id sản phẩm đã thấy ở công cụ khác khi lever "
     "cần sản phẩm) trước khi emit_plan. Nếu draft_card báo chưa có phương án, đọc 'lý_do': thử "
     "lại với item khác nếu được, không thì đưa việc đó vào 'lead' hoặc bỏ. Riêng lever "
-    "nhap_gia_von (không phải thẻ) dùng card_ref 'none'.\n"
+    "nhap_gia_von (không phải thẻ, card_ref 'none') chỉ dùng khi cogs_gaps báo thiếu giá vốn; "
+    "giá vốn đã đủ thì nói ở 'lead', không đưa vào 'actions'. Kết quả campaigns liệt kê "
+    "sản_phẩm_chạy_quảng_cáo của từng chiến dịch: dùng id đó làm item cho lever quảng cáo của "
+    "chiến dịch.\n"
     "- Chiến dịch có nhiều sản phẩm mà một sản phẩm lỗ: ads_remove_product (chỉ ads_pause khi nó "
     "là sản phẩm duy nhất). Ngày chi dưới ngân sách là ngày chi dưới 30% ngân sách ngày và không "
     "có đơn quảng cáo. Câu hỏi về tháng: gọi công cụ với window mtd_vs_same_days_last_month.\n"
@@ -455,6 +459,7 @@ class Ctx:
     known_items: set[str] = field(default_factory=set)
     windows: dict[str, str] = field(default_factory=dict)  # window label -> sale note
     drafts: dict[str, dict[str, Any]] = field(default_factory=dict)  # ref -> {acc, event}
+    draft_log: list[dict[str, Any]] = field(default_factory=list)  # every draft_card outcome
     latest: date | None = None
     _rows: list[dict[str, Any]] | None = None
     _open: list[dict[str, Any]] | None = None
@@ -530,7 +535,17 @@ async def _campaigns(ctx: Ctx, a: dict[str, Any]) -> dict[str, Any]:
     camps = sorted(await ctx.data.campaign_rows(*w.cur), key=campaign_order)
     for c in camps:
         ctx.names.setdefault(str(c.get("key") or c["name"]), str(c["name"]))
-    return {**ctx.head(w), "chiến_dịch": _rows_out([campaign_row(c) for c in camps[:8]])}
+    out = []
+    for c in camps[:8]:
+        row = _rows_out([campaign_row(c)])[0]
+        ids = [str(i) for i in (c.get("items") or [])]
+        if ids:  # the products it spends on: item ids draft_card can take (ads report by product)
+            names = await ctx.data.item_names(ids)
+            for i in ids:
+                ctx.see(i, names.get(i))
+            row["sản_phẩm_chạy_quảng_cáo"] = [{"id": i, "tên": names.get(i, i)} for i in ids]
+        out.append(row)
+    return {**ctx.head(w), "chiến_dịch": out}
 
 
 async def _idle(ctx: Ctx, a: dict[str, Any]) -> dict[str, Any]:
@@ -738,6 +753,9 @@ async def _draft_card(ctx: Ctx, a: dict[str, Any]) -> dict[str, Any]:
     )
     ctx.budget.cost += ctx.out.cost_usd - before
     code = res["code"]
+    ctx.draft_log.append(
+        {"kind": kind, "item": item, "status": res["status"], "reason": res.get("reason")}
+    )
     if res["status"] == "same":
         return {"kết_quả": "đã có thẻ giống hệt", "card_ref": f"open:{code}"}
     if res["status"] == "none":
@@ -821,11 +839,20 @@ def keep_traced(text: str, fact_set: facts.Facts, names: list[str]) -> tuple[str
 def guard_text(
     text: str, fact_set: facts.Facts, id_names: dict[str, str], names: list[str]
 ) -> tuple[str, list[str]]:
-    """sanitise (leaks refuse the whole text), then drop untraced sentences."""
-    clean, leaks = writer.sanitise(text or "", id_names, names)
-    if leaks:
-        return "", [f"leak:{x}" for x in leaks]
-    return keep_traced(clean, fact_set, names)
+    """sanitise each sentence (a leaking sentence is dropped, the others stay), then drop the
+    sentences whose numbers are untraced."""
+    kept: list[str] = []
+    dropped: list[str] = []
+    for sent in (x.strip() for x in _SENTENCE.split((text or "").strip())):
+        if not sent:
+            continue
+        clean, leaks = writer.sanitise(sent, id_names, names)
+        if leaks:
+            dropped += [f"leak:{x}" for x in leaks]
+            continue
+        kept.append(clean)
+    text_out, untraced = keep_traced(" ".join(kept), fact_set, names)
+    return text_out, dropped + untraced
 
 
 #: What `check_plan` found wrong with an action (the model sees these words in the refusal).
@@ -834,6 +861,8 @@ _PROBLEM_VI = {
     "unknown_ref": "card_ref không có trong open_cards hay thẻ nháp",
     "kind_mismatch": "thẻ của card_ref không đúng loại với lever",
     "bad_lever": "lever không nằm trong danh sách",
+    "no_evidence": "lever này chỉ dùng khi công cụ đã báo đúng phát hiện của nó (ví dụ cogs_gaps "
+    "báo thiếu giá vốn); chưa có thì bỏ hoặc ghi ở lead",
     "dup_lever": "lever đã dùng ở mục trước: gộp các việc cùng lever thành một mục, nêu các sản "
     "phẩm hoặc chiến dịch trong why",
 }
@@ -849,6 +878,11 @@ class _Checked:
     code: str = ""  # open card code
     event: dict[str, Any] | None = None  # the draft's card event
     acc: dict[str, Any] | None = None
+
+
+def _has_evidence(ctx: Ctx, lever: str) -> bool:
+    _tool, key = levers.EVIDENCE[lever]
+    return any(isinstance(r, dict) and r.get(key) for r in ctx.results)
 
 
 def check_plan(
@@ -872,6 +906,8 @@ def check_plan(
             c.problem = "bad_lever"
         elif lever in seen:
             c.problem = "dup_lever"
+        elif lever in levers.EVIDENCE and not _has_evidence(ctx, lever):
+            c.problem = "no_evidence"
         elif lever in levers.CARD_EXEMPT:
             pass
         elif not c.ref or c.ref == "none":
@@ -1118,7 +1154,7 @@ async def run_advice(
         raise AdviceAborted("no_plan")
     fact_set = summary.given_facts({"answers": ctx.results})
     advice = await render(ctx, plan, fact_set, checked)
-    advice.turns, advice.tools = turns, used
+    advice.turns, advice.tools, advice.drafts = turns, used, ctx.draft_log
     return advice
 
 

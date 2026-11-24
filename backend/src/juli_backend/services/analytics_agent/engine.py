@@ -555,6 +555,7 @@ async def _answer_inner(
                         "turns": advice.turns,
                         "tools": advice.tools,
                         "dropped": advice.dropped,
+                        "drafts": advice.drafts,
                         "cost_usd": round(budget.cost - before, 6),
                     }
                 )

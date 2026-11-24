@@ -201,6 +201,12 @@ FINDINGS: tuple[Finding, ...] = (
 FINDING_BY_KEY: dict[str, Finding] = {f.key: f for f in FINDINGS}
 
 
+#: A lever that needs its finding to be in this run's tool results: lever -> (tool, result key).
+#: The lever is the answer to one finding only (missing giá vốn); without that finding it is not
+#: offered, however the question is worded. Data, checked by `advisor.check_plan`.
+EVIDENCE: dict[str, tuple[str, str]] = {"nhap_gia_von": ("cogs_gaps", "thiếu_giá_vốn")}
+
+
 def lever_enum(available: Iterable[str] | None = None) -> list[str]:
     """The levers `emit_plan` accepts: `kinds.py` kinds minus the out-set (limited to the kinds
     the platform's label table knows when given), plus the non-card actions. Stable order."""

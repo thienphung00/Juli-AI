@@ -368,3 +368,139 @@ async def test_a_plan_missing_its_lead_field_is_still_a_plan() -> None:
     )
     sink, _, _ = await _ask_with(llm)
     assert _rows(sink)[0]["lever"] == "ads_budget"
+
+
+# ------------------------------------------------ recorded 24/11 shapes (live run 3)
+
+
+def _campaign_data() -> Any:
+    """The synthetic shop whose campaigns now carry the products they spend on."""
+    data = _live_data()
+    for c in data.entity["campaigns"]:
+        c["items"] = ["p1", "p2"]
+    return data
+
+
+async def test_the_campaigns_tool_lists_each_campaigns_products_so_draft_card_can_take_one() -> (
+    None
+):
+    from tests.unit.analytics_agent.test_advisor import _ctx
+
+    ctx = await _ctx()
+    for c in ctx.data.entity["campaigns"]:
+        c["items"] = ["p1", "p2"]
+    res = await advisor.run_tool(ctx, "campaigns", {})
+    first = res["chiến_dịch"][0]
+    assert [p["id"] for p in first["sản_phẩm_chạy_quảng_cáo"]] == ["p1", "p2"]
+    assert first["sản_phẩm_chạy_quảng_cáo"][0]["tên"]
+    # the ids are now known items: a campaign-level draft can name one (no `unknown_item`)
+    out = await advisor.run_tool(ctx, "draft_card", {"kind": "ads_roas_target", "item": "p1"})
+    assert out.get("lỗi") != "unknown_item"
+
+
+async def test_a16_shape_a_thin_campaign_gets_a_roas_target_draft_through_its_product() -> None:
+    from tests.unit.analytics_agent.fakes import FakeLLM, tool_use
+    from tests.unit.analytics_agent.test_advisor import _ask_with, _rows, plan
+
+    def ref(m: Any) -> str:
+        return next(
+            json.loads(r["content"])["card_ref"]
+            for x in m
+            if x["role"] == "user" and isinstance(x["content"], list)
+            for r in x["content"]
+            if r.get("tool_use_id") == "d1"
+        )
+
+    class A16(FakeLLM):
+        async def agent(self, system: Any, tools: Any, messages: Any, *, force_tool: Any = None):
+            if not self.agent_script:
+                self.agent_script.append(
+                    plan(
+                        {
+                            "lever": "ads_roas_target",
+                            "card_ref": ref(messages),
+                            "why": "CDN/02 lãi nhưng ROAS chỉ hơn hoà vốn một chút.",
+                        },
+                        lead="CDN/01 lãi rõ, không cần xử lý.",
+                    )
+                )
+            return await super().agent(system, tools, messages, force_tool=force_tool)
+
+    llm = A16(
+        agent_script=[
+            [tool_use("campaigns", "t1")],
+            [tool_use("draft_card", "d1", kind="ads_roas_target", item="p1")],
+        ]
+    )
+    sink, res, _ = await _ask_with(llm, _campaign_data())
+    assert [r["lever"] for r in _rows(sink)] == ["ads_roas_target"]
+    step = [s for s in res.routing if s.get("step") == "advise"][0]
+    assert step["drafts"] == [
+        {"kind": "ads_roas_target", "item": "p1", "status": "draft", "reason": None}
+    ]  # every draft outcome is recorded for the next diagnosis
+
+
+async def test_a30_shape_nhap_gia_von_needs_a_cogs_gap_in_the_data() -> None:
+    """A30 / P03: with no missing giá vốn the model used the card-free lever as an escape. It is
+    refused without the finding, and the cover-image lever is drafted instead."""
+    from tests.unit.analytics_agent.fakes import FakeLLM, tool_use
+    from tests.unit.analytics_agent.test_advisor import _ask_with, plan
+    from tests.unit.analytics_agent.test_weekly import _data
+
+    data = _data()
+    for v in data.entity["product_profit"].values():  # no product misses giá vốn
+        v["coverage_pct"] = 100.0
+    gap = {"lever": "nhap_gia_von", "card_ref": "none", "why": "Thiếu giá vốn."}
+    lead = "Giá vốn đã đủ."
+    llm = FakeLLM(
+        agent_script=[
+            [tool_use("cogs_gaps", "g1"), tool_use("product_margins", "g2")],
+            plan(gap, lead=lead),  # refused: cogs_gaps reported nothing missing
+            plan(lead=lead),
+        ]
+    )
+    sink, res, _ = await _ask_with(llm, data)
+    refused = json.dumps(llm.agent_calls[2]["replayed"], ensure_ascii=False)
+    assert "chỉ dùng khi công cụ đã báo đúng phát hiện" in refused
+    assert not [e for e in sink.of("data_answer") if e["title_vi"].startswith("Việc nên")]
+    assert lead in "".join(e["text"] for e in sink.of("text_delta"))
+
+
+def test_p02_shape_the_guard_drops_only_the_leaking_sentence_and_keeps_quoted_names() -> None:
+    from juli_backend.services.analytics_agent import facts
+
+    f = facts.Facts()
+    name = "[Deal 15.11] Combo Hộp Găng Tay TPE STAHAUS Chuyên Dụng Size L/M"
+    text = (
+        "Quảng cáo không lỗ nặng, cả hai chiến dịch đều lãi. "
+        "Sản phẩm [Deal 15.11] Combo Hộp Găng Tay TPE STAHAUS Chuyên Dụng lỗ sau quảng cáo. "
+        "See the full report in the dashboard now."
+    )
+    out, dropped = advisor.guard_text(text, f, {}, [name])
+    assert "Quảng cáo không lỗ nặng" in out  # the clean sentence stays
+    assert "Combo Hộp Găng Tay TPE STAHAUS" in out  # a quoted part of a real name is not a leak
+    assert "See the full report" not in out and dropped == ["leak:english_run"]
+
+
+def test_a_summary_quoting_part_of_a_product_name_passes_the_leak_check() -> None:
+    from juli_backend.services.analytics_agent import writer
+
+    name = "[Deal 15.11] Combo 3,5,10 Hộp Găng Tay TPE STAHAUS Chuyên Dụng Size L/M"
+    text = "Sản phẩm [Deal 15.11] Combo Hộp Găng Tay TPE STAHAUS chiếm 79% GMV."
+    assert writer.sanitise(text, None, [name])[1] == []
+    assert "english_run" in writer.sanitise("Please check the shop report today.", None, [name])[1]
+
+
+def test_merged_campaigns_keep_the_products_they_spend_on_biggest_first() -> None:
+    from decimal import Decimal
+
+    from juli_backend.services.analytics_agent.data_service import merge_campaigns
+
+    raw = [
+        {"key": "c1", "name": "CDN/01", "spend": 100, "gmv": 400, "before_ads": 50,
+         "items": {"p1": Decimal(30), "p2": Decimal(70)}},
+        {"key": "c2", "name": "CDN/01", "spend": 50, "gmv": 100, "before_ads": 10,
+         "items": {"p1": Decimal(60)}},
+    ]  # fmt: skip
+    (row,) = merge_campaigns(raw)
+    assert row["items"] == ["p1", "p2"]  # p1 90 > p2 70

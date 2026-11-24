@@ -44,8 +44,16 @@ def merge_campaigns(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
         gid = " ".join(str(r["name"]).casefold().split()) or str(r["key"])
         g = groups.setdefault(
             gid,
-            {"keys": [], "spend": Decimal(0), "gmv": Decimal(0), "before_ads": Decimal(0)},
+            {
+                "keys": [],
+                "spend": Decimal(0),
+                "gmv": Decimal(0),
+                "before_ads": Decimal(0),
+                "items": {},
+            },
         )
+        for item, sp in (r.get("items") or {}).items():
+            g["items"][item] = g["items"].get(item, Decimal(0)) + Decimal(str(sp))
         g["keys"].append(r["key"])
         g["name"] = r["name"]
         g["spend"] += Decimal(str(r["spend"]))
@@ -69,6 +77,8 @@ def merge_campaigns(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "roas": roas_direct(g["gmv"], g["spend"]),
                 "break_even": roas_break_even(g["gmv"], before) if before is not None else None,
                 "profit_after_ads": None if before is None else before - g["spend"],
+                # the products the campaign spends on, biggest spend first (ads report by product)
+                "items": sorted(g["items"], key=lambda k: -g["items"][k])[:5],
             }
         )
     return out
@@ -520,6 +530,7 @@ class ServiceData:
                         {
                             "key": c.key,
                             "name": c.name or c.key,
+                            "items": dict(c.products or {}),
                             "spend": c.spend,
                             "gmv": prof["direct_per_day"] * days,
                             # NULL is not 0: no rate = unknown, but a segment with no direct GMV
