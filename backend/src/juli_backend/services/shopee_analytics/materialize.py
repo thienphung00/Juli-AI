@@ -76,9 +76,10 @@ logger = logging.getLogger(__name__)
 
 #: version of the rule the stored rows are built with (``shop row detail.rows_v``). 2 (F7.10): the
 #: stored profit is the unscaled known-cost profit (P100 B.5); 3 (decision #39): a product's
-#: ad cost is the ads report by product (:mod:`product_ads`), ad-only days get a row. Bump it to
+#: ad cost is the ads report by product (:mod:`product_ads`), ad-only days get a row; 4 (decision
+#: #50): doanh thu thực subtracts only the shop voucher the seller bore (settlement). Bump it to
 #: rebuild every shop's stored days automatically (:func:`rebuild_outdated`).
-ROWS_VERSION = 3
+ROWS_VERSION = 4
 ROWS_VERSION_KEY = "rows_v"
 
 #: ingest datasets that cannot change a day's shop or product numbers

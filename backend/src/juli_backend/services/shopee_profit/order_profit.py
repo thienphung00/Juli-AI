@@ -5,7 +5,10 @@ fees -> COGS -> packaging -> affiliate commission = CONTRIBUTION (before ads) ->
 = profit (display).
 
 Rules:
-- ``buyer_paid`` = deal_price*qty - shop_voucher_share - bundle_discount.
+- ``buyer_paid`` = deal_price*qty - the shop voucher the SELLER bore - bundle_discount (decision
+  #50): the buyer-side ``shop_voucher_share`` less ``voucher_funded``, the part the platform
+  funded (a Voucher Xtra code the buyer sees as "Mã giảm giá của Shop"), known from the settlement
+  (``seller_voucher_borne``). A line with no settlement yet keeps the buyer-side share.
 - Income actuals (P91 D-12): a line with ``income`` (its share of the order's row in the income
   export) is charged exactly that: its fees (``fee_source`` ``income``), the affiliate commission
   Shopee took, and the costs the formula never sees - net shipping, return shipping, the coins the
@@ -163,6 +166,9 @@ class OrderLine:
     bank_promo: Decimal | None = None  # bank promotion (order level; NULL = 0)
     status: OrderStatus = OrderStatus.DELIVERED
     income: LineIncome | None = None  # this line's share of the order's income-export row
+    #: decision #50: the part of ``shop_voucher_share`` the platform funded, not the seller
+    #: (settlement ``seller_voucher_borne`` below the buyer-side share); 0 without a settlement
+    voucher_funded: Decimal = ZERO
 
     def __post_init__(self) -> None:
         if self.qty <= 0:
@@ -177,8 +183,14 @@ class OrderLine:
         return self.deal_price * self.qty
 
     @property
+    def seller_voucher(self) -> Decimal:
+        """The shop voucher the seller bore on this line (decision #50)."""
+        return max(ZERO, self.shop_voucher_share - self.voucher_funded)
+
+    @property
     def buyer_paid(self) -> Decimal:
-        return self.order_value - self.shop_voucher_share - self.bundle_discount
+        """Doanh thu thực before VAT: goods total − the seller's voucher − combo (#50)."""
+        return self.order_value - self.seller_voucher - self.bundle_discount
 
     @property
     def item_after_seller_promo(self) -> Decimal:
@@ -240,10 +252,6 @@ class ProfitBreakdown:
     vat_input_credit: Decimal = ZERO
     #: ``before_vat`` until the seller says whether the prices carry VAT.
     vat_basis: str = BASIS_BEFORE
-    #: the shop voucher the seller BORE on this line (its share of the settlement's
-    #: ``seller_voucher_borne``); ``None`` without a settlement. The voucher part of Ưu đãi:
-    #: never ``voucher`` (the buyer-side shop_voucher_share).
-    voucher_borne: Decimal | None = None
 
     @property
     def margin_pct(self) -> Decimal | None:
@@ -266,9 +274,9 @@ class ProfitBreakdown:
     @property
     def offer_cost(self) -> Decimal:
         """Ưu đãi (one combined cost, #46): Chương Trình Của Shop / Flash Sale price + combo +
-        the shop voucher the seller BORE (settlement). The buyer-side shop voucher share and the
-        Shopee voucher are never a seller cost (Track S rule, 24/11)."""
-        return self.promo_discount + self.bundle + (self.voucher_borne or ZERO)
+        the shop voucher the seller bore (``voucher`` = ``OrderLine.seller_voucher``, #50). A
+        platform-funded voucher and the Shopee voucher are never a seller cost."""
+        return self.promo_discount + self.bundle + self.voucher
 
     @property
     def organic_contribution(self) -> Decimal | None:
@@ -309,7 +317,7 @@ def line_profit(
         return ProfitBreakdown(
             list_value=line.list_value,
             promo_discount=line.list_value - line.order_value,
-            voucher=line.shop_voucher_share,
+            voucher=line.seller_voucher,
             bundle=line.bundle_discount,
             buyer_paid=line.buyer_paid,
             fees=None,
@@ -394,7 +402,7 @@ def line_profit(
     return ProfitBreakdown(
         list_value=line.list_value,
         promo_discount=line.list_value - line.order_value,
-        voucher=line.shop_voucher_share,
+        voucher=line.seller_voucher,
         bundle=line.bundle_discount,
         buyer_paid=line.buyer_paid,
         fees=fees,
@@ -413,7 +421,6 @@ def line_profit(
         vat_output=vat_out or ZERO,
         vat_input_credit=vat_credit or ZERO,
         vat_basis=vat_basis,
-        voucher_borne=None if income is None else income.seller_voucher,
     )
 
 
@@ -438,7 +445,7 @@ def _refund_profit(line: OrderLine, cost: SkuCost | None) -> ProfitBreakdown | N
     return ProfitBreakdown(
         list_value=line.list_value,
         promo_discount=line.list_value - line.order_value,
-        voucher=line.shop_voucher_share,
+        voucher=line.seller_voucher,
         bundle=line.bundle_discount,
         buyer_paid=line.buyer_paid,
         fees=((FEE_SETTLEMENT_DEDUCTION, charged),),
