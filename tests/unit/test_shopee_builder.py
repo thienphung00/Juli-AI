@@ -951,7 +951,7 @@ async def test_listing_levers_have_a_range_or_say_they_cannot(session, shop):
         cover["driver"]["target_metric"] == "ctr"
         and cover["details"]["overlay"]["layout"] == "banner_bottom"
     )
-    assert cover["ok"] and cover["result"]["estimable"] is False  # measured after the run
+    assert cover["ok"] and cover["result"]["estimable"] is True  # kind prior (#27)
     desc = await one(
         session,
         shop,

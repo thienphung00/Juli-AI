@@ -119,7 +119,7 @@ def test_the_ads_budget_floor_scales_with_the_step():
 
 
 def test_exempt_kinds_are_never_floored():
-    for kind in ("description_first_line", "review_voucher", "voucher_cap", "ads_pause"):
+    for kind in ("review_voucher", "voucher_cap", "ads_pause"):
         assert kind in FLOOR_EXEMPT
         lift = predict_lift(KINDS[kind], _cand(kind), _env(), None)
         assert not lift.floored
