@@ -14,9 +14,10 @@ handed in as a value, so the ladder ends on the very figure the screen shows.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Any
 
 from juli_backend.services.metrics.compute import _Context
 from juli_backend.services.shopee_profit.money import ZERO
@@ -42,6 +43,21 @@ LADDER_METRICS = (
     "cost_total",
     "roi",
 )
+
+
+def covered(pb: Any) -> bool:
+    """The line is in the profit basis: every cost known, so Lợi nhuận ròng counts it (the
+    ladder's ``components_of`` rule)."""
+    return pb.excluded_reason is None and pb.organic_contribution is not None
+
+
+def affiliate_cost(pairs: Sequence[tuple[Any, Any]]) -> Decimal | None:
+    """THE affiliate cost (registry ``cost_affiliate``, decision #55 Q2): the commission of the
+    affiliate lines in the profit basis (delivered / settled, every cost known: the lines Lợi
+    nhuận ròng uses). KPI, channel split, exports and Chat all read this one sum. ``None`` when
+    no affiliate line is in the basis."""
+    lines = [pb for ln, pb in pairs if ln.affiliate and covered(pb)]
+    return sum((pb.commission or ZERO for pb in lines), ZERO) if lines else None
 
 
 @dataclass(frozen=True)
@@ -106,4 +122,11 @@ def ladder_of(
     return Ladder(comps, values)
 
 
-__all__ = ["LADDER_METRICS", "Ladder", "components_of", "ladder_of"]
+__all__ = [
+    "LADDER_METRICS",
+    "Ladder",
+    "affiliate_cost",
+    "components_of",
+    "covered",
+    "ladder_of",
+]

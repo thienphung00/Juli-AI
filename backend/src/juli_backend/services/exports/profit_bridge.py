@@ -28,6 +28,7 @@ from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
+from juli_backend.services.shopee_profit.ladder import affiliate_cost
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.order_profit import REFUND_STATUSES, OrderStatus
 
@@ -150,7 +151,7 @@ def profit_bridge(view: Any) -> ProfitBridge:
         cogs_real_pct=cogs_real,
         packaging=float(sum((pb.packaging or ZERO for _, pb in known), ZERO)),
         packaging_real_pct=pack_real,
-        commission=float(sum((pb.commission or ZERO for _, pb in known), ZERO)),
+        commission=float(affiliate_cost(known) or ZERO),
         shipping_other=float(sum((a for _, pb in known for _, a in (pb.income_costs or ())), ZERO)),
         ads=_f(kp.ads_charged) if kp.profit is not None else None,
         ads_no_order_days=float(kp.ads_no_order_days),

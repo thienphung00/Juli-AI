@@ -50,6 +50,7 @@ from juli_backend.services.shopee_profit.flows import (
     Flow,
     FlowMetrics,
 )
+from juli_backend.services.shopee_profit.ladder import affiliate_cost
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 from juli_backend.services.shopee_profit.sources import CellStats, PriceLever
@@ -420,7 +421,7 @@ def _affiliate_block(view: PeriodView) -> dict[str, Any]:
         "order_lines": {
             "orders": len({ln.order_id for ln, _ in lines}),
             "gmv": num(sum((ln.order_value for ln, _ in lines), ZERO)),
-            "commission": num(sum((ln.commission or ZERO for ln, _ in lines), ZERO)),
+            "commission": num(affiliate_cost(lines) or ZERO),
         },
     }
 

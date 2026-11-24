@@ -107,12 +107,15 @@ def _offer_cost(view: PeriodView, product: str | None = None, day: date | None =
 
 
 def _aff_cost_day(view: PeriodView, day: date, product: str | None = None) -> float | None:
-    known = [
-        ln.commission for ln, _ in view.pairs
-        if ln.affiliate and ln.order_date == day and ln.commission is not None
-        and (product is None or ln.product_id == product)
-    ]  # fmt: skip
-    return float(sum(known)) if known else None
+    """One day's affiliate cost: the one definition, ``channel_split.affiliate_cost``."""
+    cost = channel_split.affiliate_cost(
+        [
+            (ln, pb)
+            for ln, pb in view.pairs
+            if ln.order_date == day and (product is None or ln.product_id == product)
+        ]
+    )
+    return None if cost is None else float(cost)
 
 
 def _figures(split: dict[str, Any]) -> tq.Figures:

@@ -1818,8 +1818,17 @@ def _split_block(env: RecoEnv, j: Joint, product_id: str | None) -> dict[str, An
     if j.result_basis is None or j.horizon is None or not hasattr(env.view, "pairs"):
         return None
     results = {r.card_id: r for r in j.leaves}
+    metrics = getattr(env.view, "metrics", None)
+    kpi_gmv = kpi_orders = None
+    if metrics is not None:
+        # the Tổng quan totals of the scope (decision #55 Q1): the shop's, or the product's
+        # share of them; the split's GMV / đơn add up to these
+        part = metrics if product_id is None else metrics.split(product_id)
+        if part is not None:
+            kpi_gmv = None if part.gmv is None else Decimal(part.gmv)
+            kpi_orders = None if part.orders is None else Decimal(part.orders)
     return {
-        "today": profit_split(env.view, product_id),
+        "today": profit_split(env.view, product_id, kpi_gmv=kpi_gmv, kpi_orders=kpi_orders),
         "delta_p50": split_delta(j.counted, results),
     }
 
