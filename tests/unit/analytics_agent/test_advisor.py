@@ -16,7 +16,6 @@ from tests.unit.analytics_agent.fakes import (
     FakeLLM,
     ListSink,
     engine_card,
-    plan_turn,
     tool_use,
 )
 from tests.unit.analytics_agent.test_cards import ch
@@ -37,9 +36,17 @@ DRAFTS = [
 ]
 FIRST = {
     "why": "CDN/01 dưới ROAS hoà vốn, đang lỗ khi chạy quảng cáo.",
-    "action": "Đặt lại ROAS mục tiêu",
+    "lever": "ads_roas_target",
     "card_ref": "@ads",
 }
+
+
+OPEN_BUDGET = {"why": "Mở thẻ đang có.", "lever": "ads_budget", "card_ref": "open:JC-0001"}
+
+
+def plan(*actions: dict[str, Any], lead: str = "") -> list[dict[str, Any]]:
+    """An emit_plan turn in the #52 shape: a lead and actions {lever, card_ref, why}."""
+    return [tool_use("emit_plan", "p1", lead=lead, actions=list(actions))]
 
 
 async def _ask(
@@ -79,9 +86,10 @@ class _PlanAfterDrafts(FakeLLM):
     """Reads, drafts, then the plan. A card_ref "@ads" / "@title" becomes the draft ref the
     draft_card tool returned (tool ids t6 / t7)."""
 
-    def __init__(self, final_items: list[dict[str, Any]]) -> None:
+    def __init__(self, final_items: list[dict[str, Any]], lead: str = "") -> None:
         super().__init__(agent_script=[READ_ALL, DRAFTS])
         self.final_items = final_items
+        self.lead = lead
 
     async def agent(
         self,
@@ -100,23 +108,28 @@ class _PlanAfterDrafts(FakeLLM):
                             card = json.loads(r["content"]).get("card_ref")
                             refs["@ads" if r["tool_use_id"] == "t6" else "@title"] = card
             self.agent_script.append(
-                plan_turn(
+                plan(
                     *(
                         {**i, "card_ref": refs.get(i["card_ref"], i["card_ref"])}
                         for i in self.final_items
-                    )
+                    ),
+                    lead=self.lead,
                 )
             )
         return await super().agent(system, tools, messages, force_tool=force_tool)
 
 
-async def _two_step(final_items: list[dict[str, Any]]) -> tuple[ListSink, Any, FakeLLM]:
-    llm = _PlanAfterDrafts(final_items)
+async def _two_step(
+    final_items: list[dict[str, Any]], lead: str = ""
+) -> tuple[ListSink, Any, FakeLLM]:
+    llm = _PlanAfterDrafts(final_items, lead)
     sink, res, _ = await _ask_with(llm)
     return sink, res, llm
 
 
-async def _ask_with(llm: FakeLLM) -> tuple[ListSink, Any, FakeLLM]:
+async def _ask_with(
+    llm: FakeLLM, data: Any = None, card_engine: Any = None
+) -> tuple[ListSink, Any, FakeLLM]:
     llm.intent = {
         "restated_vi": "Nên làm gì trước",
         "intents": [intent(question_type="plan", needs_advice=True, goal="plan_week")],
@@ -128,8 +141,9 @@ async def _ask_with(llm: FakeLLM) -> tuple[ListSink, Any, FakeLLM]:
         jev=FakeJev(lambda s, q: full(window=ch("last_7d_vs_prev_7d"))),
         sink=sink,
         labels=L,
-        data=_data(),
-        card_engine=FakeCardEngine(
+        data=data or _data(),
+        card_engine=card_engine
+        or FakeCardEngine(
             per_kind={
                 "ads_budget": {"ok": True, "card": {**engine_card(), "title": "Tăng ngân sách QC"}}
             }
@@ -150,24 +164,23 @@ async def test_advice_is_an_ordered_list_with_cards_and_a_lead() -> None:
             FIRST,
             {
                 "why": "Tên Găng tay chiếm 80% GMV mà còn ghi ngày sale đã hết.",
-                "action": "Sửa tên sản phẩm",
+                "lever": "title",
                 "card_ref": "@title",
             },
-            {
-                "why": "Đã có thẻ ngân sách, mở thẻ để duyệt.",
-                "action": "Mở thẻ ngân sách",
-                "card_ref": "open:JC-0001",
-            },
-        ]
+            {**OPEN_BUDGET, "why": "Đã có thẻ ngân sách, mở thẻ để duyệt."},
+        ],
+        lead="Tuần này có ngày sale kéo GMV lên.",
     )
     rows = _rows(sink)
     assert [r["label_vi"][:2] for r in rows] == ["1.", "2.", "3."]
+    assert [r["lever"] for r in rows] == ["ads_roas_target", "title", "ads_budget"]
     assert rows[0]["value_vi"] == "Thẻ nháp" and rows[2]["value_vi"] == "Đã có thẻ JC-0001"
     assert "80% GMV" in rows[1]["detail_vi"]  # traced to product_margins
     assert {c["kind"] for c in sink.of("card")} == {"ads_roas_target", "title"}
     assert {c["kind"] for c in res.cards} == {"ads_roas_target", "title"}
     lead = "".join(e["text"] for e in sink.of("text_delta"))
-    assert "Số liệu đến hết 22/11" in lead and "Việc nên làm trước: Đặt lại ROAS mục tiêu" in lead
+    assert "Số liệu đến hết 22/11" in lead and "Tuần này có ngày sale kéo GMV lên." in lead
+    assert lead.endswith("Việc nên làm trước: ROAS mục tiêu quảng cáo.")
     assert res.stop_reasons == ["data_answer"]
     assert len(llm.agent_calls) == 3 and all(len(c["tools"]) == 11 for c in llm.agent_calls)
     assert any(s.get("step") == "advise" for s in res.routing)
@@ -187,30 +200,76 @@ async def test_invented_number_is_removed_and_traced_number_kept() -> None:
     assert "777" not in why and "80% GMV" in why and why.startswith("CDN/01 dưới")
 
 
-async def test_unknown_card_is_dropped_and_advice_without_a_card_is_refused() -> None:
-    sink, res, _ = await _two_step(
-        [
-            FIRST,
-            {
-                "why": "Nên giảm giá toàn shop.",
-                "action": "Giảm giá 20%",
-                "card_ref": "open:JC-9999",
-            },
-            {"why": "Thiếu giá vốn cho Túi đay.", "action": "Điền giá vốn", "card_ref": None},
-            {"why": "", "action": "Việc không lý do", "card_ref": None},
-        ]
+async def test_a_plan_with_a_bad_card_is_refused_and_the_model_drafts_it() -> None:
+    """Missing / unknown / wrong-kind card_refs are sent back (one repair round); the second
+    emit_plan carries the drafted card."""
+
+    class Repairing(FakeLLM):
+        async def agent(
+            self, system: Any, tools: Any, messages: Any, *, force_tool: Any = None
+        ) -> Any:
+            if not self.agent_script:
+                seen = json.dumps(messages, ensure_ascii=False)
+                if "kế hoạch chưa hợp lệ" in seen:  # the refusal came back: use the draft
+                    ref = next(
+                        json.loads(r["content"])["card_ref"]
+                        for m in messages
+                        if m["role"] == "user" and isinstance(m["content"], list)
+                        for r in m["content"]
+                        if r.get("tool_use_id") == "t6"
+                    )
+                    self.agent_script.append(plan({**FIRST, "card_ref": ref}))
+                else:
+                    self.agent_script.append(
+                        plan(
+                            {**FIRST, "card_ref": "none"},
+                            {**FIRST, "lever": "ads_budget", "card_ref": "open:JC-9999"},
+                            {**OPEN_BUDGET, "lever": "title"},  # JC-0001 is an ads_budget card
+                        )
+                    )
+            return await super().agent(system, tools, messages, force_tool=force_tool)
+
+    llm = Repairing(agent_script=[READ_ALL, DRAFTS])
+    sink, res, _ = await _ask_with(llm)
+    rows = _rows(sink)
+    assert [r["lever"] for r in rows] == ["ads_roas_target"] and rows[0]["value_vi"] == "Thẻ nháp"
+    assert len(llm.agent_calls) == 4  # reads, drafts, refused plan, repaired plan
+    refused = json.dumps(llm.agent_calls[3]["replayed"], ensure_ascii=False)
+    assert "thiếu card_ref" in refused and "không có trong open_cards" in refused
+    assert "không đúng loại" in refused
+
+
+async def test_what_is_still_invalid_after_the_repair_round_is_dropped() -> None:
+    bad = [
+        {**FIRST, "card_ref": "open:JC-9999"},
+        {**OPEN_BUDGET, "lever": "title"},
+        {"why": "Sai lever.", "lever": "listing_hide", "card_ref": "open:JC-0001"},
+        OPEN_BUDGET,
+    ]
+    llm = FakeLLM(agent_script=[READ_ALL, DRAFTS, plan(*bad), plan(*bad)])
+    sink, res, _ = await _ask_with(llm)
+    rows = _rows(sink)
+    assert [r["lever"] for r in rows] == ["ads_budget"]  # only the valid action is shown
+    step = [s for s in res.routing if s.get("step") == "advise"][0]
+    assert "unknown_ref:open:JC-9999" in step["dropped"]
+    assert "kind_mismatch:open:JC-0001" in step["dropped"]
+    assert "bad_lever:open:JC-0001" in step["dropped"]
+    assert "Chưa có phương án" not in str(sink.events)
+
+
+async def test_the_non_card_lever_needs_no_card_and_a_lead_only_plan_is_an_answer() -> None:
+    gap = {"why": "Túi đay thiếu giá vốn.", "lever": "nhap_gia_von", "card_ref": "none"}
+    sink, _, llm = await _ask_with(
+        FakeLLM(agent_script=[[tool_use("cogs_gaps", "g1")], plan(gap)])  # a real gap was read
     )
     rows = _rows(sink)
-    assert [r["label_vi"] for r in rows] == [
-        f"1. {rows[0]['label_vi'][3:]}",
-        "2. Chưa có phương án",
-        "3. Chưa có phương án",
-    ]
-    text = str(sink.events)
-    assert "Giảm giá 20%" not in text and "Điền giá vốn" not in text  # the action is refused
-    assert rows[1]["value_vi"] == "" and rows[1]["detail_vi"] == "Nên giảm giá toàn shop."
-    routing = [s for s in res.routing if s.get("step") == "advise"][0]
-    assert "unknown_ref:open:JC-9999" in routing["dropped"]
+    assert rows[0]["value_vi"] == "" and rows[0]["label_vi"] == "1. Nhập giá vốn"
+    assert len(llm.agent_calls) == 2  # no repair round: the lever is card-exempt
+    sink, _, _ = await _ask_with(
+        FakeLLM(agent_script=[READ_ALL, plan(lead="Giá vốn đã đủ, lợi nhuận đáng tin.")])
+    )
+    assert not [e for e in sink.of("data_answer") if e["title_vi"].startswith("Việc nên")]
+    assert "Giá vốn đã đủ" in "".join(e["text"] for e in sink.of("text_delta"))
 
 
 async def test_a_card_is_used_once_and_an_unused_draft_is_not_shown() -> None:
@@ -223,7 +282,7 @@ async def test_cost_cap_aborts_and_falls_back_to_the_weekly_sections(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv(advisor.ADVISE_COST_CAP_ENV, "0.02")
-    sink, res, llm = await _ask([READ_ALL, DRAFTS, plan_turn(FIRST)], cost=0.012)
+    sink, res, llm = await _ask([READ_ALL, DRAFTS, plan(FIRST)], cost=0.012)
     assert len(llm.agent_calls) == 2  # the third turn never starts: 0.0245 >= 0.02
     titles = {e["title_vi"] for e in sink.of("data_answer")}
     assert "Việc nên làm tuần sau" in titles and not any(
@@ -328,7 +387,7 @@ async def test_a_priority_question_routes_to_advise_not_jev() -> None:
     sink, _, llm = await _ask(
         [
             READ_ALL,
-            plan_turn({"why": "Mở thẻ đang có.", "action": "Mở thẻ", "card_ref": "open:JC-0001"}),
+            plan(OPEN_BUDGET),
         ],
         parsed=intent(question_type="other", needs_advice=True, goal="prioritise"),
     )
@@ -340,9 +399,8 @@ THINKING = {"type": "thinking", "thinking": "hmm", "signature": "sig"}
 
 
 async def test_a_thinking_block_is_never_replayed_to_the_next_turn() -> None:
-    plan = {"why": "Mở thẻ đang có.", "action": "Mở thẻ", "card_ref": "open:JC-0001"}
     llm = FakeLLM(
-        agent_script=[[THINKING, tool_use("open_cards", "a")], [THINKING, *plan_turn(plan)]]
+        agent_script=[[THINKING, tool_use("open_cards", "a")], [THINKING, *plan(OPEN_BUDGET)]]
     )
     sink, _, _ = await _ask_with(llm)
     assert _rows(sink)[0]["value_vi"] == "Đã có thẻ JC-0001"
@@ -371,11 +429,7 @@ async def test_the_second_turn_body_passes_the_real_gate_inspection() -> None:
         ],
         [
             THINKING,
-            tool_use(
-                "emit_plan",
-                "p",
-                items=[{"why": "Mở thẻ.", "action": "Mở thẻ", "card_ref": "open:JC-0001"}],
-            ),
+            tool_use("emit_plan", "p", lead="", actions=[OPEN_BUDGET]),
         ],
     ]
 

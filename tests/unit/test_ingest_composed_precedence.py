@@ -357,3 +357,48 @@ async def test_a_placeholder_never_replaces_a_known_item(session):
     assert (line.item_id, line.variation_id) == ("9001", "9002")
     assert line.deal_price == Decimal(80_000)  # the higher rank still wins the rest
     assert line.source == "extension"
+
+
+async def test_a_combo_re_read_names_each_sub_line_by_its_variation_sku(session):
+    """batch-1124-b CONN: Connector 0.3.36 re-posts a combo's ``sku:unknown`` parent (line 0) as
+    its sub-lines, each with the variation SKU only (the product SKU is empty, as on Shopee): line
+    0 takes the catalogue item the SKU names, line 1 is new, through the same SKU join."""
+    _, shop = await make_tenant(session)
+    await _catalogue(session, shop.id)
+    await _write(session, shop.id, "extension", 3, T1, sku=None, deal_price=Decimal(190_000))
+    sub_lines = [
+        ShopeeOrderLineRow.model_validate(
+            {
+                "order_ref": ORDER,
+                "line_no": line_no,
+                "ordered_at": AT,
+                "status": "delivered",
+                "variation_sku": "G1",
+                "qty": 1,
+                "original_price": Decimal(95_000),
+                "deal_price": Decimal(95_000),
+                "promo_kind": "bundle",
+            }
+        )
+        for line_no in (0, 1)
+    ]
+    provenance = {
+        "shop_id": shop.id,
+        "platform": "shopee",
+        "source": "extension",
+        "source_rank": 3,
+        "source_version": "extension-0.3.36",
+        "raw_payload_id": await _payload(session, shop.id, "extension", T2),
+        "updated_at": T2,
+    }
+    await write_order_lines(session, sub_lines, None, provenance)
+    stmt = (
+        select(ShopeeOrderLine)
+        .order_by(ShopeeOrderLine.line_no)
+        .execution_options(populate_existing=True)
+    )
+    lines = (await session.execute(stmt)).scalars().all()
+    assert [(ln.line_no, ln.item_id, ln.variation_id, ln.deal_price) for ln in lines] == [
+        (0, "9001", "9002", Decimal(95_000)),
+        (1, "9001", "9002", Decimal(95_000)),
+    ]

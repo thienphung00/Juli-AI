@@ -147,15 +147,48 @@ function trimItem(item: Record<string, unknown>, depth = 0): Record<string, unkn
   const product = isRecord(item.product) ? item.product : undefined;
   if (product && typeof product.sku === "string" && out.item_sku === undefined) out.item_sku = product.sku;
   if (depth === 0) {
-    for (const key of SUB_ITEM_LISTS) {
-      const list = item[key];
-      if (Array.isArray(list) && list.some(isRecord)) {
-        out.sub_items = list.filter(isRecord).map((sub) => trimItem(sub, depth + 1));
-        break;
-      }
+    // batch-1124-b CONN (P-CONN capture, 24/11): a combo's own lines are `item_list[]` (item id,
+    // model id, quantity; no price, no SKU). Their SKUs are on `bundle_deal_model[]` (the variation
+    // SKU + Phân loại, like `item_model`) and `bundle_deal_product[]` (the product SKU, like
+    // `product`), joined by model id. An answer without `item_list` keeps the first list (0.3.20).
+    const key = Array.isArray(item.item_list) && item.item_list.some(isRecord) ? "item_list" : SUB_ITEM_LISTS.find((k) => Array.isArray(item[k]) && (item[k] as unknown[]).some(isRecord));
+    if (key) {
+      const subs = (item[key] as unknown[]).filter(isRecord).map((sub) => trimItem(sub, depth + 1));
+      if (key === "item_list") for (const sub of subs) withComboSkus(sub, item);
+      out.sub_items = subs;
     }
   }
   return out;
+}
+
+/** A positive id as text (0 is Shopee's "none"), for the model-id join of a combo's lists. */
+const joinId = (value: unknown): string | undefined => {
+  const id = idOf(value);
+  return id !== undefined && id !== "0" ? id : undefined;
+};
+
+/**
+ * One combo sub-line (`item_list` entry, trimmed) with the SKUs the combo's lists give it: the
+ * variation SKU by model id (`bundle_deal_model`), the product SKU by model id, or by item id for
+ * an item with no variation (model id 0), from `bundle_deal_product`.
+ */
+function withComboSkus(sub: Record<string, unknown>, parent: Record<string, unknown>): void {
+  const modelId = joinId(sub.model_id);
+  const itemId = joinId(sub.item_id);
+  const records = (list: unknown) => (Array.isArray(list) ? list.filter(isRecord) : []);
+  const model = modelId === undefined ? undefined : records(parent.bundle_deal_model).find((m) => joinId(m.model_id) === modelId);
+  if (model) {
+    if (typeof model.sku === "string" && model.sku.trim() !== "" && sub.model_sku === undefined) sub.model_sku = model.sku;
+    if (typeof model.name === "string" && model.name.trim() !== "" && sub.model_name === undefined) sub.model_name = model.name;
+  }
+  const products = records(parent.bundle_deal_product);
+  const product =
+    modelId !== undefined
+      ? products.find((m) => joinId(m.model_id) === modelId)
+      : itemId !== undefined
+        ? products.find((m) => joinId(m.item_id) === itemId && joinId(m.model_id) === undefined)
+        : undefined;
+  if (product && typeof product.sku === "string" && product.sku.trim() !== "" && sub.item_sku === undefined) sub.item_sku = product.sku;
 }
 
 /** One order record (flattened from its wrappers) with only allowlisted keys. */
@@ -302,46 +335,6 @@ function linesOf(order: Record<string, unknown>): Record<string, unknown>[] {
   });
 }
 
-/**
- * batch-1124-a S1 (P-S2 capture, 24/11): get_one_order states no combo discount amount. Its
- * `order_items[].order_price x amount` is each group's list value and `total_price` what the buyer
- * pays for the goods (equal to `price_before_discount`: no voucher in it), so
- * Σ (order_price x amount) − total_price is the order's item-level discount. It is the combo's when
- * the order has a combo line, shared over the combo lines (and only those) by line list value.
- * Unknown (no map) when the order has no combo line, no total, or the gap does not fit the combo
- * lines; never a guess.
- */
-function comboDiscounts(
-  order: Record<string, unknown>,
-  lines: Record<string, unknown>[],
-  lineValue: (item: Record<string, unknown>) => number,
-  money: (value: unknown) => number | undefined,
-): Map<number, number> | undefined {
-  const paid = money(order.total_price);
-  const groups = Array.isArray(order.items) ? order.items.filter(isRecord) : [];
-  if (paid === undefined || paid <= 0 || groups.length === 0) return undefined;
-  let listed = 0;
-  for (const group of groups) {
-    const price = money(group.order_price ?? group.deal_price ?? group.item_price);
-    const qty = num(group.amount ?? group.quantity ?? group.qty);
-    if (price === undefined || qty === undefined) return undefined;
-    listed += price * qty;
-  }
-  const comboLines = lines.map((line, index) => ({ index, value: lineValue(line) })).filter(({ index }) => (num(lines[index]!.bundle_deal_id) ?? 0) > 0);
-  const comboValue = comboLines.reduce((sum, line) => sum + line.value, 0);
-  const gap = Math.round((listed - paid) * 100) / 100;
-  if (comboLines.length === 0 || comboValue <= 0 || gap <= 0 || gap > comboValue) return undefined;
-  const out = new Map<number, number>();
-  let left = gap;
-  comboLines.forEach(({ index, value }, n) => {
-    // the last combo line takes the rounding rest, so the lines add up to the order's discount
-    const share = n === comboLines.length - 1 ? Math.round(left * 100) / 100 : Math.round(((gap * value) / comboValue) * 100) / 100;
-    left -= share;
-    out.set(index, share);
-  });
-  return out;
-}
-
 /** The order is still waiting for the buyer's payment (not yet a confirmed order). */
 export function awaitingPayment(order: Record<string, unknown>): boolean {
   const t = String(order.status_text ?? (typeof order.status === "string" ? order.status : "") ?? "").toLowerCase();
@@ -398,7 +391,6 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
     const lineValue = (item: Record<string, unknown>) =>
       (money(item.order_price ?? item.deal_price ?? item.item_price) ?? 0) * (num(item.amount ?? item.quantity ?? item.qty) ?? 1);
     const total = items.reduce((sum, item) => sum + lineValue(item), 0);
-    const combo = order.__detail ? comboDiscounts(order, items, lineValue, money) : undefined;
     const split = (value: unknown, item: Record<string, unknown>): number | undefined => {
       const amount = money(value);
       if (amount === undefined) return undefined;
@@ -416,9 +408,14 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       // gives it, else the line's paid price (no seller subsidy claimed).
       const single = items.length === 1 && qty !== undefined && qty > 0 ? money(order.price_before_discount) : undefined;
       const singleUnit = single !== undefined && qty ? Math.round((single / qty) * 100) / 100 : undefined;
+      const isCombo = (num(item.bundle_deal_id) ?? 0) > 0;
+      // batch-1124-b CONN (owner Q4): a combo line's price is its share of the combo price, and
+      // its original price the same (the combo discount is bundle_discount, never seller_subsidy)
       const original =
-        money(item.original_price ?? item.price_before_discount ?? item.item_price) ??
-        (order.__detail ? (singleUnit !== undefined && deal !== undefined && singleUnit >= deal ? singleUnit : deal) : undefined);
+        order.__detail && isCombo
+          ? deal
+          : (money(item.original_price ?? item.price_before_discount ?? item.item_price) ??
+            (order.__detail ? (singleUnit !== undefined && deal !== undefined && singleUnit >= deal ? singleUnit : deal) : undefined));
       if (qty === undefined || qty < 0 || original === undefined || deal === undefined) {
         miss("orders[].items[].price_or_qty");
         return;
@@ -444,9 +441,19 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       const modelId = idOf(item.model_id);
       if (itemId) extra.item_id = itemId;
       if (modelId) extra.model_id = modelId;
-      if (Object.keys(extra).length > 0) row.extra = extra;
-      if ((num(item.bundle_deal_id) ?? 0) > 0) row.promo_kind = "bundle";
+      if (isCombo) {
+        row.promo_kind = "bundle";
+        const bundleId = num(item.bundle_deal_id);
+        if (bundleId !== undefined && Number.isSafeInteger(bundleId)) extra.bundle_deal_id = bundleId;
+      }
       else if ((num(item.add_on_deal_id) ?? 0) > 0 || item.is_add_on_sub_item === true) row.promo_kind = "add_on";
+      // owner Q4: the combo discount of a line = (the page's list price − its combo price) x qty;
+      // unknown (not posted) until the order page has been read
+      const listUnit = isCombo ? num(item[PAGE_LIST_PRICE]) : undefined;
+      if (listUnit !== undefined && listUnit > 0) extra.list_price = listUnit;
+      const pageQty = isCombo ? num(item[PAGE_QTY]) : undefined;
+      if (pageQty !== undefined) extra.page_qty = pageQty;
+      if (Object.keys(extra).length > 0) row.extra = extra;
       const returned = num(item.returned_qty);
       if (returned !== undefined && returned >= 0) row.returned_qty = returned;
       const shopVoucher = split(order.shop_voucher_amount ?? order.seller_voucher, item);
@@ -456,8 +463,8 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       const bank = split(order.bank_promo_amount, item);
       if (shopVoucher !== undefined) row.shop_voucher_share = shopVoucher;
       if (platformVoucher !== undefined) row.platform_voucher_share = platformVoucher;
-      if (bundle !== undefined) row.bundle_discount = bundle;
-      else if (combo?.has(index)) row.bundle_discount = combo.get(index) as number;
+      if (listUnit !== undefined && listUnit > 0) row.bundle_discount = Math.round(Math.max(0, listUnit - deal) * qty * 100) / 100;
+      else if (bundle !== undefined) row.bundle_discount = bundle;
       if (shipping !== undefined) row.buyer_shipping_fee = shipping;
       if (bank !== undefined) row.bank_promo = bank;
       if (completedAt) row.completed_at = completedAt;
@@ -706,7 +713,14 @@ export interface PageItem {
   lineTotal?: number;
   /** The line's quantity as the page shows it. */
   qty?: number;
+  /** batch-1124-b CONN: a combo sub-line's unit list price (before the combo discount). */
+  listPrice?: number;
 }
+
+/** The line key a combo line carries its page list price under (never sent: the mapper reads it). */
+export const PAGE_LIST_PRICE = "page_list_price";
+/** D4: the page's quantity of a combo line when it differs from the API's (posted in `extra`). */
+export const PAGE_QTY = "page_qty";
 
 const hasSku = (item: Record<string, unknown>): boolean =>
   [item.item_sku, item.sku, item.model_sku, item.variation_sku].some((v) => typeof v === "string" && v.trim() !== "");
@@ -828,17 +842,112 @@ export function withPageSkus(body: unknown, page: readonly PageItem[]): unknown 
     delete out.sub_items;
     if (at.sku) out.model_sku = at.sku;
     if (at.variationName) out.model_name = at.variationName;
+    if (at.listPrice !== undefined) out[PAGE_LIST_PRICE] = at.listPrice;
     return out;
   };
   let fixed: Record<string, unknown>[] | null = null;
-  if (items.length === page.length) {
+  const subsOf = (item: Record<string, unknown>) => (Array.isArray(item.sub_items) ? item.sub_items.filter(isRecord) : []);
+  // batch-1124-b CONN: the page shows a combo as one line per sub-line (`.bundle-deal-item`). Each
+  // SKU-less combo parent is one slot per sub-line, every other line one slot; slots and page lines
+  // are paired by SKU where both name one, else in order (pairSlots). Each combo is then split
+  // exactly over its own page lines with the API's quantities.
+  const combo = (item: Record<string, unknown>) => (num(item.bundle_deal_id) ?? 0) > 0 && !hasSku(item) && subsOf(item).length > 0;
+  const slots: Record<string, unknown>[] = items.flatMap((item) => (combo(item) ? subsOf(item) : [item]));
+  if (items.some(combo) && slots.length === page.length) {
+    const paired = pairSlots(slots, page);
+    if (!paired) return null;
+    fixed = [];
+    let at = 0;
+    for (const item of items) {
+      if (!combo(item)) {
+        fixed.push(hasSku(item) ? item : named(item, paired[at] as PageItem));
+        at += 1;
+        continue;
+      }
+      const subs = subsOf(item);
+      const parentQty = num(item.amount ?? item.quantity ?? item.qty) ?? 1;
+      // D4: the API's quantity (sub-line amount x combo amount); the page's only cross-checks it
+      const own = paired.slice(at, at + subs.length).map((p, i) => {
+        const apiQty = num((subs[i] as Record<string, unknown>).amount);
+        const qty = apiQty !== undefined && apiQty > 0 ? apiQty * parentQty : p.qty;
+        return { ...p, ...(qty !== undefined ? { qty } : {}), ...(p.listPrice !== undefined && qty !== undefined ? { lineTotal: p.listPrice * qty } : {}) };
+      });
+      const pageQtys = paired.slice(at, at + subs.length).map((p) => p.qty);
+      at += subs.length;
+      const lines = splitCombo(item, own);
+      if (!lines) return null;
+      fixed.push(
+        ...lines.map((line, i) => {
+          const out = fromSub(named(line, own[i] as PageItem), subs[i]);
+          const shown = pageQtys[i];
+          if (shown !== undefined && shown !== own[i]!.qty) out[PAGE_QTY] = shown;
+          return out;
+        }),
+      );
+    }
+  } else if (items.length === page.length) {
     fixed = items.map((item, i) => (hasSku(item) ? item : named(item, page[i] as PageItem)));
   } else if (items.length === 1 && page.length > 1 && !hasSku(items[0] as Record<string, unknown>)) {
-    const lines = splitCombo(items[0] as Record<string, unknown>, page);
-    fixed = lines ? lines.map((line, i) => named(line, page[i] as PageItem)) : null;
+    const parent = items[0] as Record<string, unknown>;
+    const lines = splitCombo(parent, page);
+    const subs = subsOf(parent);
+    fixed = lines ? lines.map((line, i) => (subs.length === page.length ? fromSub(named(line, page[i] as PageItem), subs[i] as Record<string, unknown>) : named(line, page[i] as PageItem))) : null;
   }
   if (!fixed || !fixed.every(hasSku)) return null;
   return { ...body, data: { ...order, items: fixed } };
+}
+
+/** The SKUs an answer line names (variation first, then product). */
+function skusOf(line: Record<string, unknown>): string[] {
+  return [line.model_sku, line.variation_sku, line.item_sku, line.sku].flatMap((v) => (typeof v === "string" && v.trim() !== "" ? [v.trim()] : []));
+}
+
+/**
+ * batch-1124-b CONN (D1): the page line of each answer line (a plain line or a combo's sub-line),
+ * or null. A line whose SKU the page shows takes that page line, wherever it is on the page; the
+ * other lines take the page lines left, in order. A line that names a SKU paired with a page line
+ * that shows another SKU is a contradiction: null (the order is read again), never one line's SKU
+ * with another's price or quantity.
+ */
+function pairSlots(slots: Record<string, unknown>[], page: readonly PageItem[]): PageItem[] | null {
+  if (slots.length !== page.length) return null;
+  const out: (PageItem | undefined)[] = slots.map(() => undefined);
+  const used = new Set<number>();
+  slots.forEach((slot, i) => {
+    const skus = skusOf(slot);
+    if (skus.length === 0) return;
+    const j = page.findIndex((p, k) => !used.has(k) && p.sku !== undefined && skus.includes(p.sku));
+    if (j >= 0) {
+      out[i] = page[j];
+      used.add(j);
+    }
+  });
+  const rest = page.map((_, k) => k).filter((k) => !used.has(k));
+  let r = 0;
+  for (let i = 0; i < slots.length; i += 1) {
+    if (out[i]) continue;
+    const p = page[rest[r] as number] as PageItem;
+    r += 1;
+    if (p.sku !== undefined && skusOf(slots[i] as Record<string, unknown>).length > 0) return null;
+    out[i] = p;
+  }
+  return out as PageItem[];
+}
+
+/**
+ * A combo line split from its parent, with its own sub-line's ids and the SKUs the answer gives it
+ * (`bundle_deal_model` / `bundle_deal_product`, joined in the page by model id): the same fields a
+ * plain line takes from `item_model` / `product`. The page's "SKU phân loại" stays only where the
+ * answer names none.
+ */
+function fromSub(line: Record<string, unknown>, sub: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!sub) return line;
+  const out: Record<string, unknown> = { ...line };
+  for (const key of ["item_id", "model_id", "line_item_id"] as const) if (sub[key] !== undefined) out[key] = sub[key];
+  for (const key of ["model_sku", "item_sku", "model_name"] as const) {
+    if (typeof sub[key] === "string" && (sub[key] as string).trim() !== "") out[key] = sub[key];
+  }
+  return out;
 }
 
 

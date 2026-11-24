@@ -127,6 +127,8 @@ _EVIDENCE = re.compile(r"\b(lmdi|rate_mix|additive|evidence)[:_]\S*", re.I)
 # more than 2 decimals: "101,891404", "0.079365"; "183.755" is a Vietnamese thousands group
 _LONG_DECIMAL = re.compile(r"\d[\d.]*,\d{3,}|(?<![\d.])(?:0\.\d{3,}|\d+\.\d{4,})(?![\d.])")
 _BIG_ID = re.compile(r"\b\d{9,}\b")
+_NAME_TAG = re.compile(r"\[[^\]]*\]")
+_LATIN_WORD = re.compile(r"[A-Za-z]{3,}")
 _ENGLISH_RUN = re.compile(r"\b(?:[A-Za-z]{3,}\s+){2,}[A-Za-z]{3,}\b")
 _PLACEHOLDER = re.compile(r"placeholder|lorem ipsum|^\s*Tôi hiểu\s*:", re.I | re.M)
 _FIRST_LINE = re.compile(r"^Đang tìm hiểu: .+")
@@ -159,8 +161,14 @@ def sanitise(
         out = out.replace(i, n)
     issues: list[str] = []
     probe = out
+    name_words: set[str] = set()
     for n in allowed_names or []:  # product names verbatim may contain anything
         probe = probe.replace(n, " ")
+        # a quoted part of a product name is the shop's own wording too: its bracket tags
+        # ("[Deal 15.11]") and its Latin words are not a leak
+        for tag in _NAME_TAG.findall(n):
+            probe = probe.replace(tag, " ")
+        name_words |= {w.lower() for w in _LATIN_WORD.findall(n)}
     for name, pat in (
         ("snake_case", _SNAKE),
         ("json", _JSON),
@@ -176,7 +184,7 @@ def sanitise(
             issues.append(name)
     for m in _ENGLISH_RUN.finditer(probe):
         words = {w.lower() for w in m.group(0).split()}
-        if not words <= _ALLOWED_ENGLISH:
+        if not words <= (_ALLOWED_ENGLISH | name_words):
             issues.append("english_run")
             break
     try:

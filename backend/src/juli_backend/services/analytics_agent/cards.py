@@ -216,7 +216,24 @@ def _own(v: dict[str, Any]) -> dict[str, Any]:
 
 
 #: kinds whose change is text or an image, not a number: they carry no estimate by nature
-NO_NUMBER_KINDS = frozenset({"title", "cover_image", "description_first_line"})
+#: Kinds with no volume estimate by design (kinds.py FLOOR_EXEMPT: removal / limit actions and kinds
+#: with no preset prior) are drafted without a number, like text and image kinds.
+NO_NUMBER_KINDS = frozenset(
+    {
+        "title",
+        "cover_image",
+        "description_first_line",
+        "ads_pause",
+        "ads_remove_product",
+        "ads_purpose",
+        "ads_keywords",
+        "ads_new_campaign",
+        "voucher_cap",
+        "affiliate_sample",
+        "affiliate_invite",
+        "variation_restructure",
+    }
+)
 
 
 def estimable(card: dict[str, Any], kind: str) -> bool:

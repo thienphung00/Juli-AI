@@ -71,17 +71,26 @@ def source_gmv(win: tuple[date, date], srows: list[dict[str, Any]]) -> dict[str,
     return t
 
 
+IDLE_SPEND_SHARE = 0.30  # owner #53: an idle budget day spends under 30 % of the daily budget
+
+
 def idle_days(
     budget_rows: list[dict[str, Any]], shop_rows: list[dict[str, Any]], win: tuple[date, date]
 ) -> list[dict[str, Any]]:
-    """Days that spent under the ads budget and had no orders."""
+    """Idle budget days (owner #53): ad spend under 30 % of the daily budget and no ad orders.
+    A row without ad orders (an older reader) falls back to the shop's orders that day."""
     orders = {r["day"]: r.get("orders") for r in shop_rows if win[0] <= r["day"] <= win[1]}
+
+    def no_orders(b: dict[str, Any]) -> bool:
+        ad = b.get("ad_orders")
+        return float(ad) == 0.0 if ad is not None else orders.get(b["day"]) in (0, 0.0)
+
     return [
         b
         for b in budget_rows
         if b["budget"] is not None
-        and float(b["spend"]) < float(b["budget"])
-        and (orders.get(b["day"]) in (0, 0.0))
+        and float(b["spend"]) < IDLE_SPEND_SHARE * float(b["budget"])
+        and no_orders(b)
     ]
 
 
@@ -184,9 +193,11 @@ async def resolve_action(
     target, if any) or "draft" (`event` = the card event, `ref` = its draft ref; `code` = an open
     card of the same kind). Nothing is sent or executed."""
     card: dict[str, Any] = {}
+    reason = "no_engine"
     if engine is not None:
         eng = await engine.engine_card(kind, item, as_of)
         card = eng.get("card") or {} if eng.get("ok") else {}
+        reason = str(eng.get("reason") or "engine_refused")
     card_title = card.get("title")
     match = [(c, _same_change(c, kind, item, card_title)) for c in open_cards]
     match = [(c, m) for c, m in match if m]
@@ -196,7 +207,8 @@ async def resolve_action(
     theirs = next((c for c, _ in match), None)
     code = theirs.get("code") if theirs else None
     if not card or not cardstage.estimable(card, kind):
-        return {"status": "none", "code": code, "event": None, "ref": None}
+        why_none = reason if not card else "not_estimable"
+        return {"status": "none", "code": code, "event": None, "ref": None, "reason": why_none}
     ev = await cardstage.draft_event(out, data, jev, labels, kind, item, card)
     return {"status": "draft", "code": code, "event": ev, "ref": out.accepted[-1]["ref"]}
 

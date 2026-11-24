@@ -27,7 +27,8 @@ SUMMARY_SYSTEM = (
     "cho, ví dụ 'Số liệu đến hết 22/11'). Không đưa lời khuyên ngoài kết quả; chỉ nhắc tới các thẻ "
     "trong THẺ (gọi đúng loại thẻ và sản phẩm), không viết giá trị hay dự báo của thẻ. Với kế "
     "hoạch tuần: điều gì đã xảy ra, việc nên làm trước, và thẻ nào cần mở. Gọi đúng đối tượng "
-    "(số của một sản phẩm không gọi là của shop). Không dùng từ kỹ thuật, không mã, không tiếng "
+    "(số của một sản phẩm không gọi là của shop). Tên sản phẩm chép nguyên văn, đầy đủ, đúng như "
+    "trong KẾT QUẢ, không rút gọn. Không dùng từ kỹ thuật, không mã, không tiếng "
     "Anh."
 )
 

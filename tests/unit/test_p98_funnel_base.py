@@ -357,6 +357,7 @@ def test_a_variation_without_history_takes_its_product_rates():
     class _Ln:
         def __init__(self, sku):
             self.product_id, self.sku = "P", sku
+            self.affiliate = False  # a normal line (OrderLine.affiliate defaults to False)
 
     class _Ads:
         product_spend = {"P": D(1_000)}

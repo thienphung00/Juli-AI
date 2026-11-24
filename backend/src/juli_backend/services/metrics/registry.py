@@ -532,7 +532,13 @@ def _build() -> dict[str, MetricDef]:
         "cost_affiliate": (
             "Hoa hồng tiếp thị liên kết",
             "affiliate_commission",
-            _src("affiliate_lines", _SC, "commission"),
+            _src(
+                "affiliate_lines",
+                _SC,
+                "commission",
+                "commission of the affiliate lines in the profit basis (delivered / settled, "
+                "every cost known): one sum, channel_split.affiliate_cost",
+            ),
         ),
         "cost_offer_promo": (
             "Khuyến mãi",

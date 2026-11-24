@@ -395,6 +395,7 @@ export class AgentEventStreamClient {
   private lastSequenceNumber: number | null = null;
   private reconnectAttempt = 0;
   private closed = false;
+  private wakeReconnectWait?: () => void;
 
   constructor(config: AgentEventStreamConfig, handlers: AgentEventStreamHandlers) {
     this.config = config;
@@ -497,6 +498,10 @@ export class AgentEventStreamClient {
   abort(): void {
     if (this.abortController.signal.aborted) return;
     this.abortController.abort();
+    // Do not sit out a pending reconnect delay (up to 15 s): wake the loop now
+    // so it finishes as "aborted" immediately instead of long after the caller
+    // has torn down.
+    this.wakeReconnectWait?.();
   }
 
   private finish(reason: AgentEventStreamCloseReason): void {
@@ -512,7 +517,11 @@ export class AgentEventStreamClient {
         ? configured(this.reconnectAttempt)
         : configured ?? defaultReconnectDelayMs(this.reconnectAttempt);
     const schedule = this.config.scheduleReconnect ?? defaultScheduleReconnect;
-    await new Promise<void>((resolve) => schedule(delayMs, resolve));
+    await new Promise<void>((resolve) => {
+      this.wakeReconnectWait = resolve;
+      schedule(delayMs, resolve);
+    });
+    this.wakeReconnectWait = undefined;
   }
 }
 
