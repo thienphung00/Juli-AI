@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+from juli_backend.services.shopee_profit.ladder import affiliate_cost
 from juli_backend.services.shopee_profit.money import ZERO, pct_points
 
 HUNDRED = Decimal(100)
@@ -54,7 +55,7 @@ def measured_rates(
             continue
         paid[ln.sku] = paid.get(ln.sku, ZERO) + pb.revenue
         voucher[ln.sku] = voucher.get(ln.sku, ZERO) + pb.voucher
-        commission[ln.sku] = commission.get(ln.sku, ZERO) + (pb.commission or ZERO)
+        commission[ln.sku] = commission.get(ln.sku, ZERO) + (affiliate_cost([(ln, pb)]) or ZERO)
     total = sum(paid.values(), ZERO)
     if total <= 0:
         return None, {}

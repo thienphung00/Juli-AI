@@ -146,3 +146,26 @@ def test_the_plans_split_block_adds_up_to_the_same_kpi_totals():
         assert sum(block["today"]["rows"][ch][col] for ch in SPLIT_CHANNELS) == want
     p2 = _split_block(env, j, "P2")
     assert p2 is not None and p2["today"]["total"]["gmv"] == p2_gmv
+
+
+def test_product_page_and_margin_rates_read_the_one_affiliate_cost():
+    from pathlib import Path
+
+    import juli_backend.services.shopee_analytics.product as product_page
+    from juli_backend.services.shopee_analytics.margins import measured_rates
+
+    uncovered = (
+        line("u1", product_id="P1", affiliate=True, commission=D(50000)),
+        line_profit(
+            line("u1", product_id="P1", affiliate=True, commission=D(50000)),
+            None,
+            schedule=SCHEDULE,
+        ),
+    )
+    pairs = [p for p in _pairs() if p[0].product_id == "P1"] + [uncovered]
+    rates, _ = measured_rates(pairs, None)
+    assert rates is not None
+    paid = sum((pb.revenue for _, pb in pairs if pb.excluded_reason is None), D(0))
+    # the commission share x revenue is the KPI product AFF (covered lines only)
+    assert rates.commission * paid == affiliate_cost(pairs)
+    assert "affiliate_cost(" in Path(product_page.__file__).read_text(encoding="utf-8")

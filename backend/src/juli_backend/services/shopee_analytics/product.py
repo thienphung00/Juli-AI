@@ -34,6 +34,7 @@ from juli_backend.services.shopee_analytics.margins import Rates, final_margin, 
 from juli_backend.services.shopee_analytics.matrix import ads_overlay, product_row
 from juli_backend.services.shopee_analytics.shared import five_for, five_json
 from juli_backend.services.shopee_profit.floor import FloorInputs, compute_floor
+from juli_backend.services.shopee_profit.ladder import affiliate_cost
 from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
 from juli_backend.services.shopee_profit.order_profit import (
     OrderLine,
@@ -208,7 +209,7 @@ def sku_waterfall(
         fee = view.fees.rate(product_id)
         formula = view.fees.schedule(product_id).formula_on(view.window.end)
         paid = sum((pb.revenue for _, pb in carrying), ZERO)
-        commission = sum((pb.commission or ZERO for _, pb in carrying), ZERO)
+        commission = affiliate_cost(carrying) or ZERO
         unit = Decimal(units) if units else None
 
         def per_unit(total: Decimal | None, unit: Decimal | None = unit) -> int | float | None:
