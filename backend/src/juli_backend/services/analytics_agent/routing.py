@@ -146,6 +146,10 @@ _AD_WORDS = re.compile(
     re.I,
 )
 _CAMPAIGN = re.compile(r"campaign|chiến dịch", re.I)
+_PRODUCT_LOSS = re.compile(
+    r"(sản phẩm|products?).{0,40}(lỗ|losing|loss|lose)|(lỗ|losing|loss).{0,40}(sản phẩm|products?)",
+    re.I,
+)
 
 
 #: registry metric key -> the agent's own metric key (where they differ)
@@ -193,6 +197,8 @@ def entity_kind(intent: dict[str, Any]) -> str | None:
             return k
     if _CAMPAIGN.search(blob) and _AD_WORDS.search(blob):  # a campaign means an ad campaign
         return "campaign"
+    if _PRODUCT_LOSS.search(blob) and _AD_WORDS.search(blob):  # "sản phẩm nào lỗ sau quảng cáo"
+        return "product_loss"
     return None
 
 

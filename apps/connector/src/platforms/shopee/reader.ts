@@ -33,7 +33,7 @@ import {
 import { isDatacenterPath, isMydataPath } from "./config";
 import { isReadOnlyOrderDetailPath, isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, READER_PAGES, type ReaderEndpoint } from "./endpoints";
 import { isNoCampaign } from "./promotion-map";
-import { cardOrdersWithoutSku, incomeNotFinal, type PageItem, pageIncomeFinal, trimOrderCards, trimOrderDetail, trimOrderIndex, withPageSkus, withUnresolvedSkus } from "./orders-map";
+import { cardOrdersWithoutSku, incomeNotFinal, type PageItem, pageIncomeFinal, plainLabel, trimOrderCards, trimOrderDetail, trimOrderIndex, withPageSkus, withUnresolvedSkus } from "./orders-map";
 import type { Pacer } from "./runner";
 import { buildBackfillDayPlan } from "./sync";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "../../core/time";
@@ -1384,7 +1384,7 @@ function readOrderPage(
   const income = env.orderPageIncome?.() ?? [];
   const wantIncome = job.incomeFor?.[0] !== false;
   // a2 C-A10: only a page that shows the final amount is posted as the order's income
-  const incomeNote = wantIncome && income.length > 0 && !pageIncomeFinal(income) ? INCOME_NOT_SHOWN : undefined;
+  const incomeNote = wantIncome && !pageIncomeFinal(income) ? incomeMissNote(income) : undefined;
   if (wantIncome && pageIncomeFinal(income)) {
     collected.push({ endpoint: "order_income_components", url: `${env.origin}${READER_PAGES.order_income.path}${opened}`, status: 200, body: { code: 0, data: { items: income } }, capturedAt: at, source: "page", orderId: opened, ...sn });
   }
@@ -1396,13 +1396,44 @@ function readOrderPage(
     // "unresolved_item": the order is not read again for them (Juli keeps the day as a hole)
     const fixed = matched ?? (job.fixLast?.[0] ? withUnresolvedSkus(stored) : null);
     if (fixed) collected.push({ endpoint: "order_detail", url: `${env.origin}${READER_PAGES.order_income.path}${opened}`, status: 200, body: fixed, capturedAt: at, source: "page", orderId: opened, ...sn });
-    note = matched ? undefined : fixed ? "unresolved_item" : "page_lines_unmatched";
+    note = matched ? undefined : fixed ? "unresolved_item" : linesMissNote(env.orderPageItems?.() ?? [], stored);
   }
   return ids.length > 1 ? "partial:one_order_per_page" : (note ?? incomeNote);
 }
 
 /** a2 C-A10: the order page showed its income rows but not "Doanh Thu Đơn Hàng" within the wait: nothing posted for it. */
 export const INCOME_NOT_SHOWN = "income_final_not_shown";
+/** The order page's lines could not be matched to the order's answer lines: nothing posted for them. */
+export const PAGE_LINES_UNMATCHED = "page_lines_unmatched";
+
+/** Outcome-safe text: no separators the outcome uses ("|", ",", "=", ":"). */
+const noteSafe = (t: string) => t.replace(/[|,=:/]/g, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * 0.3.34 (C-H4): "income_final_not_shown:<rows>:<label 1>/<label 2>/<label 3>": how many income rows
+ * the page showed and its first three labels (plain, cut), never an amount.
+ */
+export function incomeMissNote(income: readonly { name: string }[]): string {
+  const labels = income.slice(0, 3).map((i) => noteSafe(plainLabel(i.name)).slice(0, 24));
+  return `${INCOME_NOT_SHOWN}:${income.length}${labels.length > 0 ? `:${labels.join("/")}` : ""}`;
+}
+
+/** The order answer's lines: top-level lines and their combo sub-lines (`sub_items`). */
+function answerLineCounts(body: unknown): { lines: number; subs: number } {
+  const order = isRecord(body) ? payloadOf(body) : undefined;
+  const items = isRecord(order) && Array.isArray(order.items) ? order.items.filter(isRecord) : [];
+  const subs = items.reduce((n, item) => n + (Array.isArray(item.sub_items) ? item.sub_items.length : 0), 0);
+  return { lines: items.length, subs };
+}
+
+/**
+ * 0.3.34 (C-H5): "page_lines_unmatched:page_<n>:answer_<lines>[+<sub-lines>]": the page's product
+ * lines against the order answer's lines (a combo's parent and its children), counts only.
+ */
+export function linesMissNote(page: readonly PageItem[], stored: unknown): string {
+  const { lines, subs } = answerLineCounts(stored);
+  return `${PAGE_LINES_UNMATCHED}:page_${page.length}:answer_${lines}${subs > 0 ? `+${subs}` : ""}`;
+}
 /** How long the reader waits for the order page's "Doanh Thu Đơn Hàng" row once the page shows its lines. */
 export const PAGE_INCOME_WAIT_MS = 15_000;
 
@@ -1437,8 +1468,13 @@ async function readOrderIncome(
   if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_password_recheck", collected, "password_modal"));
   if (env.captchaVisible?.()) throw new Stop(fail("blocked_captcha", collected, "page"));
   if (shown() && !called()) {
-    // a2 C-A10: the lines can draw before the "Doanh thu" block: wait for its final amount
-    if (job.incomeFor?.[0] !== false) await env.waitFor(() => pageIncomeFinal(env.orderPageIncome?.() ?? []), PAGE_INCOME_WAIT_MS);
+    // a2 C-A10: the lines can draw before the "Doanh thu" block: wait for its final amount.
+    // 0.3.34 (C-H5): and the block before the lines: an order read for its lines also waits until
+    // the page's product lines match its answer (same wait), so a half-drawn page is not "unmatched".
+    const incomeReady = () => job.incomeFor?.[0] === false || pageIncomeFinal(env.orderPageIncome?.() ?? []);
+    const stored = job.fixBodies?.[0];
+    const linesReady = () => !stored || withPageSkus(stored, env.orderPageItems?.() ?? []) !== null;
+    if (!(incomeReady() && linesReady())) await env.waitFor(() => incomeReady() && linesReady(), PAGE_INCOME_WAIT_MS);
     return readOrderPage(env, ids, collected, sns, job);
   }
   // 0.3.31 waited for the page's detail call too, but the order page makes it before the hook is

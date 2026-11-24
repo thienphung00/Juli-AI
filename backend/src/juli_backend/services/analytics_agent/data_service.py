@@ -74,6 +74,32 @@ def merge_campaigns(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+SHOP_SCOPE_VI = "cả shop"
+
+
+def apply_shop_break_even(rows: list[dict[str, Any]], shop_be: Any) -> list[dict[str, Any]]:
+    """A campaign whose own ROAS hoà vốn is unknown takes the shop's (the same figure as Tổng quan)
+    and says so: `break_even_scope` = "cả shop". The campaign's own value is never replaced."""
+    if shop_be is None:
+        return rows
+    for r in rows:
+        if r.get("break_even") is None:
+            r["break_even"] = float(shop_be)
+            r["break_even_scope"] = SHOP_SCOPE_VI
+    return rows
+
+
+def _product_break_even(p: Any) -> dict[str, Any]:
+    """The product's contribution before ads and ROAS hoà vốn, as the cards show them
+    (`ProductProfit.contribution` / `.break_even_roas`)."""
+    from juli_backend.services.shopee_analytics.fmt import ratio
+
+    return {
+        "contribution_before_ads": p.contribution,
+        "break_even_roas": ratio(p.break_even_roas, 2),
+    }
+
+
 class ServiceData:
     def __init__(self, factory: SessionFactory, shop_id: uuid.UUID) -> None:
         self._f, self.shop = factory, shop_id
@@ -440,7 +466,31 @@ class ServiceData:
                     "margin_pct": p.margin_pct,
                     "coverage_pct": p.cost_coverage_pct,
                     "gmv": p.gmv,
+                    **_product_break_even(p),
                 }
+            finally:
+                await s.rollback()
+
+    async def product_profit_rows(self, a: date, b: date) -> list[dict[str, Any]]:
+        """Every product's profit after ads, contribution before ads and ROAS hoà vốn: the
+        shared `ProductProfit` rows the cards and Phân tích read (`RecoEnv.product`)."""
+        async with self._f() as s:
+            try:
+                env = await self._reco_env(s, a, b)
+                if env is None:
+                    return []
+                return [
+                    {
+                        "item_id": item,
+                        "name": env.name(item),
+                        "profit": p.profit,
+                        "ad_spend": p.ad_spend,
+                        "margin_pct": p.margin_pct,
+                        "gmv": p.gmv,
+                        **_product_break_even(p),
+                    }
+                    for item, p in env.view.profit.products.items()
+                ]
             finally:
                 await s.rollback()
 
@@ -450,6 +500,7 @@ class ServiceData:
         vốn come from the metric registry. One row per campaign (`merge_campaigns`)."""
         from decimal import Decimal
 
+        from juli_backend.services.shopee_analytics.fmt import ratio
         from juli_backend.services.shopee_recommendations.evaluate import campaign_profile
 
         raw: list[dict[str, Any]] = []
@@ -469,15 +520,17 @@ class ServiceData:
                             "name": c.name or c.key,
                             "spend": c.spend,
                             "gmv": prof["direct_per_day"] * days,
-                            # NULL is not 0: no contribution rate = profit before ads unknown
+                            # NULL is not 0: no rate = unknown, but a segment with no direct GMV
+                            # contributes 0 before ads (it only spent)
                             "before_ads": prof["profit_before_ads_per_day"] * days
                             if prof["rate"] is not None
-                            else None,
+                            else (Decimal(0) if prof["direct_per_day"] <= 0 else None),
                         }
                     )
+                shop_be = ratio(env.view.profit.break_even_roas, 2)
             finally:
                 await s.rollback()
-        return merge_campaigns(raw)
+        return apply_shop_break_even(merge_campaigns(raw), shop_be)
 
     async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]:
         """Per day: the shop's ad spend and its summed daily budget (None when a campaign has no

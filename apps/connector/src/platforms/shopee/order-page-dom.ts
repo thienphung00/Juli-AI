@@ -23,12 +23,44 @@ export function moneyOf(raw: string | null | undefined): number | undefined {
   return negative ? -n : n;
 }
 
+/** A label's tooltip (icon svg with an inline <style>, its popper text): never part of the label. */
+const LABEL_NOISE = ".eds-popover, .payment-tooltip, .payment-detail-tooltip-popper, svg, style, script";
+
+/**
+ * 0.3.34 (C-H4, live DOM 24/11): an income label is its element's OWN text. `.income-label-text`
+ * holds the text node ("Doanh Thu Đơn Hàng ") and then the tooltip `div.eds-popover.payment-tooltip`,
+ * whose svg `<style>` and popper text leaked into `textContent`, so no label matched. Its direct
+ * text nodes first; a label drawn inside a child element (not a tooltip) is read from there.
+ */
+export function ownLabelText(el: Element): string {
+  const clean = (t: string) => t.replace(/\s+/g, " ").trim();
+  const direct = clean(
+    Array.from(el.childNodes)
+      .filter((n) => n.nodeType === 3)
+      .map((n) => n.textContent ?? "")
+      .join(" "),
+  );
+  if (direct) return direct;
+  const parts: string[] = [];
+  const walk = (node: Node): void => {
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === 3) parts.push(child.textContent ?? "");
+      else if (child.nodeType === 1 && !(child as Element).matches(LABEL_NOISE)) walk(child);
+    }
+  };
+  walk(el);
+  return clean(parts.join(" "));
+}
+
 /** Every income row the order page shows, in page order: `{name, amount}` (the income mapper's shape). */
 export function incomeItemsIn(doc: Document): { name: string; amount: number }[] {
   const out: { name: string; amount: number }[] = [];
   for (const row of Array.from(doc.querySelectorAll(".income-container .income-item"))) {
-    const name = row.querySelector(".income-label-text")?.textContent?.replace(/\s+/g, " ").trim();
-    const amount = moneyOf(row.querySelector(".income-value")?.textContent);
+    const label = row.querySelector(".income-label-text");
+    const name = label ? ownLabelText(label) : undefined;
+    // the row's own value (a tooltip's breakdown can carry amounts of its own)
+    const value = Array.from(row.querySelectorAll(".income-value")).find((el) => !el.closest(LABEL_NOISE));
+    const amount = moneyOf(value?.textContent);
     if (name && amount !== undefined) out.push({ name: name.slice(0, 120), amount });
   }
   return out;

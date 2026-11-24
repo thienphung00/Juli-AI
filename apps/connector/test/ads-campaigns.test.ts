@@ -307,6 +307,6 @@ describe("an ads day is read only when campaigns posted or Shopee answered zero 
   it("Shopee answered an empty list: read; an unfinished day (nothing) is not", () => {
     expect(adsDayRead("ignored", answer(zero), DAY)).toBe(true);
     expect(adsDayRead("ignored", [], DAY)).toBe(false);
-    expect(adsDayRead("rejected", answer(zero), DAY)).toBe(false);
+    expect(adsDayRead("rejected:invalid_rows", answer(zero), DAY)).toBe(false);
   });
 });

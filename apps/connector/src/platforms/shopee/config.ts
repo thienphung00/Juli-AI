@@ -420,6 +420,13 @@ export const AFFILIATE_MIN_PLAUSIBLE_VND = 100;
 export const MAX_ROWS_PER_POST = 400;
 
 /**
+ * 0.3.34 (C-H2): the longest period one post may span, the gateway's `MAX_PERIOD_DAYS`
+ * (`period_too_long` above it). Only `ads_campaign_period` is allowed more (100 days), and its
+ * rows are period totals with no day of their own, so it is never split: 31 is the ceiling.
+ */
+export const MAX_POST_PERIOD_DAYS = 31;
+
+/**
  * Checked on the first live run (2026-11-04): the ads service (`/api/pas`) sends money AND the
  * per-campaign ROAS target in VND x 100 000 (daily budget 8 000 000 000 = 80 000 đ; ROAS target
  * 550 000 = 5,5); product prices and vouchers arrive in VND. A reader divides by these; the

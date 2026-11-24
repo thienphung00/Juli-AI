@@ -68,12 +68,30 @@ def campaign_verdict(c: dict[str, Any]) -> str:
 def campaign_row(c: dict[str, Any], prefix: str = "") -> dict[str, Any]:
     """One campaign: name, spend, GMV, ROAS, ROAS hoà vốn (registry) and lỗ / lãi."""
     be = fmt.value("roas", _f(c["break_even"])) if c.get("break_even") is not None else "chưa có"
+    if c.get("break_even") is not None and c.get("break_even_scope"):
+        be += f" ({c['break_even_scope']})"
     return {
         "label_vi": str(c["name"]),
         "value_vi": f"{campaign_verdict(c)} · ROAS {fmt.value('roas', _f(c['roas']))}"
         f" · hoà vốn {be}",
         "detail_vi": prefix
         + f"chi {fmt.value('ads_spend', _f(c['spend']))} · GMV {fmt.value('gmv', _f(c['gmv']))}",
+    }
+
+
+def product_loss_row(r: dict[str, Any]) -> dict[str, Any]:
+    """One product losing after ads: profit after ads, contribution before ads, ads spend and
+    ROAS hoà vốn (the shared `ProductProfit` figures)."""
+    be = r.get("break_even_roas")
+    contrib = r.get("contribution_before_ads")
+    return {
+        "label_vi": str(r.get("name") or r["item_id"]),
+        "value_vi": "Lỗ " + fmt.value("profit", abs(float(r["profit"]))),
+        "detail_vi": "đóng góp trước quảng cáo "
+        + (fmt.value("profit", _f(contrib)) if contrib is not None else "chưa có")
+        + f" · chi quảng cáo {fmt.value('ads_spend', _f(r.get('ad_spend')))}"
+        + f" · hoà vốn {fmt.value('roas', _f(be)) if be is not None else 'chưa có'}",
+        "link": {"kind": "product", "item_id": r["item_id"]},
     }
 
 
@@ -224,6 +242,54 @@ async def run_entity(
                 latest,
                 rows=[campaign_row(c) for c in pick[:TOP_ROWS]],
                 stop="data_answer",
+            )
+        ]
+    if kind == "product_loss" and not item_id:
+        rows = await data.product_profit_rows(*w.cur)
+        losing = sorted(
+            (r for r in rows if r.get("profit") is not None and float(r["profit"]) < 0),
+            key=lambda r: float(r["profit"]),
+        )
+        if not rows:
+            return []
+        return [
+            _answer(
+                "top_products",
+                "Sản phẩm đang lỗ sau quảng cáo"
+                if losing
+                else "Chưa có sản phẩm nào lỗ sau quảng cáo",
+                w,
+                latest,
+                rows=[product_loss_row(r) for r in losing[:TOP_ROWS]],
+                stop="data_answer",
+            )
+        ]
+    if item_id and metric == "roas_break_even":
+        # the product's own value from the shared profit service (as the cards / Phân tích)
+        p = await data.product_profit(item_id, *w.cur)
+        if p is None:
+            return []
+        before = await data.product_profit(item_id, *w.prev) if w.prev else None
+        now_v = _f(p.get("break_even_roas"))
+        old_v = None if before is None else _f(before.get("break_even_roas"))
+        extra: dict[str, Any] = {}
+        if p.get("contribution_before_ads") is not None:
+            extra["contribution_vi"] = "Đóng góp trước quảng cáo " + fmt.value(
+                "profit", _f(p["contribution_before_ads"])
+            )
+        return [
+            _answer(
+                "metric_total",
+                f"ROAS hoà vốn · {item_name or item_id}",
+                w,
+                latest,
+                value=fmt.value("roas_break_even", now_v),
+                value_raw=now_v,
+                before=old_v,
+                before_vi=fmt.value("roas_break_even", old_v) if before else None,
+                delta=fmt.delta("roas_break_even", now_v, old_v) if before else None,
+                stop="data_answer",
+                **extra,
             )
         ]
     if item_id and metric in ("profit", "margin"):

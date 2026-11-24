@@ -365,8 +365,9 @@ function zeroRows(job: "orders" | "order_income", outcome: string | undefined, n
  */
 export function jobOutcome(id: ReaderId, posted: Record<string, string>, summary: string, note: string, responses: ReaderResponse[] = []): string {
   if (id === "orders") {
-    if (note === "no_orders" || note === "no_new_orders") return "done:order_lines=empty";
     const lines = posted.order_lines;
+    // 0.3.34 (C-H2): "empty" = every line read was placed before the job's read window
+    if (note === "no_orders" || note === "no_new_orders" || lines === "empty") return "done:order_lines=empty";
     if (lines !== "posted" && lines !== "queued") return zeroRows("orders", lines, note, responses);
   }
   if (id === "order_income") {
@@ -375,7 +376,13 @@ export function jobOutcome(id: ReaderId, posted: Record<string, string>, summary
     const linesOnly = !responses.some((r) => r.endpoint === "order_income_components") && (posted.order_lines === "posted" || posted.order_lines === "queued");
     if (income !== "posted" && income !== "queued" && !linesOnly) return zeroRows("order_income", income, note, responses);
   }
-  return `${summary ? `done:${summary}` : "done"}${note ? `|${note}` : ""}`;
+  return `${summary ? `done:${summary}` : "done"}${note ? `|${note}` : ""}${refusalReasons(posted)}`;
+}
+
+/** 0.3.34 (C-H1): "|rejected:<code>" once per reason a post of the job was refused for. */
+function refusalReasons(posted: Record<string, string>): string {
+  const reasons = [...new Set(Object.values(posted).filter((v) => String(v).startsWith("rejected:")))];
+  return reasons.map((r) => `|${r}`).join("");
 }
 
 /** Outcomes that count as one failed reader run today (0.3.31); reread and skip reasons do not. */
@@ -1350,7 +1357,9 @@ export class ReaderScheduler {
       const skippedEntries =
         job.id === "ads" ? (job.days ?? []).reduce((sum, day) => sum + adsDayAnswer(responses, day).skipped, 0) : 0;
       const summary = [
-        ...Object.entries(posted).map(([key, outcome]) => `${key}=${outcome}`),
+        // 0.3.34 (C-H1): the summary keeps the plain head ("=rejected", what Juli's reader_status
+        // reads); the reason goes after it (jobOutcome)
+        ...Object.entries(posted).map(([key, outcome]) => `${key}=${String(outcome).split(":", 1)[0]}`),
         // Entries without a campaign id (GMV Max shop-level, totals) are counted, never drift.
         ...(skippedEntries > 0 ? [`ads_entries_skipped=${skippedEntries}`] : []),
       ].join(",");
@@ -1697,7 +1706,8 @@ export function outcomeRank(outcome: string): number {
       .split(",")
       .map((pair) => pair.split("=")[1] ?? "")
       .filter((v) => v && v !== "held");
-    if (results.some((v) => POST_REFUSED.has(v))) return 3;
+    // 0.3.34 (C-H1): a refusal carries its reason ("rejected:period_too_long"): ranked by its head
+    if (results.some((v) => POST_REFUSED.has(v.split(":", 1)[0] ?? v))) return 3;
     if (results.some((v) => POST_ACCEPTED.has(v))) return 0;
     return results.length > 0 && results.every((v) => POST_NOTHING.has(v)) ? 1 : 0;
   }
