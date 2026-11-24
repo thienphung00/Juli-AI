@@ -11,7 +11,7 @@ export type FillJobsDeps = Omit<CoreFillJobsDeps<FillJob>, "pack">;
  * Contract C: the reader pages a read-back needs. A product's read-back opens its edit page and an
  * affiliate one the open campaign (null: an ordinary job page, read by the content script); the
  * voucher list is the vouchers reader's page (it posts voucher_settings), the catalog the products
- * reader's; no reader reads the combo list ("unsupported"; Juli does not queue one).
+ * reader's; 0.3.35: the combo list is the combos reader's (it posts combo_settings).
  */
 export function readbackPages(job: FillJob): ReaderId[] | "unsupported" | null {
   if (job.kind !== "readback" || job.payload.kind !== "readback") return null;
@@ -20,8 +20,7 @@ export function readbackPages(job: FillJob): ReaderId[] | "unsupported" | null {
   if (FILL_JOB_PAGES.product_edit.test(path) || FILL_JOB_PAGES.affiliate_open.test(path)) return null;
   const pages: ReaderId[] = [];
   for (const d of job.payload.readback.datasets) {
-    if (d === "combo_list") return "unsupported";
-    pages.push(d === "voucher_list" ? "vouchers" : "products");
+    pages.push(d === "voucher_list" ? "vouchers" : d === "combo_list" ? "combos" : "products");
   }
   return [...new Set(pages)];
 }

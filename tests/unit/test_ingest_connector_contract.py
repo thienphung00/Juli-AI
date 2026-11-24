@@ -106,6 +106,7 @@ READ_AT = datetime(2026, 11, 3, 5, 0)
         ("item_catalog", "item_catalog.body.json", 5),
         ("ads_campaign_daily", "ads_campaign_daily.body.json", 3),
         ("voucher_settings", "voucher_settings.body.json", 2),
+        ("combo_settings", "combo_settings.body.json", 2),
     ],
 )
 async def test_the_page_readers_posts_are_accepted(session, dataset, name, rows):

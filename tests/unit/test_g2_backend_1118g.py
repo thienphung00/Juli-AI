@@ -118,7 +118,14 @@ def test_readback_specs_name_the_page_and_dataset():
     assert t["target"] == {"item_id": "9"}
     v = revert_fill._readback_of_change("voucher", {"voucher_id": "5"})
     assert v["key"] == "readback:voucher:5" and v["datasets"] == ["voucher_list"]
-    assert revert_fill._readback_of_change("combo", {"name": "x"}) is None  # no combo reader
+    # batch-1124-a C4: Connector 0.3.35 reads the combo list (by id, else by the combo's name)
+    c = revert_fill._readback_of_change("combo", {"combo_name": "x"})
+    assert c is not None and c["key"] == "readback:combo:x" and c["datasets"] == ["combo_list"]
+    assert c["forward_kind"] == "combo" and c["open_path"] == "/portal/marketing/bundle/list"
+    assert revert_fill._readback_of_change("bundle_deal", {"combo_id": "77"})["key"] == (
+        "readback:combo:77"
+    )
+    assert revert_fill._readback_of_change("combo", {}) is None
 
 
 # ------------------------------------------------------------------------------ DB flow

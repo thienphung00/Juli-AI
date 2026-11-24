@@ -29,6 +29,9 @@ import {
   PRODUCT_PERIOD_MAX_PAGES,
   PRODUCT_PERIOD_PAGE_SIZE,
   VOUCHER_PAGE_LIMIT_DEFAULT,
+  COMBO_DETAIL_MAX,
+  COMBO_MAX_ROWS,
+  COMBO_PAGE_LIMIT_DEFAULT,
 } from "./config";
 import { isDatacenterPath, isMydataPath } from "./config";
 import { isReadOnlyOrderDetailPath, isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, READER_PAGES, type ReaderEndpoint } from "./endpoints";
@@ -378,6 +381,12 @@ export const isProduct = (o: Record<string, unknown>) =>
   "model_list" in o || "price_detail" in o || ("id" in o && "stock_detail" in o);
 export const isAdsEntry = (o: Record<string, unknown>) => isRecord(o.campaign) || isRecord(o.report);
 export const isVoucher = (o: Record<string, unknown>) => "voucher_id" in o;
+/** 0.3.35: one row of the discount list's Combo tab (`discounts[].bundle_deal`). */
+export const isComboEntry = (o: Record<string, unknown>) => isRecord(o.bundle_deal);
+/** The discount list's code for a combo (`discount_type`, P-C2 capture). */
+export const COMBO_DISCOUNT_TYPE = 3;
+/** The list's `time_status` of a combo not ended yet: 1 upcoming (assumed, not seen), 2 running. */
+const COMBO_LIVE_STATUSES = new Set([1, 2]);
 
 /** The /datacenter re-confirmation modal's text (any dialog text is passed in). */
 export function isPasswordPrompt(text: string): boolean {
@@ -783,6 +792,51 @@ async function readVouchers(env: ReaderEnv, collected: ReaderResponse[]): Promis
     const total = totalOf(response.body, found.parent);
     if (fresh.length === 0 || found.list.length < limit) break;
     if (total !== undefined && seen.size >= total) break;
+  }
+}
+
+/**
+ * 0.3.35 (batch-1124-a C4): the Combo tab's list (the page's own POST, replayed page by page with
+ * only discount_type / offset / limit set), then each upcoming or running combo's detail (its
+ * tiers, buyer limit and products; newest first, at most COMBO_DETAIL_MAX). Reads only.
+ */
+async function readCombos(env: ReaderEnv, collected: ReaderResponse[]): Promise<void> {
+  await waitForPage(env, ["combo_list"], collected);
+  const template = env.template("combo_list") as Template;
+  const learned = isRecord(template.body) && Number(template.body.limit) > 0 ? Number(template.body.limit) : COMBO_PAGE_LIMIT_DEFAULT;
+  const limit = Math.min(Math.max(1, Math.floor(learned)), 50);
+  const seen = new Map<string, number>();
+  for (let offset = 0; offset < COMBO_MAX_ROWS; offset += limit) {
+    const request = buildReaderRequest(
+      env.origin,
+      "combo_list",
+      template,
+      { body: { discount_type: COMBO_DISCOUNT_TYPE, time_status: 0, offset, limit } },
+      env.session(),
+    );
+    const response = await send(env, request, collected, { page: offset / limit + 1 });
+    const found = findList(payloadOf(response.body), isComboEntry);
+    if (!found) break;
+    let fresh = 0;
+    for (const entry of found.list) {
+      const deal = entry.bundle_deal as Record<string, unknown>;
+      const id = String(deal.discount_id ?? "");
+      if (!/^\d{1,20}$/.test(id) || seen.has(id)) continue;
+      seen.set(id, Number(deal.time_status));
+      fresh += 1;
+    }
+    if (fresh === 0 || found.list.length < limit) break;
+  }
+  const live = [...seen.entries()]
+    .filter(([, status]) => COMBO_LIVE_STATUSES.has(status))
+    .map(([id]) => id)
+    .sort((a, b) => (BigInt(b) > BigInt(a) ? 1 : BigInt(b) < BigInt(a) ? -1 : 0))
+    .slice(0, COMBO_DETAIL_MAX);
+  // the detail is not called by the list page: the list's headers, the session, the combo's id only
+  const detail: Template = { query: {}, headers: template.headers };
+  for (const id of live) {
+    const request = buildReaderRequest(env.origin, "combo_detail", detail, { query: { bundle_deal_id: id } }, env.session());
+    await send(env, request, collected, {}, true);
   }
 }
 
@@ -1823,6 +1877,9 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         break;
       case "vouchers":
         await readVouchers(env, collected);
+        break;
+      case "combos":
+        await readCombos(env, collected);
         break;
       case "product_period":
         await readProductPeriod(env, collected);

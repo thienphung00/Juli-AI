@@ -403,12 +403,14 @@ ERR_GIFT_UNSOLD = "Quà không bán: Shopee cần quà là sản phẩm của sh
 ERR_COVER = "Thiếu ảnh bìa hiện tại để hoàn tác"
 ERR_OPTIONS = "Thiếu phân loại mới (tên, giá)"
 
-#: what reads the object back after the save (F9): only the voucher and combo lists today; the
-#: others are ``unsupported`` so Juli shows "Chưa thấy" rather than a match nobody read
+#: what reads the object back after the save (F9): the voucher list, the combo list (Connector
+#: 0.3.35's combos reader, batch-1124-a C4) and the catalogue; the others are ``unsupported`` so
+#: Juli shows "Chưa thấy" rather than a match nobody read
 READBACK_OF_KIND = {
     "title": "item_catalog",
     "description_first_line": "item_catalog",
     "voucher": "voucher_list",
+    "combo": "combo_list",
     "affiliate_commission": "item_catalog",
 }
 READBACK_UNSUPPORTED = "unsupported"
