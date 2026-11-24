@@ -22,7 +22,7 @@ from juli_backend.database.tenant_scoped_tables import (
 )
 from juli_backend.models import shopee_profit as models
 from juli_backend.models.shopee_profit import ShopeeOrderIncome, ShopeeOrderLine
-from juli_backend.services.ingest.income import AMOUNT_FIELDS, COLUMN_OF
+from juli_backend.services.ingest.income import AMOUNT_FIELDS, COLUMN_OF, ORDER_LINE_FIELDS
 from juli_backend.services.ingest.schemas import ShopeeOrderIncomeRow
 from tests.support.shopee_analytics import pre_t5_columns
 
@@ -105,10 +105,17 @@ def test_the_ingest_row_the_writer_and_the_table_name_the_same_amounts():
         "paid_on",
     }
     table_columns = set(ShopeeOrderIncome.__table__.columns.keys())
-    assert row_fields == set(AMOUNT_FIELDS)
+    line_columns = set(ShopeeOrderLine.__table__.columns.keys())
+    # every row field is either a settlement amount or an order_lines fill, never both
+    assert row_fields == set(AMOUNT_FIELDS) | set(ORDER_LINE_FIELDS)
+    assert not set(AMOUNT_FIELDS) & set(ORDER_LINE_FIELDS)
     # the wire keeps ship_shopee_subsidy; migration 134 named its column ship_platform_subsidy
-    assert {COLUMN_OF.get(f, f) for f in row_fields} <= table_columns
+    assert {COLUMN_OF.get(f, f) for f in AMOUNT_FIELDS} <= table_columns
     assert COLUMN_OF == {"ship_shopee_subsidy": "ship_platform_subsidy"}
+    # batch-1124-a S1 / #49: the order's voucher amounts and code feed order_lines (split), so no
+    # order_settlements column carries them, and each names a real order_lines column
+    assert set(ORDER_LINE_FIELDS.values()) <= line_columns
+    assert not {COLUMN_OF.get(f, f) for f in ORDER_LINE_FIELDS} & table_columns
 
 
 def test_migration_vocabularies_match_the_models():

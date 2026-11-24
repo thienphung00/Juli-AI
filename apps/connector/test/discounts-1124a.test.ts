@@ -152,7 +152,7 @@ describe("S1 row 2: the buyer-payment block", () => {
     orderSn: "261120SYN001",
   });
 
-  it("the buyer-side vouchers post as buyer_* fields; the seller's cost stays the income block's own row", () => {
+  it("the buyer-payment vouchers post as order_*_voucher amounts; the seller's cost stays the income block's own row", () => {
     const [row] = mapOrderIncome(
       [
         income(
@@ -169,7 +169,7 @@ describe("S1 row 2: the buyer-payment block", () => {
       ],
       NOW,
     ).rows;
-    expect(row).toMatchObject({ [RAW_ORDER_ID]: "261120SYN001", payout: 70000, seller_voucher_borne: 10000, buyer_shop_voucher: 34680, buyer_platform_voucher: 50000 });
+    expect(row).toMatchObject({ [RAW_ORDER_ID]: "261120SYN001", payout: 70000, seller_voucher_borne: 10000, order_shop_voucher: 34680, order_platform_voucher: 50000 });
   });
 
   it("a shop voucher the buyer used with no seller deduction (Voucher Xtra) never becomes a seller cost", () => {
@@ -178,7 +178,7 @@ describe("S1 row 2: the buyer-payment block", () => {
       NOW,
     ).rows;
     expect(row!.seller_voucher_borne).toBeUndefined();
-    expect(row!.buyer_shop_voucher).toBe(34680);
+    expect(row!.order_shop_voucher).toBe(34680);
     expect(row!.fee_voucher_xtra).toBe(5500);
   });
 

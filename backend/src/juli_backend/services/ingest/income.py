@@ -151,7 +151,7 @@ async def write_order_income(
         return []
     warnings = await _seller_support_warning(session, rows, provenance)
     await upsert_settlement_values(session, income_values(rows, provenance))
-    await split_buyer_vouchers(session, rows, provenance)
+    await split_order_vouchers(session, rows, provenance)
     await fill_voucher_codes(session, rows, provenance)
     return warnings
 
@@ -179,11 +179,17 @@ async def fill_voucher_codes(
     return filled
 
 
-#: batch-1124-a S1: the buyer-side voucher of an income row -> the ``order_lines`` column it fills.
-BUYER_VOUCHER_COLUMNS: tuple[tuple[str, str], ...] = (
-    ("buyer_shop_voucher", "shop_voucher_share"),
-    ("buyer_platform_voucher", "platform_voucher_share"),
+#: batch-1124-a S1: the order's voucher amounts of an income row (what the order saved with the
+#: shop's voucher and with a Shopee voucher, not who bought it) -> the ``order_lines`` column the
+#: split fills.
+ORDER_VOUCHER_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("order_shop_voucher", "shop_voucher_share"),
+    ("order_platform_voucher", "platform_voucher_share"),
 )
+#: The income row fields that are NOT ``order_settlements`` columns: each fills the order's
+#: ``order_lines`` column named here (the voucher split, and #49's ``voucher_code``). With
+#: :data:`AMOUNT_FIELDS` this is every amount / code field of :class:`ShopeeOrderIncomeRow`.
+ORDER_LINE_FIELDS: dict[str, str] = {**dict(ORDER_VOUCHER_COLUMNS), "voucher_code": "voucher_code"}
 CENT = Decimal("0.01")
 
 
@@ -196,7 +202,7 @@ def _shares(amount: Decimal, weights: list[Decimal]) -> list[Decimal]:
     return [*out, amount - sum(out, Decimal(0))]
 
 
-async def split_buyer_vouchers(
+async def split_order_vouchers(
     session: AsyncSession, rows: list[ShopeeOrderIncomeRow], provenance: dict[str, Any]
 ) -> int:
     """batch-1124-a S1 (owner 2026-11-24, rule B): the Connector's buyer-side shop / Shopee voucher
@@ -209,7 +215,7 @@ async def split_buyer_vouchers(
     wanted = {
         row.order_ref: row
         for row in rows
-        if any(getattr(row, field) for field, _ in BUYER_VOUCHER_COLUMNS)
+        if any(getattr(row, field) for field, _ in ORDER_VOUCHER_COLUMNS)
     }
     if not wanted:
         return 0
@@ -238,7 +244,7 @@ async def split_buyer_vouchers(
     for ref, row in wanted.items():
         order_lines = lines.get(ref, [])
         weights = [Decimal(line.deal_price) * line.qty for line in order_lines]
-        for field, column in BUYER_VOUCHER_COLUMNS:
+        for field, column in ORDER_VOUCHER_COLUMNS:
             amount: Decimal | None = getattr(row, field)
             if not amount:
                 continue

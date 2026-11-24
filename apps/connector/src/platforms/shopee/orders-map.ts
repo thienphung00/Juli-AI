@@ -598,8 +598,8 @@ function plain(label: string): string {
 const BUYER_ITEMS = "buyer_items";
 /** Buyer-payment labels -> the order_income wire field (split onto the order's lines by Juli). */
 const BUYER_LABELS: [RegExp, string][] = [
-  [/^ma giam gia cua shop$/, "buyer_shop_voucher"],
-  [/^shopee voucher$/, "buyer_platform_voucher"],
+  [/^ma giam gia cua shop$/, "order_shop_voucher"],
+  [/^shopee voucher$/, "order_platform_voucher"],
 ];
 
 function incomePayload(body: unknown): unknown {

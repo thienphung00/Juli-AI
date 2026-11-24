@@ -82,9 +82,9 @@ def _income(buyer_shop: int | None = None, buyer_platform: int | None = None, **
     body = copy.deepcopy(_contract("order_income.body.json"))
     row = {"order_ref": REF, "payout": 100_000, "product_price": 130_000, **over}
     if buyer_shop is not None:
-        row["buyer_shop_voucher"] = buyer_shop
+        row["order_shop_voucher"] = buyer_shop
     if buyer_platform is not None:
-        row["buyer_platform_voucher"] = buyer_platform
+        row["order_platform_voucher"] = buyer_platform
     body["rows"] = [row]
     return body
 

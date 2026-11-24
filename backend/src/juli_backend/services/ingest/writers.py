@@ -118,7 +118,7 @@ def _ranked_set(stmt: Any, table: Any, columns: Iterable[str]) -> dict[str, Any]
     return _keep_split_vouchers(stmt, table, _fill_unresolved_item(stmt, table, out))
 
 
-#: batch-1124-a S1: the line columns the Connector's income fills (``split_buyer_vouchers``).
+#: batch-1124-a S1: the line columns the Connector's income fills (``split_order_vouchers``).
 _SPLIT_VOUCHERS = ("shop_voucher_share", "platform_voucher_share")
 
 

@@ -1169,8 +1169,8 @@ class ShopeeOrderIncomeRow(PeriodRowBase):
     #: saved with the shop's voucher and with a Shopee voucher. NOT the seller's cost (that is
     #: ``seller_voucher_borne``) and not stored on ``order_settlements``: the gateway splits them
     #: onto the order's ``order_lines`` (``shop_voucher_share`` / ``platform_voucher_share``).
-    buyer_shop_voucher: Money | None = None
-    buyer_platform_voucher: Money | None = None
+    order_shop_voucher: Money | None = None
+    order_platform_voucher: Money | None = None
     #: Owner decision #49: the voucher code of the income export ("Mã voucher"), code-shaped
     #: only; filled onto the order's lines where ``order_lines.voucher_code`` is still NULL.
     voucher_code: Annotated[str, StringConstraints(pattern=r"^[A-Z0-9]{1,64}$")] | None = None
