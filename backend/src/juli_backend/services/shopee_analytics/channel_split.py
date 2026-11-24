@@ -64,6 +64,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import IngestDatasetStatus
 from juli_backend.services.metrics.registry import (
+    METRICS,
     REASON_SOURCE_BREAKDOWN_MISSING,
     Platform,
     counts_in_total,
@@ -786,6 +787,12 @@ def _add_rows(a: dict[str, Decimal], b: Mapping[str, Decimal]) -> dict[str, Deci
     return {k: a[k] + b.get(k, ZERO_D) for k in SPLIT_COLUMNS}
 
 
+def has_profit(platform: str) -> bool:
+    """Does ``platform`` have Lợi nhuận ròng at all (a registry source)? D23: a platform
+    without one gets ``profit_split`` ``None``, never a split of zeros."""
+    return platform in METRICS["profit"].sources
+
+
 def profit_split(view: PeriodView, product_id: str | None = None) -> dict[str, Any]:
     """Tổng quan's Organic / Quảng cáo / TTLK split (P7) of the shop or one product.
 
@@ -997,7 +1004,7 @@ async def split_figures(
     """``{"rows", "kpis"}`` of ``channel_split`` for a view the caller already loaded (no second
     read of the window, no previous period, no plan block): what a per-product loop needs."""
     body_rows, kpis = await _figures(session, shop_id, view, window, product_id, platform)
-    split = profit_split(view, product_id) if platform == "shopee" else None
+    split = profit_split(view, product_id) if has_profit(platform) else None
     return {"rows": body_rows, "kpis": kpis, "profit_split": split}
 
 
@@ -1074,7 +1081,7 @@ async def channel_split(
         "plan": plan,
         # P7 (#42 / #49): Organic / Quảng cáo / TTLK of GMV, đơn, doanh thu thực, Ưu đãi, đóng góp,
         # QC, AFF and lợi nhuận ròng; None where the platform has no profit (D23)
-        "profit_split": profit_split(view, product_id) if platform == "shopee" else None,
+        "profit_split": profit_split(view, product_id) if has_profit(platform) else None,
     }
 
 
