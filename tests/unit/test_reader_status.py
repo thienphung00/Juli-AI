@@ -94,3 +94,10 @@ async def test_the_run_report_stores_a_status_per_reader(session):
         assert row.after["outcomes"]["orders"] == "done:order_lines=empty"
     finally:
         set_ingest_rate_gate(None)
+
+
+def test_a_refusal_with_its_reason_is_still_an_error() -> None:
+    """Connector 0.3.34 names the reason after the head: ``rejected:period_too_long``."""
+    status = rs.status_of("done:order_lines=rejected:period_too_long")
+    assert status["status"] == "error"
+    assert status["reason"] == "order_lines=rejected:period_too_long"
