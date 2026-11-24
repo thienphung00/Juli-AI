@@ -970,10 +970,14 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # changes each draw's profit, so a different draw is the middle one, exactly as in
             # the 437bea66 note above (350_716 vs 669_480 for a service fee on / off): 341_945 and
             # 2,79 orders here. Only the choice of draw moved, not the combo's reach or take-up.
-            # Batch 1123-e5: hạ tầng is now its own line inside Phí Dịch Vụ, so the learned rate is
-            # 7,71 % (was 5,86 %) and the middle draw moved again: 620_589 / 4,49 orders.
-            assert cd["gmv"] == pytest.approx(620_589, rel=0.02)
-            assert round(cd["orders"]) == 4  # 4,49 rounded (was 3: the middle draw moved, above)
+            # Batch 1123-e5: hạ tầng is its own line inside Phí Dịch Vụ (learned rate 7,71 %), and
+            # batch 1124-a (decision #39): each product's ad cost is the campaign's Connector day
+            # spend x its share in the ads report by product. Both shift the draws' profits, so a
+            # different draw is the middle one. The combo's reach and take-up are unchanged.
+            assert cd["gmv"] == pytest.approx(336_249, rel=0.02)
+            assert (
+                round(cd["orders"]) == 3
+            )  # 2,74 (1123-e5 alone: 620_589 / 4,49; 1124-a alone: 445_900 / 0,31)
             assert cd["profit"] < 0
             ctx = await builder.build_context(session, report.shop_id, [set2], as_of=END, now=NOW)
             base = integrate.base_for(ctx.env, [nrc], "")
@@ -987,8 +991,8 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             sd = _own_delta(s, set_done.result)
             # F2: the base is the adaptive window's level (was 791_214 on the fixed 30 days)
             assert sd["gmv"] == pytest.approx(
-                808_002, rel=0.02
-            )  # was 859_189 at a 7,9 % service fee (middle draw)
+                856_463, rel=0.02
+            )  # 1123-e5 + 1124-a together (was 808_002; 859_189 at a 7,9 % service fee)
             assert s["cost"]["total"] > 0 and sd["profit"] < 0
 
 

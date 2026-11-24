@@ -327,8 +327,8 @@ async def test_sample_shop_price_and_promotion_estimates_stay_within_their_bound
     d_profit = float(price.likely.profit or 0) - float(price.before.profit or 0)
     assert d_profit < 309_750
     assert d_profit == pytest.approx(
-        147_788, rel=0.02
-    )  # was 141_818 at 7,9 %: +5 % on 309.750đ pays 2,04 points less fee
+        151_884, rel=0.02
+    )  # 147_788 after 1123-e5; 1124-a's product ad cost moves the middle draw (141_818 at 7,9 %)
 
     # 3. a 2-hour slot on one day: 2/24 of the day's 3,6 orders get the −15 %
     assert flash.days == 1
