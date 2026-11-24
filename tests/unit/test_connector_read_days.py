@@ -294,3 +294,58 @@ async def test_an_unresolved_item_day_is_not_handed_out_again_but_stays_a_hole_i
     assert "order_lines" not in read_days.missing_by_dataset(covered, TODAY)
     progress = await read_days.progress(session, shop.id, "shopee")
     assert progress["order_lines"]["reading_through"] == "2026-11-09"
+
+
+async def test_s1_the_order_days_an_older_connector_read_are_handed_out_once_from_0_3_35(
+    session, monkeypatch
+):
+    """batch-1124-a S1, owner decision #48: once the shop's Connector reports 0.3.35 (combo
+    amount, buyer vouchers), the window's order days read only by an older Connector form their
+    own hole set, once: the re-read's own post closes each day, a later heartbeat does not reopen
+    it, and a day with no order is never handed out."""
+    from tests.unit.test_ingest_composed_precedence import T1, T2, _write
+
+    monkeypatch.setattr(read_days, "vietnam_today", lambda now=None: TODAY)
+    _, shop = await _shopee_tenant(session)
+    old = _post(shop.id, "order_lines", date(2026, 10, 20), date(2026, 11, 18))
+    old.source_version = "0.3.34"
+    session.add(old)
+    await session.flush()
+    for day, captured in ((5, T1), (10, T2)):
+        await _write(
+            session,
+            shop.id,
+            "extension",
+            3,
+            captured,
+            ordered_at=datetime(2026, 11, day, 3, 0),
+            order_ref=f"{day:032x}",
+        )
+
+    async def backfill() -> list[str] | None:
+        datasets = (await read_days.read_days(session, shop.id, "shopee"))["datasets"]
+        assert isinstance(datasets, dict)
+        entry = datasets.get(read_days.ORDER_LINES_BACKFILL)
+        return entry["missing"] if entry else None
+
+    assert await backfill() is None  # no Connector state yet
+    state = ShopeeConnectorState(shop_id=shop.id, connector_version="0.3.34")
+    session.add(state)
+    await session.flush()
+    assert await backfill() is None  # an older Connector: nothing to re-read
+    state.connector_version = "0.3.35"
+    await session.flush()
+    assert await backfill() == ["2026-11-05", "2026-11-10"]  # days with lines only, oldest first
+    new = _post(shop.id, "order_lines", date(2026, 11, 8), date(2026, 11, 18))
+    new.source_version = "0.3.35"
+    session.add(new)
+    await session.flush()
+    assert await backfill() == ["2026-11-05"]  # the re-read closed its day
+    newer = _post(shop.id, "order_lines", date(2026, 11, 1), date(2026, 11, 6))
+    newer.source_version = "0.3.36"
+    session.add(newer)
+    state.connector_version = "0.3.36"  # a later heartbeat / upgrade
+    await session.flush()
+    assert await backfill() is None  # done: never handed out again
+    covered = await read_days.covered_days(session, shop.id, "shopee", TODAY)
+    assert "order_lines" not in read_days.missing_by_dataset(covered, TODAY)  # C2 unchanged

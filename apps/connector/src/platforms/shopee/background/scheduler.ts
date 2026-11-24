@@ -27,8 +27,10 @@ import {
   ORDER_INCOME_QUEUE_DAYS,
   ORDER_INCOME_QUEUE_MAX,
   ORDER_CATCHUP_FIRST_DAYS,
+  ORDER_BACKFILL_DAY_COST,
   ORDER_CATCHUP_MAX_DAYS,
   ORDER_CATCHUP_OVERLAP_DAYS,
+  ORDER_LINES_BACKFILL,
   ORDERS_JOB_TIMEOUT_MS,
   READER_KICK_DELAY_MINUTES,
   READER_KICK_RETRY_MINUTES,
@@ -125,6 +127,20 @@ export function ordersSinceDay(today: string, coveredDay: string | undefined): s
   const since = dayMinus(coveredDay, ORDER_CATCHUP_OVERLAP_DAYS);
   const floor = dayMinus(today, ORDER_CATCHUP_MAX_DAYS);
   return since < floor ? floor : since;
+}
+
+/**
+ * batch-1124-a S1 (owner decision #48): the day the orders job reads back to for the server's
+ * order_lines_backfill days, or undefined (no such day, or none within what the backfill's part of
+ * the budget affords this run: `room` / ORDER_BACKFILL_DAY_COST days back from today, at most
+ * ORDER_CATCHUP_MAX_DAYS). Only days older than the usual `sinceDay` extend the read.
+ */
+export function orderBackfillSinceDay(today: string, sinceDay: string, holes: Record<string, string[]> | undefined, room: number): string | undefined {
+  const days = [...(holes?.[ORDER_LINES_BACKFILL] ?? [])].sort();
+  const depth = Math.min(ORDER_CATCHUP_MAX_DAYS, Math.floor(Math.max(0, room) / ORDER_BACKFILL_DAY_COST));
+  if (days.length === 0 || depth <= 0) return undefined;
+  const floor = dayMinus(today, depth);
+  return days.find((day) => day >= floor && day < sinceDay && day < today);
 }
 
 /** What the scheduler tells Juli about a tick (0.3.19): metadata only, never a body. */
@@ -283,7 +299,11 @@ export function planJobs(args: {
       // The 30-day product table, once a day (one page open; at most PRODUCT_PERIOD_MAX_PAGES requests).
       if (args.productPeriodDay !== todayDay) todayJobs.push({ id });
     } else if (id === "orders") {
-      if (args.ordersDay !== todayDay) todayJobs.push({ id, sinceDay: ordersSinceDay(todayDay, args.ordersCoveredDay) });
+      if (args.ordersDay !== todayDay) {
+        const sinceDay = ordersSinceDay(todayDay, args.ordersCoveredDay);
+        const backfill = orderBackfillSinceDay(todayDay, sinceDay, args.holes, room);
+        todayJobs.push({ id, sinceDay: backfill ?? sinceDay, ...(backfill ? { orderBackfill: true } : {}) });
+      }
     } else if (id === "order_income") {
       if (args.incomeDay !== todayDay) todayJobs.push({ id });
     } else if (id === "affiliate_content") {
@@ -1493,9 +1513,12 @@ export class ReaderScheduler {
       // 0.3.29 (F4.9): orders completed since the last income read that LANDED (not since the last run): a
       // page that could not be read for days no longer loses those orders. An install that never read
       // one looks back over the whole queue window.
-      const since =
+      const usual =
         sched.incomeReadAt ??
         (sched.incomeSince !== undefined ? now - ORDER_INCOME_QUEUE_DAYS * 86_400_000 : now - ORDER_INCOME_FIRST_RUN_DAYS * 86_400_000);
+      // batch-1124-a S1 (#48): a backfill read queues its completed orders' order page again (buyer
+      // vouchers), read before or not; the queue's own caps and daily maximum still apply
+      const since = job.orderBackfill && job.sinceDay ? Math.min(usual, gmt7DateStart(job.sinceDay) * 1000) : usual;
       const known = new Set((sched.incomeQueue ?? []).map((o) => o.id));
       const completed = completedOrders(responses);
       const doneIds = new Set(completed.map((o) => o.id));

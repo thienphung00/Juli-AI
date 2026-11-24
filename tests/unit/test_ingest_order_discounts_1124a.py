@@ -219,3 +219,31 @@ def test_shares_add_up_to_the_amount_to_the_cent():
     assert parts == [Decimal("4545.45"), Decimal("4090.91"), Decimal("1363.64")]
     assert sum(parts) == Decimal(10_000)
     assert _shares(Decimal(1), []) == []
+
+
+async def test_owner_49_the_income_voucher_code_fills_null_codes_only(session):
+    shop = await _shop(session)
+    file_lines = _lines_body(
+        [_line(0, 50_000), _line(1, 30_000)], source="file", source_version="seller-centre-xlsx-1"
+    )
+    await _ingest(session, shop, "order_lines", file_lines)
+    file_income = _income(voucher_code="SHOPXMAS10") | {
+        "source": "file",
+        "source_version": "seller-centre-xlsx-1",
+    }
+    await _ingest(session, shop, "order_income", file_income)
+    assert [ln.voucher_code for ln in await _lines(session, shop)] == ["SHOPXMAS10", "SHOPXMAS10"]
+    # a later income with another code never replaces a stored one
+    await _ingest(session, shop, "order_income", _income(voucher_code="OTHER20"))
+    assert {ln.voucher_code for ln in await _lines(session, shop)} == {"SHOPXMAS10"}
+
+
+@pytest.mark.parametrize("code", ["shopxmas10", "A-B", "X" * 65])
+def test_owner_49_a_non_code_voucher_value_is_refused_at_the_gateway(code):
+    from pydantic import ValidationError
+
+    from juli_backend.services.ingest.schemas import ShopeeOrderIncomeRow
+
+    with pytest.raises(ValidationError) as refused:
+        ShopeeOrderIncomeRow.model_validate({"order_ref": REF, "voucher_code": code})
+    assert "voucher_code" in str(refused.value)

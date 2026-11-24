@@ -152,7 +152,31 @@ async def write_order_income(
     warnings = await _seller_support_warning(session, rows, provenance)
     await upsert_settlement_values(session, income_values(rows, provenance))
     await split_buyer_vouchers(session, rows, provenance)
+    await fill_voucher_codes(session, rows, provenance)
     return warnings
+
+
+async def fill_voucher_codes(
+    session: AsyncSession, rows: list[ShopeeOrderIncomeRow], provenance: dict[str, Any]
+) -> int:
+    """Owner decision #49: an income row's ``voucher_code`` fills ``order_lines.voucher_code`` of
+    that order where it is still NULL (any source: a NULL is a gap); a stored code is never
+    replaced. Returns the lines filled."""
+    codes = {row.order_ref: row.voucher_code for row in rows if row.voucher_code}
+    filled = 0
+    for ref, code in codes.items():
+        result = await session.execute(
+            update(ShopeeOrderLine)
+            .where(
+                ShopeeOrderLine.shop_id == provenance["shop_id"],
+                ShopeeOrderLine.platform == provenance["platform"],
+                ShopeeOrderLine.order_ref == ref,
+                ShopeeOrderLine.voucher_code.is_(None),
+            )
+            .values(voucher_code=code, updated_at=provenance["updated_at"])
+        )
+        filled += getattr(result, "rowcount", 0) or 0
+    return filled
 
 
 #: batch-1124-a S1: the buyer-side voucher of an income row -> the ``order_lines`` column it fills.

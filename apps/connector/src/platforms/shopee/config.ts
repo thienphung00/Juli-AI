@@ -286,6 +286,15 @@ export const ORDER_LIST_MAX_PAGES_PER_RUN = 40;
 export const ORDER_CATCHUP_FIRST_DAYS = 14;
 export const ORDER_CATCHUP_OVERLAP_DAYS = 3;
 export const ORDER_CATCHUP_MAX_DAYS = 30;
+/**
+ * batch-1124-a S1 (owner decision #48): the server's `order_lines_backfill` hole set names the order
+ * days read by a Connector older than 0.3.35 (no combo amount, no buyer vouchers). The orders job
+ * reads back to the oldest of them it can afford from the backfill's part of the budget, at about
+ * this many requests per day of orders (a list page per ~40 orders, one get_one_order per order);
+ * the rest waits for a later day.
+ */
+export const ORDER_LINES_BACKFILL = "order_lines_backfill";
+export const ORDER_BACKFILL_DAY_COST = 15;
 /** 40 pages x (20-45 s gap + 2 calls) can take ~30 min: the orders job has its own timeout. */
 export const ORDERS_JOB_TIMEOUT_MS = 45 * 60_000;
 /** Extra wait before an order-list page after the first (ms, plus jitter): 20-45 s like page gaps. */
