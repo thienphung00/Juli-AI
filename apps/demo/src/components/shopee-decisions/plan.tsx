@@ -12,6 +12,7 @@ import { ackText } from "../../lib/shopee-decisions/versions";
 import { MetricChip } from "../metrics/metric-chip";
 import { Notice, TextChip } from "../shopee-analytics/ui";
 import { DataMissingNotice } from "./plan-results";
+import { PlanSplitTable } from "./plan-split";
 import { mil } from "../shopee-analytics/tong-quan";
 import { PlanSteps } from "./plan-steps";
 import { p50Text } from "./top-cards";
@@ -125,6 +126,10 @@ export interface DraftRow {
   readonly card: PlanResponse["cards"][number];
   readonly dates: DateSpan | null;
   readonly days: number | null;
+  /** D3: the days the Δ stands on inside the plan's horizon (the "≈/ngày" divisor); null = unknown. */
+  readonly countedDays: number | null;
+  /** #47: the card is not counted in the plan (an exclusive programme replaced by `winner`); its Δ is not in the total. */
+  readonly notCounted: { readonly winner: string | null } | null;
   readonly profit: { readonly p10: number | null; readonly p50: number | null; readonly p90: number | null };
   readonly gmv: { readonly p10: number | null; readonly p50: number | null; readonly p90: number | null };
 }
@@ -137,12 +142,17 @@ export function rowsOfPlan(plan: PlanResponse): DraftRow[] {
     const alone = card.evaluation?.alone;
     const dates = r?.own_dates ?? r?.counted_dates ?? r?.horizon ?? null;
     const days = numOrNull(r?.own_days) ?? numOrNull(r?.counted_days) ?? dates?.days ?? null;
+    const countedDays = numOrNull(r?.counted_days) ?? (r?.delta ? days : null);
+    const notCounted = r?.not_counted_reason ? { winner: r.replaced_by ?? null } : null;
+    const none = { p10: null, p50: null, p90: null };
     return {
       card,
       dates,
       days,
-      profit: { p10: numOrNull(r?.delta?.p10.dprofit) ?? numOrNull(alone?.dprofit.p10), p50: numOrNull(r?.delta?.p50.dprofit) ?? numOrNull(alone?.dprofit.p50), p90: numOrNull(r?.delta?.p90.dprofit) ?? numOrNull(alone?.dprofit.p90) },
-      gmv: { p10: numOrNull(r?.delta?.p10.dgmv), p50: numOrNull(r?.delta?.p50.dgmv), p90: numOrNull(r?.delta?.p90.dgmv) },
+      countedDays,
+      notCounted,
+      profit: notCounted ? none : { p10: numOrNull(r?.delta?.p10.dprofit) ?? numOrNull(alone?.dprofit.p10), p50: numOrNull(r?.delta?.p50.dprofit) ?? numOrNull(alone?.dprofit.p50), p90: numOrNull(r?.delta?.p90.dprofit) ?? numOrNull(alone?.dprofit.p90) },
+      gmv: notCounted ? none : { p10: numOrNull(r?.delta?.p10.dgmv), p50: numOrNull(r?.delta?.p50.dgmv), p90: numOrNull(r?.delta?.p90.dgmv) },
     };
   });
 }
@@ -153,10 +163,20 @@ const sumP50 = (rows: readonly { readonly p50: number | null }[]): { readonly p5
   return { p50: rows.reduce((a, r) => a + r.p50!, 0) };
 };
 
+/** D3: the total is the SERVER's (campaigns counted once, exclusions out); only without one is it the sum of the counted rows. */
+export function draftTotal(plan: PlanResponse, rows: readonly DraftRow[]): { readonly profit: { readonly p50: number | null }; readonly gmv: { readonly p50: number | null } } {
+  const a = plan.aggregate;
+  const counted = rows.filter((r) => !r.notCounted);
+  const profit = numOrNull(a?.dprofit_month?.total?.p50);
+  const gmv = numOrNull(a?.dgmv_month?.total?.p50);
+  return { profit: profit !== null ? { p50: profit } : sumP50(counted.map((r) => r.profit)), gmv: gmv !== null ? { p50: gmv } : sumP50(counted.map((r) => r.gmv)) };
+}
+
 /** The draft's total Δ lợi nhuận / Δ GMV over the cards' own days. */
 function draftRows(plan: PlanResponse): { readonly profit: string; readonly gmv: string } {
   const rows = rowsOfPlan(plan);
-  return { profit: p50Text(sumP50(rows.map((r) => r.profit))), gmv: p50Text(sumP50(rows.map((r) => r.gmv))) };
+  const t = draftTotal(plan, rows);
+  return { profit: p50Text(t.profit), gmv: p50Text(t.gmv) };
 }
 
 /** Month bars: "Đang chạy" grey, the draft's addition pink (same totals as Tổng quan). */
@@ -234,6 +254,9 @@ function MonthBars({ plan, api }: { readonly plan: PlanResponse; readonly api: P
   );
 }
 
+/** #47: a card the plan does not count (its programme is replaced by the winner's): one short status, like the other statuses. */
+const notCountedText = (winner: string | null): string => `Không tính vào tổng${winner ? ` · ${winner}` : ""}`;
+
 const dmSpan = (d: DateSpan | null): string => (d ? `${dayMonth(d.from)} – ${dayMonth(d.to)}` : DASH);
 
 function DraftPlan({ plan, api, byId, names, busy, error, ack, notice, onAct, onConfirm }: { readonly plan: PlanResponse; readonly api: PlanApi; readonly byId: ReadonlyMap<string, CardSummary>; readonly names: ReadonlyMap<string, string>; readonly busy: boolean; readonly error: string | null; readonly ack: string | null; readonly notice: PlanNotice | null; readonly onAct: (call: () => Promise<PlanResponse>) => Promise<void>; readonly onConfirm: () => void }) {
@@ -255,8 +278,9 @@ function DraftPlan({ plan, api, byId, names, busy, error, ack, notice, onAct, on
       : null;
   const missing = plan.aggregate?.data_missing ?? null;
   const table = rowsOfPlan(plan);
-  const total = { profit: sumP50(table.map((r) => r.profit)), gmv: sumP50(table.map((r) => r.gmv)) };
+  const total = draftTotal(plan, table);
   const horizon = plan.aggregate?.horizon ?? null;
+  // D3: the counted Δ over the counted days (a card half outside the horizon is not divided by its own length)
   const perDay = (q: { readonly p50: number | null }, days: number | null): string | null => (days && days > 0 && q.p50 !== null ? `≈ ${p50Text({ p50: q.p50 / days })}/ngày` : null);
   return (
     <section className="kh-plan" data-testid="kh-plan">
@@ -325,16 +349,28 @@ function DraftPlan({ plan, api, byId, names, busy, error, ack, notice, onAct, on
                 {r.days ? ` · ${r.days} ngày` : ""}
               </div>
               <div>
-                <div className="dx-table__big" data-testid="kh-row-profit">
-                  {p50Text(r.profit)}
-                </div>
-                <div className="dx-table__small">{perDay(r.profit, r.days)}</div>
+                {r.notCounted ? (
+                  <div className="dx-table__big" data-testid="kh-row-not-counted">
+                    <TextChip tone="flat">{notCountedText(r.notCounted.winner)}</TextChip>
+                  </div>
+                ) : (
+                  <>
+                    <div className="dx-table__big" data-testid="kh-row-profit">
+                      {p50Text(r.profit)}
+                    </div>
+                    <div className="dx-table__small">{perDay(r.profit, r.countedDays ?? r.days)}</div>
+                  </>
+                )}
               </div>
               <div>
-                <div className="dx-table__big" data-testid="kh-row-gmv">
-                  {p50Text(r.gmv)}
-                </div>
-                <div className="dx-table__small">{perDay(r.gmv, r.days)}</div>
+                {r.notCounted ? null : (
+                  <>
+                    <div className="dx-table__big" data-testid="kh-row-gmv">
+                      {p50Text(r.gmv)}
+                    </div>
+                    <div className="dx-table__small">{perDay(r.gmv, r.countedDays ?? r.days)}</div>
+                  </>
+                )}
               </div>
               <div className="dx-table__act">
                 <NavLink className="sa-link" href={host.href({ the: c.card_id, from: "quyet-dinh" })}>
@@ -365,6 +401,8 @@ function DraftPlan({ plan, api, byId, names, busy, error, ack, notice, onAct, on
           </div>
         ) : null}
       </div>
+
+      {plan.aggregate?.split ? <PlanSplitTable split={plan.aggregate.split} /> : null}
 
       <GroupsSection api={api} busy={busy} done={done} notice={notice} onAct={onAct} plan={plan} />
 

@@ -15,7 +15,7 @@ describe("thẻ voucher · phép thử 'nếu đổi'", () => {
     expect(screen.queryByTestId("sd-numbers")).toBeNull();
     expect(block).not.toHaveTextContent("chắc chắn");
     expect(block).not.toHaveTextContent("5 con số chính");
-    expect(within(block).getByTestId("p3-fc-profit")).toHaveTextContent("Lợi nhuận dự kiến (30 ngày): 1.402.000 đ");
+    expect(within(block).getByTestId("p3-fc-profit")).toHaveTextContent("Lợi nhuận đóng góp dự kiến (30 ngày): 1.402.000 đ");
     expect(within(block).getByTestId("p3-fc-profit-sub")).toHaveTextContent("hiện tại: 1.345.000 đ · +57.000 đ (+4,2 %)");
     expect(within(block).getByTestId("p3-fc-gmv")).toHaveTextContent("GMV dự kiến: 7.830.000 đ");
     expect(within(block).getByTestId("p3-fc-orders")).toHaveTextContent("Đơn dự kiến: 32 đơn");

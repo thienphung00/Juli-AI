@@ -1,3 +1,4 @@
+import { roundHalfAway } from "../../../lib/metrics";
 import { DASH, fmt, signedOrders, vnCount, vnd } from "../../../lib/shopee-analytics/format";
 
 /** Signed forms of the P98 option card: real minus (U+2212), vi-VN grouping, `null` = "—". */
@@ -11,7 +12,7 @@ function ok(n: number | null | undefined): n is number {
 /** "+120.000đ" / "−5.000đ" / "+0đ". */
 export function signedMoney(n: number | null | undefined): string {
   if (!ok(n)) return DASH;
-  const r = Math.round(n);
+  const r = roundHalfAway(n);
   return `${r < 0 ? MINUS : "+"}${vnd(Math.abs(r))}`;
 }
 
