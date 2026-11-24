@@ -127,7 +127,7 @@ async def _two_step(
     return sink, res, llm
 
 
-async def _ask_with(llm: FakeLLM) -> tuple[ListSink, Any, FakeLLM]:
+async def _ask_with(llm: FakeLLM, data: Any = None) -> tuple[ListSink, Any, FakeLLM]:
     llm.intent = {
         "restated_vi": "Nên làm gì trước",
         "intents": [intent(question_type="plan", needs_advice=True, goal="plan_week")],
@@ -139,7 +139,7 @@ async def _ask_with(llm: FakeLLM) -> tuple[ListSink, Any, FakeLLM]:
         jev=FakeJev(lambda s, q: full(window=ch("last_7d_vs_prev_7d"))),
         sink=sink,
         labels=L,
-        data=_data(),
+        data=data or _data(),
         card_engine=FakeCardEngine(
             per_kind={
                 "ads_budget": {"ok": True, "card": {**engine_card(), "title": "Tăng ngân sách QC"}}

@@ -118,3 +118,118 @@ def test_an_idle_budget_day_spends_under_30_percent_of_budget_with_no_ad_orders(
     old = [{"day": d1, "spend": 10.0, "budget": 100.0}]
     assert weekly.idle_days(old, shop, (d1, d4)) == []
     assert weekly.idle_days(old, [{"day": d1, "orders": 0}], (d1, d4)) == old
+
+
+# ------------------------------------------------------------ live shapes (24/11 run)
+
+#: shop_proposals.kind is the COARSE proposal kind; the card's own kind id is change_after's
+#: change_kind (24/11 live run: every open card was refused as a kind mismatch).
+LIVE_CARDS = [
+    {
+        "kind": "ads",
+        "change_kind": "ads_budget",
+        "item_id": None,
+        "status": "sent",
+        "code": "JC-2611-0298",
+        "change_after": '{"change_kind": "ads_budget"}',
+    },
+    {
+        "kind": "other",
+        "change_kind": "affiliate_commission",
+        "item_id": "p1",
+        "status": "sent",
+        "code": "JC-2611-0290",
+        "change_after": '{"change_kind": "affiliate_commission"}',
+    },
+]
+
+
+def _live_data() -> Any:
+    from tests.unit.analytics_agent.test_weekly import _data
+
+    data = _data()
+    data.cards = LIVE_CARDS
+    return data
+
+
+def test_a_card_names_its_lever_from_change_kind_not_the_coarse_kind() -> None:
+    assert advisor.card_lever(LIVE_CARDS[0]) == "ads_budget"
+    assert advisor.card_lever(LIVE_CARDS[1]) == "affiliate_commission"
+    assert advisor.card_lever({"kind": "ads"}) is None  # coarse alone names no lever
+    assert advisor.card_lever({"kind": "title"}) == "title"  # a fine id in `kind` (older rows)
+
+
+async def test_open_cards_tool_shows_each_cards_lever_and_label() -> None:
+    from tests.unit.analytics_agent.test_advisor import _ctx
+
+    ctx = await _ctx()
+    ctx.data.cards = LIVE_CARDS
+    res = await advisor.run_tool(ctx, "open_cards", {})
+    got = {c["mã"]: (c["lever"], c["loại"]) for c in res["thẻ"]}
+    assert got["JC-2611-0298"] == ("ads_budget", "Ngân sách quảng cáo")
+    assert got["JC-2611-0290"][0] == "affiliate_commission"
+
+
+async def test_a11_shape_open_card_of_another_lever_is_refused_then_drafted() -> None:
+    """A11: the model first attaches the open budget card to a ROAS-target action; the refusal
+    names the card's real lever; the model drafts the right card and the row points to it."""
+    from tests.unit.analytics_agent.fakes import FakeLLM, tool_use
+    from tests.unit.analytics_agent.test_advisor import _ask_with, _rows, plan
+
+    why = "CDN/01 dưới ROAS hoà vốn, đang lỗ khi chạy quảng cáo."
+    budget = {"lever": "ads_budget", "card_ref": "open:JC-2611-0298", "why": "Ngày chi ít."}
+
+    class A11(FakeLLM):
+        async def agent(self, system: Any, tools: Any, messages: Any, *, force_tool: Any = None):
+            if not self.agent_script:
+                seen = json.dumps(messages, ensure_ascii=False)
+                if "d1" in seen and "card_ref" in seen and "draft:" in seen:
+                    ref = next(
+                        json.loads(r["content"])["card_ref"]
+                        for m in messages
+                        if m["role"] == "user" and isinstance(m["content"], list)
+                        for r in m["content"]
+                        if r.get("tool_use_id") == "d1"
+                    )
+                    self.agent_script.append(
+                        plan(
+                            {"lever": "ads_roas_target", "card_ref": ref, "why": why},
+                            budget,
+                            lead="Cả hai chiến dịch đều lãi.",
+                        )
+                    )
+            return await super().agent(system, tools, messages, force_tool=force_tool)
+
+    wrong = {"lever": "ads_roas_target", "card_ref": "open:JC-2611-0298", "why": why}
+    llm = A11(
+        agent_script=[
+            [tool_use("campaigns", "t1"), tool_use("open_cards", "t2")],
+            plan(wrong, budget),  # refused: the card is an ads_budget card
+            [tool_use("draft_card", "d1", kind="ads_roas_target")],
+        ]
+    )
+    sink, res, _ = await _ask_with(llm, _live_data())
+    rows = _rows(sink)
+    assert [r["lever"] for r in rows] == ["ads_roas_target", "ads_budget"]
+    assert rows[0]["value_vi"] == "Thẻ nháp" and rows[1]["value_vi"] == "Đã có thẻ JC-2611-0298"
+    assert [c["kind"] for c in sink.of("card")] == ["ads_roas_target"]
+    refused = json.dumps(llm.agent_calls[2]["replayed"], ensure_ascii=False)
+    assert "lever_của_thẻ" in refused and "ads_budget" in refused
+    step = [s for s in res.routing if s.get("step") == "advise"][0]
+    assert step["dropped"] == []
+
+
+def test_the_parser_slot_sends_should_i_questions_to_advise_not_unsupported() -> None:
+    from juli_backend.services.analytics_agent import routing
+    from tests.unit.analytics_agent.test_routing import intent
+
+    # fits is low (0.02) for this question, yet the typed slot decides: advise
+    dec = routing.decide(
+        intent(question_type="other", needs_advice=True, goal="ads"),
+        {"fits": {"type": "noul", "noul": 0.02}},
+    )
+    assert dec["outcome"] == "go" and dec["mode"] == "advise" and dec["goal"] == "ads"
+    # the parser is told that "should I ..." / "what to fix" questions are advice
+    assert "whether to do something" in routing.PARSE_SYSTEM
+    props = routing.INTENT_TOOL["input_schema"]["properties"]["intents"]["items"]["properties"]
+    assert "whether to do something" in props["needs_advice"]["description"]

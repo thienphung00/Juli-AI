@@ -271,10 +271,11 @@ class ServiceData:
         )
 
     async def open_cards(self) -> list[dict[str, Any]]:
-        """Open cards plus executed ones within 28 days (G4)."""
+        """Open cards plus executed ones within 28 days (G4). `kind` is the stored (coarse) proposal
+        kind ("ads", "other", ...); `change_kind` is the card's own kind id (ads_budget, ...)."""
         return await self._q(
-            """select kind, item_id, status, planned_start, subject_label, change_after::text as
-            change_after,
+            """select kind, change_after->>'change_kind' as change_kind, item_id, status,
+                      planned_start, subject_label, change_after::text as change_after,
                       code
                  from shop_proposals
                 where shop_id = :s and platform = 'shopee'

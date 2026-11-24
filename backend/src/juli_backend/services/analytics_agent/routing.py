@@ -329,7 +329,10 @@ INTENT_TOOL: dict[str, Any] = {
                         "needs_advice": {
                             "type": "boolean",
                             "description": "true when the seller asks what to do, what to "
-                            "prioritise, what to do first or which card to open, over the "
+                            "prioritise, what to do first or which card to open, or asks "
+                            "whether to do something (raise the ads budget, stop a campaign "
+                            "or a product's ads), what to fix (a title, a price, a cover "
+                            "image, a description) or what to do about a problem, over the "
                             "shop's own data (a plan, a priority, a recommendation)",
                         },
                         "goal": {
@@ -408,10 +411,13 @@ PARSE_SYSTEM = (
     "sales/traffic data (competitors, tax, forecasts) get question_type 'other'. A question asking "
     "what the shop should do next week is question_type 'plan' (only that, not how-to "
     "questions). A question that asks what to do, what to prioritise, what to do first or which "
-    "card to open, about the shop's own numbers (not a how-to or knowledge question, not a "
-    "request to create or change something), sets needs_advice true and a goal; every other "
-    "question has needs_advice false and goal none. A question about ONE product's profit, "
-    "margin, revenue or orders is question_type 'status' with product_phrase, never 'other'. "
+    "card to open, or asks whether to do something (raise the ads budget, turn off campaigns, stop "
+    "a product's ads) or what to fix or do about a problem (titles, prices, cover image, "
+    "description, unspent ads budget), about the shop's own numbers (not a how-to or knowledge "
+    "question, not an order to create or change something), sets needs_advice true and a goal; "
+    "every other question has needs_advice false and goal none. A question about ONE "
+    "product's profit, margin, revenue or orders is question_type 'status' with product_phrase, "
+    "never 'other'. "
     "A question that asks both what and why (for example the products that fell most, and "
     "why) is ONE intent with ranking and asks_why true. "
     "A request to create or change something (voucher, discount, combo, deal, gift, "
@@ -419,9 +425,10 @@ PARSE_SYSTEM = (
     "'create_card': fill the `card` object with only the slots the seller said (dates as "
     "YYYY-MM-DD in the year of today, amount with amount_unit vnd or pct) and leave every other "
     "field at its empty value (none, empty text, -1); never invent a value. "
-    "A request to change the ads budget, a ROAS target or an "
-    "affiliate commission, a how-to or knowledge question (how to get more views, how a Shopee fee "
-    "is calculated) and a question about competitors are question_type 'other'."
+    "An order to change the ads budget, a ROAS target or an "
+    "affiliate commission (not a question whether to), a how-to or knowledge question (how to "
+    "get more views, how a Shopee fee is calculated) and a question about competitors are "
+    "question_type 'other'."
 )
 RESTATE_PREFIX = "Đang tìm hiểu: "
 _PREFIXES = re.compile(r"^\s*(đang tìm hiểu|tôi hiểu)\s*[:：]\s*", re.I)

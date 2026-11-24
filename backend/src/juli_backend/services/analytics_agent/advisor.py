@@ -219,7 +219,9 @@ SYSTEM = (
     "- 'actions' sắp theo ưu tiên: mục đầu là việc nên làm trước. Mỗi mục: lever, card_ref, why "
     "(1-2 câu: điều dữ liệu cho thấy).\n"
     "- card_ref bắt buộc: 'open:<mã thẻ>' của một thẻ đang có trong open_cards, hoặc "
-    "'draft:<ref>' do draft_card trả về. Loại thẻ phải đúng bằng lever. Chưa có thẻ thì gọi "
+    "'draft:<ref>' do draft_card trả về. Mỗi thẻ trong open_cards có trường 'lever' (loại của "
+    "thẻ): chỉ dùng open:<mã> cho action có lever đúng bằng lever của thẻ đó; việc khác lever "
+    "thì gọi draft_card. Chưa có thẻ thì gọi "
     "draft_card với đúng lever (kèm item nếu cần) trước khi emit_plan. Nếu draft_card báo chưa "
     "có phương án thì đưa việc đó vào 'lead' hoặc bỏ. Riêng lever nhap_gia_von (không phải thẻ) "
     "dùng card_ref 'none'.\n"
@@ -563,13 +565,22 @@ async def _open_cards(ctx: Ctx, _a: dict[str, Any]) -> dict[str, Any]:
         out.append(
             {
                 "mã": c.get("code"),
-                "loại": ctx.labels.kind(str(c["kind"])),
+                "lever": card_lever(c),
+                "loại": ctx.labels.kind(lv) if (lv := card_lever(c)) else None,
                 "sản_phẩm": names.get(str(item)) if item else None,
                 "trạng_thái": c.get("status"),
                 "thay_đổi": c.get("change_after"),
             }
         )
     return {"thẻ": out}
+
+
+def card_lever(card: dict[str, Any]) -> str | None:
+    """The card's own kind id (the lever it answers). Stored `kind` is the coarse proposal kind
+    ("ads", "other"); the card's `change_kind` is the lever id. A row without `change_kind` keeps
+    a fine id in `kind` (older readers, tests); a coarse kind alone names no lever (None)."""
+    fine = card.get("change_kind") or card.get("kind")
+    return str(fine) if fine in levers.lever_enum() else None
 
 
 def _known(ctx: Ctx, item: Any) -> str | None:
@@ -767,6 +778,7 @@ class _Checked:
     why: str
     problem: str | None = None  # a _PROBLEM_VI key
     ref: str | None = None
+    card_kind: str | None = None  # the kind id of the card the ref points to
     code: str = ""  # open card code
     event: dict[str, Any] | None = None  # the draft's card event
     acc: dict[str, Any] | None = None
@@ -796,12 +808,19 @@ def check_plan(
             c.problem = "no_ref"
         elif c.ref.startswith("open:") and c.ref[5:] in open_by_code:
             c.code = c.ref[5:]
-            if str(open_by_code[c.code].get("kind")) != lever:
+            card = open_by_code[c.code]
+            c.card_kind = card_lever(card)
+            if c.card_kind is None:  # a card that names no kind id (stored coarse kind only)
+                same = cardstage.coarse(str(card.get("kind"))) == cardstage.coarse(lever)
+            else:
+                same = c.card_kind == lever
+            if not same:
                 c.problem = "kind_mismatch"
         elif c.ref.startswith("draft:") and c.ref[6:] in ctx.drafts:
             draft = ctx.drafts[c.ref[6:]]
             c.event, c.acc = draft["event"], draft["acc"]
-            if str(draft["acc"].get("kind")) != lever:
+            c.card_kind = str(draft["acc"].get("kind"))
+            if c.card_kind != lever:
                 c.problem = "kind_mismatch"
         else:
             c.problem = "unknown_ref"
@@ -814,7 +833,12 @@ def refusal(checked: list[_Checked]) -> dict[str, Any]:
     return {
         "lỗi": "kế hoạch chưa hợp lệ, chưa được nhận",
         "mục_lỗi": [
-            {"lever": c.lever, "card_ref": c.ref, "vấn_đề": _PROBLEM_VI[c.problem]}
+            {
+                "lever": c.lever,
+                "card_ref": c.ref,
+                "vấn_đề": _PROBLEM_VI[c.problem],
+                **({"lever_của_thẻ": c.card_kind} if c.card_kind else {}),
+            }
             for c in checked
             if c.problem
         ],
