@@ -182,8 +182,10 @@ async def covered_days(
 #: flag and the order page's buyer vouchers. Once a shop's Connector is at least this version, the
 #: window's order days read only by an older Connector are handed out ONCE more, as their own hole
 #: set (not an ``order_lines`` hole, so the "Đang đọc đến" status is unchanged).
+#: batch-1124-b CONN (owner Q4): 0.3.36 -- combo lines with their SKUs and the combo discount
+#: from the order page's list prices (the 0.3.35 order-level gap is gone): every day once more.
 ORDER_LINES_BACKFILL = "order_lines_backfill"
-ORDER_DISCOUNTS_VERSION = (0, 3, 35)
+ORDER_DISCOUNTS_VERSION = (0, 3, 36)
 
 
 async def order_lines_backfill_days(

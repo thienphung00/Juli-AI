@@ -296,19 +296,20 @@ async def test_an_unresolved_item_day_is_not_handed_out_again_but_stays_a_hole_i
     assert progress["order_lines"]["reading_through"] == "2026-11-09"
 
 
-async def test_s1_the_order_days_an_older_connector_read_are_handed_out_once_from_0_3_35(
+async def test_s1_the_order_days_an_older_connector_read_are_handed_out_once_from_0_3_36(
     session, monkeypatch
 ):
-    """batch-1124-a S1, owner decision #48: once the shop's Connector reports 0.3.35 (combo
-    amount, buyer vouchers), the window's order days read only by an older Connector form their
-    own hole set, once: the re-read's own post closes each day, a later heartbeat does not reopen
-    it, and a day with no order is never handed out."""
+    """batch-1124-a S1, owner decision #48, moved to 0.3.36 by batch-1124-b CONN (owner Q4: the
+    combo discount from the order page's list prices, combo lines with their SKUs): once the
+    shop's Connector reports 0.3.36, every order day of the window read only by an older
+    Connector (0.3.35 included) forms its own hole set, once: the re-read's own post closes
+    each day, a later heartbeat does not reopen it, and a day with no order is never handed out."""
     from tests.unit.test_ingest_composed_precedence import T1, T2, _write
 
     monkeypatch.setattr(read_days, "vietnam_today", lambda now=None: TODAY)
     _, shop = await _shopee_tenant(session)
     old = _post(shop.id, "order_lines", date(2026, 10, 20), date(2026, 11, 18))
-    old.source_version = "0.3.34"
+    old.source_version = "0.3.35"
     session.add(old)
     await session.flush()
     for day, captured in ((5, T1), (10, T2)):
@@ -329,22 +330,22 @@ async def test_s1_the_order_days_an_older_connector_read_are_handed_out_once_fro
         return entry["missing"] if entry else None
 
     assert await backfill() is None  # no Connector state yet
-    state = ShopeeConnectorState(shop_id=shop.id, connector_version="0.3.34")
+    state = ShopeeConnectorState(shop_id=shop.id, connector_version="0.3.35")
     session.add(state)
     await session.flush()
     assert await backfill() is None  # an older Connector: nothing to re-read
-    state.connector_version = "0.3.35"
+    state.connector_version = "0.3.36"
     await session.flush()
     assert await backfill() == ["2026-11-05", "2026-11-10"]  # days with lines only, oldest first
     new = _post(shop.id, "order_lines", date(2026, 11, 8), date(2026, 11, 18))
-    new.source_version = "0.3.35"
+    new.source_version = "0.3.36"
     session.add(new)
     await session.flush()
     assert await backfill() == ["2026-11-05"]  # the re-read closed its day
     newer = _post(shop.id, "order_lines", date(2026, 11, 1), date(2026, 11, 6))
-    newer.source_version = "0.3.36"
+    newer.source_version = "0.3.37"
     session.add(newer)
-    state.connector_version = "0.3.36"  # a later heartbeat / upgrade
+    state.connector_version = "0.3.37"  # a later heartbeat / upgrade
     await session.flush()
     assert await backfill() is None  # done: never handed out again
     covered = await read_days.covered_days(session, shop.id, "shopee", TODAY)

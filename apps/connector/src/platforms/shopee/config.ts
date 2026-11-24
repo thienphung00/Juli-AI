@@ -288,7 +288,8 @@ export const ORDER_CATCHUP_OVERLAP_DAYS = 3;
 export const ORDER_CATCHUP_MAX_DAYS = 30;
 /**
  * batch-1124-a S1 (owner decision #48): the server's `order_lines_backfill` hole set names the order
- * days read by a Connector older than 0.3.35 (no combo amount, no buyer vouchers). The orders job
+ * days read by a Connector older than the server's ORDER_DISCOUNTS_VERSION (0.3.36 since batch-1124-b CONN:
+ * combo SKUs and combo discount from the order page). The orders job
  * reads back to the oldest of them it can afford from the backfill's part of the budget, at about
  * this many requests per day of orders (a list page per ~40 orders, one get_one_order per order);
  * the rest waits for a later day.

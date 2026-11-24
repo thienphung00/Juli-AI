@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // batch-1124-a Track S (S1): order lines carry the discounts the order used.
-//   row 1: get_one_order states no combo amount; Σ (order_price x amount) − total_price is the
-//          combo's, shared over the combo lines by list value (P-S2 capture, 24/11);
+//   row 1: get_one_order states no combo amount; the old gap Σ (order_price x amount) − total_price
+//          is vouchers / coins, not the combo's: never posted (owner Q4, batch-1124-b CONN);
 //   row 2: the order page's buyer-payment block ("Thanh toán của Người Mua": Shopee Voucher, Mã
 //          giảm giá của Shop) is read apart from the income block and posted as buyer_* fields;
 //          the buyer-side shop voucher is never the seller's cost (P-S3 capture, 24/11);
@@ -39,23 +39,22 @@ const comboGroup = {
   ],
 };
 
-describe("S1 row 1: combo discount from get_one_order", () => {
-  it("the order's item-level gap goes to its combo lines by list value and adds up", () => {
+describe("S1 row 1: combo discount from get_one_order (replaced by owner Q4, batch-1124-b CONN)", () => {
+  it("the order's gap (Σ order_price x amount − total_price: vouchers / coins) is never posted as the combo's", () => {
     const rows = mapOrderLines([detail({ total_price: "148000", price_before_discount: "148000", order_items: [comboGroup] })], NOW).rows;
-    expect(rows.map((r) => [r.variation_sku, r.promo_kind, r.deal_price, r.bundle_discount])).toEqual([
-      ["SKU-A1", "bundle", 100000, 22105.26],
-      ["SKU-C1", "bundle", 90000, 19894.74],
+    expect(rows.map((r) => [r.variation_sku, r.promo_kind, r.original_price, r.deal_price, r.seller_subsidy, r.bundle_discount])).toEqual([
+      ["SKU-A1", "bundle", 100000, 100000, 0, undefined],
+      ["SKU-C1", "bundle", 90000, 90000, 0, undefined],
     ]);
-    expect(rows.reduce((s, r) => s + (r.bundle_discount as number), 0)).toBeCloseTo(42000, 2);
   });
 
-  it("a plain line beside the combo keeps its own price; only the combo lines take the gap", () => {
+  it("a plain line beside the combo keeps its own price and no combo amount", () => {
     const plain = { item_id: 9002, model_id: 9202, amount: 2, order_price: "50000", item_model: { sku: "SKU-B", model_id: 9202 } };
     const rows = mapOrderLines([detail({ total_price: "248000", order_items: [comboGroup, plain] })], NOW).rows;
     const by = Object.fromEntries(rows.map((r) => [r.variation_sku as string, r]));
     expect(by["SKU-B"]!.bundle_discount).toBeUndefined();
     expect(by["SKU-B"]!.promo_kind).toBeUndefined();
-    expect((by["SKU-A1"]!.bundle_discount as number) + (by["SKU-C1"]!.bundle_discount as number)).toBeCloseTo(42000, 2);
+    expect(by["SKU-A1"]!.bundle_discount).toBeUndefined();
   });
 
   it("no gap, no total, or a gap larger than the combo lines: no amount is guessed", () => {

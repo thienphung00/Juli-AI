@@ -5,7 +5,7 @@
 // SHOWS, nothing else:
 // - each line (`.product-item.product`): its "Phân loại" and "SKU phân loại" (`.product-meta`)
 //   and the line total (the last ₫ amount of the line) -- a combo whose order answer names no SKU
-//   gets its SKUs from here (C1);
+//   gets its SKUs from here (C1); a combo shows one `.bundle-deal-item` per sub-line (1124-b CONN);
 // - the "Doanh thu" block (`.income-container`): every `.income-item` as label
 //   (`.income-label-text`) and amount (`.income-value`) -- the per-order income (C3).
 // No buyer name, address, phone, chat or note is read. Nothing is clicked: when the breakdown is
@@ -118,18 +118,45 @@ function metaLines(meta: Element): string[] {
   return lines.map((l) => l.replace(/\s+/g, " ").trim()).filter(Boolean);
 }
 
-/** The product lines the order page shows, in page order. */
+/** The "Phân loại" / "SKU phân loại" of one product line's meta. */
+function readMeta(meta: Element | null, item: PageItem): void {
+  for (const text of meta ? metaLines(meta) : []) {
+    const sku = SKU.exec(text)?.[1]?.trim();
+    const variation = VARIATION.exec(text)?.[1]?.trim();
+    if (sku && !item.sku) item.sku = sku.slice(0, 120);
+    else if (variation && !item.variationName) item.variationName = variation.slice(0, 120);
+  }
+}
+
+/**
+ * batch-1124-b CONN (P-CONN capture, 24/11): a combo's sub-line (`.order-payment-item.is-bundle >
+ * .bundle-deal-items > .bundle-deal-item`): its `.product-item` meta, its unit list price (`.price`)
+ * and quantity (`.qty`); the line total is price x quantity. The combo's `.subtotal` is not a line.
+ */
+function bundleItem(line: Element): PageItem {
+  const item: PageItem = {};
+  readMeta(line.querySelector(".product-item .product-meta"), item);
+  const qty = Number(QTY.exec((line.querySelector(".qty")?.textContent ?? "").trim())?.[1]);
+  if (Number.isInteger(qty) && qty > 0) item.qty = qty;
+  const unit = moneyOf(line.querySelector(".price")?.textContent);
+  if (unit !== undefined && unit > 0) {
+    item.listPrice = unit;
+    if (item.qty !== undefined) item.lineTotal = unit * item.qty;
+  }
+  return item;
+}
+
+/** The product lines the order page shows, in page order (a combo: one line per sub-line). */
 export function pageItemsIn(doc: Document): PageItem[] {
   const out: PageItem[] = [];
-  for (const line of Array.from(doc.querySelectorAll(".product-item.product"))) {
-    const item: PageItem = {};
-    const meta = line.querySelector(".product-meta");
-    for (const text of meta ? metaLines(meta) : []) {
-      const sku = SKU.exec(text)?.[1]?.trim();
-      const variation = VARIATION.exec(text)?.[1]?.trim();
-      if (sku && !item.sku) item.sku = sku.slice(0, 120);
-      else if (variation && !item.variationName) item.variationName = variation.slice(0, 120);
+  for (const line of Array.from(doc.querySelectorAll(".product-item.product, .bundle-deal-item"))) {
+    if (line.matches(".bundle-deal-item")) {
+      out.push(bundleItem(line));
+      continue;
     }
+    if (line.closest(".bundle-deal-item")) continue;
+    const item: PageItem = {};
+    readMeta(line.querySelector(".product-meta"), item);
     // the line total: the last element of the line (outside its meta) that shows one ₫ amount
     const cells = Array.from(line.querySelectorAll("*")).filter((el) => el.children.length === 0 && !el.closest(".product-meta"));
     const priced = cells.map((el) => el.textContent ?? "").filter((t) => MONEY.test(t) && (t.match(/₫/g) ?? []).length === 1);
