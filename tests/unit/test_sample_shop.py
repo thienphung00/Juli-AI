@@ -970,8 +970,12 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # changes each draw's profit, so a different draw is the middle one, exactly as in
             # the 437bea66 note above (350_716 vs 669_480 for a service fee on / off): 341_945 and
             # 2,79 orders here. Only the choice of draw moved, not the combo's reach or take-up.
-            assert cd["gmv"] == pytest.approx(341_945, rel=0.02)
-            assert round(cd["orders"]) == 3  # 2,79 rounded (was 1,65: the middle draw moved, above)
+            # Batch 1124-a (decision #39, one ad cost per product): each product's ad cost is the
+            # campaign's Connector day spend x its share in the ads report by product, so the
+            # draws' profits (ads are in them) shift again and a different draw is the middle one:
+            # 445_900 (was 341_945). The combo's reach and take-up are unchanged.
+            assert cd["gmv"] == pytest.approx(445_900, rel=0.02)
+            assert cd["orders"] == pytest.approx(0.31, abs=0.05)  # was 2,79: the middle draw moved
             assert cd["profit"] < 0
             ctx = await builder.build_context(session, report.shop_id, [set2], as_of=END, now=NOW)
             base = integrate.base_for(ctx.env, [nrc], "")

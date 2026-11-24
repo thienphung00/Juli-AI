@@ -1577,12 +1577,22 @@ async def load_product_ads_input(
         end=window.end + reach,
         order_types=[PLACED],
     )
+    # a report row joins its campaign by the segment hash (the campaign id); a report that names
+    # the campaign only by its title (no id) joins by the title the Connector's days carry
+    by_title = {r.platform_source: r.segment for r in chosen.values() if r.platform_source}
+    known = {r.segment for r in chosen.values()}
+
+    def campaign_key(p: Any) -> str:
+        if p.segment not in known and p.platform_source in by_title:
+            return by_title[p.platform_source]
+        return str(p.segment)
+
     return ProductAdsInput(
         campaign_days={k: _z((r.extra or {}).get("cost")) for k, r in chosen.items()},
         covered_days=frozenset(covered),
         report_rows=[
             ReportRow(
-                p.segment,
+                campaign_key(p),
                 p.item_id,
                 p.period_start,
                 p.period_end,

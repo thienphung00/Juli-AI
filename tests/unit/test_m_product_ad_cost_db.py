@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from juli_backend.models.shopee_metrics import ShopeeProductMetricsDaily
 from juli_backend.services.shopee_analytics import loaders, materialize, service
+from juli_backend.services.shopee_analytics.product_ads import ProductAdRule
 from juli_backend.services.shopee_analytics.windows import Window
 from tests.support.shopee_analytics import (
     CUR_END,
@@ -85,3 +86,22 @@ async def test_an_ads_by_product_upload_rebuilds_the_days_and_they_add_up_to_the
         )
     )
     assert all(r.ads_spend is None for r in others.all() if r.gmv)
+
+
+async def test_a_report_that_names_its_campaign_only_by_title_joins_the_connectors_days(session):
+    """The sample shop's ads-by-product report carries the campaign title, no id: its segment is
+    a hash of the title, the Connector's is a hash of the id. The title joins them."""
+    seeded = await seed_shopee_shop(session)
+    shop_id = seeded.shop_id
+    days = [CUR_START + timedelta(days=i) for i in range((CUR_END - CUR_START).days + 1)]
+    for d in days:
+        row = _connector_day(shop_id, d, "id-hash", 1_000)
+        row.platform_source = "Chiến dịch tên"
+        session.add(row)
+    report = _report(shop_id, "7777", "title-hash", 90)
+    report.platform_source = "Chiến dịch tên"
+    session.add(report)
+    await session.flush()
+    inp = await loaders.load_product_ads_input(session, shop_id, Window(CUR_START, CUR_END))
+    rule = ProductAdRule(inp)
+    assert rule.product_day("7777", days[0]) == D(1_000)  # the one product of the campaign
