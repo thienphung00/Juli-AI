@@ -13,8 +13,11 @@ import shopHealthBody from "./fixtures/contract/shop_health_daily.body.json";
 import shopTrafficBody from "./fixtures/contract/shop_traffic.body.json";
 import overviewBody from "./fixtures/contract/traffic_overview.body.json";
 import voucherBody from "./fixtures/contract/voucher_settings.body.json";
+import comboBody from "./fixtures/contract/combo_settings.body.json";
 import type { ReaderResponse } from "../src/platforms/shopee/reader";
-import { mapAdsDaily, mapItemTraffic, mapProductList, mapShopHealth, mapVoucherList } from "../src/platforms/shopee/reader-map";
+import { mapAdsDaily, mapComboList, mapItemTraffic, mapProductList, mapShopHealth, mapVoucherList } from "../src/platforms/shopee/reader-map";
+import comboDetail from "./fixtures/readers/combo_detail.json";
+import comboList from "./fixtures/readers/combo_list.json";
 import adsHome from "./fixtures/readers/ads_homepage.json";
 import adsGraph from "./fixtures/readers/ads_time_graph.json";
 import campaignInfo from "./fixtures/readers/campaign_info.json";
@@ -91,6 +94,8 @@ describe("extension ↔ gateway contract", () => {
       expect(ingestBody(mapVoucherList([reply("voucher_list", vouchers, { page: 1 })], READ_AT), "0.3.0", READ_AT)).toEqual(
         voucherBody,
       ));
+    it("combo_settings (0.3.35)", () =>
+      expect(ingestBody(mapComboList([reply("combo_list", comboList), reply("combo_detail", comboDetail)], READ_AT), "0.3.35", READ_AT)).toEqual(comboBody));
     it("shop_health_daily (reserved until its table exists)", () =>
       expect(
         ingestBody(

@@ -1,5 +1,5 @@
 // Connector 0.3.27 (batch-1118g t1), service-worker side: read-back jobs (contract C) handed to the
-// readers and reported captured once the page posted; a combo list read-back fails as unsupported;
+// readers and reported captured once the page posted; 0.3.35: a combo list read-back is the combos reader's;
 // a product read-back's tab is closed once captured; Shopee's anti-bot page stops the job and pauses
 // the job pages; the page's current values (contract D) are posted as item_catalog rows.
 import { describe, expect, it } from "vitest";
@@ -70,7 +70,7 @@ describe("F3.2 read-backs the readers do", () => {
     expect(readbackPages(parseFillJob(voucherReadback())!)).toEqual(["vouchers"]);
     expect(readbackPages(parseFillJob(voucherReadback({ open_path: "/portal/product/list/all", target: { item_id: "1001" }, datasets: ["item_catalog"] }))!)).toEqual(["products"]);
     expect(readbackPages(parseFillJob(rawJob("readback", { mode: "readback", open_path: "/portal/product/1001", target: { item_id: "1001" }, datasets: ["item_catalog"] }))!)).toBeNull();
-    expect(readbackPages(parseFillJob(voucherReadback({ open_path: "/portal/marketing/bundle/list", target: { combo_id: "77" }, datasets: ["combo_list"] }))!)).toBe("unsupported");
+    expect(readbackPages(parseFillJob(voucherReadback({ open_path: "/portal/marketing/bundle/list", target: { combo_id: "77" }, datasets: ["combo_list"] }))!)).toEqual(["combos"]);
     expect(readbackPages(parseFillJob(voucherJob())!)).toBeNull();
   });
 
@@ -88,11 +88,11 @@ describe("F3.2 read-backs the readers do", () => {
     expect((await loadState(s.storage)).fill?.readbacks).toEqual({});
   });
 
-  it("reports a combo list read-back failed: readback_unsupported", async () => {
+  it("0.3.35: hands a combo list read-back to the combos reader (no longer unsupported)", async () => {
     const s = setup([voucherReadback({ open_path: "/portal/marketing/bundle/list", target: { combo_id: "77" }, datasets: ["combo_list"] })]);
     await s.runner.poll();
-    expect(s.reports).toEqual([{ id: JOB_ID, body: { status: "failed", error: "readback_unsupported" } }]);
-    expect(s.asked).toEqual([]);
+    expect(s.reports).toEqual([{ id: JOB_ID, body: { status: "opened" } }]);
+    expect(s.asked).toEqual([["combos"]]);
   });
 
   it("opens a product read-back's page like a job and closes that tab once it reported captured", async () => {

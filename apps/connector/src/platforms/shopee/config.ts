@@ -74,6 +74,8 @@ export type ReaderDataset =
   | "ads_campaign_settings"
   | "ads_campaign_detail"
   | "voucher_settings"
+  /** 0.3.35 (batch-1124-a C4): the shop's combos with their tiers (Combo Khuyến Mãi read-back). */
+  | "combo_settings"
   | "shop_health_daily"
   | "market_search"
   | "shop_overview"
@@ -106,6 +108,8 @@ export type ReaderId =
   | "ads"
   | "ads_detail"
   | "vouchers"
+  /** 0.3.35: the Combo Khuyến Mãi list, read only when Juli asks for a read-back (not daily). */
+  | "combos"
   | "health"
   | "shop_totals"
   | "product_period"
@@ -173,6 +177,7 @@ export const READERS_ACTIVE: Record<ReaderId, boolean> = {
   ads: true,
   ads_detail: true,
   vouchers: true,
+  combos: true,
   health: true,
   shop_totals: true,
   product_period: true,
@@ -212,6 +217,7 @@ export const READER_DATASETS: Record<ReaderId, readonly Dataset[]> = {
   products: ["item_catalog", "item_snapshot"],
   item_traffic: ["item_traffic_sources"],
   vouchers: ["voucher_settings"],
+  combos: ["combo_settings"],
   ads: ["ads_campaign_daily", "ads_campaign_settings"],
   ads_detail: ["ads_campaign_detail"],
   health: ["shop_health_daily"],
@@ -393,6 +399,11 @@ export const TRAFFIC_MAX_CONSECUTIVE_ERRORS = 5;
 export const PRODUCT_MAX_PAGES = 40;
 export const VOUCHER_MAX_ROWS = 600;
 export const VOUCHER_PAGE_LIMIT_DEFAULT = 20;
+/** 0.3.35: the combo list's pages (its own call asks 10) and the combos whose detail is read. */
+export const COMBO_MAX_ROWS = 200;
+export const COMBO_PAGE_LIMIT_DEFAULT = 10;
+/** Only upcoming / running combos are read in detail (a read-back targets a new one), newest first. */
+export const COMBO_DETAIL_MAX = 15;
 /**
  * Affiliate conversion report (Báo cáo chuyển đổi): the last this-many finished GMT+7 days by
  * purchase time, re-read every day (orders change status and commission for weeks). One post's

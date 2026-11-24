@@ -70,6 +70,11 @@ export const READER_ENDPOINTS = {
   // replayed for the other group campaigns with only `campaign_id` changed (a list read: isReadOnlyPasPath).
   ads_mpd_products: { method: "POST", path: "/api/pas/v1/product/mpd/list_item_product_performance/", capture: true },
   voucher_list: { method: "GET", path: "/api/marketing/v3/voucher/list/" },
+  // -- Combo Khuyến Mãi (0.3.35, batch-1124-a C4; P-C2 capture 24/11, shapes only). The list page
+  // (discountType=bundle) POSTs the shared discount list with discount_type 3 (no tiers); one GET
+  // per combo gives its tiers, buyer limit and products. Both are reads; nothing else is sent.
+  combo_list: { method: "POST", path: "/api/marketing/v3/public/discount/list/" },
+  combo_detail: { method: "GET", path: "/api/marketing/v3/bundle_deal/" },
   // -- Khuyến mãi của Shop (0.3.29, F4.7; captured 2026-11-19, shapes only). The page's own list /
   // active calls are kept as it loads them; metrics is kept AND replayed (GET) with one day's range.
   promotion_daily: { method: "GET", path: "/api/mydata/marketing/new-discount/performance-list/" },
@@ -139,6 +144,8 @@ export const READER_PAGES: Record<ReaderId, { path: string }> = {
   products: { path: "/portal/product/list/all" },
   item_traffic: { path: "/datacenter/product/traffic" },
   vouchers: { path: "/portal/marketing/vouchers/list" },
+  // 0.3.35: Kênh Marketing › Khuyến Mãi, Combo tab (readerPageUrl adds the tab's query)
+  combos: { path: "/portal/marketing/list/discount" },
   ads: { path: "/portal/marketing/pas/index" },
   // The prefix of every campaign edit page; readerPageUrl names the campaign.
   ads_detail: { path: "/portal/marketing/pas/product/" },
@@ -210,5 +217,9 @@ export function readerPageUrl(job: {
     const kind = job.campaignKinds?.[0] === "mpd" ? "manual-mpd" : "manual";
     return `${READER_PAGES.ads_detail.path}${kind}/${id}`;
   }
+  if (job.id === "combos") return `${READER_PAGES.combos.path}?${COMBO_LIST_QUERY}`;
   return READER_PAGES[job.id].path;
 }
+
+/** The query of the discount list's Combo tab (P-C2 capture). */
+export const COMBO_LIST_QUERY = "discountType=bundle&status=all&page=1";

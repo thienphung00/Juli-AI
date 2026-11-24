@@ -19,6 +19,7 @@ import {
   classify,
   findList,
   isAdsEntry,
+  isComboEntry,
   isProduct,
   isVoucher,
   payloadOf,
@@ -734,6 +735,103 @@ export function mapAdsDetail(responses: ReaderResponse[], capturedAt: number): M
   };
 }
 
+// -- combos (0.3.35, batch-1124-a C4) --------------------------------------------------------
+
+type ComboDiscount = "pct" | "amount" | "special_price";
+
+/**
+ * One tier of a combo's rule (P-C2 capture): the quantity and the one non-zero value field. The
+ * kind comes from WHICH field is set, never from `rule_type` alone (only 2 = percent was seen).
+ */
+function comboTier(rule: Record<string, unknown>): { qty: number; type: ComboDiscount; value: number } | null {
+  const qty = num(rule.min_amount);
+  if (qty === undefined || !Number.isInteger(qty) || qty < 1) return null;
+  const pct = nonNeg(rule.discount_percentage) ?? 0;
+  const off = money(rule.discount_value, MONEY_DIVISOR.vouchers) ?? 0;
+  const fixed = money(rule.fix_price, MONEY_DIVISOR.vouchers) ?? 0;
+  const set = [pct > 0, off > 0, fixed > 0].filter(Boolean).length;
+  if (set !== 1) return null;
+  if (pct > 0) return pct <= 100 ? { qty, type: "pct", value: pct } : null;
+  return off > 0 ? { qty, type: "amount", value: off } : { qty, type: "special_price", value: fixed };
+}
+
+/** The combo's detail answers by combo id (`bundle_deal_id`). */
+function comboDetails(responses: ReaderResponse[]): Map<string, Record<string, unknown>> {
+  const out = new Map<string, Record<string, unknown>>();
+  for (const response of dataResponses(responses, "combo_detail")) {
+    const data = payloadOf(response.body);
+    if (!isRecord(data)) continue;
+    const id = digits(data.bundle_deal_id);
+    if (id !== undefined) out.set(id, data);
+  }
+  return out;
+}
+
+/**
+ * The Combo tab's list (+ each read detail) -> `combo_settings` rows: id, name, times, the list's
+ * time_status; from the detail the tiers (`[{qty, value}]` with one `discount_type`), the buyer
+ * limit and the product count. A combo whose detail was not read keeps the list's product count.
+ */
+export function mapComboList(responses: ReaderResponse[], capturedAt: number): Mapped {
+  const date = todayOf(capturedAt);
+  const issues = { unexpected: [] as string[], missing: [] as string[] };
+  const note = (list: string[], key: string) => {
+    if (!list.includes(key)) list.push(key);
+  };
+  const details = comboDetails(responses);
+  const rows: Row[] = [];
+  const seen = new Set<string>();
+  for (const response of dataResponses(responses, "combo_list")) {
+    const found = findList(payloadOf(response.body), isComboEntry);
+    for (const entry of found?.list ?? []) {
+      const deal = entry.bundle_deal as Record<string, unknown>;
+      const id = digits(deal.discount_id);
+      const name = text(deal.name, 255);
+      const starts = wallClock(deal.start_time);
+      if (id === undefined || name === undefined || starts === undefined) {
+        note(issues.missing, `combos[].${id === undefined ? "discount_id" : name === undefined ? "name" : "start_time"}`);
+        continue;
+      }
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const row: Row = { combo_id: id, program_name: name, starts_at: starts };
+      put(row, "ends_at", wallClock(deal.end_time));
+      const status = tag(deal.time_status);
+      put(row, "status", status === undefined ? undefined : String(status));
+      const preview = isRecord(deal.item_preview) ? deal.item_preview : {};
+      put(row, "product_count", nonNeg(preview.item_count));
+      const detail = details.get(id);
+      if (detail) {
+        const extinfo = isRecord(detail.extinfo) ? detail.extinfo : {};
+        if (Array.isArray(extinfo.itemid_list)) row.product_count = extinfo.itemid_list.length;
+        put(row, "usage_limit", nonNeg(detail.usage_limit));
+        const rule = isRecord(detail.bundle_deal_rule) ? detail.bundle_deal_rule : undefined;
+        const more = Array.isArray(rule?.additional_tiers) ? (rule.additional_tiers as unknown[]) : [];
+        const tiers = rule ? [rule, ...more].map((t) => (isRecord(t) ? comboTier(t) : null)) : [];
+        const types = new Set(tiers.map((t) => t?.type));
+        if (tiers.length > 0 && tiers.every((t) => t !== null) && types.size === 1) {
+          row.discount_type = [...types][0];
+          row.tiers = tiers.map((t) => ({ qty: t!.qty, value: t!.value })).sort((a, b) => a.qty - b.qty);
+          if (tiers.some((t) => t!.type !== "pct" && t!.value > MAX_PLAUSIBLE_PRICE_VND)) note(issues.unexpected, "combos:money_scale");
+        }
+        // a rule this mapper cannot read (two value fields, mixed kinds): that combo has no tiers,
+        // so its read-back compares nothing on them; never a drift that stops the whole list
+      }
+      rows.push(row);
+    }
+  }
+  const drift = driftOf(issues.unexpected, issues.missing);
+  return {
+    dataset: "combo_settings",
+    endpoint: "discount/list",
+    date,
+    orderType: null,
+    granularity: "period",
+    rows: drift ? [] : rows,
+    drift,
+  };
+}
+
 // -- vouchers ------------------------------------------------------------------------------
 
 export function mapVoucherList(responses: ReaderResponse[], capturedAt: number): Mapped {
@@ -913,6 +1011,8 @@ export function mapReaderJob(job: ReaderJob, responses: ReaderResponse[], captur
       return [mapAdsDetail(responses, capturedAt)];
     case "vouchers":
       return [mapVoucherList(responses, capturedAt)];
+    case "combos":
+      return [mapComboList(responses, capturedAt)];
     case "health":
       return [mapShopHealth(responses, capturedAt)];
     case "shop_totals":

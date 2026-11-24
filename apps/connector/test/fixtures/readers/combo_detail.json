@@ -1,0 +1,5 @@
+{"code":0,"data":{"bundle_deal_id":7001,"usage_limit":5,"status":1,"start_time":1795000000,"end_time":1795600000,"flag":2,
+ "extinfo":{"labels":[{"language":"vi","value":"Mua 2 & giảm 5%"}],"name":"Combo mua 2 giảm 5%","itemid_list":[1001,1002]},
+ "bundle_deal_rule":{"rule_type":2,"min_amount":2,"discount_percentage":"5.00","discount_value":"0.00","fix_price":"0.00",
+  "additional_tiers":[{"min_amount":3,"fix_price":"0.00","discount_percentage":"10.00","discount_value":"0.00"}]},
+ "time_status":3}}

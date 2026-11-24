@@ -248,3 +248,64 @@ async def test_the_revoke_inactive_routes_answer_with_the_count(session):
         assert r.status_code == 200, r.text
         assert r.json() == {"revoked": 1}
     app.dependency_overrides.clear()
+
+
+# -- batch-1124-a C2: rotation keeps the install; a re-pair retires the whole chain ---------------
+
+
+async def _rotate(session, issued, now):
+    principal = await svc.resolve_token(session, issued.token, now)
+    assert principal is not None
+    return await svc.rotate_token(session, principal, now=now)
+
+
+async def test_rotation_keeps_the_install_id_and_the_client_label(session):
+    _, shop = await _shop(session)
+    code = (await svc.create_pairing_code(session, shop=shop, user_id=shop.user_id, now=NOW)).code
+    first = await svc.redeem_pairing_code(
+        session,
+        code=code,
+        platform="shopee",
+        platform_shop_id=None,
+        client_label="Juli Connector 0.3.35",
+        install_id=INSTALL_A,
+        now=NOW,
+    )
+    child = await _rotate(session, first, NOW + timedelta(days=30))
+    row = await session.get(IngestToken, child.token_id)
+    assert row is not None
+    assert (row.install_id, row.client_label) == (INSTALL_A, "Juli Connector 0.3.35")
+    assert row.rotated_from_id == first.token_id
+
+
+async def test_a_re_pair_supersedes_the_rotated_child_too(session):
+    _, shop = await _shop(session)
+    first = await _pair(session, shop, INSTALL_A, NOW)
+    child = await _rotate(session, first, NOW + timedelta(days=30))
+    grandchild = await _rotate(session, child, NOW + timedelta(days=60))
+    other = await _pair(session, shop, INSTALL_B, NOW)
+    again = NOW + timedelta(days=61)
+    fresh = await _pair(session, shop, INSTALL_A, again)
+    later = again + timedelta(minutes=11)  # past the rotation grace
+    assert await svc.resolve_token(session, grandchild.token, later) is None
+    assert await svc.resolve_token(session, fresh.token, later) is not None
+    assert await svc.resolve_token(session, other.token, later) is not None
+    row = await session.get(IngestToken, grandchild.token_id)
+    assert row is not None and row.superseded_at == again and row.install_id == INSTALL_A
+
+
+async def test_a_legacy_child_rotated_without_an_install_id_is_found_through_its_chain(session):
+    """Before 0.3.35's server a rotated child carried no install id; the re-pair still finds it
+    through ``rotated_from_id`` and gives it its chain's install id."""
+    _, shop = await _shop(session)
+    first = await _pair(session, shop, INSTALL_A, NOW)
+    child = await _rotate(session, first, NOW + timedelta(days=30))
+    legacy = await session.get(IngestToken, child.token_id)
+    assert legacy is not None
+    legacy.install_id = None
+    await session.flush()
+    again = NOW + timedelta(days=31)
+    await _pair(session, shop, INSTALL_A, again)
+    await session.refresh(legacy)
+    assert legacy.superseded_at == again and legacy.install_id == INSTALL_A
+    assert await svc.resolve_token(session, child.token, again + timedelta(minutes=11)) is None

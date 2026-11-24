@@ -86,6 +86,7 @@ unpacked via chrome://extensions › Developer mode, or zip `dist/` for the Web
 Store). `JULI_API_ORIGIN=https://api.app-juli.com` by default; it is baked into
 the code and the manifest's host permission. Tests: `pnpm --filter
 @juli/connector test` (and `type-check`).
+Since 0.3.35 the manifest `key` pins the extension id (`oniiabligjcdicpenmobikojlmoiiggi`), so an upgrade keeps its storage and pairing; 0.3.35 itself is the last upgrade that needs remove + re-pair (private key outside the repo: `fasttrack-notes/connector-builds/juli-connector-key.pem`).
 
 How it works:
 

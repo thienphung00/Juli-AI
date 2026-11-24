@@ -26,6 +26,7 @@ import hashlib
 import logging
 import secrets
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -218,6 +219,7 @@ async def revoke_token(
         .where(IngestToken.id.in_(ids), IngestToken.revoked_at.is_(None))
         .values(revoked_at=now, revoked_reason=reason[:64])
     )
+    await _release_leases(session, shop_id, ids)
     logger.info(
         "ingest_token_revoked",
         extra={"shop_id": str(shop_id), "token_ids": sorted(str(i) for i in ids), "reason": reason},
@@ -274,6 +276,7 @@ async def revoke_inactive(
         )
         .values(revoked_at=now, revoked_reason=reason[:64])
     )
+    await _release_leases(session, shop_id, old)
     logger.info(
         "ingest_tokens_revoked_inactive",
         extra={"shop_id": str(shop_id), "count": len(old), "reason": reason},
@@ -330,18 +333,98 @@ async def _supersede_install(
     now: datetime,
 ) -> None:
     """A re-pair from the same install (same shop + platform + install id) retires that install's
-    older live tokens, with the rotation grace so a lost response does not strand the browser."""
+    older live tokens -- the whole chain, rotated children included (batch-1124-a C2: a child
+    rotated before 0.3.35's server carries no install id; it is given its chain's here) -- with
+    the rotation grace so a lost response does not strand the browser. Their fill-job leases are
+    released at once (C3)."""
+    chain = await _install_chain(
+        session, shop_id=shop_id, platform=platform, install_id=install_id, keep=keep
+    )
+    if not chain:
+        return
     await session.execute(
         update(IngestToken)
         .where(
             IngestToken.shop_id == shop_id,
-            IngestToken.platform == platform,
-            IngestToken.install_id == install_id,
-            IngestToken.id != keep,
-            IngestToken.revoked_at.is_(None),
-            IngestToken.superseded_at.is_(None),
+            IngestToken.id.in_(chain),
+            IngestToken.install_id.is_(None),
         )
-        .values(superseded_at=now)
+        .values(install_id=install_id)
+    )
+    retired = (
+        await session.execute(
+            update(IngestToken)
+            .where(
+                IngestToken.shop_id == shop_id,
+                IngestToken.id.in_(chain),
+                IngestToken.revoked_at.is_(None),
+                IngestToken.superseded_at.is_(None),
+            )
+            .values(superseded_at=now)
+            .returning(IngestToken.id)
+        )
+    ).scalars()
+    await _release_leases(session, shop_id, chain)
+    logger.info(
+        "ingest_install_superseded",
+        extra={
+            "shop_id": str(shop_id),
+            "kept": str(keep),
+            "token_ids": sorted(str(i) for i in retired),
+        },
+    )
+
+
+async def _install_chain(
+    session: AsyncSession,
+    *,
+    shop_id: uuid.UUID,
+    platform: str,
+    install_id: str,
+    keep: uuid.UUID,
+) -> set[uuid.UUID]:
+    """The install's tokens other than ``keep``: those carrying its install id and every token
+    rotated from one of them (forward through ``rotated_from_id``)."""
+    roots = (
+        await session.execute(
+            select(IngestToken.id).where(
+                IngestToken.shop_id == shop_id,
+                IngestToken.platform == platform,
+                IngestToken.install_id == install_id,
+                IngestToken.id != keep,
+            )
+        )
+    ).scalars()
+    ids = set(roots)
+    frontier = list(ids)
+    while frontier:
+        children = (
+            await session.execute(
+                select(IngestToken.id).where(
+                    IngestToken.shop_id == shop_id,
+                    IngestToken.rotated_from_id.in_(frontier),
+                    IngestToken.id != keep,
+                )
+            )
+        ).scalars()
+        frontier = [c for c in children if c not in ids]
+        ids.update(frontier)
+    return ids
+
+
+async def _release_leases(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    token_ids: Iterable[uuid.UUID],
+    *,
+    to_token: uuid.UUID | None = None,
+) -> None:
+    """C3: a dead token's fill-job leases go at once (another computer may take the job on its
+    next poll); with ``to_token`` (a rotation: the same browser) they move to the new token."""
+    from juli_backend.services.shopee_recommendations import fill_queue
+
+    await fill_queue.release_token_leases(
+        session, shop_id=shop_id, token_ids=set(token_ids), to_token=to_token
     )
 
 
@@ -501,6 +584,11 @@ async def rotate_token(
             client_label=current.client_label if current else None,
             now=now,
             rotated_from=principal.token_id,
+            # batch-1124-a C2: the child is the same install, so a later re-pair supersedes it
+            install_id=current.install_id if current else None,
+        )
+        await _release_leases(
+            session, principal.shop_id, {principal.token_id}, to_token=issued.token_id
         )
     logger.info(
         "ingest_token_rotated",

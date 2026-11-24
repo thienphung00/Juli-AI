@@ -20,6 +20,7 @@ import {
 } from "../platforms/shopee/config";
 import { FILL_HALT_MS } from "../core/config";
 import { configureClientIdentity, IngestClient, loadInstallId, type TokenInfo } from "../core/ingest/client";
+import { stopDeadToken } from "../core/dead-token";
 import { noteUpgradeRequired, pendingUpgrade } from "../core/min-version";
 import { FillJobs as CoreFillJobs, reportDetailOf } from "../core/jobs/fill-jobs";
 import { type Pairing, Pairings, pairAcross, rotateIfDue, scopedStorage } from "../core/pairings";
@@ -50,6 +51,13 @@ configureClientIdentity({
   version: MANIFEST_VERSION,
   installId: () => loadInstallId(chrome.storage.local),
   onUpgradeRequired: (minimum) => void noteUpgradeRequired(chrome.storage.local, MANIFEST_VERSION, minimum).catch(() => undefined),
+  // batch-1124-a C3: a revoked / superseded token stops its pairing; with none left, every alarm goes.
+  onTokenDead: (token, code) =>
+    void stopDeadToken(
+      { storage: chrome.storage.local, pairings, clearAlarms: async () => void (await chrome.alarms.clearAll()), now: () => Date.now() },
+      token,
+      code,
+    ).catch(() => undefined),
 });
 
 const scheduler: ReaderScheduler = new ReaderScheduler({
@@ -268,6 +276,8 @@ async function pair(code: string): Promise<TokenInfo & { optionalHosts?: string[
   const { pack, token } = await pairAcross(registry.packs, async (pack) =>
     pack === registry.legacy ? connector.pair(code) : new IngestClient(pack.id).pair(code.trim(), `Juli Connector ${MANIFEST_VERSION}`),
   );
+  // C3: a stopped install (its token died, every alarm cleared) runs again from this pairing.
+  await ensureAlarms().catch(() => undefined);
   if (pack === registry.legacy) {
     await pairings.record(token, pack.id);
     await connector.backfillStep();
@@ -349,8 +359,14 @@ async function ensureAlarms(): Promise<void> {
  * Every service-worker start (0.3.19): the alarms exist (not only after install / Chrome start),
  * and when today's run or today's stock read is still due, a start is queued a minute later.
  */
+/** C3: the alarms exist only while a pairing holds a live token (a dead token's install stays stopped). */
+async function ensureAlarmsIfPaired(): Promise<void> {
+  if ((await pairings.list()).length === 0) return;
+  await ensureAlarms();
+}
+
 async function boot(reason: string): Promise<void> {
-  await ensureAlarms().catch(() => undefined);
+  await ensureAlarmsIfPaired().catch(() => undefined);
   await registerOptionalContentScripts();
   if (await chrome.alarms.get(READER_KICK_ALARM)) return;
   if (await scheduler.due()) await scheduler.requestKick(reason);
@@ -373,7 +389,7 @@ function reinject(): Promise<number> {
 
 chrome.runtime.onInstalled.addListener((details) => {
   void (async () => {
-    await ensureAlarms().catch(() => undefined);
+    await ensureAlarmsIfPaired().catch(() => undefined);
     if (details.reason === "install" || details.reason === "update") await reinject().catch(() => 0);
     await boot(details.reason === "update" ? "update" : "install");
   })();

@@ -83,6 +83,7 @@ COMBO_CHANGE_KINDS = ("bundle_deal", "combo", "combo_multi")
 #: (D5: a save nobody reads is never a match), so no read-back job is queued
 PROGRAMME_KINDS = ("product_discount", "flash_sale", "add_on", "gift")
 DATASET_VOUCHERS = "voucher_list"  # the Connector's vouchers reader posts ingest `voucher_settings`
+DATASET_COMBOS = "combo_list"  # 0.3.35: the combos reader posts ingest `combo_settings`
 _ENDED_WORDS = ("end", "expire", "delete", "finish", "het", "kết thúc", "ket thuc")
 _BEFORE_KEY = {"title": "title", "description_first_line": "first_line"}
 
@@ -402,7 +403,7 @@ async def revert_fill(
 
 def _readback_of_change(kind: str, target: dict[str, Any]) -> dict[str, Any] | None:
     """The read-back of one change (``{change_kind, target}`` of an executed event or a revert
-    job): key, page and dataset. ``None`` for a kind no reader covers (combo: no list reader)."""
+    job): key, page and dataset. ``None`` for a kind no reader covers."""
     if kind in ("title", "description_first_line"):
         item_id = str(target.get("item_id") or "")
         if not item_id:
@@ -426,6 +427,21 @@ def _readback_of_change(kind: str, target: dict[str, Any]) -> dict[str, Any] | N
             "target": {k: v for k, v in target.items() if v},
             "datasets": [DATASET_VOUCHERS],
             "forward_kind": "voucher",
+        }
+    if kind in COMBO_CHANGE_KINDS:
+        # batch-1124-a C4: by the id Shopee gave it, else by its name (the save path is not
+        # captured, so the new combo is found in the list read after the save by its name)
+        cid = str(target.get("combo_id") or target.get("id") or "")
+        name = str(target.get("combo_name") or target.get("name") or "")
+        ref = cid or name[:40]
+        if not ref:
+            return None
+        return {
+            "key": f"{READBACK_PREFIX}combo:{ref}",
+            "open_path": COMBO_LIST_PATH,
+            "target": {k: v for k, v in target.items() if v},
+            "datasets": [DATASET_COMBOS],
+            "forward_kind": "combo",
         }
     if kind == "affiliate_commission":
         ids = [str(i) for i in (target.get("product_ids") or [])]
