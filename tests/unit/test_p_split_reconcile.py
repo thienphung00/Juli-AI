@@ -183,3 +183,40 @@ def test_product_page_shows_the_one_cost_and_keeps_the_floor_input_on_the_old_ba
     assert '"commission": per_unit(commission_shown)' in src
     assert "affiliate_rate=safe_div(commission, paid)" in src
     assert "affiliate_cost_basis=True" in src
+
+
+def _ads_split(ads_gmv: D, kpi_scale: D = D(1)):
+    pairs = _pairs()
+    gmv, orders = _totals(pairs)
+    view = _view(pairs, {"P1": AdsFigures(D(10000), ads_gmv, ads_gmv)})
+    return gmv, orders, profit_split(view, kpi_gmv=gmv * kpi_scale, kpi_orders=orders)
+
+
+def test_split_with_an_ads_report_share_still_adds_up_to_the_kpi():
+    gmv, orders, split = _ads_split(D(250000))
+    rows = split["rows"]
+    assert rows["ads"]["gmv"] > 0 and rows["ads"]["orders"] > 0  # the QC share is non-zero
+    assert rows["ads"]["gmv"] == D(250000)  # P1's ads-report GMV, below its rest GMV
+    for col, want in (("gmv", gmv), ("orders", orders)):
+        assert sum(rows[ch][col] for ch in SPLIT_CHANNELS) == want
+        assert split["total"][col] == want
+    assert rows["organic"]["gmv"] >= 0 and rows["organic"]["orders"] >= 0
+
+
+def test_ads_report_gmv_above_the_rest_is_capped_by_the_kpi_total():
+    # the report says far more than the shop sold: s = 1 per product, then partition_channels caps
+    gmv, orders, split = _ads_split(D(10**9))
+    rows = split["rows"]
+    aff_gmv = rows["affiliate"]["gmv"]
+    p1_rest = sum(
+        (ln.order_value for ln, _ in _pairs() if ln.product_id == "P1" and not ln.affiliate), D(0)
+    )
+    assert rows["ads"]["gmv"] == p1_rest  # s = 1: all of P1's non-affiliate GMV, no more
+    assert rows["ads"]["gmv"] <= gmv - aff_gmv  # TTLK keeps its lines
+    assert rows["organic"]["gmv"] > 0  # P2 has no ads row: its rest stays Organic
+    for col, want in (("gmv", gmv), ("orders", orders)):
+        assert sum(rows[ch][col] for ch in SPLIT_CHANNELS) == want
+    # a KPI total below the lines: Quảng cáo is capped at it, TTLK at what is left
+    _, _, small = _ads_split(D(10**9), kpi_scale=D("0.3"))
+    assert sum(small["rows"][ch]["gmv"] for ch in SPLIT_CHANNELS) == gmv * D("0.3")
+    assert small["rows"]["organic"]["gmv"] >= 0
