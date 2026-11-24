@@ -62,6 +62,72 @@ def _f(v: Any) -> float | None:
     return None if v is None else float(v)
 
 
+def source_gmv(win: tuple[date, date], srows: list[dict[str, Any]]) -> dict[str, float]:
+    """GMV per traffic source bucket (Organic / TTLK / Quảng cáo ...) over `win`."""
+    t: dict[str, float] = {}
+    for r in srows:
+        if win[0] <= r["day"] <= win[1] and r.get("gmv") is not None:
+            t[bucket(r["source"])] = t.get(bucket(r["source"]), 0.0) + float(r["gmv"])
+    return t
+
+
+def idle_days(
+    budget_rows: list[dict[str, Any]], shop_rows: list[dict[str, Any]], win: tuple[date, date]
+) -> list[dict[str, Any]]:
+    """Days that spent under the ads budget and had no orders."""
+    orders = {r["day"]: r.get("orders") for r in shop_rows if win[0] <= r["day"] <= win[1]}
+    return [
+        b
+        for b in budget_rows
+        if b["budget"] is not None
+        and float(b["spend"]) < float(b["budget"])
+        and (orders.get(b["day"]) in (0, 0.0))
+    ]
+
+
+def has_cogs_gap(profit: dict[str, Any] | None) -> bool:
+    """Giá vốn covers < 99,5 % of the product's GMV (profit not trusted)."""
+    return bool(
+        profit
+        and profit.get("coverage_pct") is not None
+        and float(profit["coverage_pct"]) < _COVERAGE_OK
+    )
+
+
+def week_table(
+    rows: list[dict[str, Any]], w: Any, last_week: tuple[date, date]
+) -> list[dict[str, Any]]:
+    """GMV / Đơn / Chi phí QC / ROAS this window vs last week (vs a normal week when the last one
+    held a sale day)."""
+
+    def val(metric: str, win: tuple[date, date]) -> float | None:
+        if metric == "roas":
+            g, c = _sum(rows, "ads_gmv", win), _sum(rows, "ads_spend", win)
+            return registry_roas(g, c) if g is not None and c else None
+        return _sum(rows, metric, win)
+
+    table: list[dict[str, Any]] = []
+    for m, label in (
+        ("gmv", "GMV"),
+        ("orders", "Đơn"),
+        ("ads_spend", "Chi phí QC"),
+        ("roas", "ROAS"),
+    ):
+        now, lw, nw = val(m, w.cur), val(m, last_week), val(m, w.prev)
+        detail = f"{rng(last_week)} {fmt.value(m, lw)}"
+        if w.sale_prev:
+            detail += f" (có ngày sale) · {rng(w.prev)} {fmt.value(m, nw)}"
+        table.append(
+            {
+                "label_vi": label,
+                "value_vi": fmt.value(m, now),
+                "detail_vi": detail,
+                "delta": fmt.delta(m, now, nw),
+            }
+        )
+    return table
+
+
 def _section(w: Any, latest: date, title: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
     out: dict[str, Any] = {
         "type": "data_answer",
@@ -102,6 +168,39 @@ def _same_change(open_card: dict[str, Any], kind: str, item: str | None, title: 
     return "same" if same else "kind"
 
 
+async def resolve_action(
+    out: cardstage.CardOutcome,
+    data: DataPort,
+    engine: CardEnginePort | None,
+    jev: JevPort,
+    labels: LabelTable,
+    as_of: date,
+    open_cards: list[dict[str, Any]],
+    kind: str,
+    item: str | None,
+) -> dict[str, Any]:
+    """One action -> an existing Đề xuất card or a Juli DRAFT. `status`: "same" (an identical open
+    card: no new one), "none" (nothing Juli can price; `code` = an open card of that kind and
+    target, if any) or "draft" (`event` = the card event, `ref` = its draft ref; `code` = an open
+    card of the same kind). Nothing is sent or executed."""
+    card: dict[str, Any] = {}
+    if engine is not None:
+        eng = await engine.engine_card(kind, item, as_of)
+        card = eng.get("card") or {} if eng.get("ok") else {}
+    card_title = card.get("title")
+    match = [(c, _same_change(c, kind, item, card_title)) for c in open_cards]
+    match = [(c, m) for c, m in match if m]
+    same = next((c for c, m in match if m == "same"), None)
+    if same is not None:
+        return {"status": "same", "code": same.get("code"), "event": None, "ref": None}
+    theirs = next((c for c, _ in match), None)
+    code = theirs.get("code") if theirs else None
+    if not card or not cardstage.estimable(card, kind):
+        return {"status": "none", "code": code, "event": None, "ref": None}
+    ev = await cardstage.draft_event(out, data, jev, labels, kind, item, card)
+    return {"status": "draft", "code": code, "event": ev, "ref": out.accepted[-1]["ref"]}
+
+
 async def run_weekly(
     data: DataPort,
     engine: CardEnginePort | None,
@@ -123,31 +222,7 @@ async def run_weekly(
     actions: list[tuple[str, str | None, str]] = []  # (kind, item, why)
 
     # 1. this week vs last week vs a normal week
-    def val(metric: str, win: tuple[date, date]) -> float | None:
-        if metric == "roas":
-            g, c = _sum(rows, "ads_gmv", win), _sum(rows, "ads_spend", win)
-            return registry_roas(g, c) if g is not None and c else None
-        return _sum(rows, metric, win)
-
-    table = []
-    for m, label in (
-        ("gmv", "GMV"),
-        ("orders", "Đơn"),
-        ("ads_spend", "Chi phí QC"),
-        ("roas", "ROAS"),
-    ):
-        now, lw, nw = val(m, w.cur), val(m, last_week), val(m, w.prev)
-        detail = f"{rng(last_week)} {fmt.value(m, lw)}"
-        if w.sale_prev:
-            detail += f" (có ngày sale) · {rng(w.prev)} {fmt.value(m, nw)}"
-        table.append(
-            {
-                "label_vi": label,
-                "value_vi": fmt.value(m, now),
-                "detail_vi": detail,
-                "delta": fmt.delta(m, now, nw),
-            }
-        )
+    table = week_table(rows, w, last_week)
     title = f"{rng(w.cur)} so với {rng(last_week)}"
     if w.sale_prev:
         title += f" và tuần thường {rng(w.prev)}"
@@ -172,14 +247,7 @@ async def run_weekly(
         actions.append(("ads_roas_target", None, f"{c['name']} dưới ROAS hoà vốn"))
 
     # 3. under-budget days with 0 orders
-    orders_by_day = {r["day"]: r.get("orders") for r in rows if w.cur[0] <= r["day"] <= w.cur[1]}
-    idle = [
-        b
-        for b in await data.budget_days(*w.cur)
-        if b["budget"] is not None
-        and float(b["spend"]) < float(b["budget"])
-        and (orders_by_day.get(b["day"]) in (0, 0.0))
-    ]
+    idle = idle_days(await data.budget_days(*w.cur), rows, w.cur)
     if idle:
         events.append(
             _section(
@@ -199,15 +267,8 @@ async def run_weekly(
         actions.append(("ads_budget", None, "ngày chi dưới ngân sách không có đơn"))
 
     # 4. which traffic source fell
-    def by_source(win: tuple[date, date], srows: list[dict[str, Any]]) -> dict[str, float]:
-        t: dict[str, float] = {}
-        for r in srows:
-            if win[0] <= r["day"] <= win[1] and r.get("gmv") is not None:
-                t[bucket(r["source"])] = t.get(bucket(r["source"]), 0.0) + float(r["gmv"])
-        return t
-
     srows = await data.source_daily(w.prev[0], w.cur[1])
-    sn, sb = by_source(w.cur, srows), by_source(w.prev, srows)
+    sn, sb = source_gmv(w.cur, srows), source_gmv(w.prev, srows)
     fell = sorted(
         ((k, sn.get(k, 0.0) - v) for k, v in sb.items() if sn.get(k, 0.0) < v), key=lambda t: t[1]
     )
@@ -249,11 +310,7 @@ async def run_weekly(
         if stale:
             parts.append(f"tên còn “{stale}” đã hết")
             actions.append(("title", k, f"tên sản phẩm còn “{stale}”"))
-        if (
-            now_p
-            and now_p.get("coverage_pct") is not None
-            and float(now_p["coverage_pct"]) < _COVERAGE_OK
-        ):
+        if has_cogs_gap(now_p):
             gaps.append(k)
         prow.append(
             {
@@ -290,47 +347,33 @@ async def run_weekly(
         if (kind, item) in seen:
             continue
         seen.add((kind, item))
-        card: dict[str, Any] = {}
-        if engine is not None:
-            eng = await engine.engine_card(kind, item, as_of)
-            card = eng.get("card") or {} if eng.get("ok") else {}
-        card_title = card.get("title")
-        match = [(c, _same_change(c, kind, item, card_title)) for c in open_cards]
-        match = [(c, m) for c, m in match if m]
-        same = next((c for c, m in match if m == "same"), None)
-        if same is not None:
+        res = await resolve_action(out, data, engine, jev, labels, as_of, open_cards, kind, item)
+        code = res["code"] or ""
+        if res["status"] == "same":
             arows.append(
                 {
                     "label_vi": labels.kind(kind),
-                    "value_vi": f"Đã có thẻ {same.get('code') or ''}".strip(),
+                    "value_vi": f"Đã có thẻ {code}".strip(),
                     "detail_vi": why + " · trùng, không tạo lại",
                 }
             )
-            continue
-        if not card or not cardstage.estimable(card, kind):
-            # no draft Juli can price: point to the open card of the same kind and target, if any
-            theirs = next((c for c, _ in match), None)
+        elif res["status"] == "none":
             arows.append(
                 {
                     "label_vi": labels.kind(kind),
-                    "value_vi": f"Đã có thẻ {theirs.get('code') or ''}".strip()
-                    if theirs
-                    else "Chưa có phương án",
+                    "value_vi": f"Đã có thẻ {code}".strip() if code else "Chưa có phương án",
                     "detail_vi": why,
                 }
             )
-            continue
-        ev = await cardstage.draft_event(out, data, jev, labels, kind, item, card)
-        note = next((c for c, _ in match), None)
-        arows.append(
-            {
-                "label_vi": labels.kind(kind),
-                "value_vi": "Thẻ nháp",
-                "detail_vi": why
-                + (f" · đã có thẻ cùng loại {note.get('code') or ''}" if note else ""),
-            }
-        )
-        events.append(ev)
+        else:
+            arows.append(
+                {
+                    "label_vi": labels.kind(kind),
+                    "value_vi": "Thẻ nháp",
+                    "detail_vi": why + (f" · đã có thẻ cùng loại {code}" if code else ""),
+                }
+            )
+            events.append(res["event"])
     if arows:
         events.insert(
             len(events) - len(out.events),

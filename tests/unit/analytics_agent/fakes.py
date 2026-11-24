@@ -175,8 +175,12 @@ class FakeLLM:
         text: str = "",
         deltas: list[str] | None = None,
         rewrite: str | None = None,
+        agent_script: list[list[dict[str, Any]]] | None = None,
+        agent_cost: float = 0.001,
     ):
         self.intent, self._text, self.deltas, self.rewrite = intent, text, deltas, rewrite
+        self.agent_script, self.agent_cost = list(agent_script or []), agent_cost
+        self.agent_calls: list[dict[str, Any]] = []
         self.parse_calls, self.stream_calls, self.text_calls = 0, [], []
 
     async def parse(
@@ -189,6 +193,23 @@ class FakeLLM:
         self.stream_calls.append(user)
         for d in self.deltas or [self._text]:
             yield d
+
+    async def agent(
+        self,
+        system: str,
+        tools: list[dict[str, Any]],
+        messages: list[dict[str, Any]],
+        *,
+        force_tool: str | None = None,
+    ) -> tuple[list[dict[str, Any]], Usage]:
+        """Scripted turns: each call pops the next list of content blocks; none left = an LLM
+        error (the engine must fall back)."""
+        self.agent_calls.append(
+            {"tools": [t["name"] for t in tools], "messages": len(messages), "force": force_tool}
+        )
+        if not self.agent_script:
+            raise RuntimeError("no scripted agent turn")
+        return self.agent_script.pop(0), Usage(cost_usd=self.agent_cost)
 
     async def text(self, system: str, user: str) -> tuple[str, Usage]:
         self.text_calls.append(user)
@@ -322,3 +343,11 @@ class FakeEntityData(FakeData):
 
     async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]:
         return [r for r in self.entity.get("budget_days", []) if a <= r["day"] <= b]
+
+
+def tool_use(name: str, tid: str, **args: Any) -> dict[str, Any]:
+    return {"type": "tool_use", "id": tid, "name": name, "input": args}
+
+
+def plan_turn(*items: dict[str, Any]) -> list[dict[str, Any]]:
+    return [tool_use("emit_plan", "p1", items=list(items))]

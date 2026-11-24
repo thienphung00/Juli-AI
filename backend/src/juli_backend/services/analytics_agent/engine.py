@@ -18,8 +18,8 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from juli_backend.services.analytics_agent import cards as cardstage
 from juli_backend.services.analytics_agent import (
+    advisor,
     create_card,
     entities,
     lookup,
@@ -30,6 +30,7 @@ from juli_backend.services.analytics_agent import (
     windows,
     writer,
 )
+from juli_backend.services.analytics_agent import cards as cardstage
 from juli_backend.services.analytics_agent.cards_service import ServiceCardEngine
 from juli_backend.services.analytics_agent.chains import CHAIN_METRIC, ChainResult, run_chain
 from juli_backend.services.analytics_agent.data_service import ServiceData, SessionFactory
@@ -530,6 +531,47 @@ async def _answer_inner(
             )
         result.stop_reasons.append("needs_choice" if what == "asked" else "data_answer")
         return
+    if mode == "advise":  # J1-J5: the LLM advises over the shop's data; code checks the answer
+        if _platform_has_analytics(req.platform) and engine is not None:
+            await out.emit(present.status("checking_data"))
+            budget = advisor.Budget(cap=advisor.cost_cap_usd(), cost=result.cost_usd)
+            before = result.cost_usd
+            try:
+                advice = await advisor.run_advice(
+                    llm, data, engine, jev, labels, as_of, req.text or restated,
+                    str(dec.get("goal") or "none"), budget,
+                )  # fmt: skip
+            except advisor.AdviceAborted as exc:  # cap / LLM error / no plan: today's sections
+                result.cost_usd = max(result.cost_usd, budget.cost)
+                result.routing.append({"step": "advise_fallback", "reason": exc.reason})
+                logger.info("juli_advise_fallback", extra={"reason": exc.reason})
+            else:
+                result.cost_usd = max(result.cost_usd, budget.cost)
+                result.routing.append(
+                    {
+                        "step": "advise",
+                        "turns": advice.turns,
+                        "tools": advice.tools,
+                        "dropped": advice.dropped,
+                        "cost_usd": round(budget.cost - before, 6),
+                    }
+                )
+                for ev in advice.events:
+                    await out.emit(ev)
+                for a in advice.accepted:
+                    result.cards.append(
+                        {
+                            "draft_ref": a["ref"],
+                            "kind": a["kind"],
+                            "item_id": a["item_id"],
+                            "recommended": a["recommended"],
+                            "engine_card": a["engine_card"],
+                        }
+                    )
+                await out.emit({"type": "text_delta", "text": advice.lead})
+                result.stop_reasons.append("data_answer")
+                return
+        mode = "analysis"
     if mode == "analysis":  # J8: the weekly analysis, composed by code (no template, no writer)
         no_data = {
             "type": "label",
