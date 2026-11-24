@@ -501,14 +501,18 @@ async def test_the_plan_carries_a_tiers_combo_as_its_own_layer(session, shop):
     assert agg["added_cards"] == [str(prop.id)] and agg["joint_cards"] == []
     # P98 W4-B / ADR-122 d.2: the plan reads the option result the builder showed (per 30 days)
     per30 = saved["outcome"]["result"]["per_30d"]
-    # P100-C (B.10): the seeded shop has too few orders to measure who moves up to a tier, so
-    # the card is cost + break-even only; the plan says so instead of summing it as 0
-    assert per30["gmv"] is None
-    assert agg["dgmv_month"]["total"]["p50"] is None
-    assert agg["dprofit_month"]["total"]["p50"] is None
-    assert agg["totals_estimable"] is False
-    assert agg["not_estimable_cards"] == [str(prop.id)]
-    assert "chưa ước tính được" in agg["totals_note"].lower()
+    # batch-1124-a R (#27 / #29): the seeded shop has too few orders to measure who moves up to a
+    # tier, so the card takes the typical-result prior of its kind (was: not estimable, P100-C);
+    # the plan sums that result like any other card's, the same ΔGMV the builder showed
+    assert saved["outcome"]["result"]["basis"] == "prior"
+    assert per30["gmv"] is not None and per30["gmv"] > 0
+    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(per30["gmv"])
+    # a 5 % / 8 % tier: a modest AOV lift, never more than the shop's own 30-day GMV
+    assert per30["gmv"] < agg["today"]["gmv_30d"]
+    low, mid, high = (agg["dprofit_month"]["total"][k] for k in ("p10", "p50", "p90"))
+    assert low <= mid <= high
+    assert agg["totals_estimable"] is True
+    assert agg["not_estimable_cards"] == [] and agg["totals_note"] is None
     # P99b: no money-layer certain figure beside the option results
     assert agg["dprofit_month"]["certain"] is None
 
