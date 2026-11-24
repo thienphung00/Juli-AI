@@ -192,7 +192,56 @@ ROWS: list[tuple[str, Any, Any, Any]] = [
         "Tuần sau shop nên làm gì?",
         it(question_type="plan", metric_phrase=None, time_phrase=None),
         {},
-        {"outcome": "go", "mode": "analysis"},
+        {"outcome": "go", "mode": "advise"},
+    ),
+    (
+        "Tôi nên làm gì trước, thẻ nào cần mở?",
+        it(
+            question_type="other",
+            metric_phrase=None,
+            needs_advice=True,
+            goal="prioritise",
+            time_phrase=None,
+        ),
+        {},
+        {"outcome": "go", "mode": "advise", "goal": "prioritise"},
+    ),
+    (
+        "Sản phẩm nào nên dừng quảng cáo?",
+        it(question_type="status", metric_phrase=None, needs_advice=True, goal="ads"),
+        {},
+        {"outcome": "go", "mode": "advise", "goal": "ads"},
+    ),
+    (
+        "Làm sao để tăng lượt xem? (how-to, not advice over the shop's data)",
+        it(question_type="other", metric_phrase="views how-to", needs_advice=False, goal="none"),
+        ans(fits=nl(0.1)),
+        {"outcome": "unsupported"},
+    ),
+    (
+        "Doanh thu tuần trước bao nhiêu? (lookup look-alike)",
+        it(
+            question_type="status",
+            metric_phrase="GMV",
+            time_phrase="last week",
+            needs_advice=False,
+            goal="none",
+        ),
+        ans(fits=nl(0.55), mode=ch("lookup"), metric=ch("gmv")),
+        {"outcome": "go", "mode": "lookup", "metric": "gmv"},
+    ),
+    (
+        "Tạo voucher cho ngày 24/11. (a create request is never advice)",
+        it(
+            question_type="create_card",
+            metric_phrase=None,
+            needs_advice=True,
+            goal="pricing_promo",
+            card_type="voucher",
+            from_date="2026-11-24",
+        ),
+        {},
+        {"mode": "create", "outcome": "go"},
     ),
     (
         "Tạo flash sale cho túi vải đay khung 21h ngày 28/11 giảm 15%.",
@@ -285,7 +334,7 @@ ROWS: list[tuple[str, Any, Any, Any]] = [
 
 
 def test_the_twenty_questions_are_all_here() -> None:
-    assert len(ROWS) == 23
+    assert len(ROWS) == 28
 
 
 @pytest.mark.parametrize("row", ROWS, ids=[r[0][:40] for r in ROWS])

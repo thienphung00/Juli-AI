@@ -273,6 +273,8 @@ INTENT_TOOL: dict[str, Any] = {
                         "metric_key",
                         "ranking",
                         "asks_why",
+                        "needs_advice",
+                        "goal",
                         "card",
                     ],
                     "properties": {
@@ -323,6 +325,27 @@ INTENT_TOOL: dict[str, Any] = {
                         "asks_why": {
                             "type": "boolean",
                             "description": "true when the seller also asks why",
+                        },
+                        "needs_advice": {
+                            "type": "boolean",
+                            "description": "true when the seller asks what to do, what to "
+                            "prioritise, what to do first or which card to open, over the "
+                            "shop's own data (a plan, a priority, a recommendation)",
+                        },
+                        "goal": {
+                            "type": "string",
+                            "enum": [
+                                "none",
+                                "plan_week",
+                                "prioritise",
+                                "ads",
+                                "profit",
+                                "traffic",
+                                "pricing_promo",
+                                "product",
+                            ],
+                            "description": "what the advice is for; none when needs_advice is "
+                            "false",
                         },
                         "card": {
                             "type": "object",
@@ -384,9 +407,13 @@ PARSE_SYSTEM = (
     "Do not invent ids. Dates only when the seller states them. Questions not about the shop's own "
     "sales/traffic data (competitors, tax, forecasts) get question_type 'other'. A question asking "
     "what the shop should do next week is question_type 'plan' (only that, not how-to "
-    "questions). A question about ONE product's profit, margin, revenue or orders is question_type "
-    "'status' with product_phrase, never 'other'. A question that asks both what and why (for "
-    "example the products that fell most, and why) is ONE intent with ranking and asks_why true. "
+    "questions). A question that asks what to do, what to prioritise, what to do first or which "
+    "card to open, about the shop's own numbers (not a how-to or knowledge question, not a "
+    "request to create or change something), sets needs_advice true and a goal; every other "
+    "question has needs_advice false and goal none. A question about ONE product's profit, "
+    "margin, revenue or orders is question_type 'status' with product_phrase, never 'other'. "
+    "A question that asks both what and why (for example the products that fell most, and "
+    "why) is ONE intent with ranking and asks_why true. "
     "A request to create or change something (voucher, discount, combo, deal, gift, "
     "flash sale, price, product name / title, cover, variation set) is question_type "
     "'create_card': fill the `card` object with only the slots the seller said (dates as "
@@ -455,7 +482,7 @@ def _crit(d: dict[str, str]) -> dict[str, str]:
 
 async def route(jev: JevPort, intent: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], Usage]:
     """The Jev routing answers of one intent; a plan / create request needs none (code decides)."""
-    if intent.get("question_type") in ("plan", "create_card"):
+    if intent.get("question_type") in ("plan", "create_card") or wants_advice(intent):
         return {}, Usage()
     return await jev.ask(jev_state(intent), routing_questions(intent))
 
@@ -474,12 +501,7 @@ async def classify(text: str, today: date, llm: LLMPort, jev: JevPort) -> dict[s
         answers, _ = await route(jev, intent)
         dec = (
             decide(intent, answers)
-            if answers
-            or intent.get("question_type")
-            in (
-                "plan",
-                "create_card",
-            )
+            if answers or wants_advice(intent) or intent.get("question_type") == "create_card"
             else {"outcome": "go", "checks": {}}
         )
         out.append(
@@ -487,6 +509,7 @@ async def classify(text: str, today: date, llm: LLMPort, jev: JevPort) -> dict[s
                 "intent": {k: v for k, v in intent.items() if k != "raw_text"},
                 "outcome": dec.get("outcome"),
                 "mode": dec.get("mode"),
+                "goal": dec.get("goal"),
                 "chain": dec.get("chain"),
                 "metric": dec.get("metric"),
                 "window": dec.get("window"),
@@ -591,6 +614,14 @@ def choice_ok(a: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
     }
 
 
+def wants_advice(intent: dict[str, Any]) -> bool:
+    """The parser's typed slots decide (no word list): a plan, or needs_advice, over the shop's
+    own data. A create request is never advice."""
+    if intent.get("question_type") == "create_card":
+        return False
+    return intent.get("question_type") == "plan" or intent.get("needs_advice") is True
+
+
 def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Thresholds (J7) + cross-checks (J6b) + lookup rules. `outcome` = go | needs_choice |
     unsupported."""
@@ -598,8 +629,13 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     if intent.get("question_type") == "create_card":  # J10: a card from a free request
         dec.update(outcome="go", mode="create")
         return dec
-    if intent.get("question_type") == "plan":  # "what should the shop do next week" (J8)
-        dec.update(outcome="go", mode="analysis", window=window_from_phrase("last week"))
+    if wants_advice(intent):  # a plan / priority / "what first" request: the LLM advises (J1)
+        dec.update(
+            outcome="go",
+            mode="advise",
+            window=window_from_phrase("last week"),
+            goal=str(intent.get("goal") or "none"),
+        )
         return dec
     fits = answers["fits"]["noul"]
     dec["checks"]["fits"] = {

@@ -170,3 +170,24 @@ async def test_run_end_to_end_with_real_ports_template_and_free_text() -> None:
         card_engine=FakeCardEngine(),
     )
     assert not sink2.of("error")
+
+
+async def test_agent_turn_returns_blocks_forces_the_tool_and_prices_the_usage() -> None:
+    seen: dict[str, Any] = {}
+
+    async def messages(gate: Any, *, purpose: str, body: dict[str, Any], timeout: float) -> Any:
+        seen.update(body)
+        return {
+            "content": [
+                {"type": "tool_use", "id": "u1", "name": "emit_plan", "input": {"items": []}}
+            ]
+        }, GateUsage(1_000_000, 0)
+
+    v = vendors()
+    v.messages = messages
+    llm = GateLLM(object(), v)
+    msgs = [{"role": "user", "content": "hi"}]
+    blocks, usage = await llm.agent("sys", [{"name": "emit_plan"}], msgs, force_tool="emit_plan")
+    assert blocks[0]["name"] == "emit_plan" and isinstance(usage, Usage)
+    assert usage.cost_usd == pytest.approx(0.10)  # Haiku 5.5 input price
+    assert seen["messages"] == msgs and seen["tool_choice"] == {"type": "tool", "name": "emit_plan"}
