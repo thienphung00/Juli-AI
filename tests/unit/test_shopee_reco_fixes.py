@@ -323,6 +323,37 @@ async def test_bumping_the_engine_version_marks_every_card_stale_and_the_refresh
     assert out == {**out} and stale.OPEN
 
 
+async def test_a_card_stored_by_the_previous_engine_is_stale_and_recomputed_on_refresh(
+    session, shop, monkeypatch
+):
+    # decisions #27 / #29 (R5): the deploy bumps ENGINE_VERSION; a card stored under the previous
+    # one is reported stale (REASON_ENGINE) on read and the refresh job recomputes it by itself
+    seeded, env = shop
+    current = config.ENGINE_VERSION
+    assert current != "2026-11-20.1"
+    monkeypatch.setattr(config, "ENGINE_VERSION", "2026-11-20.1")
+    cid = await _saved_voucher(session, seeded, env)
+    stored = await store.card_payload(session, seeded.shop_id, cid)
+    assert stored["freshness"]["engine_version"] == "2026-11-20.1"
+    monkeypatch.setattr(config, "ENGINE_VERSION", current)  # the deployed code
+    assert freshness.card_stale_reason(stored) == freshness.REASON_ENGINE
+    detail = await service.card_detail(session, seeded.shop_id, cid, audience="seller")
+    assert detail["stale"] is True and detail["stale_reason"] == freshness.REASON_ENGINE
+    out = await shopee_reco_refresh.refresh_shop(session, seeded.shop_id, now=NOW)
+    await session.commit()
+    assert out["flagged"] == 1 and out["revised"] == 1
+    live = (
+        await session.scalars(
+            select(ShopProposal).where(
+                ShopProposal.shop_id == seeded.shop_id, ShopProposal.status == "sent"
+            )
+        )
+    ).all()
+    assert len(live) == 1
+    d2 = await service.card_detail(session, seeded.shop_id, live[0].id, audience="seller")
+    assert d2["stale"] is False and d2["engine_version"] == current
+
+
 async def test_a_manual_card_keeps_its_variants_through_a_refresh(session, shop, monkeypatch):
     seeded, env = shop
     variants = [
