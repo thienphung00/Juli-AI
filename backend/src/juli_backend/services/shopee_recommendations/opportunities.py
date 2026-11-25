@@ -35,7 +35,7 @@ from juli_backend.models.shopee_opportunities import (
     ShopeeOpportunity,
 )
 from juli_backend.services.metrics import DERIVATION_VERSION
-from juli_backend.services.shopee_recommendations import margin_split, result_store, versions
+from juli_backend.services.shopee_recommendations import result_store, versions
 from juli_backend.services.shopee_recommendations.model import Candidate
 
 PUBLISHED, RANKED_OUT, BELOW_BAND, REFUSED, DUPLICATE = OUTCOMES
@@ -656,9 +656,6 @@ async def draft_card(
         session, shop_id, env, [result_store.Job(card)], now=moment
     )
     result_store.write_into(card, blocks[0])
-    card["margin_split"] = await margin_split.margin_split(
-        session, shop_id, card["scope"]["product_ids"], (env.view.window.start, env.view.window.end)
-    )
     return {
         "ok": True,
         "reason": None,

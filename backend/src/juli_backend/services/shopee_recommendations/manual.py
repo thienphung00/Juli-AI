@@ -34,7 +34,6 @@ from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_recommendations import (
     combo,
     config,
-    margin_split,
     product_queue,
     result_store,
     store,
@@ -547,13 +546,6 @@ async def create_manual(
         )
         result_store.write_into(card, blocks)
         result_store.rank_from_results(card)
-    if window_env is not None:  # L1 / A9: Biên đóng góp with / without a shop discount
-        card["margin_split"] = await margin_split.margin_split(
-            session,
-            shop_id,
-            card["scope"]["product_ids"],
-            (window_env.view.window.start, window_env.view.window.end),
-        )
     score = _score_of(window_env, card)
     card["rank"] = {
         "position": 1 if primary else config.MANUAL_PRIORITY,

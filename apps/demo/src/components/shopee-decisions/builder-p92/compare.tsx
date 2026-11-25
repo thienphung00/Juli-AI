@@ -380,7 +380,7 @@ export function CompareView({
               <div className="oc-cards__col" key={e.id}>
                 {head(e, i)}
                 {today?.mixed_scopes && outcomes[i]?.today ? <TodayLine today={outcomes[i]!.today!} testId={`p2-today-${i + 1}`} /> : null}
-                {outcomes[i]?.ok && outcomes[i]?.result ? <OptionCard dates={outcomes[i]!.dates} marginSplit={outcomes[i]!.margin_split} result={outcomes[i]!.result!} testId={`oc-card-${i + 1}`} /> : <span className="sd-error">{outcomes[i] ? refusalText(outcomes[i]!) : DASH}</span>}
+                {outcomes[i]?.ok && outcomes[i]?.result ? <OptionCard dates={outcomes[i]!.dates} result={outcomes[i]!.result!} testId={`oc-card-${i + 1}`} /> : <span className="sd-error">{outcomes[i] ? refusalText(outcomes[i]!) : DASH}</span>}
                 <button className="sa-btn sa-btn--primary" data-testid={`p2-choose-${i + 1}`} disabled={readOnly || busy || !outcomes[i]?.ok || saved !== null} onClick={() => onChoose(i)} type="button">
                   Chọn P{i + 1}
                 </button>

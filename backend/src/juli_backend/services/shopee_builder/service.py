@@ -62,7 +62,7 @@ from juli_backend.services.shopee_builder.variations import (
     variation_rows,
     with_orders,
 )
-from juli_backend.services.shopee_recommendations import loader, manual, margin_split
+from juli_backend.services.shopee_recommendations import loader, manual
 from juli_backend.services.shopee_recommendations import targets as multi_targets
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.voucher_notes import same_result_notes
@@ -709,12 +709,6 @@ async def evaluate_versions(
         _evaluate_version_card(ctx, spec, i, now, str(shop_id)) for i, spec in enumerate(specs)
     ]
     results = [e[0] for e in evaluated]
-    splits = margin_split.SplitCache(
-        session, shop_id, (ctx.env.view.window.start, ctx.env.view.window.end)
-    )
-    for res in results:  # L1 / A9: Biên đóng góp with / without a shop discount
-        if res.get("ok"):
-            res["margin_split"] = await splits.of((res.get("today") or {}).get("items") or [])
     # Name why a version looks like V1 (an input that differs but does not bind), per version
     head = next((e[2] for e in evaluated if e[2] is not None), None)
     for res, _, card in evaluated:

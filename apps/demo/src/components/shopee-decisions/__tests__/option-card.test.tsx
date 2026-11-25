@@ -266,28 +266,3 @@ describe("UI grill G4 · G5 · G8 on the option card", () => {
     expect(screen.getByTestId("oc-discount-given")).toHaveTextContent("Tiền giảm cho khách ~120.000 đ");
   });
 });
-
-describe("L1 / A9 · margin split on the option card", () => {
-  const split = (over: Record<string, unknown> = {}) => ({
-    with: { margin_pct: 12.34, gmv: 400000, orders: 4 },
-    without: { margin_pct: 21, gmv: 600000, orders: 6 },
-    unknown: null,
-    ...over,
-  });
-
-  it("shows both margins next to Biên đóng góp, vi-VN decimals, no unknown share when zero", () => {
-    render(<OptionCard marginSplit={split()} result={result()} />);
-    expect(screen.getByTestId("oc-margin-split")).toHaveTextContent("Có giảm giá 12,3 % · Không giảm giá 21,0 %");
-    expect(screen.getByTestId("oc-margin-split").textContent).not.toMatch(/Chưa rõ/);
-  });
-
-  it("a side with no purchases is a dash; unknown is only a count when non-zero", () => {
-    render(<OptionCard marginSplit={split({ without: null, unknown: { orders: 3, gmv: 50000 } })} result={result()} />);
-    expect(screen.getByTestId("oc-margin-split")).toHaveTextContent("Có giảm giá 12,3 % · Không giảm giá — · Chưa rõ: 3 đơn");
-  });
-
-  it("no split, no line", () => {
-    render(<OptionCard result={result()} />);
-    expect(screen.queryByTestId("oc-margin-split")).toBeNull();
-  });
-});
