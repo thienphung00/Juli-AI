@@ -31,7 +31,13 @@ from juli_backend.services.shopee_analytics.shared import (
     shop_profit_of,
 )
 from juli_backend.services.shopee_profit.money import ZERO
-from juli_backend.services.shopee_profit.shop_profit import ProductProfit
+from juli_backend.services.shopee_profit.shop_profit import (
+    ProductProfit,
+    product_break_even_roas_shown,
+    product_contribution_shown,
+    product_margin_pct_shown,
+    product_profit_shown,
+)
 from juli_backend.services.shopee_profit.sources import PriceLever
 
 SORTS = ("gmv", "bien", "orders", "profit")
@@ -121,7 +127,7 @@ def price_block(view: PeriodView, product_id: str) -> dict[str, Any]:
 def margin_basis(view: PeriodView, product_id: str, pp: ProductProfit | None) -> str:
     """Basis of the biên: "theo đơn thực tế" when every order has an Income row and a giá vốn,
     "ước tính" when the fee formula or an assumed cost stands in, "chưa tính" without a margin."""
-    if pp is None or pp.margin_pct is None:
+    if pp is None or product_margin_pct_shown(pp) is None:
         return BASIS_UNKNOWN
     pairs = [(ln, b) for ln, b in getattr(view, "pairs", []) if ln.product_id == product_id]
     if any(not view.costs.cogs_is_real(ln.sku) for ln, _ in pairs):
@@ -187,12 +193,12 @@ def product_row(view: PeriodView, product_id: str, platform: str = "shopee") -> 
         "profit": None
         if pp is None
         else {
-            "profit": num(pp.profit),
-            "margin_pct": pct(pp.margin_pct),
-            "contribution": num(pp.contribution),
+            "profit": num(product_profit_shown(pp)),
+            "margin_pct": pct(product_margin_pct_shown(pp)),
+            "contribution": num(product_contribution_shown(pp)),
             "net_revenue": num(pp.buyer_paid),
             "ad_spend": num(pp.ad_spend),
-            "break_even_roas": ratio(pp.break_even_roas, 2),
+            "break_even_roas": ratio(product_break_even_roas_shown(pp), 2),
             "cost_coverage_pct": pct(pp.cost_coverage_pct),
             "assumed_cost": any(
                 not view.costs.cogs_is_real(ln.sku)

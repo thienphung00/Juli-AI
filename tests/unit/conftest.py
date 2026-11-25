@@ -12,6 +12,18 @@ def anyio_backend():
     return "asyncio"
 
 
+@pytest.fixture
+def ungated_profit(monkeypatch):
+    """R1: the profit gate shows "-" below 70 % known-cost GMV share, and the seeded synthetic
+    shop knows 23-57 % of its GMV. Tests about one number across the screens lower the floor with
+    this fixture; the gate itself is tested in ``test_dash_reliability``."""
+    from decimal import Decimal
+
+    from juli_backend.services.shopee_profit import shop_profit
+
+    monkeypatch.setattr(shop_profit, "MIN_KNOWN_GMV_SHARE_PCT", Decimal(0))
+
+
 @pytest.fixture(autouse=True)
 def token_encryption_key(monkeypatch):
     monkeypatch.setenv("TIKTOK_TOKEN_ENCRYPTION_KEY", "unit-test-token-encryption-key")

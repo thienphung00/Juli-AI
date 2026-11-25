@@ -37,7 +37,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Collection, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -51,6 +51,11 @@ from juli_backend.services.shopee_profit.order_profit import (
 )
 
 GMV_WARN_RATE = Decimal("0.02")
+
+#: R1 (owner 2026-11-25): Lợi nhuận ròng and everything derived from it (levels, margin, ROI) is
+#: shown only when the known-cost share of the period's GMV lies in this closed range
+MIN_KNOWN_GMV_SHARE_PCT = Decimal("70")
+MAX_KNOWN_GMV_SHARE_PCT = Decimal("100")
 
 Pairs = Sequence[tuple[OrderLine, ProfitBreakdown]]
 
@@ -111,6 +116,10 @@ class ProductProfit:
     missing: dict[str, int] = field(default_factory=dict)  # reason -> uncovered lines
     #: the covered lines' affiliate commission (already inside ``contribution``)
     affiliate_commission: Decimal = ZERO
+    #: R1: the sale lines' GMV on Shopee's confirmed basis (after the seller-borne voucher), all
+    #: of them and those of the known-cost (whole) orders: the product's known share
+    gmv_net: Decimal = ZERO
+    gmv_known_net: Decimal = ZERO
 
     @property
     def organic_contribution(self) -> Decimal:
@@ -269,6 +278,19 @@ def _product_rows(pairs: Pairs) -> dict[str, list[tuple[OrderLine, ProfitBreakdo
     return out
 
 
+def unknown_orders(pairs: Pairs) -> set[str]:
+    """Orders with any counted line whose cost is unknown: out of every profit figure whole (the
+    rule of :func:`known_cost_profit`)."""
+    return {
+        ln.order_id for ln, pb in pairs if pb.excluded_reason is None and pb.contribution is None
+    }
+
+
+def _net_value(ln: OrderLine) -> Decimal:
+    """The line's GMV on Shopee's confirmed basis: after the seller-borne voucher."""
+    return ln.order_value - ln.seller_voucher
+
+
 def product_profits(
     pairs: Pairs,
     product_ad_spend: Mapping[str, Decimal],
@@ -277,12 +299,17 @@ def product_profits(
     """Per product: sum of contribution - its ad spend. Products that only appear in the ads
     report (no orders) are included with zero revenue."""
     rows = _product_rows(pairs)
+    unknown = unknown_orders(pairs)
     out: dict[str, ProductProfit] = {}
     for product in [*rows, *(p for p in product_ad_spend if p not in rows)]:
         all_items = rows.get(product, [])
         items = [(ln, pb) for ln, pb in all_items if pb.excluded_reason is None]
         spend = product_ad_spend.get(product, ZERO)
-        covered = [(ln, pb) for ln, pb in items if pb.contribution is not None]
+        covered = [
+            (ln, pb)
+            for ln, pb in items
+            if pb.contribution is not None and ln.order_id not in unknown
+        ]
         contribution = sum((pb.contribution or ZERO for _, pb in covered), ZERO)
         missing: dict[str, int] = defaultdict(int)
         for _, pb in items:
@@ -305,8 +332,54 @@ def product_profits(
             excluded_orders=len({ln.order_id for ln, pb in all_items if pb.excluded_reason}),
             ads=(product_ads or {}).get(product),
             affiliate_commission=sum((pb.commission or ZERO for _, pb in covered), ZERO),
+            gmv_net=sum(
+                (
+                    _net_value(ln)
+                    for ln, _ in all_items
+                    # Shopee's confirmed GMV: the orders on the way in, the cancelled ones out
+                    if counts_in_sales(ln)
+                    and getattr(ln, "status", None) is not OrderStatus.CANCELLED
+                ),
+                ZERO,
+            ),
+            gmv_known_net=sum((_net_value(ln) for ln, _ in covered if counts_in_sales(ln)), ZERO),
         )
     return out
+
+
+def product_known_share_pct(pp: ProductProfit) -> Decimal | None:
+    """The product's known-cost GMV share (whole known orders, confirmed basis), 1 decimal."""
+    if pp.gmv_net <= 0:
+        return None
+    return (pp.gmv_known_net * 100 / pp.gmv_net).quantize(Decimal("0.1"))
+
+
+def product_profit_reliable(pp: ProductProfit) -> bool:
+    """R1, per product: the same 70-100 % rule on the product's own known share. No GMV (a
+    product that only has ads) or no known order: not reliable."""
+    share = product_known_share_pct(pp)
+    return (
+        share is not None
+        and pp.buyer_paid_covered > 0
+        and MIN_KNOWN_GMV_SHARE_PCT <= share <= MAX_KNOWN_GMV_SHARE_PCT
+    )
+
+
+def product_profit_shown(pp: ProductProfit) -> Decimal | None:
+    """Lợi nhuận ròng of the product as a screen shows it (``None`` = "—")."""
+    return pp.profit if product_profit_reliable(pp) else None
+
+
+def product_margin_pct_shown(pp: ProductProfit) -> Decimal | None:
+    return pp.margin_pct if product_profit_reliable(pp) else None
+
+
+def product_contribution_shown(pp: ProductProfit) -> Decimal | None:
+    return pp.contribution if product_profit_reliable(pp) else None
+
+
+def product_break_even_roas_shown(pp: ProductProfit) -> Decimal | None:
+    return pp.break_even_roas if product_profit_reliable(pp) else None
 
 
 def shop_profit(
@@ -430,10 +503,12 @@ class KnownCostProfit:
     ads_total: Decimal = ZERO  # all the ad spend of the window (charged or not)
     #: R11: the spend of days with no counted order (charged whole, its own bridge line)
     ads_no_order_days: Decimal = ZERO
+    #: R1: the reliability gate withheld profit / margin (the raw figure: ``shop_profit_raw``)
+    withheld: bool = False
 
     @property
     def label(self) -> str:
-        if self.profit is None or self.orders == 0:
+        if self.orders == 0 or (self.profit is None and not self.withheld):
             return NO_KNOWN_COST_LABEL
         if self.gmv_share_pct is None:
             return f"trên {self.orders} đơn có chi phí"
@@ -475,6 +550,53 @@ class KnownCostProfit:
                 "ads_label": self.ads_label,
             },
         }
+
+
+def profit_is_reliable(kp: KnownCostProfit) -> bool:
+    """THE reliability rule. Share known: ``70 <= share <= 100``. Share unknown (no shop GMV):
+    reliable only when there are known-cost orders (today's behaviour, reported to the owner)."""
+    if kp.profit is None:
+        return False
+    if kp.gmv_share_pct is None:
+        return kp.orders > 0
+    return MIN_KNOWN_GMV_SHARE_PCT <= kp.gmv_share_pct <= MAX_KNOWN_GMV_SHARE_PCT
+
+
+def gate_profit(kp: KnownCostProfit) -> KnownCostProfit:
+    """``kp`` with the profit, its margin and the bridge profit withheld (``None``) when
+    :func:`profit_is_reliable` says no; the coverage, GMV, ads and costs stay."""
+    if kp.profit is None or profit_is_reliable(kp):
+        return kp
+    return replace(kp, profit=None, margin_pct=None, product_profit=None, withheld=True)
+
+
+def stored_day_profit_trusted(
+    pairs: Pairs, day: date, day_gmv: Decimal | float | None = None, *, check_share: bool = True
+) -> bool:
+    """R1: may a STORED day profit (``shop_metrics_daily`` / ``product_metrics_daily``) be shown?
+    Rows written before the in-transit fix hold ``-ads`` for a day of in-transit orders. Not
+    trusted: the day has an in-transit order, or (``check_share``) its known-cost share of the
+    day's GMV (``day_gmv``, else the day's lines) is outside the 70-100 % range. A day without a
+    line is trusted (a zero-order day's stored profit is its ads)."""
+    day_pairs = [(ln, pb) for ln, pb in pairs if ln.order_date == day]
+    if any(getattr(ln, "status", None) is OrderStatus.IN_TRANSIT for ln, _ in day_pairs):
+        return False
+    if not check_share or not day_pairs:
+        return True
+    counted = [(ln, pb) for ln, pb in day_pairs if pb.excluded_reason is None]
+    unknown = {ln.order_id for ln, pb in counted if pb.contribution is None}
+    known = sum(
+        (_net_value(ln) for ln, _ in counted if ln.order_id not in unknown and counts_in_sales(ln)),
+        ZERO,
+    )
+    whole = (
+        Decimal(str(day_gmv))
+        if day_gmv is not None and day_gmv > 0
+        else sum((_net_value(ln) for ln, _ in counted if counts_in_sales(ln)), ZERO)
+    )
+    if whole <= 0:
+        return True
+    return MIN_KNOWN_GMV_SHARE_PCT <= known * 100 / whole <= MAX_KNOWN_GMV_SHARE_PCT
 
 
 def _vn_money(value: Decimal) -> str:
@@ -531,6 +653,8 @@ def known_cost_profit(
     # base (its settlement cost) is no sale (owner 2026-11-18), so it adds to neither N nor GMV
     known_sales = [(ln, pb) for ln, pb in known if counts_in_sales(ln)]
     gmv = sum((ln.order_value for ln, _ in known_sales), ZERO)
+    # the share is on Shopee's confirmed basis (GMV after the seller-borne voucher)
+    gmv_net = sum((_net_value(ln) for ln, _ in known_sales), ZERO)
     share = safe_div(paid_known, paid_all) or ZERO
 
     spend_days = {d: s for d, s in (daily_spend or {}).items() if s > 0}
@@ -592,7 +716,7 @@ def known_cost_profit(
     margin = None if value is None else pct_points(safe_div(value, paid_known))
     gmv_share = None
     if shop_gmv is not None and shop_gmv > 0:
-        gmv_share = (gmv * 100 / shop_gmv).quantize(Decimal("0.1"))
+        gmv_share = (gmv_net * 100 / shop_gmv).quantize(Decimal("0.1"))
     return KnownCostProfit(
         profit=value,
         margin_pct=None if margin is None else margin.quantize(Decimal("0.1")),

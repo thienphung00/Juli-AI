@@ -34,6 +34,7 @@ from juli_backend.services.shopee_analytics.product import build_product_page
 from juli_backend.services.shopee_analytics.rankings import build_ranking
 from juli_backend.services.shopee_analytics.shared import shop_profit_fields
 from juli_backend.services.shopee_analytics.windows import InvalidWindow, Window
+from juli_backend.services.shopee_profit.shop_profit import product_margin_pct_shown
 
 PRODUCT_PERIODS: tuple[str, ...] = ("7d", "30d", "90d")
 
@@ -188,7 +189,7 @@ async def product_price_margin(
         pp = view.profit.products.get(item_id)
         out[item_id] = {
             **price_block(view, item_id),
-            "margin_pct": None if pp is None else pct(pp.margin_pct),
+            "margin_pct": None if pp is None else pct(product_margin_pct_shown(pp)),
             "margin_basis": margin_basis(view, item_id, pp),
         }
     return out

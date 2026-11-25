@@ -17,14 +17,25 @@ from juli_backend.services.shopee_profit.five_numbers import (
 )
 from juli_backend.services.shopee_profit.flows import FlowMetrics, FlowTable
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
-from juli_backend.services.shopee_profit.shop_profit import KnownCostProfit, known_cost_profit
+from juli_backend.services.shopee_profit.shop_profit import (
+    KnownCostProfit,
+    gate_profit,
+    known_cost_profit,
+)
 from juli_backend.services.shopee_profit.sources import CellStats
 
 
 def shop_profit_of(view: PeriodView) -> KnownCostProfit:
-    """P100 B.5: THE shop profit of the window (the known-cost orders, with their coverage of
-    the headline GMV). Tổng quan, Sản phẩm (matrix, the Sản phẩm + luồng headline) and Kế hoạch
-    (live "hôm nay" and the frozen base) read only this."""
+    """P100 B.5 + R1: THE shop profit of the window as every screen SHOWS it (the known-cost
+    orders, with their coverage of the headline GMV), behind the reliability gate (profit /
+    margin ``None`` unless the known-cost share is 70-100 % of the GMV). Tổng quan, Sản phẩm
+    (matrix, the Sản phẩm + luồng headline) and Kế hoạch (live "hôm nay" and the frozen base)
+    read only this. Sums and stored values take :func:`shop_profit_raw`."""
+    return gate_profit(shop_profit_raw(view))
+
+
+def shop_profit_raw(view: PeriodView) -> KnownCostProfit:
+    """The ungated figure: for the reconciliation sheet and stored values, never for display."""
     return known_cost_profit(
         view.profit,
         view.pairs,

@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from juli_backend.services.shopee_analytics.shared import shop_profit_of
+from juli_backend.services.shopee_analytics.shared import shop_profit_of, shop_profit_raw
 from juli_backend.services.shopee_profit.ladder import affiliate_cost
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.order_profit import REFUND_STATUSES, OrderStatus
@@ -82,6 +82,7 @@ class ProfitBridge:
     other_marketing: float
     profit: float | None  # the dashboard's profit (known_cost_profit)
     margin_pct: float | None
+    withheld: bool = False  # R1: share outside 70-100 %: gộp, đóng góp and ròng are "—"
 
 
 def _f(value: Decimal | None) -> float | None:
@@ -96,7 +97,8 @@ def _pct(part: Decimal, whole: Decimal) -> float | None:
 def profit_bridge(view: Any) -> ProfitBridge:
     """The two blocks of the "Lợi nhuận" sheet for the view's window (see the module doc)."""
     pairs = list(view.pairs)
-    kp = shop_profit_of(view)
+    kp = shop_profit_raw(view)  # R1: the sheet's lines are the raw figure
+    shown = shop_profit_of(view)  # the headline profit and margin: behind the gate
     lost = [(ln, pb) for ln, pb in pairs if ln.status in LOST_STATUSES]
     pending = [(ln, pb) for ln, pb in pairs if ln.status in PENDING_STATUSES]
     refunds = [(ln, pb) for ln, pb in pairs if ln.status in REFUND_BRIDGE_STATUSES]
@@ -156,6 +158,7 @@ def profit_bridge(view: Any) -> ProfitBridge:
         ads=_f(kp.ads_charged) if kp.profit is not None else None,
         ads_no_order_days=float(kp.ads_no_order_days),
         other_marketing=float(kp.other_marketing_charged),
-        profit=_f(kp.profit),
-        margin_pct=_f(kp.margin_pct),
+        profit=_f(shown.profit),
+        margin_pct=_f(shown.margin_pct),
+        withheld=shown.withheld,
     )

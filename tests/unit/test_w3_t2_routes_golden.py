@@ -300,6 +300,7 @@ async def test_the_unavailable_map_names_the_reason_on_tiktok(client):
     assert split["unavailable"]["margin"] == "ads_scope_missing"
 
 
+@pytest.mark.usefixtures("ungated_profit")
 async def test_a_shopee_shop_keeps_its_profit_margin_and_ad_figures(session):
     seeded = await seed_shopee_shop(session, rules=True)
     app = build_app(session)
