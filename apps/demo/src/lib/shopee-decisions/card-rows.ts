@@ -75,14 +75,15 @@ export const inNoise = (r: Pick<OptionResult, "estimable" | "within_noise"> | nu
 
 /** A Δ the screen shows: the wire value, or (inside the noise band, where the wire value is null) the P50 rebuilt from the untouched before / likely columns. */
 export function deltaOf(r: OptionResult, m: MoneyMetric): { readonly value: number | null; readonly noise: boolean } {
-  const noise = inNoise(r, m);
+  const flagged = inNoise(r, m);
   const wire = m === "profit" ? (r.delta.profit?.value ?? null) : r.delta[m].value;
-  if (wire !== null || !noise) return { value: wire, noise };
+  if (wire !== null || !flagged) return { value: wire, noise: flagged };
   const b = r.detail.before;
   const l = r.detail.likely;
-  if (!l) return { value: null, noise };
+  if (!l) return { value: null, noise: flagged };
   const value = m === "gmv" ? l.gmv - b.gmv : m === "orders" ? l.orders - b.orders : l.profit !== null && b.profit !== null ? l.profit - b.profit : null;
-  return { value, noise };
+  // F2: a profit that goes down is a loss, never only "trong dao động"
+  return { value, noise: !(m === "profit" && value !== null && value < 0) };
 }
 
 /** "Có lãi" only when Δ lợi nhuận > 0. */

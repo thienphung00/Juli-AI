@@ -381,7 +381,10 @@ def test_plan_base_funnel_reads_the_stored_rows_with_ctor_on_shop_orders():
 
     from juli_backend.services.shopee_recommendations import plan_base
 
-    env = cast(Any, SimpleNamespace(metrics=SimpleNamespace(views=1, clicks=1, orders=4)))
+    env = cast(
+        Any,
+        SimpleNamespace(metrics=SimpleNamespace(views=1, clicks=1, orders=4), shop_orders_30d=4),
+    )
     rows = FunnelRows(W, tuple(_shop_day(D1, {"the_san_pham_khac": (900, 40, 2, 170_000)})))
     got = plan_base.funnel_json(env, rows)
     assert got["views"] == 900 and got["clicks"] == 40

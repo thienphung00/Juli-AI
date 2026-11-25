@@ -64,7 +64,9 @@ if TYPE_CHECKING:
 KEY = "result"
 META_RESULTS = "results"
 AT_APPROVAL = "result_at_approval"
-RESULT_SCHEMA = "card-result/1"
+#: bump = every stored result is recomputed by the refresh job (the start-up / daily job), the
+#: cards themselves are not re-issued; until then the stored one keeps showing
+RESULT_SCHEMA = "card-result/2"  # F1 / F2: hiện tại = the last 30 days, forecast/2
 NOT_ESTIMABLE_TEXT = "Chưa ước tính được"
 #: C1: estimable, but the expected change is smaller than the metric's normal swing (F5)
 WITHIN_NOISE_TEXT = "Trong biên dao động"
@@ -78,6 +80,8 @@ NON_TERMINAL = (
     STATUS_APPROVED,
     STATUS_EXECUTED,
 )
+#: Statuses of a card nobody approved yet (Chat reads its stored forecast).
+OPEN = (STATUS_DRAFT, STATUS_SENT, STATUS_CHANGES_REQUESTED)
 #: Statuses whose approval-time result is kept before any recomputation.
 APPROVED_LIKE = (STATUS_APPROVED, STATUS_EXECUTED)
 COLUMNS = (("p10", "low"), ("p50", "likely"), ("p90", "high"))
@@ -318,6 +322,7 @@ def apply(card: dict[str, Any], meta: Mapping[str, Any] | None) -> dict[str, Any
         card[AT_APPROVAL] = meta[AT_APPROVAL]
     if not stored:
         return card
+    stored = _with_original_forecast(stored, card.get(AT_APPROVAL))
     vlist = card.get("versions")
     if vlist:
         for v in vlist:
@@ -331,6 +336,18 @@ def apply(card: dict[str, Any], meta: Mapping[str, Any] | None) -> dict[str, Any
         _lay_forecast(card, stored["1"])
         align_spend(card, stored["1"])
     return card
+
+
+def _with_original_forecast(
+    stored: Mapping[str, Any], approved: Mapping[str, Any] | None
+) -> Mapping[str, Any]:
+    """F2: an approved card shows the forecast it was approved with (the approved version's
+    ``forecast`` and its data day), whatever a later recomputation says."""
+    n = str((approved or {}).get("version") or 1)
+    if not approved or not approved.get("forecast") or not stored.get(n):
+        return stored
+    keep = {k: approved.get(k) for k in ("forecast", "data_through")}
+    return {**stored, n: {**stored[n], **keep}}
 
 
 def _lay_forecast(row: dict[str, Any], block: Mapping[str, Any]) -> None:

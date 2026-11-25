@@ -978,13 +978,19 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # rate, before ads and affiliate) instead of the after-ads profit per order, so a
             # different draw is the middle-PROFIT one: 389_340 on 3,17 orders (was 336_249 /
             # 2,74). The combo's reach and take-up are unchanged.
-            assert cd["gmv"] == pytest.approx(389_340, rel=0.02)
+            # F1 (2026-11-25): the base is the real 30 days (208 đơn, 25,1 tr: the picker's figure)
+            # instead of a 14-day rate x 30, so another draw is the middle-profit one: 679_014 on
+            # 2,93 orders with a 1,3 % basket lift (the upper half of the reach band). The combo's
+            # reach and take-up are unchanged.
+            assert c["detail"]["before"]["orders"] == sum(
+                ctx.env.metrics.split(i).orders for i in (nrc, tdr)
+            )
+            assert cd["gmv"] == pytest.approx(679_014, rel=0.02)
             assert round(cd["orders"]) == 3
-            # the combo's only lever here is the badge's CTOR prior: the middle draw's ΔGMV is its
-            # Δ orders at today's AOV -- never a GMV with almost no orders (445.900đ on 0,31 đơn)
+            # never a GMV with almost no orders (445.900đ on 0,31 đơn): the middle draw's ΔGMV is
+            # its Δ orders plus at most a small basket lift
             aov = c["detail"]["before"]["aov"]
-            assert c["detail"]["likely"]["aov"] == pytest.approx(aov)
-            assert cd["gmv"] == pytest.approx(cd["orders"] * aov, rel=1e-6)
+            assert aov <= c["detail"]["likely"]["aov"] <= aov * 1.02
             assert cd["profit"] < 0
             ctx = await builder.build_context(session, report.shop_id, [set2], as_of=END, now=NOW)
             base = integrate.base_for(ctx.env, [nrc], "")
@@ -999,7 +1005,8 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # F2: the base is the adaptive window's level (was 791_214 on the fixed 30 days)
             # Track P (#42-#44): the middle-profit draw on the contribution basis (one rate for
             # the extra orders and the AOV effect): 806_567 (was 856_463 on the after-ads basis)
-            assert sd["gmv"] == pytest.approx(806_567, rel=0.02)
+            # F1: on the real 30 days (109 đơn, 14,8 tr): 779_549
+            assert sd["gmv"] == pytest.approx(779_549, rel=0.02)
             assert s["cost"]["total"] > 0 and sd["profit"] < 0
 
 

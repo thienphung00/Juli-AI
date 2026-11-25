@@ -48,6 +48,46 @@ class ServiceCardEngine:
         self._cache[as_of] = (env, cands)
         return env, cands
 
+    async def _stored(self, env: Any, kind: str, item: str | None) -> dict[str, Any] | None:
+        """The newest open card of (kind, item) whose stored results are all fresh on ``env``."""
+        from sqlalchemy import select
+
+        from juli_backend.models.models import ActionCard
+        from juli_backend.models.shop_proposals import ShopProposal
+        from juli_backend.services.shopee_recommendations import result_store, store, versions
+
+        async with self._f() as s:
+            try:
+                ids = await s.scalars(
+                    select(ShopProposal.id)
+                    .join(ActionCard, ActionCard.id == ShopProposal.id)
+                    .where(
+                        ShopProposal.shop_id == self.shop,
+                        ActionCard.status == store.CARD_STATUS,
+                        ShopProposal.status.in_(list(result_store.OPEN)),
+                    )
+                    .order_by(ShopProposal.created_at.desc())
+                )
+                for card_id in ids.all():
+                    card = await store.card_payload(s, self.shop, card_id)
+                    if card is None or card.get("change_kind") != kind:
+                        continue
+                    if item is not None and item not in result_store.scope_items(card):
+                        continue
+                    live = [
+                        int(v["version"])
+                        for v in versions.versions_of(card)
+                        if v.get("status") != versions.STATUS_REFUSED
+                    ]
+                    if live and all(
+                        result_store.is_fresh(result_store.version_result(card, n), env, card)
+                        for n in live
+                    ):
+                        return _brief(card)
+                return None
+            finally:
+                await s.rollback()
+
     async def engine_card(self, kind: str, item: str | None, as_of: date) -> dict[str, Any]:
         from juli_backend.services.shopee_recommendations import result_store, versions
         from juli_backend.services.shopee_recommendations.cards import build_card
@@ -56,6 +96,9 @@ class ServiceCardEngine:
         if env is None:
             return {"ok": False, "reason": "no_shopee_data"}
         mine = [c for c in cands if c.kind == kind and (item is None or item in _items(c))]
+        kept = await self._stored(env, kind, item)
+        if kept is not None:  # F2: the forecast the seller's screens show, never a second one
+            return {"ok": True, "kind": kind, "item": item, "source": "stored_card", "card": kept}
         source = "engine_run"
         if not mine:
             from juli_backend.services.shopee_recommendations.generators import GENERATORS
@@ -160,6 +203,7 @@ def _brief(card: dict[str, Any]) -> dict[str, Any]:
             "inputs",
             "certain",
             "predicted",
+            "forecast",
             "plan",
             "floors",
             "warnings",

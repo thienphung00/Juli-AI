@@ -72,7 +72,9 @@ from juli_backend.services.shopee_builder.engine_families.measure import (
 )
 from juli_backend.services.shopee_profit import shop_profit
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
+from juli_backend.services.shopee_recommendations import current
 from juli_backend.services.shopee_recommendations.env import RecoEnv
+from juli_backend.services.shopee_recommendations.forecast import coverage
 
 ZERO = Decimal(0)
 #: Ad type of a Dịch vụ Hiển thị Sản phẩm campaign, past or new (``measure.ad_rates``).
@@ -111,11 +113,7 @@ def base_for(env: RecoEnv, item_ids: Sequence[str], shop_id: str = "") -> Funnel
     base's profit is the scope's contribution rate x its GMV (``funnel.on_contribution``), never
     the stored day profit (after ads). A scope with no line in the window (a product that did not
     sell) takes the shop's rate."""
-    rows = env.funnel_history
-    if not isinstance(rows, funnel.FunnelRows):
-        rows = env.view.data.funnel
-    if not isinstance(rows, funnel.FunnelRows):
-        rows = funnel.FunnelRows(env.view.window)
+    rows = current.rows_of(env) or funnel.FunnelRows(env.view.window)
     items = tuple(dict.fromkeys(i for i in item_ids if i))
     rate = scope_rate(env, items)
     base = forecast_base.adaptive_base(
@@ -244,6 +242,7 @@ def scope_today(env: RecoEnv, base: FunnelBase) -> dict[str, Any]:
         "clicks_30d": _float(clicks),
         "ctr": float(clicks / views) if views and clicks is not None else None,
         "ctor": float(orders / clicks) if clicks and orders is not None else None,
+        "coverage": coverage(base.days, base.window_days),
     }
 
 
@@ -311,9 +310,10 @@ class Evaluated:
 
 
 def base_aov(base: FunnelBase) -> Decimal | None:
-    """The base's GMV ÷ orders (what an AOV lift multiplies); None without orders."""
+    """The base's GMV ÷ orders (what an AOV lift multiplies); without an order in the 30 days the
+    adaptive window's AOV (a rate, F1); None without any."""
     orders, gmv = base.total("orders"), base.total("gmv")
-    return gmv / orders if orders and gmv is not None else None
+    return gmv / orders if orders and gmv is not None else base.aov_rate
 
 
 def extras_for(base: FunnelBase) -> FamilyExtras:
@@ -516,6 +516,9 @@ def sum_results(results: Sequence[OptionResult], label: str) -> OptionResult:
         notes=tuple(notes),
         ads=_sum_ads([r.ads for r in results]),
         margin_basis=_sum_basis([r.margin_basis for r in results]),
+        data_through=first.data_through,
+        days_with_data=min(r.days_with_data for r in results),
+        window_days=first.window_days,
     )
 
 

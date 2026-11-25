@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { lossChip } from "../../../components/shopee-decisions/builder-p92/results";
 import { roiText, roundHalfAway } from "../../metrics";
-import { actualText, baselineLine, changeText, deltaText, forecastOfResult, dataThroughText, finalVerdict, measuredWithText, metricView, newestDataThrough } from "../forecast-display";
+import { actualText, baselineLine, changeText, deltaText, forecastOfResult, dataThroughText, finalVerdict, measuredWithText, metricView, newestDataThrough, isNoisy } from "../forecast-display";
 
 describe("forecast display (F7.8)", () => {
   it("headline with the days for profit, the grey line with sign and percent", () => {
@@ -74,6 +75,17 @@ describe("forecast display (F7.8)", () => {
     expect(noisy.value).toBe("112 đ · trong dao động");
     expect(metricView("profit", { hien_tai: 100, du_kien: 112, delta: 12, delta_pct: 12 }, { days: 30 }).value).toBe("112 đ");
     const f = forecastOfResult({ estimable: true, days: 7, after: { days: 7 }, within_noise: ["gmv", "profit"], detail: { before: { gmv: 1, orders: 1, profit: 1, views: null, ctr: null, ctor: null, aov: null, by_source: {} }, likely: { gmv: 2, orders: 2, profit: 2, views: null, ctr: null, ctor: null, aov: null, by_source: {} }, low: null, high: null } } as never);
-    expect(f?.noise).toEqual(["profit"]);
+    expect(isNoisy(f, "profit")).toBe(true);
+    expect(isNoisy(f, "gmv")).toBe(false);
+  });
+
+  it("F2: the server's block is the forecast; the field is within_noise; a loss is never only \"trong dao động\"", () => {
+    const block = { days: 30, within_noise: ["profit"], metrics: { profit: { hien_tai: 100, du_kien: 92, delta: -8, delta_pct: -8 } } };
+    expect(forecastOfResult({ estimable: true, forecast: block } as never)).toBe(block);
+    expect(isNoisy(block, "profit")).toBe(false);
+    expect(isNoisy({ ...block, metrics: { profit: { hien_tai: 100, du_kien: 108, delta: 8, delta_pct: 8 } } }, "profit")).toBe(true);
+    const under = { ...block, metrics: { profit: { hien_tai: -20, du_kien: -12, delta: 8, delta_pct: null } } };
+    expect(isNoisy(under, "profit")).toBe(false);
+    expect(lossChip(under, { estimable: true } as never)).toEqual({ text: "Lỗ", tone: "down" });
   });
 });

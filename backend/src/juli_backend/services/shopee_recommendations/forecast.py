@@ -15,6 +15,11 @@ block ``{hien_tai, du_kien, delta, delta_pct, low, high, days}`` over the card's
 * ``margin_pct`` = profit / doanh thu thực in percent (the dashboard's margin, built from the
   result's ``margin_basis``); its ``delta`` is in points and ``delta_pct`` is None.
 
+F2 (owner 2026-11-25, ``forecast/2``): this block is the only forecast a surface reads (builder,
+card, Kế hoạch, Excel, Chat). Beside the metrics it carries ``cost`` (over the same days),
+``evidence`` (how sure: the result's basis), ``within_noise`` and ``coverage`` ("N/30 ngày có dữ
+liệu" of hiện tại). A stored ``forecast/1`` row has the same ``metrics`` and stays readable.
+
 The block also carries ``data_through`` (the newest complete data day the numbers were computed
 on; the screen says "Số liệu đến dd/mm"). Pure: no I/O.
 """
@@ -32,7 +37,7 @@ from juli_backend.services.shopee_builder.reasons import code_for_note, text_for
 if TYPE_CHECKING:
     from juli_backend.services.shopee_builder.engine.contract import OptionResult, Scenario
 
-SCHEMA = "forecast/1"
+SCHEMA = "forecast/2"
 METRIC_KEYS = ("profit", "gmv", "orders", "aov", "margin_pct")
 
 
@@ -111,6 +116,17 @@ def metrics_of_result(r: OptionResult) -> dict[str, dict[str, Any]]:
     }
 
 
+def coverage(days_with_data: int, window_days: int) -> dict[str, Any] | None:
+    """``ShopMetrics.coverage``'s shape; ``None`` when the base does not say."""
+    if days_with_data <= 0 or window_days <= 0:
+        return None
+    return {
+        "days_with_data": days_with_data,
+        "window_days": window_days,
+        "label": f"{days_with_data}/{window_days} ngày có dữ liệu",
+    }
+
+
 def empty_metrics(days: int | None = None) -> dict[str, dict[str, Any]]:
     """Every metric null (no result at all): the reason code says why."""
     return {
@@ -148,9 +164,12 @@ def forecast_of(
         "reason_code": code,
         "reason_text": text_for(code),
         "within_noise": [] if result is None else list(result.within_noise),
+        "cost": None if result is None else float(result.cost_total),
+        "evidence": None if result is None else result.basis,
+        "coverage": None if result is None else coverage(result.days_with_data, result.window_days),
         "data_through": None if data_through is None else data_through.isoformat(),
         "metrics": empty_metrics() if result is None else metrics_of_result(result),
     }
 
 
-__all__ = ["SCHEMA", "empty_metrics", "forecast_of", "metrics_of_result"]
+__all__ = ["SCHEMA", "coverage", "empty_metrics", "forecast_of", "metrics_of_result"]

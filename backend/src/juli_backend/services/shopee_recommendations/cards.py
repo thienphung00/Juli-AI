@@ -13,10 +13,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from juli_backend.services.shopee_analytics import forecast_base, funnel
+from juli_backend.services.shopee_analytics import forecast_base
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.whatif import PredictedRange
-from juli_backend.services.shopee_recommendations import config, freshness
+from juli_backend.services.shopee_recommendations import config, current, freshness
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.evaluate import evaluate
 from juli_backend.services.shopee_recommendations.kinds import (
@@ -143,10 +143,8 @@ def _in_stock(env: RecoEnv, cand: Candidate) -> bool | None:
 
 
 def _base(env: RecoEnv, cand: Candidate) -> Any:
-    rows = env.funnel_history
-    if not isinstance(rows, funnel.FunnelRows):
-        rows = env.view.data.funnel
-    if not isinstance(rows, funnel.FunnelRows):
+    rows = current.rows_of(env)
+    if rows is None:
         return None
     # staleness is judged against ``env.today`` (the loader's rule: now, else the explicit as_of,
     # else today; None = no check)

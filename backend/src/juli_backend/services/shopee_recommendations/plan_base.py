@@ -33,7 +33,7 @@ def funnel_json(env: RecoEnv, rows: FunnelRows | None) -> dict[str, Any]:
     while the shop has no source rows yet."""
     m = env.metrics
     if rows is not None and rows.available:
-        n = funnel.numbers(funnel.base_from_rows(rows, ""), m.orders)
+        n = funnel.numbers(funnel.base_from_rows(rows, ""), env.shop_orders_30d)
     else:
         views = None if m.views is None else Decimal(m.views)
         clicks = None if m.clicks is None else Decimal(m.clicks)
@@ -54,13 +54,15 @@ def base_json(env: RecoEnv, rows: FunnelRows | None = None) -> dict[str, Any]:
     """The aggregates the plan math shows as "hôm nay" (D85.2: from ShopMetrics; the funnel from
     the stored source rows, P98)."""
     m = env.metrics
+    gmv, orders = float(env.shop_gmv_30d), env.shop_orders_30d
     fig = shop_profit_of(env.view).json()  # P100 B.5: the one shop profit
     return {
         "as_of": env.as_of.isoformat(),
         "window": env.view.window.json(),
-        "gmv_30d": float(env.shop_gmv_30d),
-        "orders_30d": env.shop_orders_30d,
-        "aov": None if m.aov is None else float(m.aov),
+        # F1: hiện tại of a NEW snapshot (a frozen one never moves)
+        "gmv_30d": gmv,
+        "orders_30d": orders,
+        "aov": gmv / orders if orders else None,
         "margin_pct": fig["margin_pct"],
         "profit_30d": fig["profit"],
         "shop_profit": fig,

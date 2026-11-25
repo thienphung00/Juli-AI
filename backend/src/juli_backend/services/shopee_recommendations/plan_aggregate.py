@@ -53,11 +53,14 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
+from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 from juli_backend.services.shopee_recommendations import (
     config,
+    current,
+    forecast,
     plan,
     plan_steps,
     service,
@@ -1517,16 +1520,21 @@ def _today(env: RecoEnv, base: Mapping[str, Any] | None = None) -> dict[str, Any
     m = env.metrics
     fig = shop_profit_of(env.view).json()
     gmv, orders = float(env.shop_gmv_30d), env.shop_orders_30d
+    now = current.current_30d(env)  # F1: the same hiện tại as the builder's and the cards'
+    coverage = None if now is None else forecast.coverage(now.days, now.window_days)
+    views = m.views if now is None else funnel.known_total(now, "views")
+    clicks = m.clicks if now is None else funnel.known_total(now, "clicks")
     return {
         "as_of": env.as_of.isoformat(),
+        "coverage": coverage,
         "gmv_30d": gmv,
         "orders_30d": orders,
-        "aov": None if m.aov is None else float(m.aov),
+        "aov": gmv / orders if orders else None,
         "margin_pct": fig["margin_pct"],
-        "views_30d": m.views,
-        "clicks_30d": m.clicks,
-        "ctr": None if m.ctr is None else float(m.ctr),
-        "ctor": None if m.ctor is None else float(m.ctor),
+        "views_30d": None if views is None else float(views),
+        "clicks_30d": None if clicks is None else float(clicks),
+        "ctr": float(clicks / views) if views and clicks is not None else None,
+        "ctor": orders / float(clicks) if clicks else None,
         "profit_30d": fig["profit"],
         "shop_profit": fig,
     }
