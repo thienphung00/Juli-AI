@@ -24,18 +24,73 @@ from tests.support.shopee_analytics import seed_shopee_shop
 #: batch-1124-a for owner decisions #39 (one product ad cost: a product-day with ad spend and no
 #: sale now gets its own order_lines row, profit = -ad cost; 8 such rows in the fixture) and
 #: #39/#50 (ROWS_VERSION 2 -> 4 in every shop row's ``detail.rows_v``). Every other row and
-#: every source row is unchanged against 3ff94165. Re-pinned on batch-1124-c-data (FACT,
-#: migration 140; was fc4de357…5eb2598): the rows gain the data-layer columns (components,
-#: known AFF / ads cost, ads funnel, ``derivation_version``) and ROWS_VERSION 4 -> 5; every
-#: column that existed before is byte-identical (checked against 7c1255ae, all three tables).
-BASE_DIGEST = "0e851e365ae7690a4fbe8505c39b42bcc97dbf3d1aa44e17b36c59216608ca58"
+#: every source row is unchanged against 3ff94165.
+BASE_DIGEST = "fc4de35745f00147bf79aa432f8b50dbaf4f5e5acda96fa28204b5d635eb2598"
 _SKIP = {"id", "shop_id", "built_at"}
+#: the columns migration 140 added, which nothing writes since #2367 was taken out: they must be
+#: empty, and the digest of every other column is the one from before it
+_UNWRITTEN_140 = {
+    "ShopeeShopMetricsDaily": frozenset(
+        {
+            "ads_clicks",
+            "ads_gmv_confirmed",
+            "ads_gmv_direct",
+            "ads_orders",
+            "ads_spend_known",
+            "ads_views",
+            "affiliate_commission",
+            "affiliate_commission_known",
+            "affiliate_gmv",
+            "cogs",
+            "cogs_known_gmv",
+            "derivation_version",
+            "fees",
+            "net_revenue",
+            "net_revenue_known",
+            "offer_combo",
+            "offer_promo",
+            "offer_voucher",
+            "other_marketing",
+            "packaging",
+            "shipping_net",
+        }
+    ),
+    "ShopeeProductMetricsDaily": frozenset(
+        {
+            "ads_clicks",
+            "ads_gmv",
+            "ads_gmv_confirmed",
+            "ads_gmv_direct",
+            "ads_orders",
+            "ads_spend_known",
+            "ads_views",
+            "affiliate_commission",
+            "affiliate_commission_known",
+            "affiliate_gmv",
+            "cogs",
+            "cogs_known_gmv",
+            "derivation_version",
+            "fees",
+            "net_revenue",
+            "net_revenue_known",
+            "offer_combo",
+            "offer_promo",
+            "offer_voucher",
+            "packaging",
+            "shipping_net",
+        }
+    ),
+    "ShopeeSourceMetricsDaily": frozenset({"derivation_version"}),
+}
 
 
 def _plain(row) -> dict:
     out = {}
     for col in type(row).__table__.columns:
         if col.name in _SKIP:
+            continue
+        if col.name in _UNWRITTEN_140[type(row).__name__]:
+            assert getattr(row, col.name) is None, col.name
             continue
         out[col.name] = getattr(row, col.name)
     return out

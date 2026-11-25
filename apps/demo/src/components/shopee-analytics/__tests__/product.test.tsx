@@ -339,11 +339,8 @@ describe("Sản phẩm: tabs", () => {
     expect(wf).toHaveTextContent("= Khách trả (doanh thu thực)190.000đ");
     expect(wf).toHaveTextContent("− Phí sàn28.500đ");
     expect(wf).toHaveTextContent("− Giá vốn100.000đ");
-    // L1 / L4: the product level stops at Lợi nhuận đóng góp (before ads and affiliate)
-    expect(wf).toHaveTextContent("= Lợi nhuận đóng góp58.500đ");
-    expect(wf).toHaveTextContent("Biên đóng góp30,8%");
-    expect(wf).not.toHaveTextContent("DVHT");
-    expect(wf).not.toHaveTextContent("Đóng góp trước quảng cáo");
+    expect(wf).toHaveTextContent("= Lợi nhuận23.500đ");
+    expect(wf).toHaveTextContent("Biên lợi nhuận12,4%");
     expect(tab).toHaveTextContent("121.176đ");
     expect(tab).toHaveTextContent("181.979đ");
     expect(tab).toHaveTextContent("9,0% · 18.000đ");

@@ -22,7 +22,6 @@ A listing without a giá vốn can be built: profit and margin are ``None`` with
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.shopee_builder import before_after
@@ -32,7 +31,7 @@ from juli_backend.services.shopee_builder.engine import wire
 from juli_backend.services.shopee_builder.reasons import profit_reason, reason_fields, text_for
 from juli_backend.services.shopee_builder.traffic import break_even_ctor, scope_traffic
 from juli_backend.services.shopee_builder.translate import Translation
-from juli_backend.services.shopee_profit.money import pct_points
+from juli_backend.services.shopee_profit import shop_profit
 from juli_backend.services.shopee_recommendations import config
 from juli_backend.services.stock_alert.cards import stock_warnings
 
@@ -481,33 +480,19 @@ def _margin(card: Mapping[str, Any]) -> tuple[float | None, float | None]:
     return None, None
 
 
-def scope_contribution_margin_pct(profit: Any, item_ids: Sequence[str] = ()) -> Decimal | None:
-    """L1 (#67): the scope's Biên đóng góp, before ads and AFF: Σ covered contribution before
-    ads and affiliate ÷ Σ covered buyer_paid (doanh thu thực), 1 decimal. ``()`` = the whole shop.
-    None when no product of the scope has covered revenue. Never ``ProductProfit.margin_pct``
-    (that one deducts the products' ads)."""
-    items = tuple(dict.fromkeys(i for i in item_ids if i))
-    rows = [profit] if not items else [profit.products[i] for i in items if i in profit.products]
-    covered = sum((r.buyer_paid_covered for r in rows), Decimal(0))
-    if not rows or covered <= 0:
-        return None
-    organic = sum((r.organic_contribution for r in rows), Decimal(0))
-    return pct_points(organic / covered)
-
-
 def one_margin(
     ctx: BuilderContext,
     items: Sequence[str],
     before: float | None,
     after: float | None,
 ) -> tuple[float | None, float | None]:
-    """ADR-122 d.12 (P99), L1 (#67): "hôm nay" is the scope's Biên đóng góp
-    (``scope_contribution_margin_pct``, before ads and AFF) and "sau" moves it by the change the
-    evaluators measure on the same orders (their after - before, in points). Unknown stays
-    unknown; an add-on's own margin (no before) is left as it is."""
+    """ADR-122 d.12 (P99): "hôm nay" is the scope's Luồng sản phẩm margin
+    (``shop_profit.scope_margin_pct``) and "sau" moves it by the change the evaluators measure on
+    the same orders (their after - before, in points). Unknown stays unknown; an add-on's own
+    margin (no before) is left as it is."""
     if before is None:
         return before, after
-    one = scope_contribution_margin_pct(ctx.env.view.profit, items)
+    one = shop_profit.scope_margin_pct(ctx.env.view.profit, items)
     if one is None:
         return before, after
     moved = None if after is None else round(float(one) + after - before, 1)

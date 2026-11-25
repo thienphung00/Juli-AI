@@ -11,18 +11,9 @@ from juli_backend.services.metrics.allocation import (
     ShopLine,
     ShopLines,
     channel_partition,
-    deoverlap_periods,
     shop_lines,
 )
-from juli_backend.services.metrics.components import (
-    COMPONENTS,
-    ComponentDef,
-    Components,
-    Dim,
-    InvalidSum,
-    can_sum,
-    check_sum,
-)
+from juli_backend.services.metrics.components import COMPONENTS, ComponentDef, Components
 from juli_backend.services.metrics.compute import (
     KolState,
     KolStatus,
@@ -34,7 +25,6 @@ from juli_backend.services.metrics.compute import (
 )
 from juli_backend.services.metrics.registry import (
     DERIVATION_VERSION,
-    METRIC_ALIASES,
     METRICS,
     Comparison,
     MetricDef,
@@ -46,12 +36,9 @@ __all__ = [
     "COMPONENTS",
     "DERIVATION_VERSION",
     "METRICS",
-    "METRIC_ALIASES",
     "Comparison",
     "ComponentDef",
     "Components",
-    "Dim",
-    "InvalidSum",
     "KolState",
     "KolStatus",
     "MetricDef",
@@ -60,11 +47,8 @@ __all__ = [
     "ShopLine",
     "ShopLines",
     "SourceSpec",
-    "can_sum",
     "change",
     "channel_partition",
-    "check_sum",
-    "deoverlap_periods",
     "evaluate",
     "kol_status",
     "per_day",

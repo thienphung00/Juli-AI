@@ -18,6 +18,7 @@ from juli_backend.services.analytics_agent import (
 from juli_backend.services.analytics_agent import (
     cards as cardstage,
 )
+from juli_backend.services.analytics_agent.data_service import merge_campaigns
 from juli_backend.services.analytics_agent.entities import campaign_row, campaign_verdict
 from juli_backend.services.analytics_agent.registry_reads import roas
 from tests.unit.analytics_agent.fakes import (
@@ -27,8 +28,6 @@ from tests.unit.analytics_agent.fakes import (
     FakeJev,
     FakeLLM,
     ListSink,
-    ScriptedQuery,
-    camp,
     engine_card,
     shop_rows,
     version,
@@ -40,49 +39,48 @@ from tests.unit.analytics_agent.test_routing import intent
 YDAY = date(2026, 11, 22)
 
 
-def _campaign_script(rows: list[dict[str, Any]], shop_be: float | None = None) -> Any:
-    def script(ids: list[str], a: Any, b: Any, **kw: Any) -> dict[str, Any]:
-        if kw.get("group_by") == "campaign":
-            return {"values": {"roas_break_even": shop_be}, "rows": rows}
-        return {"values": {}, "rows": []}
+def _raw(key: str, name: str, spend: str, gmv: str, before: str | None) -> dict[str, Any]:
+    return {
+        "key": key,
+        "name": name,
+        "spend": Decimal(spend),
+        "gmv": Decimal(gmv),
+        "before_ads": None if before is None else Decimal(before),
+    }
 
-    return script
 
-
-async def test_campaign_rows_delegate_to_query_by_campaign_and_skip_no_spend() -> None:
-    rows = [
-        {"campaign": "k1", "campaign_name": "CDN/02", "cost_ads": 200.0, "ads_gmv_direct": 600.0,
-         "roas_direct": 3.0, "roas_break_even": 2.0, "contribution": 300.0, "items": ["p1"]},
-        {"campaign": "k3", "campaign_name": "CDN/03", "cost_ads": 0.0, "ads_gmv_direct": 0.0,
-         "roas_direct": None, "roas_break_even": None, "contribution": 0.0},
-    ]  # fmt: skip
-    svc = ScriptedQuery(_campaign_script(rows))
-    out = await svc.campaign_rows(date(2026, 11, 16), date(2026, 11, 22))
-    assert svc.asked[0]["group_by"] == "campaign" and "roas_break_even" in svc.asked[0]["ids"]
-    (first,) = out  # no spend: no row
-    assert first["name"] == "CDN/02" and first["roas"] == 3.0 and first["break_even"] == 2.0
-    assert first["profit_after_ads"] == 100.0 and first["items"] == ["p1"]  # query's values
+def test_one_row_per_campaign_by_key_and_by_name() -> None:
+    rows = merge_campaigns(
+        [
+            _raw("k1", "CDN/02", "100", "300", "150"),
+            _raw("k2", "cdn/02 ", "100", "300", "150"),  # same campaign, another segment
+            _raw("k3", "CDN/03", "0", "0", "0"),  # no spend: no row
+            _raw("k4", "CDN/04", "50", "0", "0"),
+        ]
+    )
+    assert [r["name"] for r in rows] == ["cdn/02 ", "CDN/04"]  # the latest name wins
+    first = rows[0]
+    assert first["spend"] == Decimal(200) and first["gmv"] == Decimal(600)
+    assert first["roas"] == pytest.approx(3.0)  # registry roas_direct on the sums
+    assert first["break_even"] == pytest.approx(2.0)  # 600 / 300 (registry roas_break_even)
+    assert first["profit_after_ads"] == Decimal(100)
     assert campaign_verdict(first) == "Lãi"
 
 
-async def test_campaign_without_giá_vốn_is_unknown_not_a_loss() -> None:
-    rows = [
-        {"campaign": "k1", "campaign_name": "CDN/05", "cost_ads": 100.0, "ads_gmv_direct": 300.0,
-         "roas_direct": 3.0, "roas_break_even": None, "contribution": None},
-    ]  # fmt: skip
-    (row,) = await ScriptedQuery(_campaign_script(rows)).campaign_rows(
-        date(2026, 11, 16), date(2026, 11, 22)
-    )
+def test_campaign_without_giá_vốn_is_unknown_not_a_loss() -> None:
+    (row,) = merge_campaigns([_raw("k1", "CDN/05", "100", "300", None)])
     assert row["break_even"] is None and row["profit_after_ads"] is None
     assert campaign_verdict(row) == "Chưa rõ"
     assert "hoà vốn chưa có" in campaign_row(row)["value_vi"]
 
 
 async def test_campaign_loss_question_lists_loss_rows_with_all_figures() -> None:
-    camps = [
-        camp("k1", "CDN/01", 400, 900, 3.0),  # ROAS 2,25 < 3,00
-        camp("k2", "CDN/02", 300, 1800, 3.2),  # ROAS 6,00 > 3,20
-    ]
+    camps = merge_campaigns(
+        [
+            _raw("k1", "CDN/01", "400", "900", "300"),  # ROAS 2,25 < 3,00
+            _raw("k2", "CDN/02", "300", "1800", "562.5"),  # ROAS 6,00 > 3,20
+        ]
+    )
     data = FakeEntityData(_shop(), entity={"campaigns": camps})
     sink, _ = await _ask(
         data,

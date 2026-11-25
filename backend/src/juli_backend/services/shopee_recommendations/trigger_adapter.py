@@ -153,15 +153,6 @@ def type_of(cand: Candidate) -> str:
 def route_cards(
     env: Any, built: list[tuple[Candidate, dict[str, Any]]]
 ) -> tuple[list[tuple[Candidate, dict[str, Any]]], Counter[str]]:
-    kept, dropped, _cands = route_cards_detailed(env, built)
-    return kept, dropped
-
-
-def route_cards_detailed(
-    env: Any, built: list[tuple[Candidate, dict[str, Any]]]
-) -> tuple[
-    list[tuple[Candidate, dict[str, Any]]], Counter[str], list[tuple[Candidate, dict[str, Any]]]
-]:
     """Tag each card with ``trigger_type`` / ``trigger_metric`` and drop the opportunity cards
     that do not clear the F3 band. Cards with no forecast to judge are kept."""
     for cand, card in built:
@@ -178,15 +169,13 @@ def route_cards_detailed(
         )
     kept: list[tuple[Candidate, dict[str, Any]]] = []
     dropped: Counter[str] = Counter()
-    below: list[tuple[Candidate, dict[str, Any]]] = []
     for cand, card in built:
         if card["trigger_type"] == trg.OPPORTUNITY and (_key(cand), cand.kind) in judged:
             if (_key(cand), cand.kind) not in passed:
                 dropped[cand.kind] += 1
-                below.append((cand, card))
                 continue
         card["trigger_metric"] = (
             (cand.critical or {}).get("kpi") if card["trigger_type"] == trg.PROBLEM else None
         ) or card["metric"]["key"]
         kept.append((cand, card))
-    return kept, dropped, below
+    return kept, dropped

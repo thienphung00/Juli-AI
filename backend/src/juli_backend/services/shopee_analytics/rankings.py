@@ -34,7 +34,7 @@ from typing import Any
 
 from juli_backend.services.shop_diagnosis.confidence import Confidence, volume_label
 from juli_backend.services.shop_diagnosis.config import ShopDiagnosisConfig
-from juli_backend.services.shopee_analytics import funnel, levels
+from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import (
     ADS_BASIS,
@@ -248,7 +248,6 @@ def _product_m(view: PeriodView, pid: str, source: str, sub: str | None) -> M | 
     if gmv == 0 and orders == 0 and pp is None:
         return None
     carrying = [(ln, pb) for ln, pb in pairs if pb.excluded_reason is None]
-    pc = levels.contribution_of(pairs)
     discount = sum((pb.promo_discount + pb.voucher + pb.bundle for _, pb in pairs), ZERO)
     commission = sum((pb.commission or ZERO for _, pb in carrying), ZERO)
     spend = view.ads.product_spend.get(pid, ZERO)
@@ -257,9 +256,8 @@ def _product_m(view: PeriodView, pid: str, source: str, sub: str | None) -> M | 
     return M(
         gmv,
         orders,
-        # L1: a product ranks on Lợi nhuận đóng góp (before ads and affiliate), covered base
-        pc.contribution,
-        pc.net_revenue_known or ZERO,
+        pp.profit if pp and pp.buyer_paid_covered > 0 else None,
+        pp.buyer_paid_covered if pp else ZERO,
         discount,
         sum((pb.list_value for _, pb in pairs), ZERO),
         spend,
@@ -284,7 +282,7 @@ def _products(view: PeriodView, source: str, sub: str | None) -> Rows:
                 "product_id": pid,
                 **price_block(view, pid),
                 "margin_basis": margin_basis(view, pid, pp),
-                "margin_pct": pct(levels.product_contribution(view, (pid,)).margin_pct),
+                "margin_pct": pct(pp.margin_pct) if pp else None,
             }
             out[pid] = (view.names.get(pid) or pid, m, extra)
     return out

@@ -82,7 +82,7 @@ Before saying "Juli changed X", check the actor or source field of the row (Conn
 | Term | Means |
 |---|---|
 | **ROAS hoà vốn** | registry `roas_break_even`: GMV ÷ what an order keeps after giá vốn, fees and vouchers, before ads. The ROAS at which profit after ads is 0. |
-| **Đóng góp trước quảng cáo** (`contribution_before_ads`) | **retired** (batch-1124-c-data, L4): the old after-AFF product figure. Use **Lợi nhuận đóng góp** (`contribution`, before ads AND AFF) or **Lợi nhuận ròng** (`profit`). One metric id per label. |
+| **Đóng góp trước quảng cáo** (`contribution_before_ads`) | registry value: what the orders keep after giá vốn, fees and Ưu đãi (a cost), before ads. Read at shop, product and campaign level from the shared profit service (decisions #36/#37). |
 | **Số liệu đến hết dd/mm** | the newest complete day the answer's numbers include (`clip_to_freshness`). Every Chat summary names it with the window. Not the Connector's "Đang đọc đến" status on Cài đặt. (decisions #36/#37) |
 | **Ngày sale** | a double day (1.1 … 12.12), the 15th and the 25th (`shopee_kpi.flow_glm.calendar_row`). Marked in comparisons; a sale week is never the baseline. |
 | **Giá vốn** | the cost of goods, VAT-inclusive, per unit / item. Missing giá vốn means profit is not trusted. |
@@ -90,11 +90,3 @@ Before saying "Juli changed X", check the actor or source field of the row (Conn
 | **7 ngày qua** | the last 7 complete days. |
 | **Đề xuất card** | a card in the seller's Đề xuất tab. Chat points to an existing one (flagging duplicates) or drafts a Draft card; it never sends or executes one. |
 | **Ngày chi dưới ngân sách** (tạm, chờ owner) | a day when the shop's ad spend is below its summed daily budget AND it had 0 orders (weekly analysis, Juli Chat). |
-
-## Data layer (batch-1124-c-data, owner 2026-11-25)
-| Term | Means |
-|---|---|
-| **Opportunity** | one row of `shopee_opportunities`: a candidate change the card engine priced for a shop (scope `shop`) or a set of products (scope `product`) on a run date — kind, item ids, ΔGMV, Δ lợi nhuận, cost, inputs, outcome. Written by the daily run (`source = daily`) and on demand from Chat (`on_demand`, never overwrites a daily row). Not a card: a card is drafted from a `published` opportunity. |
-| **Outcome** (of an opportunity) | `published` (became / is a card), `ranked_out` (priced but below the top of the ranking; `score`), `below_band` (gain under the floor), `refused` (the engine cannot price it; `reason` is a short code), `duplicate` (an open card already does it; `card_code`). Chat answers "chưa có cơ hội" from a non-published row, with no engine run. |
-| **Level per surface** (#67) | **Ròng** (after ads, AFF, marketing khác: `profit`, `margin`) on Tổng quan and Kế hoạch. **Đóng góp** (before ads and AFF: `contribution`, `margin_contribution`) at product level: Phân tích product page / rankings / metric view, Quyết định cards, Đề xuất cards (incl. So sánh "hôm nay"), Đo lường. Chat uses the level of the tab it answers about. Every margin ÷ covered doanh thu thực (`net_revenue_known`). |
-| **With / without discount** (A9) | the product split stored as `discounted` ∈ `with` (a line carries seller subsidy, shop voucher or combo discount) / `without` / `unknown` (GMV no order line explains; never guessed). with + without + unknown = the product total; đơn counted once per order. |

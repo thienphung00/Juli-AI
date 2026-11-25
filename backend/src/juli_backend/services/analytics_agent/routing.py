@@ -233,13 +233,6 @@ def _registry_metric_keys() -> list[str]:
     return list(REG)
 
 
-def _compare_kind_ids() -> list[str]:
-    """The card kinds a compare may name: the kinds table (never a hand-written list)."""
-    from juli_backend.services.analytics_agent import levers
-
-    return levers.card_kinds()
-
-
 def _registry_metric_names() -> str:
     """User-facing metric names, generated from registry.py (never hand-typed)."""
     from juli_backend.services.metrics.registry import METRICS
@@ -291,7 +284,6 @@ INTENT_TOOL: dict[str, Any] = {
                                 "why_changed",
                                 "status",
                                 "compare",
-                                "compare_options",
                                 "plan",
                                 "create_card",
                                 "other",
@@ -393,15 +385,6 @@ INTENT_TOOL: dict[str, Any] = {
                                 "name": {"type": "string", "description": "a name given, or empty"},
                             },
                         },
-                        "compare_kinds": {
-                            "type": "array",
-                            "maxItems": 4,
-                            "items": {"type": "string", "enum": _compare_kind_ids()},
-                            "description": "only for question_type compare_options: the card "
-                            "kinds the "
-                            "seller wants to compare (one kind = options of that kind; several = "
-                            "one option per kind); empty when the seller names no kind",
-                        },
                         "entity_phrase": {
                             "type": ["string", "null"],
                             "description": "a voucher, affiliate / commission or ad campaign the "
@@ -445,10 +428,6 @@ PARSE_SYSTEM = (
     "'create_card': fill the `card` object with only the slots the seller said (dates as "
     "YYYY-MM-DD in the year of today, amount with amount_unit vnd or pct) and leave every other "
     "field at its empty value (none, empty text, -1); never invent a value. "
-    "A request to build and compare several options (4 vouchers, 4 discount depths, 4 ads "
-    "plans or strategies, 'compare them, which is best') is question_type "
-    "'compare_options' (a comparison of two periods or numbers stays 'compare'): fill "
-    "compare_kinds with the card kinds it names (empty when none), never create_card. "
     "An order to change the ads budget, a ROAS target or an "
     "affiliate commission (not a question whether to), a how-to or knowledge question (how to "
     "get more views, how a Shopee fee is calculated) and a question about competitors are "
@@ -513,9 +492,7 @@ def _crit(d: dict[str, str]) -> dict[str, str]:
 
 async def route(jev: JevPort, intent: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], Usage]:
     """The Jev routing answers of one intent; a plan / create request needs none (code decides)."""
-    if intent.get("question_type") in ("plan", "create_card", "compare_options") or wants_advice(
-        intent
-    ):
+    if intent.get("question_type") in ("plan", "create_card") or wants_advice(intent):
         return {}, Usage()
     return await jev.ask(jev_state(intent), routing_questions(intent))
 
@@ -534,9 +511,7 @@ async def classify(text: str, today: date, llm: LLMPort, jev: JevPort) -> dict[s
         answers, _ = await route(jev, intent)
         dec = (
             decide(intent, answers)
-            if answers
-            or wants_advice(intent)
-            or intent.get("question_type") in ("create_card", "compare_options")
+            if answers or wants_advice(intent) or intent.get("question_type") == "create_card"
             else {"outcome": "go", "checks": {}}
         )
         out.append(
@@ -663,10 +638,6 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     dec: dict[str, Any] = {"checks": {}}
     if intent.get("question_type") == "create_card":  # J10: a card from a free request
         dec.update(outcome="go", mode="create")
-        return dec
-    if intent.get("question_type") == "compare_options":  # C6: 4 priced options, code picks one
-        kinds = [k for k in (intent.get("compare_kinds") or []) if k in _compare_kind_ids()]
-        dec.update(outcome="go", mode="compare", kinds=kinds[:4])
         return dec
     if wants_advice(intent):  # a plan / priority / "what first" request: the LLM advises (J1)
         dec.update(

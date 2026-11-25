@@ -4,27 +4,17 @@ A component is one platform-neutral quantity per platform, per day, per scope (s
 SKU, channel, KOL). Components are sums, so a window's component is the sum of its days and a
 shop's the sum of its products -- metrics are never summed, components are.
 
-This module only declares them. The stored daily rows (``shop_metrics_daily``,
-``product_metrics_daily``, ``campaign_metrics_daily``, migration 140) hold them as columns of the
-same ids; a caller hands :class:`Components` (id -> ``Decimal`` or ``None``) to
+This module only declares them. Reading them from the layer-4 tables is a later step; until
+then a caller hands :class:`Components` (id -> ``Decimal`` or ``None``) to
 :func:`~juli_backend.services.metrics.compute.evaluate`. ``None`` means "no data", never 0.
-
-**Sums (F4, decision #62).** A component says the dimensions it may be summed over
-(``sums_across``, of :class:`Dim`). Money and units add over every dimension. A count that is not
-additive across rows is stored where it is true and refused elsewhere: đơn are distinct orders,
-so product đơn never add up to the shop's đơn (one order holds several products), and a
-campaign's products' contribution never adds over campaigns (two campaigns advertise one
-product). :func:`check_sum` refuses any other sum (:class:`InvalidSum`).
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
-from enum import StrEnum
 from types import MappingProxyType
-from typing import TypeVar
 
 from juli_backend.services.metrics.registry import (
     OrderBasis,
@@ -34,41 +24,8 @@ from juli_backend.services.metrics.registry import (
     source_available,
 )
 
-T = TypeVar("T")
-
 #: one scope's components for one window: id -> value, ``None`` (or absent) = no data
 Components = Mapping[str, Decimal | None]
-
-
-class Dim(StrEnum):
-    """The dimensions a stored component row is keyed by (and so may be summed over)."""
-
-    day = "day"
-    #: the product (summing over it = the products of the shop)
-    item = "item"
-    #: Organic / Quảng cáo / TTLK
-    channel = "channel"
-    #: purchases with / without a shop discount (A9)
-    discounted = "discounted"
-    campaign = "campaign"
-
-
-#: what money and units add over: everything
-ALL_DIMS: frozenset[Dim] = frozenset(Dim)
-#: distinct orders: over days, channels and the discount split (an order counts once per
-#: product x channel x discount state), never over products or campaigns
-ORDER_DIMS: frozenset[Dim] = frozenset({Dim.day, Dim.channel, Dim.discounted})
-
-
-class InvalidSum(ValueError):
-    """A sum the registry refuses (``sums_across``): the result would not be the number."""
-
-    def __init__(self, component_id: str, refused: frozenset[Dim] | frozenset[str]) -> None:
-        self.component_id = component_id
-        self.refused = refused
-        dims = ", ".join(sorted(str(getattr(d, "value", d)) for d in refused))
-        super().__init__(f"{component_id} may not be summed over {dims}")
-
 
 _C = OrderBasis.confirmed
 _K = OrderBasis.known_cost
@@ -86,8 +43,6 @@ class ComponentDef:
     lump_of: tuple[str, ...] = ()
     #: in doc §4 (``False``: added by the registry for a §5 metric; see MODULE.md)
     in_doc: bool = True
-    #: the dimensions it may be summed over (F4); a non-summable component sums over none
-    sums_across: frozenset[Dim] = ALL_DIMS
 
 
 def _c(
@@ -100,10 +55,7 @@ def _c(
     *,
     summable: bool = True,
     in_doc: bool = True,
-    sums_across: frozenset[Dim] | None = None,
 ) -> ComponentDef:
-    if sums_across is None:
-        sums_across = ALL_DIMS if summable else frozenset()
     return ComponentDef(
         id=id,
         unit=unit,
@@ -111,7 +63,6 @@ def _c(
         sources=MappingProxyType({Platform.shopee: SourceSpec(dataset, basis, fld)}),
         summable=summable,
         in_doc=in_doc,
-        sums_across=sums_across,
     )
 
 
@@ -132,27 +83,11 @@ _OFFER_LUMP = ComponentDef(
 _ALL = (
     # platform shop totals (T8)
     _c("gmv", V, "platform-reported shop GMV", "shop_overview", _C, "gmv"),
-    _c(
-        "orders",
-        N,
-        "platform-reported orders (a product's: Shopee's product report)",
-        "shop_overview",
-        _C,
-        "orders",
-        sums_across=ORDER_DIMS,
-    ),
+    _c("orders", N, "platform-reported orders", "shop_overview", _C, "orders"),
     _c("units", N, "platform-reported units sold", "shop_overview", _C, "units"),
     # order lines, confirmed, GMT+7 day
     _c("line_gmv", V, "GMV of confirmed order lines", "order_lines", _C, "gmv"),
-    _c(
-        "line_orders",
-        N,
-        "distinct confirmed orders in the lines",
-        "order_lines",
-        _C,
-        "order_id",
-        sums_across=ORDER_DIMS,
-    ),
+    _c("line_orders", N, "distinct confirmed orders in the lines", "order_lines", _C, "order_id"),
     _c("line_units", N, "units in confirmed order lines", "order_lines", _C, "qty"),
     _c(
         "net_revenue",
@@ -230,24 +165,13 @@ _ALL = (
         _C,
         "ads_orders",
         in_doc=False,
-        sums_across=ORDER_DIMS | {Dim.campaign},
     ),
-    _c(
-        "affiliate_commission",
-        V,
-        "THE AFF cost (A1, decision #55 Q2): the commission of the affiliate lines in the profit "
-        "basis (delivered / settled, every cost known), ``shopee_profit.ladder.affiliate_cost``; "
-        "the AFF row, Lợi nhuận ròng, Chi phí marketing, Tổng chi phí and the channel split",
-        "order_lines",
-        _K,
-        "commission",
-    ),
+    _c("affiliate_commission", V, "affiliate commission", "affiliate_lines", _C, "commission"),
     _c(
         "affiliate_gmv",
         V,
-        "GMV of the affiliate-flagged confirmed sale lines (A7 source: the order-line flag the "
-        "conversion report sets; the traffic report's TTLK is its own funnel figure, never added)",
-        "order_lines",
+        "GMV of affiliate-attributed confirmed lines, scaled to shop totals",
+        "affiliate_lines",
         _C,
         "gmv",
         in_doc=False,
@@ -280,7 +204,6 @@ _ALL = (
         "stock_history",
         _N,
         "stock",
-        sums_across=frozenset({Dim.item}),
     ),
     _c("kol_gmv", V, "GMV of a KOL's orders", "affiliate_lines", _C, "gmv", in_doc=False),
     _c(
@@ -303,76 +226,7 @@ _ALL = (
     ),
     _c("card_delta_gmv", V, "a card's measured ΔGMV", "measurement", _C, "delta_gmv", in_doc=False),
     _c("card_cost", V, "a card's cost", "measurement", _N, "cost", in_doc=False),
-    _c(
-        "window_days",
-        Unit.days,
-        "days in the window",
-        "derived",
-        _N,
-        None,
-        in_doc=False,
-        sums_across=frozenset(),
-    ),
-    _c(
-        "affiliate_commission_known",
-        V,
-        "A2: the AFF cost of the covered orders = affiliate_commission (A1: THE AFF cost is "
-        "already the covered lines'), stored beside it so a window compares like with like",
-        "order_lines",
-        _K,
-        "commission",
-        in_doc=False,
-    ),
-    _c(
-        "ads_spend_known",
-        V,
-        "A2 (registry KNOWN_SHARE_RULE): a scope-day's ads spend x min(1, cogs_known_gmv / gmv); "
-        "a day with ad spend and no sale keeps the whole spend",
-        "ads_report_by_product",
-        _K,
-        "expense",
-        in_doc=False,
-    ),
-    _c(
-        "ads_gmv",
-        V,
-        "a product-day's ads-by-product GMV the channel split uses (direct sales, else broad), "
-        "de-overlapped (A6, ADS_PERIOD_RULE)",
-        "ads_report_by_product",
-        OrderBasis.placed,
-        "direct_gmv",
-        in_doc=False,
-    ),
-    _c(
-        "capped_gmv",
-        V,
-        "A7: what a channel's source said beyond the cap of the channel partition (recorded, "
-        "never added to the channel)",
-        "derived",
-        _N,
-        None,
-        in_doc=False,
-    ),
-    _c(
-        "daily_budget",
-        V,
-        "a campaign's daily budget that day (Connector ads_campaign_daily); budget-days add up",
-        "ads_campaign_daily",
-        _N,
-        "daily_budget",
-        in_doc=False,
-        sums_across=frozenset({Dim.day, Dim.campaign}),
-    ),
-    _c(
-        "contribution_products",
-        V,
-        "a campaign-day: the contribution (before ads) of the products it advertises",
-        "campaign_metrics_daily",
-        _K,
-        "contribution_products",
-        in_doc=False,
-        sums_across=frozenset({Dim.day}),
-    ),
+    _c("window_days", Unit.days, "days in the window", "derived", _N, None, in_doc=False),
     # one unit at the selling price (margin_sale): per-unit values, never summed
     _c(
         "sale_revenue_after_vat",
@@ -417,60 +271,6 @@ _ALL = (
 )
 
 COMPONENTS: Mapping[str, ComponentDef] = MappingProxyType({c.id: c for c in (*_ALL, _OFFER_LUMP)})
-
-
-def check_sum(component_id: str, dims: Iterable[Dim | str]) -> None:
-    """Refuse a sum of ``component_id``'s stored rows over ``dims`` the registry does not allow
-    (``sums_across``): raises :class:`InvalidSum`. The read function (Track QUERY) calls it for
-    every component it adds up, so "Σ product đơn = shop đơn" can never be computed."""
-    asked = frozenset(Dim(d) for d in dims)
-    refused = asked - COMPONENTS[component_id].sums_across
-    if refused:
-        raise InvalidSum(component_id, refused)
-
-
-#: A2 (#71): ``profit`` deducts the covered orders' ads / AFF cost. A caller that hands
-#: components without the known part (a window ladder already built on the covered lines) is
-#: read through its plain cost; the stored rows carry both. Absent key only: an explicit None
-#: stays None (missing is not zero).
-KNOWN_FALLBACK: Mapping[str, str] = MappingProxyType(
-    {"ads_spend_known": "ads_spend", "affiliate_commission_known": "affiliate_commission"}
-)
-
-#: a platform report's total row beside its breakdown rows (e.g. ``traffic_overview`` stream
-#: ``affiliate``: ``all`` = ``aff_live`` + ``aff_video``)
-TOTAL_SEGMENT = "all"
-
-
-class InvalidSegmentSum(ValueError):
-    """A sum over a report's total segment AND its parts (it would count the parts twice)."""
-
-
-def check_segments(segments: Iterable[str]) -> None:
-    """Refuse adding a report's total segment to its own parts (:class:`InvalidSegmentSum`)."""
-    seen = set(segments)
-    if TOTAL_SEGMENT in seen and len(seen) > 1:
-        parts = ", ".join(sorted(seen - {TOTAL_SEGMENT}))
-        raise InvalidSegmentSum(f"'{TOTAL_SEGMENT}' already holds {parts}")
-
-
-def one_segment_basis(rows: Iterable[T], segment: Callable[[T], str]) -> list[T]:
-    """The rows of one scope (one day, one stream) on ONE basis: the total row when the report
-    posted it, else its parts; never both."""
-    rows = list(rows)
-    total = [r for r in rows if segment(r) == TOTAL_SEGMENT]
-    picked = total or rows
-    check_segments(segment(r) for r in picked)
-    return picked
-
-
-def can_sum(component_id: str, dims: Iterable[Dim | str]) -> bool:
-    """:func:`check_sum` as a test."""
-    try:
-        check_sum(component_id, dims)
-    except InvalidSum:
-        return False
-    return True
 
 
 def component_available(platform: Platform, component_id: str) -> bool:

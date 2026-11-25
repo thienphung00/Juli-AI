@@ -509,9 +509,6 @@ export interface WaterfallUnit {
   readonly packaging: N;
   readonly commission: N;
   readonly contribution_before_ads: N;
-  readonly shipping?: N;
-  readonly contribution?: N;
-  readonly margin_contribution_pct?: N;
   readonly ads: N;
   readonly profit: N;
   readonly margin_pct: N;
