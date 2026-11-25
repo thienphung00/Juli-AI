@@ -27,12 +27,70 @@ from tests.support.shopee_analytics import seed_shopee_shop
 #: every source row is unchanged against 3ff94165.
 BASE_DIGEST = "fc4de35745f00147bf79aa432f8b50dbaf4f5e5acda96fa28204b5d635eb2598"
 _SKIP = {"id", "shop_id", "built_at"}
+#: the columns migration 140 added, which nothing writes since #2367 was taken out: they must be
+#: empty, and the digest of every other column is the one from before it
+_UNWRITTEN_140 = {
+    "ShopeeShopMetricsDaily": frozenset(
+        {
+            "ads_clicks",
+            "ads_gmv_confirmed",
+            "ads_gmv_direct",
+            "ads_orders",
+            "ads_spend_known",
+            "ads_views",
+            "affiliate_commission",
+            "affiliate_commission_known",
+            "affiliate_gmv",
+            "cogs",
+            "cogs_known_gmv",
+            "derivation_version",
+            "fees",
+            "net_revenue",
+            "net_revenue_known",
+            "offer_combo",
+            "offer_promo",
+            "offer_voucher",
+            "other_marketing",
+            "packaging",
+            "shipping_net",
+        }
+    ),
+    "ShopeeProductMetricsDaily": frozenset(
+        {
+            "ads_clicks",
+            "ads_gmv",
+            "ads_gmv_confirmed",
+            "ads_gmv_direct",
+            "ads_orders",
+            "ads_spend_known",
+            "ads_views",
+            "affiliate_commission",
+            "affiliate_commission_known",
+            "affiliate_gmv",
+            "cogs",
+            "cogs_known_gmv",
+            "derivation_version",
+            "fees",
+            "net_revenue",
+            "net_revenue_known",
+            "offer_combo",
+            "offer_promo",
+            "offer_voucher",
+            "packaging",
+            "shipping_net",
+        }
+    ),
+    "ShopeeSourceMetricsDaily": frozenset({"derivation_version"}),
+}
 
 
 def _plain(row) -> dict:
     out = {}
     for col in type(row).__table__.columns:
         if col.name in _SKIP:
+            continue
+        if col.name in _UNWRITTEN_140[type(row).__name__]:
+            assert getattr(row, col.name) is None, col.name
             continue
         out[col.name] = getattr(row, col.name)
     return out
