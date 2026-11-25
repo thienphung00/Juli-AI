@@ -859,6 +859,8 @@ def test_beat_schedule_has_exactly_the_expected_entries():
         "tiktok-canonical-reconcile",
         # P101 W3: the nightly TikTok A-34 blocks re-read + layer-4 rebuild (one entry).
         "tiktok-layer4-rebuild",
+        # Data layer (owner #74): rebuild the stored facts a deploy made stale.
+        "shopee-facts-backfill",
     }
 
 
