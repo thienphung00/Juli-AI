@@ -133,6 +133,7 @@ describe("E146 the discount type selector the Connector cannot identify", () => 
     await runFillJob(h.deps);
     expect(panelText()).toContain("✓ Giảm");
     expect(panelText()).not.toContain("✗ Giảm");
+    expect(panelText()).not.toContain("Chọn «Theo số tiền»"); // nothing left for the person here
     expect((document.getElementById("dvalue") as HTMLInputElement).value).toBe("2000");
   });
   it("keeps the type as its own guided step, apart from the amount, when the row shows the other option", async () => {

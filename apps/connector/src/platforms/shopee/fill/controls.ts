@@ -284,7 +284,7 @@ export function chooseSelect(env: Env, label: string, option: string, index = 0,
     // read: exactly the wanted option and none of the others means the type is already right;
     // anything else is "missing" (a guided step of its own, never a ✗ on the amount beside it).
     const shown = () => rowTextOutsideInputs(row);
-    const clear = () => shown().includes(wanted) && !others.map(normalizeLabel).some((o) => shown().includes(o));
+    const clear = () => shown().includes(wanted) && !others.map(normalizeLabel).some((o) => o !== wanted && shown().includes(o));
     if (!clear()) return "missing";
     recordChoice(env, row, option, shown(), shown, clear);
     return "done";
