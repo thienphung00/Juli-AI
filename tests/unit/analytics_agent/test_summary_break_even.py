@@ -4,21 +4,20 @@ level from the shared profit service). Synthetic numbers; the writer LLM is a st
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from decimal import Decimal
 from typing import Any
 
 import pytest
 
 from juli_backend.services.analytics_agent import AskRequest, entities, lookup, routing, summary
-from juli_backend.services.analytics_agent.data_service import (
-    SHOP_SCOPE_VI,
-    _product_break_even,
-    apply_shop_break_even,
-    merge_campaigns,
-)
+from juli_backend.services.analytics_agent.data_service import SHOP_SCOPE_VI
 from juli_backend.services.analytics_agent.entities import campaign_row, campaign_verdict
-from juli_backend.services.shopee_profit.shop_profit import ProductProfit
-from tests.unit.analytics_agent.fakes import FakeData, FakeEntityData, FakeLLM, shop_rows
+from tests.unit.analytics_agent.fakes import (
+    FakeData,
+    FakeEntityData,
+    FakeLLM,
+    ScriptedQuery,
+    shop_rows,
+)
 from tests.unit.analytics_agent.test_engine import SHOP, go
 from tests.unit.analytics_agent.test_j_windows_entities import (
     CAMPS,
@@ -29,7 +28,6 @@ from tests.unit.analytics_agent.test_j_windows_entities import (
     _week_rows,
 )
 from tests.unit.analytics_agent.test_routing import intent
-from tests.unit.analytics_agent.test_track_j_a2 import _raw
 from tests.unit.analytics_agent.test_weekly import _run_plan
 
 PRESET = "last_7d_vs_prev_7d"
@@ -186,44 +184,35 @@ async def test_summary_is_skipped_when_the_chain_already_wrote_text() -> None:
 # ------------------------------------------------------------------ J-H2 (A): campaigns
 
 
-def test_zero_gmv_segment_counts_as_zero_not_unknown() -> None:
-    (row,) = merge_campaigns(
-        [
-            _raw("k1", "CDN/07", "100", "300", "150"),
-            _raw("k2", "CDN/07", "50", "0", "0"),  # spend, no direct GMV: contributes 0
-        ]
-    )
-    assert row["break_even"] == pytest.approx(2.0) and row["profit_after_ads"] == Decimal(0)
+def _camp_script(rows: list[dict[str, Any]], shop_be: float | None) -> Any:
+    def script(ids: list[str], a: Any, b: Any, **kw: Any) -> dict[str, Any]:
+        return {"values": {"roas_break_even": shop_be}, "rows": rows}
+
+    return script
 
 
-def test_unknown_campaign_takes_the_shop_value_labelled_ca_shop() -> None:
-    rows = apply_shop_break_even(
-        merge_campaigns(
-            [_raw("k1", "CDN/05", "100", "300", None), _raw("k2", "CDN/06", "100", "300", "150")]
-        ),
-        3.09,
-    )
-    unknown, own = rows
+def _crow(key: str, name: str, spend: float, gmv: float, be: float | None) -> dict[str, Any]:
+    return {"campaign": key, "campaign_name": name, "cost_ads": spend, "ads_gmv_direct": gmv,
+            "roas_direct": gmv / spend, "roas_break_even": be,
+            "contribution": None if be is None else gmv / be}  # fmt: skip
+
+
+async def test_unknown_campaign_takes_the_shop_value_labelled_ca_shop() -> None:
+    rows = [_crow("k1", "CDN/05", 100, 300, None), _crow("k2", "CDN/06", 100, 300, 2.0)]
+    unknown, own = await ScriptedQuery(_camp_script(rows, 3.09)).campaign_rows(YDAY, YDAY)
     assert unknown["break_even"] == 3.09 and unknown["break_even_scope"] == SHOP_SCOPE_VI
-    assert "break_even_scope" not in own and own["break_even"] == pytest.approx(2.0)
+    assert own["break_even_scope"] is None and own["break_even"] == pytest.approx(2.0)
     assert "hoà vốn 3,09 (cả shop)" in campaign_row(unknown)["value_vi"]
     assert "(cả shop)" not in campaign_row(own)["value_vi"]
-    assert apply_shop_break_even([dict(unknown, break_even=None)], None)[0]["break_even"] is None
+    (none_known,) = await ScriptedQuery(_camp_script(rows[:1], None)).campaign_rows(YDAY, YDAY)
+    assert none_known["break_even"] is None
 
 
-def test_client_shaped_fixture_roas_above_break_even_is_lai() -> None:
-    camps = apply_shop_break_even(
-        merge_campaigns(
-            [
-                _raw("a", "CDN/A", "200", "1000", "400"),
-                _raw("b", "CDN/A", "50", "0", "0"),  # a segment that only spent
-                _raw("c", "CDN/B", "100", "0", "0"),  # no GMV at all: the shop value
-            ]
-        ),
-        3.09,
-    )
+async def test_client_shaped_fixture_roas_above_break_even_is_lai() -> None:
+    rows = [_crow("a", "CDN/A", 200, 1000, 2.5), _crow("c", "CDN/B", 100, 0.0, None)]
+    camps = await ScriptedQuery(_camp_script(rows, 3.09)).campaign_rows(YDAY, YDAY)
     by = {c["name"]: c for c in camps}
-    assert by["CDN/A"]["roas"] == pytest.approx(4.0) and by["CDN/A"]["break_even"] == 2.5
+    assert by["CDN/A"]["roas"] == pytest.approx(5.0) and by["CDN/A"]["break_even"] == 2.5
     assert campaign_verdict(by["CDN/A"]) == "Lãi"
     assert (
         by["CDN/B"]["break_even_scope"] == SHOP_SCOPE_VI and campaign_verdict(by["CDN/B"]) == "Lỗ"
@@ -234,13 +223,12 @@ def test_client_shaped_fixture_roas_above_break_even_is_lai() -> None:
 
 
 async def test_lookup_reads_the_overview_profit_block() -> None:
-    def ov(a: Any, b: Any) -> dict[str, Any]:
-        # `shop_profit` has no contribution_before_ads; the figure lives in `profit`
-        return {"shop_profit": {"net_revenue": 1000}, "profit": {"break_even_roas": 3.09}}
+    def values(ids: list[str], a: Any, b: Any) -> dict[str, Any]:
+        return {"roas_break_even": 3.09}  # the registry id, as `query()` returns it
 
     shop = shop_rows(YDAY.replace(month=9), YDAY, gmv=1000.0, orders=3.0)
     out = await lookup.run_lookup(
-        FakeData(shop, overview=ov), entities_labels(), "metric_total", "roas_break_even",
+        FakeData(shop, values=values), entities_labels(), "metric_total", "roas_break_even",
         PRESET, YDAY,
     )  # fmt: skip
     assert out["value"] == "3,09" and out["value_raw"] == pytest.approx(3.09)
@@ -255,25 +243,19 @@ def entities_labels() -> Any:
 # ------------------------------------------------------------------ J-H2: product level
 
 
-def _product(contribution: str, covered: str) -> ProductProfit:
-    return ProductProfit(
-        product_id="p1",
-        orders=3,
-        gmv=Decimal(covered),
-        buyer_paid=Decimal(covered),
-        buyer_paid_covered=Decimal(covered),
-        gmv_covered=Decimal(covered),
-        contribution=Decimal(contribution),
-        ad_spend=Decimal(0),
-        profit=Decimal(contribution),
-        line_ads_display=Decimal(0),
+async def test_product_value_is_the_query_rows_contribution_and_break_even() -> None:
+    def script(ids: list[str], a: Any, b: Any, **kw: Any) -> dict[str, Any]:
+        return {"values": {"contribution": 250.0, "roas_break_even": 4.0, "profit": 100.0}}
+
+    svc = ScriptedQuery(script)
+    got = await svc.product_profit("p1", YDAY, YDAY)
+    assert svc.asked[0]["scope"] == "products" and svc.asked[0]["items"] == ["p1"]
+    assert got is not None
+    assert got["contribution_before_ads"] == 250.0 and got["break_even_roas"] == 4.0
+    empty = await ScriptedQuery(lambda *a, **k: {"values": {"profit": None}}).product_profit(
+        "p1", YDAY, YDAY
     )
-
-
-def test_product_value_is_the_shared_profit_rows_contribution_and_break_even() -> None:
-    got = _product_break_even(_product("250", "1000"))
-    assert got == {"contribution_before_ads": Decimal(250), "break_even_roas": 4.0}
-    assert _product_break_even(_product("0", "1000"))["break_even_roas"] is None
+    assert empty is None  # nothing known: no product row, never zeros
 
 
 class _ProductData(FakeEntityData):
@@ -288,7 +270,7 @@ async def test_product_question_answers_from_the_products_own_value() -> None:
         item_id="p1", item_name="Sản phẩm A",
     )  # fmt: skip
     assert ans["title_vi"] == "ROAS hoà vốn · Sản phẩm A" and ans["value"] == "3,50"
-    assert ans["contribution_vi"] == "Đóng góp trước quảng cáo 300đ"
+    assert ans["contribution_vi"] == "Lợi nhuận đóng góp 300đ"  # the registry label
 
 
 async def test_which_products_lose_after_ads_lists_the_losing_ones_with_their_figures() -> None:
@@ -307,9 +289,7 @@ async def test_which_products_lose_after_ads_lists_the_losing_ones_with_their_fi
     assert ans["title_vi"] == "Sản phẩm đang lỗ sau quảng cáo"
     (row,) = ans["rows"]
     assert row["label_vi"] == "Sản phẩm A" and row["value_vi"] == "Lỗ 500đ"
-    assert (
-        "đóng góp trước quảng cáo 400đ" in row["detail_vi"] and "hoà vốn 4,50" in row["detail_vi"]
-    )
+    assert "lợi nhuận đóng góp 400đ" in row["detail_vi"] and "hoà vốn 4,50" in row["detail_vi"]
     none_lose = await entities.run_entity(
         "product_loss", FakeEntityData(_shop(), entity={"product_rows": rows[1:]}), it,
         "profit", PRESET, YDAY,

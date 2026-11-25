@@ -31,6 +31,7 @@ from juli_backend.services.analytics_agent import (
     writer,
 )
 from juli_backend.services.analytics_agent import cards as cardstage
+from juli_backend.services.analytics_agent import compare as compare_mod
 from juli_backend.services.analytics_agent.cards_service import ServiceCardEngine
 from juli_backend.services.analytics_agent.chains import CHAIN_METRIC, ChainResult, run_chain
 from juli_backend.services.analytics_agent.data_service import ServiceData, SessionFactory
@@ -530,6 +531,16 @@ async def _answer_inner(
                 }
             )
         result.stop_reasons.append("needs_choice" if what == "asked" else "data_answer")
+        return
+    if mode == "compare":  # C6: 4 priced options of OPP, one pick, the lead names the figure
+        await out.emit(present.status("checking_data"))
+        block, lead = await compare_mod.run_compare(
+            data, engine, labels, as_of, list(dec.get("kinds") or []),
+            str(intent.get("product_phrase") or ""),
+        )  # fmt: skip
+        await out.emit(block)
+        await out.emit({"type": "text_delta", "text": lead})
+        result.stop_reasons.append("data_answer")
         return
     if mode == "advise":  # J1-J5: the LLM advises over the shop's data; code checks the answer
         if _platform_has_analytics(req.platform) and engine is not None:

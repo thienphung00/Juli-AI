@@ -16,13 +16,11 @@ from typing import Any
 
 from juli_backend.services.analytics_agent import cards as cardstage
 from juli_backend.services.analytics_agent import fmt
-from juli_backend.services.analytics_agent.chains import bucket
 from juli_backend.services.analytics_agent.entities import (
     campaign_order,
     campaign_row,
     campaign_verdict,
 )
-from juli_backend.services.analytics_agent.registry_reads import roas as registry_roas
 from juli_backend.services.analytics_agent.types import (
     CardEnginePort,
     DataPort,
@@ -43,15 +41,6 @@ _DEAL_IN_TITLE = re.compile(r"(?<!\d)(\d{1,2})[./](\d{1,2})(?!\d)")
 _COVERAGE_OK = 99.5
 
 
-def _sum(rows: list[dict[str, Any]], key: str, win: tuple[date, date]) -> float | None:
-    vals = [
-        r[key]
-        for r in rows
-        if win[0] <= r["day"] <= win[1] and r.get("complete", True) and r.get(key) is not None
-    ]
-    return float(sum(vals)) if vals else None
-
-
 def rng(win: tuple[date, date]) -> str:
     """ "16–22/11" or "30/10–05/11": a date range, never a relative word."""
     a, b = win
@@ -62,13 +51,14 @@ def _f(v: Any) -> float | None:
     return None if v is None else float(v)
 
 
-def source_gmv(win: tuple[date, date], srows: list[dict[str, Any]]) -> dict[str, float]:
-    """GMV per traffic source bucket (Organic / TTLK / Quảng cáo ...) over `win`."""
-    t: dict[str, float] = {}
-    for r in srows:
-        if win[0] <= r["day"] <= win[1] and r.get("gmv") is not None:
-            t[bucket(r["source"])] = t.get(bucket(r["source"]), 0.0) + float(r["gmv"])
-    return t
+async def source_gmv(data: DataPort, win: tuple[date, date]) -> dict[str, float]:
+    """GMV per traffic source over `win`, as `query(group_by="source")` returns it (a source with
+    no figure is absent, never 0)."""
+    return {
+        str(r["source"]): float(r["gmv"])
+        for r in await data.source_totals(*win)
+        if r.get("gmv") is not None
+    }
 
 
 IDLE_SPEND_SHARE = 0.30  # owner #53: an idle budget day spends under 30 % of the daily budget
@@ -103,26 +93,26 @@ def has_cogs_gap(profit: dict[str, Any] | None) -> bool:
     )
 
 
-def week_table(
-    rows: list[dict[str, Any]], w: Any, last_week: tuple[date, date]
-) -> list[dict[str, Any]]:
+#: The table rows: (label, Chat metric key for formatting, registry id read from `query()`).
+WEEK_ROWS = (
+    ("GMV", "gmv", "gmv"),
+    ("Đơn", "orders", "orders"),
+    ("Chi phí QC", "ads_spend", "cost_ads"),
+    ("ROAS", "roas", "roas"),
+)
+
+
+async def week_table(data: DataPort, w: Any, last_week: tuple[date, date]) -> list[dict[str, Any]]:
     """GMV / Đơn / Chi phí QC / ROAS this window vs last week (vs a normal week when the last one
-    held a sale day)."""
-
-    def val(metric: str, win: tuple[date, date]) -> float | None:
-        if metric == "roas":
-            g, c = _sum(rows, "ads_gmv", win), _sum(rows, "ads_spend", win)
-            return registry_roas(g, c) if g is not None and c else None
-        return _sum(rows, metric, win)
-
+    held a sale day). Every value is `query()`'s window total; nothing is summed here."""
+    ids = [rid for _, _, rid in WEEK_ROWS]
+    got = {
+        name: (await data.metrics(ids, *win)).get("values") or {}
+        for name, win in (("cur", w.cur), ("last", last_week), ("prev", w.prev))
+    }
     table: list[dict[str, Any]] = []
-    for m, label in (
-        ("gmv", "GMV"),
-        ("orders", "Đơn"),
-        ("ads_spend", "Chi phí QC"),
-        ("roas", "ROAS"),
-    ):
-        now, lw, nw = val(m, w.cur), val(m, last_week), val(m, w.prev)
+    for label, m, rid in WEEK_ROWS:
+        now, lw, nw = (_f(got[k].get(rid)) for k in ("cur", "last", "prev"))
         detail = f"{rng(last_week)} {fmt.value(m, lw)}"
         if w.sale_prev:
             detail += f" (có ngày sale) · {rng(w.prev)} {fmt.value(m, nw)}"
@@ -234,7 +224,7 @@ async def run_weekly(
     actions: list[tuple[str, str | None, str]] = []  # (kind, item, why)
 
     # 1. this week vs last week vs a normal week
-    table = week_table(rows, w, last_week)
+    table = await week_table(data, w, last_week)
     title = f"{rng(w.cur)} so với {rng(last_week)}"
     if w.sale_prev:
         title += f" và tuần thường {rng(w.prev)}"
@@ -279,8 +269,7 @@ async def run_weekly(
         actions.append(("ads_budget", None, "ngày chi dưới ngân sách không có đơn"))
 
     # 4. which traffic source fell
-    srows = await data.source_daily(w.prev[0], w.cur[1])
-    sn, sb = source_gmv(w.cur, srows), source_gmv(w.prev, srows)
+    sn, sb = await source_gmv(data, w.cur), await source_gmv(data, w.prev)
     fell = sorted(
         ((k, sn.get(k, 0.0) - v) for k, v in sb.items() if sn.get(k, 0.0) < v), key=lambda t: t[1]
     )
@@ -303,10 +292,8 @@ async def run_weekly(
         )
 
     # 5 + 6. products: share, margin change, stale deal titles; giá vốn gaps
-    cur: dict[str, float] = {}
-    for r in await data.product_daily(*w.cur):
-        cur[r["item_id"]] = cur.get(r["item_id"], 0.0) + float(r["gmv"] or 0)
-    total = sum(cur.values())
+    cur = {r["item_id"]: float(r["gmv"]) for r in await data.product_daily(*w.cur) if r["gmv"]}
+    total = _f(((await data.metrics(["gmv"], *w.cur)).get("values") or {}).get("gmv"))
     top = sorted(cur, key=lambda k: -cur[k])[:TOP]
     names = await data.item_names(top)
     prow, gaps = [], []

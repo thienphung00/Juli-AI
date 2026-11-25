@@ -31,13 +31,17 @@ import os
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date
 from typing import Any
 
+from juli_backend.services.analytics_agent import (
+    advisor_tools,
+    facts,
+    levers,
+    summary,
+    writer,
+)
 from juli_backend.services.analytics_agent import cards as cardstage
-from juli_backend.services.analytics_agent import facts, fmt, levers, summary, weekly, writer
-from juli_backend.services.analytics_agent.entities import campaign_order, campaign_row
-from juli_backend.services.analytics_agent.lookup import run_lookup
 from juli_backend.services.analytics_agent.types import (
     CardEnginePort,
     DataPort,
@@ -48,7 +52,6 @@ from juli_backend.services.analytics_agent.types import (
 from juli_backend.services.analytics_agent.windows import (
     anchor_for,
     build_windows,
-    campaign_days,
     clip_to_freshness,
     sale_days_vi,
 )
@@ -59,45 +62,12 @@ ADVISE_COST_CAP_ENV = "JULI_AGENT_ADVISE_COST_CAP_USD"
 DEFAULT_COST_CAP_USD = 0.02
 MAX_TURNS = 4
 MAX_TOOLS_PER_TURN = 4
-MAX_DRAFTS = 3
+MAX_DRAFTS = advisor_tools.MAX_DRAFTS
 MAX_ITEMS = 6
 MAX_REPAIR_TURNS = 2  # extra turns after a refused plan: draft the missing cards, emit again
 TOP = 5
-UPCOMING_DAYS = 21  # the sale calendar the model sees ahead (double days, 15th, 25th)
-NO_PLAN_TOOL_VI = "Juli chưa tính được phương án cho việc này"
-#: Why draft_card made no card (the engine's reason codes), in words the model can act on.
-NO_DRAFT_REASON_VI = {
-    "kind_needs_a_product": "lever này cần item: truyền id một sản phẩm đã thấy ở công cụ khác "
-    "(ví dụ sản phẩm chính của chiến dịch hoặc sản phẩm lỗ)",
-    "generator_returned_none": "engine chưa thấy cơ hội cho lever này ở sản phẩm này; thử sản "
-    "phẩm khác hoặc lever khác",
-    "not_estimable": "chưa đủ dữ liệu để tính thẻ này",
-    "no_shopee_data": "chưa có dữ liệu Shopee",
-    "no_generator_for_kind": "Juli chưa tạo được thẻ loại này",
-}
-
-#: The windows a tool may read (a validated enum; the model never writes a date).
-WINDOWS = (
-    "last_full_week_vs_week_before",
-    "last_7d_vs_prev_7d",
-    "last_30d_vs_prev_30d",
-    "mtd_vs_same_days_last_month",
-    "last_month_vs_month_before",
-)
-METRICS = (
-    "gmv",
-    "orders",
-    "units",
-    "views",
-    "clicks",
-    "profit",
-    "margin",
-    "ads_spend",
-    "roas",
-    "ctr",
-    "ctor",
-    "aov",
-)
+WINDOWS = advisor_tools.WINDOWS
+NO_PLAN_TOOL_VI = advisor_tools.NO_PLAN_TOOL_VI
 
 
 def cost_cap_usd() -> float:
@@ -149,7 +119,7 @@ class Advice:
 FEW_SHOT: tuple[dict[str, Any], ...] = (
     {
         "câu_hỏi": "Tuần sau shop nên làm gì?",
-        "đọc_được": "Sản phẩm A lỗ sau quảng cáo (chi quảng cáo 200.000đ, đóng góp trước quảng cáo "
+        "đọc_được": "Sản phẩm A lỗ sau quảng cáo (chi quảng cáo 200.000đ, lợi nhuận đóng góp "
         "âm); chiến dịch X ROAS 3,4 so với hoà vốn 3,0; 2 ngày chi dưới ngân sách và không có "
         "đơn; sản phẩm C thiếu giá vốn; tuần trước có ngày sale kéo GMV; sản phẩm B chiếm 70% GMV; "
         "open_cards có thẻ ngân sách JC-0001 (lever ads_budget).",
@@ -199,7 +169,7 @@ FEW_SHOT: tuple[dict[str, Any], ...] = (
     },
     {
         "câu_hỏi": "Mai là ngày 25, shop nên chuẩn bị gì?",
-        "đọc_được": "week_summary: ngày_sale_sắp_tới gồm 25/11 và 12/12; chưa có thẻ nào cho ngày "
+        "đọc_được": "calendar: ngày_sale_sắp_tới gồm 25/11 và 12/12; chưa có thẻ nào cho ngày "
         "sale; sản phẩm B bán chạy nhất.",
         "emit_plan": {
             "lead": "Ngày 25/11 là ngày sale, kế tiếp là 12/12.",
@@ -224,7 +194,7 @@ FEW_SHOT: tuple[dict[str, Any], ...] = (
     },
     {
         "câu_hỏi": "Khách xem nhiều mà ít chốt đơn, mình nên làm gì?",
-        "đọc_được": "metric_view ctor: tỷ lệ chốt đơn giảm so với kỳ trước; ctr ổn định.",
+        "đọc_được": "metrics ctor, ctr: tỷ lệ chốt đơn giảm so với kỳ trước; ctr ổn định.",
         "emit_plan": {
             "lead": "Khách vào xem đủ nhưng ít chốt đơn, vấn đề nằm ở trang sản phẩm chứ "
             "không phải lượt xem.",
@@ -268,18 +238,23 @@ SYSTEM = (
     "không ra đơn), rồi ngân sách và ROAS, rồi tăng trưởng. Mỗi lever chỉ một mục: nhiều sản "
     "phẩm hoặc chiến dịch cùng lever thì gộp thành một mục và nêu trong why. Mỗi mục: lever, "
     "card_ref, why (1-2 câu: điều dữ liệu cho thấy).\n"
-    "- Câu hỏi về ngày sale / sự kiện sắp tới: đọc week_summary (ngày_sale_sắp_tới) và chọn lever "
+    "- Câu hỏi về ngày sale / sự kiện sắp tới: đọc calendar (ngày_sale_sắp_tới) và chọn lever "
     "sự kiện (flash_sale, program_registration, mega_sale, min_spend_voucher). Câu hỏi khách xem "
-    "nhiều ít chốt đơn hoặc CTR thấp: đọc metric_view (ctor, ctr) và chọn lever trang sản phẩm "
+    "nhiều ít chốt đơn hoặc CTR thấp: đọc metrics (ctor, ctr) và chọn lever trang sản phẩm "
     "(review_voucher, description_first_line, cover_image, price_display, title).\n"
+    "- Việc nên làm lấy từ công cụ opportunities (mỗi dòng có lever, kết quả, lợi nhuận tăng). "
+    "Hỏi một lever không có dòng nào: trả lời 'chưa có cơ hội' kèm lý do của dòng, không thử lại. "
+    "Tạo thẻ nháp bằng draft_card với mã cơ hội ('mã'). Muốn so sánh 4 phương án thì gọi compare.\n"
     "- card_ref bắt buộc: 'open:<mã thẻ>' của một thẻ đang có trong open_cards, hoặc "
-    "'draft:<ref>' do draft_card trả về. Mỗi thẻ trong open_cards có trường 'lever' (loại của "
-    "thẻ): chỉ dùng open:<mã> cho action có lever đúng bằng lever của thẻ đó; việc khác lever "
-    "thì gọi draft_card với đúng lever (kèm item là id sản phẩm đã thấy ở công cụ khác khi lever "
-    "cần sản phẩm) trước khi emit_plan. Nếu draft_card báo chưa có phương án, đọc 'lý_do': thử "
+    "'draft:<ref>' do draft_card trả về (theo mã cơ hội). Mỗi thẻ trong open_cards có trường "
+    "'lever' (loại của thẻ): chỉ dùng open:<mã> cho action có lever đúng bằng lever của thẻ đó; "
+    "việc khác lever thì gọi opportunities rồi draft_card với mã cơ hội đúng lever trước khi "
+    "emit_plan. "
+    "Nếu draft_card báo chưa có phương án, đọc 'lý_do': thử "
     "lại với item khác nếu được, không thì đưa việc đó vào 'lead' hoặc bỏ. Riêng lever "
-    "nhap_gia_von (không phải thẻ, card_ref 'none') chỉ dùng khi cogs_gaps báo thiếu giá vốn; "
-    "giá vốn đã đủ thì nói ở 'lead', không đưa vào 'actions'. Kết quả campaigns liệt kê "
+    "nhap_gia_von (không phải thẻ, card_ref 'none') chỉ dùng khi rank (cost_coverage, lọc dưới "
+    "1) báo thiếu giá vốn; "
+    "giá vốn đã đủ thì nói ở 'lead', không đưa vào 'actions'. Kết quả rank theo chiến dịch liệt kê "
     "sản_phẩm_chạy_quảng_cáo của từng chiến dịch: dùng id đó làm item cho lever quảng cáo của "
     "chiến dịch.\n"
     "- Chiến dịch có nhiều sản phẩm mà một sản phẩm lỗ: ads_remove_product (chỉ ads_pause khi nó "
@@ -292,116 +267,13 @@ SYSTEM = (
     + "\n".join(json.dumps(ex, ensure_ascii=False) for ex in FEW_SHOT)
 )
 
-_WINDOW_PROP = {
-    "type": "string",
-    "enum": list(WINDOWS),
-    "description": "kỳ so sánh (chọn một giá trị trong danh sách)",
-}
-_NO_ARGS: dict[str, Any] = {"type": "object", "properties": {}, "additionalProperties": False}
-#: The week tools read the last full week by default; a month question passes a window.
-_OPT_WINDOW: dict[str, Any] = {
-    "type": "object",
-    "additionalProperties": False,
-    "properties": {"window": _WINDOW_PROP},
-}
-
 
 def tool_specs(kinds: list[str]) -> list[dict[str, Any]]:
-    specs = _tool_specs(kinds)
-    for spec in specs:  # each tool says which findings it can show and their allowed levers
+    """The tools, generated from the registry ids and the kinds table (#53)."""
+    out = [*advisor_tools.specs(kinds), plan_tool(kinds)]
+    for spec in out:  # each tool says which findings it can show and their allowed levers
         spec["description"] += levers.describe(spec["name"])
-    return specs
-
-
-def _tool_specs(kinds: list[str]) -> list[dict[str, Any]]:
-    return [
-        {
-            "name": "week_summary",
-            "description": "GMV, đơn, chi phí quảng cáo, ROAS của tuần vừa rồi so với tuần trước.",
-            "input_schema": _NO_ARGS,
-        },
-        {
-            "name": "campaigns",
-            "description": "Từng chiến dịch quảng cáo: ROAS so với ROAS hoà vốn (ba cấp), lỗ/lãi.",
-            "input_schema": _OPT_WINDOW,
-        },
-        {
-            "name": "idle_budget_days",
-            "description": "Những ngày chi quảng cáo dưới ngân sách và không có đơn.",
-            "input_schema": _OPT_WINDOW,
-        },
-        {
-            "name": "traffic_sources",
-            "description": "GMV theo kênh Organic / TTLK / Quảng cáo, kênh nào giảm.",
-            "input_schema": _OPT_WINDOW,
-        },
-        {
-            "name": "product_margins",
-            "description": "Sản phẩm lớn nhất: tỷ trọng GMV, biên lợi nhuận đổi thế nào, tên còn "
-            "ghi ngày sale đã hết.",
-            "input_schema": _OPT_WINDOW,
-        },
-        {
-            "name": "cogs_gaps",
-            "description": "Sản phẩm thiếu giá vốn (lợi nhuận chưa đáng tin).",
-            "input_schema": _OPT_WINDOW,
-        },
-        {
-            "name": "open_cards",
-            "description": "Các thẻ đang có trong Đề xuất (mã thẻ, loại, sản phẩm).",
-            "input_schema": _NO_ARGS,
-        },
-        {
-            "name": "metric_view",
-            "description": "Một chỉ số của cả shop hoặc một sản phẩm trong một kỳ, so với kỳ "
-            "trước.",
-            "input_schema": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["metric", "window"],
-                "properties": {
-                    "metric": {"type": "string", "enum": list(METRICS)},
-                    "window": _WINDOW_PROP,
-                    "item": {
-                        "type": ["string", "null"],
-                        "description": "id sản phẩm lấy từ kết quả công cụ khác; null = cả shop",
-                    },
-                },
-            },
-        },
-        {
-            "name": "product_profit",
-            "description": "Lợi nhuận sau quảng cáo, đóng góp trước quảng cáo, chi quảng cáo và "
-            "ROAS hoà vốn của một sản phẩm; không có item thì trả các sản phẩm kém nhất.",
-            "input_schema": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["window"],
-                "properties": {
-                    "window": _WINDOW_PROP,
-                    "item": {
-                        "type": ["string", "null"],
-                        "description": "id sản phẩm lấy từ kết quả công cụ khác",
-                    },
-                },
-            },
-        },
-        {
-            "name": "draft_card",
-            "description": "Tạo thẻ nháp (không gửi) cho một việc; trả card_ref để dùng trong "
-            "emit_plan, hoặc báo đã có thẻ / chưa có phương án.",
-            "input_schema": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["kind"],
-                "properties": {
-                    "kind": {"type": "string", "enum": levers.card_kinds(kinds)},
-                    "item": {"type": ["string", "null"], "description": "id sản phẩm nếu cần"},
-                },
-            },
-        },
-        plan_tool(kinds),
-    ]
+    return out
 
 
 def plan_tool(kinds: Iterable[str] | None = None) -> dict[str, Any]:
@@ -457,6 +329,7 @@ class Ctx:
     results: list[Any] = field(default_factory=list)  # every tool result = the fact set
     names: dict[str, str] = field(default_factory=dict)  # item id -> name (from tool results)
     known_items: set[str] = field(default_factory=set)
+    opps: dict[str, dict[str, Any]] = field(default_factory=dict)  # opportunity id -> stored row
     windows: dict[str, str] = field(default_factory=dict)  # window label -> sale note
     drafts: dict[str, dict[str, Any]] = field(default_factory=dict)  # ref -> {acc, event}
     draft_log: list[dict[str, Any]] = field(default_factory=list)  # every draft_card outcome
@@ -496,138 +369,6 @@ class Ctx:
             self.names[item] = name
 
 
-def _rows_out(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [{k: r[k] for k in ("label_vi", "value_vi", "detail_vi") if r.get(k)} for r in rows]
-
-
-async def _week_summary(ctx: Ctx, _a: dict[str, Any]) -> dict[str, Any]:
-    w = await ctx.window(weekly.PRESET)
-    assert w.prev is not None
-    last = w.sale_prev or w.prev
-    table = weekly.week_table(await ctx.shop_rows(), w, last)
-    ahead = campaign_days(ctx.as_of + timedelta(days=1), ctx.as_of + timedelta(days=UPCOMING_DAYS))
-    return {
-        **ctx.head(w),
-        "ngày_sale_sắp_tới": [f"{d:%d/%m}" for d in ahead],
-        "so_với": weekly.rng(last),
-        "dòng": [
-            {
-                "chỉ_số": r["label_vi"],
-                "tuần_này": r["value_vi"],
-                "tuần_trước": r["detail_vi"],
-                "thay_đổi": r["delta"]["text_vi"],
-            }
-            for r in table
-        ],
-    }
-
-
-def _preset(a: dict[str, Any]) -> str:
-    """The window a tool reads: the last full week unless the model names one from the enum."""
-    preset = a.get("window") or weekly.PRESET
-    if preset not in WINDOWS:
-        raise ValueError("bad_argument")
-    return str(preset)
-
-
-async def _campaigns(ctx: Ctx, a: dict[str, Any]) -> dict[str, Any]:
-    w = await ctx.window(_preset(a))
-    camps = sorted(await ctx.data.campaign_rows(*w.cur), key=campaign_order)
-    for c in camps:
-        ctx.names.setdefault(str(c.get("key") or c["name"]), str(c["name"]))
-    out = []
-    for c in camps[:8]:
-        row = _rows_out([campaign_row(c)])[0]
-        ids = [str(i) for i in (c.get("items") or [])]
-        if ids:  # the products it spends on: item ids draft_card can take (ads report by product)
-            names = await ctx.data.item_names(ids)
-            for i in ids:
-                ctx.see(i, names.get(i))
-            row["sản_phẩm_chạy_quảng_cáo"] = [{"id": i, "tên": names.get(i, i)} for i in ids]
-        out.append(row)
-    return {**ctx.head(w), "chiến_dịch": out}
-
-
-async def _idle(ctx: Ctx, a: dict[str, Any]) -> dict[str, Any]:
-    w = await ctx.window(_preset(a))
-    idle = weekly.idle_days(await ctx.data.budget_days(*w.cur), await ctx.shop_rows(), w.cur)
-    return {
-        **ctx.head(w),
-        "ngày": [
-            {
-                "ngày": f"{b['day']:%d/%m}",
-                "chi": fmt.value("ads_spend", float(b["spend"])),
-                "ngân_sách": fmt.value("ads_spend", float(b["budget"])),
-            }
-            for b in idle
-        ],
-    }
-
-
-async def _traffic(ctx: Ctx, a: dict[str, Any]) -> dict[str, Any]:
-    w = await ctx.window(_preset(a))
-    assert w.prev is not None
-    srows = await ctx.data.source_daily(w.prev[0], w.cur[1])
-    now, before = weekly.source_gmv(w.cur, srows), weekly.source_gmv(w.prev, srows)
-    keys = sorted(set(now) | set(before))
-    return {
-        **ctx.head(w),
-        "kênh": [
-            {
-                "kênh": ctx.labels.source(k),
-                "kỳ_này": fmt.value("gmv", now.get(k, 0.0)),
-                "kỳ_trước": fmt.value("gmv", before.get(k, 0.0)),
-                "giảm": now.get(k, 0.0) < before.get(k, 0.0),
-            }
-            for k in keys
-        ],
-    }
-
-
-async def _top_products(ctx: Ctx, w: Any) -> tuple[list[str], dict[str, float], dict[str, str]]:
-    cur: dict[str, float] = {}
-    for r in await ctx.data.product_daily(*w.cur):
-        cur[r["item_id"]] = cur.get(r["item_id"], 0.0) + float(r["gmv"] or 0)
-    top = sorted(cur, key=lambda k: -cur[k])[:TOP]
-    names = await ctx.data.item_names(top)
-    for k in top:
-        ctx.see(k, names.get(k))
-    return top, cur, names
-
-
-async def _product_margins(ctx: Ctx, a: dict[str, Any]) -> dict[str, Any]:
-    w = await ctx.window(_preset(a))
-    assert w.prev is not None
-    top, cur, names = await _top_products(ctx, w)
-    total = sum(cur.values())
-    rows = []
-    for k in top:
-        now_p = await ctx.data.product_profit(k, *w.cur)
-        old_p = await ctx.data.product_profit(k, *w.prev)
-        row: dict[str, Any] = {"id": k, "tên": names.get(k, k), "GMV": fmt.value("gmv", cur[k])}
-        if total:
-            row["tỷ_trọng"] = f"{100 * cur[k] / total:.0f}% GMV".replace(".", ",")
-        m_now = None if not now_p or now_p["margin_pct"] is None else float(now_p["margin_pct"])
-        m_old = None if not old_p or old_p["margin_pct"] is None else float(old_p["margin_pct"])
-        if m_now is not None and m_old is not None:
-            row["biên"] = fmt.delta("margin", m_now / 100, m_old / 100)["text_vi"]
-        stale = weekly.ended_deal_in(names.get(k, ""), ctx.as_of + timedelta(days=1))
-        if stale:
-            row["tên_còn_ngày_sale_đã_hết"] = stale
-        rows.append(row)
-    return {**ctx.head(w), "sản_phẩm": rows}
-
-
-async def _cogs_gaps(ctx: Ctx, a: dict[str, Any]) -> dict[str, Any]:
-    w = await ctx.window(_preset(a))
-    top, _cur, names = await _top_products(ctx, w)
-    gaps = [k for k in top if weekly.has_cogs_gap(await ctx.data.product_profit(k, *w.cur))]
-    return {
-        **ctx.head(w),
-        "thiếu_giá_vốn": [{"id": k, "tên": names.get(k, k)} for k in gaps],
-    }
-
-
 async def _open_cards(ctx: Ctx, _a: dict[str, Any]) -> dict[str, Any]:
     cards = await ctx.open_cards()
     ids = [str(c["item_id"]) for c in cards if c.get("item_id")]
@@ -658,138 +399,7 @@ def card_lever(card: dict[str, Any]) -> str | None:
     return str(fine) if fine in levers.lever_enum() else None
 
 
-def _known(ctx: Ctx, item: Any) -> str | None:
-    """An item id must come from an earlier tool result; anything else is refused."""
-    if item in (None, ""):
-        return None
-    if str(item) not in ctx.known_items:
-        raise ValueError("unknown_item")
-    return str(item)
-
-
-async def _metric_view(ctx: Ctx, a: dict[str, Any]) -> dict[str, Any]:
-    metric, preset = a.get("metric"), a.get("window")
-    if metric not in METRICS or preset not in WINDOWS:
-        raise ValueError("bad_argument")
-    item = _known(ctx, a.get("item"))
-    await ctx.shop_rows()
-    res = await run_lookup(
-        ctx.data, ctx.labels, "metric_total", str(metric), str(preset), ctx.as_of, item_id=item
-    )
-    if res.get("stop") == "data_missing":
-        return {"lỗi": "thiếu dữ liệu"}
-    w = await ctx.window(str(preset))
-    out = {
-        **ctx.head(w),
-        "chỉ_số": ctx.labels.metric(str(metric)),
-        "phạm_vi": ctx.names.get(item, item) if item else "cả shop",
-    }
-    for src, dst in (
-        ("value", "giá_trị"),
-        ("before_vi", "kỳ_trước"),
-        ("contribution_vi", "đóng_góp"),
-    ):
-        if res.get(src):
-            out[dst] = res[src]
-    if (res.get("delta") or {}).get("text_vi"):
-        out["thay_đổi"] = res["delta"]["text_vi"]
-    return out
-
-
-async def _product_profit(ctx: Ctx, a: dict[str, Any]) -> dict[str, Any]:
-    preset = a.get("window")
-    if preset not in WINDOWS:
-        raise ValueError("bad_argument")
-    item = _known(ctx, a.get("item"))
-    w = await ctx.window(str(preset))
-    rows = await ctx.data.product_profit_rows(*w.cur)
-    if item:
-        rows = [r for r in rows if r["item_id"] == item]
-    else:  # the worst products after ads first (None profit last)
-        rows = sorted(rows, key=lambda r: (r["profit"] is None, float(r["profit"] or 0.0)))[:8]
-    out = []
-    for r in rows:
-        ctx.see(str(r["item_id"]), r.get("name"))
-        be, contrib = r.get("break_even_roas"), r.get("contribution_before_ads")
-        row: dict[str, Any] = {
-            "id": r["item_id"],
-            "tên": r.get("name") or r["item_id"],
-            "lợi_nhuận_sau_QC": fmt.value("profit", _f(r.get("profit"))),
-            "đóng_góp_trước_QC": fmt.value("profit", _f(contrib)) if contrib is not None else None,
-            "chi_QC": fmt.value("ads_spend", _f(r.get("ad_spend"))),
-            "ROAS_hoà_vốn": fmt.value("roas", _f(be)) if be is not None else "chưa có",
-        }
-        if r.get("margin_pct") is not None:
-            row["biên"] = fmt.value("margin", float(r["margin_pct"]) / 100)
-        out.append({k: v for k, v in row.items() if v is not None})
-    return {**ctx.head(w), "sản_phẩm": out}
-
-
-def _f(v: Any) -> float | None:
-    return None if v is None else float(v)
-
-
-async def _draft_card(ctx: Ctx, a: dict[str, Any]) -> dict[str, Any]:
-    kind = a.get("kind")
-    if kind not in ctx.labels.kinds:
-        raise ValueError("bad_argument")
-    item = _known(ctx, a.get("item"))
-    engine = ctx.engine
-    if engine is None:
-        return {"kết_quả": NO_PLAN_TOOL_VI}
-    if len(ctx.drafts) >= MAX_DRAFTS:
-        return {"lỗi": "đã đủ số thẻ nháp"}
-    before = ctx.out.cost_usd
-    res = await weekly.resolve_action(
-        ctx.out,
-        ctx.data,
-        engine,
-        ctx.jev,
-        ctx.labels,
-        ctx.as_of,
-        await ctx.open_cards(),
-        str(kind),
-        item,
-    )
-    ctx.budget.cost += ctx.out.cost_usd - before
-    code = res["code"]
-    ctx.draft_log.append(
-        {"kind": kind, "item": item, "status": res["status"], "reason": res.get("reason")}
-    )
-    if res["status"] == "same":
-        return {"kết_quả": "đã có thẻ giống hệt", "card_ref": f"open:{code}"}
-    if res["status"] == "none":
-        if code:
-            return {
-                "kết_quả": "chưa có phương án mới, đã có thẻ cùng loại",
-                "card_ref": f"open:{code}",
-            }
-        reason = str(res.get("reason") or "")
-        return {
-            "kết_quả": NO_PLAN_TOOL_VI,
-            "card_ref": None,
-            "lý_do": NO_DRAFT_REASON_VI.get(reason.split(":")[0], "chưa tính được thẻ"),
-        }
-    ref = str(res["ref"])
-    ctx.drafts[ref] = {"acc": ctx.out.accepted[-1], "event": res["event"]}
-    out: dict[str, Any] = {"kết_quả": "đã tạo thẻ nháp", "card_ref": f"draft:{ref}"}
-    if code:
-        out["đã_có_thẻ_cùng_loại"] = f"open:{code}"
-    return out
-
-
-TOOLS = {
-    "week_summary": _week_summary,
-    "campaigns": _campaigns,
-    "idle_budget_days": _idle,
-    "traffic_sources": _traffic,
-    "product_margins": _product_margins,
-    "cogs_gaps": _cogs_gaps,
-    "open_cards": _open_cards,
-    "metric_view": _metric_view,
-    "product_profit": _product_profit,
-    "draft_card": _draft_card,
-}
+TOOLS = {**advisor_tools.TOOLS, "open_cards": _open_cards}
 
 
 async def run_tool(ctx: Ctx, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -807,7 +417,11 @@ async def run_tool(ctx: Ctx, name: str, args: dict[str, Any]) -> dict[str, Any]:
     except Exception:
         logger.exception("juli_advisor_tool_failed", extra={"tool": name})
         return {"lỗi": "không đọc được dữ liệu"}
-    if name != "draft_card" and "lỗi" not in res and (tags := levers.tags_for(name)):
+    if (
+        name not in ("draft_card", "compare")
+        and "lỗi" not in res
+        and (tags := levers.tags_for(name))
+    ):
         res = {**res, "phát_hiện_và_lever": tags}
     ctx.results.append(res)
     return res
@@ -861,7 +475,8 @@ _PROBLEM_VI = {
     "unknown_ref": "card_ref không có trong open_cards hay thẻ nháp",
     "kind_mismatch": "thẻ của card_ref không đúng loại với lever",
     "bad_lever": "lever không nằm trong danh sách",
-    "no_evidence": "lever này chỉ dùng khi công cụ đã báo đúng phát hiện của nó (ví dụ cogs_gaps "
+    "no_evidence": "lever này chỉ dùng khi công cụ đã báo đúng phát hiện của nó (ví dụ rank "
+    "cost_coverage "
     "báo thiếu giá vốn); chưa có thì bỏ hoặc ghi ở lead",
     "dup_lever": "lever đã dùng ở mục trước: gộp các việc cùng lever thành một mục, nêu các sản "
     "phẩm hoặc chiến dịch trong why",

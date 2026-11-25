@@ -242,10 +242,10 @@ def test_flash_sale_slots_and_builder_limits() -> None:
     assert create_card.max_days("voucher") == sp.MAX_VOUCHER_DAYS
 
 
-async def test_shop_roas_break_even_is_the_registry_metric_over_the_overview() -> None:
+async def test_shop_roas_break_even_is_the_registry_metric_from_query() -> None:
     data = FakeData(
         shop_rows(date(2026, 9, 1), YDAY, gmv=1000.0, orders=3.0),
-        overview=lambda a, b: {"profit": {"break_even_roas": 4.0, "contribution_before_ads": 2500}},
+        values=lambda ids, a, b: {"roas_break_even": 4.0},
     )
     llm = FakeLLM(
         {
@@ -266,9 +266,7 @@ async def test_shop_roas_break_even_is_the_registry_metric_over_the_overview() -
         card_engine=_engine(),
     )
     da = sink.of("data_answer")[0]
-    assert (
-        da["title_vi"] == "ROAS hoà vốn" and da["value"] == "4,00"
-    )  # overview `profit.break_even_roas`
+    assert da["title_vi"] == "ROAS hoà vốn" and da["value"] == "4,00"  # registry `roas_break_even`
 
 
 def test_registry_reads_give_real_numbers_not_none() -> None:
