@@ -57,7 +57,9 @@ def merge_campaigns(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
         g["keys"].append(r["key"])
         g["name"] = r["name"]
         g["spend"] += Decimal(str(r["spend"]))
-        g["gmv"] += Decimal(str(r["gmv"]))
+        g["gmv"] = (
+            None if g["gmv"] is None or r["gmv"] is None else g["gmv"] + Decimal(str(r["gmv"]))
+        )
         g["before_ads"] = (
             None
             if g["before_ads"] is None or r["before_ads"] is None
@@ -74,8 +76,10 @@ def merge_campaigns(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "name": g["name"],
                 "spend": g["spend"],
                 "gmv": g["gmv"],
-                "roas": roas_direct(g["gmv"], g["spend"]),
-                "break_even": roas_break_even(g["gmv"], before) if before is not None else None,
+                "roas": None if g["gmv"] is None else roas_direct(g["gmv"], g["spend"]),
+                "break_even": roas_break_even(g["gmv"], before)
+                if before is not None and g["gmv"] is not None
+                else None,
                 "profit_after_ads": None if before is None else before - g["spend"],
                 # the products the campaign spends on, biggest spend first (ads report by product)
                 "items": sorted(g["items"], key=lambda k: -g["items"][k])[:5],
@@ -533,11 +537,13 @@ class ServiceData:
                             "name": c.name or c.key,
                             "items": dict(c.products or {}),
                             "spend": c.spend,
-                            "gmv": prof["direct_per_day"] * days,
+                            "gmv": prof["direct_per_day"] * days if prof["direct_known"] else None,
                             # NULL is not 0: no rate = unknown, but a segment with no direct GMV
                             # contributes 0 before ads (it only spent)
                             "before_ads": prof["profit_before_ads_per_day"] * days
-                            if prof["rate"] is not None
+                            if prof["rate"] is not None and prof["direct_known"]
+                            else None
+                            if not prof["direct_known"]
                             else (Decimal(0) if prof["direct_per_day"] <= 0 else None),
                         }
                     )

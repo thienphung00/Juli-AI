@@ -20,7 +20,7 @@ Rules (the owner's, ORY 11/10-09/11 as the sanity shape):
   ===========================  ===============================  ==============================
   Quảng cáo views / clicks     overlay (traffic overview)       ads report: impressions /
                                                                 clicks of product ads (every
-                                                                type but Shop+, ``is_shop_plus``)
+                                                                ``ad_type_class`` product)
   Quảng cáo orders / GMV       overlay (confirmed basis)        overlay (confirmed basis)
   Thẻ sản phẩm (organic) views card - overlay views            card - overlay views; card -
                                                                 report impressions when the
@@ -36,8 +36,8 @@ Rules (the owner's, ORY 11/10-09/11 as the sanity shape):
 - Every row carries ``prev`` (the same cells over the previous period of the same length) and
   ``share`` (of the total GMV on the traffic-overview base; ``None`` for ads-report rows).
 - **Quảng cáo children, ads-report base** (never added to the traffic-overview figure): DVHT Sản
-  phẩm = every ad type of the ads report but Shop+; DVHT Shop+ = ``loaders.is_shop_plus`` (the
-  file's ``ads_shop``, the Connector's ``shop_*``). The ads report of a day is the Connector's
+  phẩm and DVHT Shop+ = the ad types ``loaders.ad_type_class`` says so (C3; a livestream or
+  unknown type is in neither row). The ads report of a day is the Connector's
   ``ads_campaign_daily`` wherever it has the day, else the daily file report. P100
   B.4c: Lượt xem = the report's impressions, CTR = clicks ÷ impressions, CTOR = orders ÷ clicks
   (broad orders, the report's own basis); a type whose days lack the counts (a day covered only
@@ -170,31 +170,31 @@ _COUNTS = ("impressions", "clicks")
 def _ad_report(
     ad_types: AdTypes | None,
 ) -> tuple[dict[str, Decimal | None] | None, dict[str, Decimal | None] | None]:
-    """(DVHT Sản phẩm, DVHT Shop+) of the ads report: ``{"gmv", "orders", "spend",
-    "impressions", "clicks"}`` each. A count one of the summed types lacks is ``None``."""
-    if not ad_types:
-        return None, None
-    product: dict[str, Decimal | None] = {
+    """(DVHT Sản phẩm, DVHT Shop+) of the ads report (:func:`ad_report_by_class`); a livestream or
+    unknown type is in neither."""
+    by = ad_report_by_class(ad_types)
+    return by.get(loaders.AD_PRODUCT), by.get(loaders.AD_SHOP_PLUS)
+
+
+def ad_report_by_class(ad_types: AdTypes | None) -> dict[str, dict[str, Decimal | None]]:
+    """C3: the ads report per ``loaders.ad_type_class`` (only the classes present): ``{"gmv",
+    "orders", "spend", "impressions", "clicks"}`` each; the classes add up to the report. A count
+    one of the summed types lacks is ``None``."""
+    empty: dict[str, Decimal | None] = {
         "gmv": Decimal(0), "orders": Decimal(0), "spend": Decimal(0),
         "impressions": Decimal(0), "clicks": Decimal(0),
         "rate_impressions": Decimal(0), "rate_clicks": Decimal(0), "rate_orders": Decimal(0),
     }  # fmt: skip
-    shop = dict(product)
-    has_product = has_shop = False
-    for kind, cell in ad_types.items():
-        plus = loaders.is_shop_plus(kind)
-        target = shop if plus else product
-        if plus:
-            has_shop = True
-        else:
-            has_product = True
+    out: dict[str, dict[str, Decimal | None]] = {}
+    for kind, cell in (ad_types or {}).items():
+        target = out.setdefault(loaders.ad_type_class(kind), dict(empty))
         for k in target:
             value, have = cell.get(k), target[k]
             if k in _COUNTS:
                 target[k] = None if value is None or have is None else have + Decimal(value)
             else:
                 target[k] = Decimal(have or 0) + Decimal(value or 0)
-    return (product if has_product else None), (shop if has_shop else None)
+    return out
 
 
 def partition_channels(

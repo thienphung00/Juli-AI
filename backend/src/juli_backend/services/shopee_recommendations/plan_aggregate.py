@@ -386,6 +386,13 @@ def ads_data_of(env: Any) -> AdsData:
                 latest[r.key][r.item_id] = (end, float(r.spend))
         sp, od = products.setdefault(r.key, {}).get(r.item_id, (0.0, 0.0))
         products[r.key][r.item_id] = (sp + float(r.spend), od + float(r.orders))
+    # C2: a report that names its campaign only by title is also read under the campaign's key
+    for c in getattr(getattr(getattr(env, "view", None), "ads", None), "campaigns", None) or []:
+        for rk in getattr(c, "report_keys", ()):
+            if c.key not in products and rk in products:
+                products[c.key], parts[c.key] = products[rk], parts[rk]
+                if rk in latest:
+                    latest[c.key] = latest[rk]
     as_of = getattr(env, "as_of", None)
     daily: dict[str, dict[date, float]] = {}
     for key, setting in (getattr(env, "campaigns", None) or {}).items():

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from juli_backend.services.shopee_analytics.compute import campaign_of
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext
 
@@ -47,9 +48,9 @@ def target_ids(spec: sp.VersionSpec) -> list[str]:
 
 def target_name(ctx: BuilderContext, spec: sp.VersionSpec, target: str) -> str:
     if isinstance(spec, sp.AdsSpec):
-        for alloc in ctx.env.view.ads.campaigns:
-            if alloc.key == target:
-                return alloc.name
+        alloc = campaign_of(ctx.env.view.ads.campaigns, target)
+        if alloc is not None:
+            return alloc.name
         setting = ctx.env.setting_for(target)
         return setting.name if setting is not None else target
     return ctx.env.name(target)

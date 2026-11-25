@@ -52,7 +52,11 @@ from juli_backend.services.shopee_analytics.catalog import (
     build_catalog,
 )
 from juli_backend.services.shopee_analytics.engine import RawLine
-from juli_backend.services.shopee_analytics.product_ads import ProductAdsInput, ReportRow
+from juli_backend.services.shopee_analytics.product_ads import (
+    CampaignDayRow,
+    ProductAdsInput,
+    ReportRow,
+)
 from juli_backend.services.shopee_analytics.rules_view import (
     RULE_KEYS_READ,
     ProfitRules,
@@ -638,11 +642,31 @@ async def _daily_report_ad_days(
     return out
 
 
-def is_shop_plus(ad_type: str | None) -> bool:
-    """DVHT Shop+: the daily file report's ``ads_shop`` segment, or a Connector campaign type
-    ``shop_*`` (``shop_manual`` ...); every other ad type is DVHT Sản phẩm."""
+AD_PRODUCT = "product"
+AD_SHOP_PLUS = "shop_plus"
+AD_LIVESTREAM = "livestream"
+AD_UNKNOWN = "unknown"
+AD_CLASSES = (AD_PRODUCT, AD_SHOP_PLUS, AD_LIVESTREAM, AD_UNKNOWN)
+#: the daily file report's product types and the GMV-max one, which do not say "product"
+_PRODUCT_AD_TYPES = frozenset({"ads_roas_custom", "ads_auto_bid", "ads_gmvmax_shop", "gmv_max"})
+
+
+def ad_type_class(ad_type: str | None) -> str:
+    """C3: the one classifier of an ad type (the file report's segment or the Connector's campaign
+    type). A type it does not know is ``unknown`` and stays on its own, never DVHT Sản phẩm."""
     kind = (ad_type or "").strip().lower()
-    return kind == "ads_shop" or kind.startswith("shop")
+    if kind in _PRODUCT_AD_TYPES or kind.startswith(("product", "ads_product")):
+        return AD_PRODUCT
+    if kind.startswith(("shop", "ads_shop")):
+        return AD_SHOP_PLUS
+    if kind.startswith(("live", "ads_live")):
+        return AD_LIVESTREAM
+    return AD_UNKNOWN
+
+
+def is_shop_plus(ad_type: str | None) -> bool:
+    """DVHT Shop+: the file report's ``ads_shop`` or a Connector campaign type ``shop_*``."""
+    return ad_type_class(ad_type) == AD_SHOP_PLUS
 
 
 def _add_type_cell(cell: list[Decimal | None], cost: Decimal, r: Any) -> None:
@@ -1578,28 +1602,37 @@ async def load_product_ads_input(
         end=window.end + reach,
         order_types=[PLACED],
     )
-    # a report row joins its campaign by the segment hash (the campaign id); a report that names
-    # the campaign only by its title (no id) joins by the title the Connector's days carry
-    by_title = {r.platform_source: r.segment for r in chosen.values() if r.platform_source}
-    known = {r.segment for r in chosen.values()}
-
-    def campaign_key(p: Any) -> str:
-        if p.segment not in known and p.platform_source in by_title:
-            return by_title[p.platform_source]
-        return str(p.segment)
-
-    return ProductAdsInput(
+    inp = ProductAdsInput(
         campaign_days={k: _z((r.extra or {}).get("cost")) for k, r in chosen.items()},
         covered_days=frozenset(covered),
-        report_rows=[
-            ReportRow(
-                campaign_key(p),
-                p.item_id,
-                p.period_start,
-                p.period_end,
-                _z((p.extra or {}).get("ads_expense")),
-            )
-            for p in rows
-            if p.item_id
-        ],
+        day_rows={k: _campaign_day(r) for k, r in chosen.items()},
+        title_keys={r.platform_source: r.segment for r in chosen.values() if r.platform_source},
+    )
+    join = inp.joiner()
+    inp.report_rows = [
+        ReportRow(
+            join(str(p.segment), p.platform_source),
+            p.item_id,
+            p.period_start,
+            p.period_end,
+            _z((p.extra or {}).get("ads_expense")),
+        )
+        for p in rows
+        if p.item_id
+    ]
+    return inp
+
+
+def _campaign_day(r: Any) -> CampaignDayRow:
+    extra = r.extra or {}
+    return CampaignDayRow(
+        spend=_z(extra.get("cost")),
+        gmv=r.gmv,
+        direct_gmv=_d(extra.get("direct_gmv")),
+        orders=r.orders,
+        clicks=r.clicks,
+        impressions=r.impressions,
+        name=r.platform_source or "",
+        ad_type=None if extra.get("ad_type") is None else str(extra["ad_type"]),
+        state=None if extra.get("state") is None else str(extra["state"]),
     )

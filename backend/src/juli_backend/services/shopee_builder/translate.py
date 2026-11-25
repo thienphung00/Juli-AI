@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
+from juli_backend.services.shopee_analytics.compute import campaign_of
 from juli_backend.services.shopee_builder import banner, multi
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
@@ -751,7 +752,7 @@ def _ads(spec: sp.AdsSpec, ctx: BuilderContext) -> Translation:
         # the Connector opens the campaign page by its id: it travels on the card (candidate extra
         # -> ``change.target.campaign_id``, which ``fill_queue`` reads)
         setting = ctx.env.setting_for(spec.campaign_key)
-        alloc = next((c for c in ctx.env.view.ads.campaigns if c.key == spec.campaign_key), None)
+        alloc = campaign_of(ctx.env.view.ads.campaigns, spec.campaign_key)
         cid = ctx.campaigns.id_of(
             alloc.name if alloc else spec.campaign_key, spec.campaign_key, setting
         )

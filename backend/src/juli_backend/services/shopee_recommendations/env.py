@@ -20,7 +20,7 @@ from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from juli_backend.services.shopee_analytics.compute import PeriodView
+from juli_backend.services.shopee_analytics.compute import PeriodView, campaign_of
 from juli_backend.services.shopee_analytics.loaders import ShopContext
 from juli_backend.services.shopee_analytics.metrics import ShopMetrics
 from juli_backend.services.shopee_profit.fees import FeeSchedule
@@ -217,7 +217,9 @@ class RecoEnv:
         hit = self.campaigns.get(campaign_key)
         if hit is not None:
             return hit
-        alloc = next((c for c in self.view.ads.campaigns if c.key == campaign_key), None)
+        alloc = campaign_of(self.view.ads.campaigns, campaign_key)
+        if alloc is not None and alloc.key in self.campaigns:
+            return self.campaigns[alloc.key]
         return None if alloc is None else self.campaigns.get(alloc.name)
 
     # ---------------------------------------------------------------------- order lines

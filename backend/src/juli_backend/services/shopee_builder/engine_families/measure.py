@@ -156,7 +156,8 @@ def budget_state(
     running = [d for d in days if d.spend > 0]
     if running:
         n = len(running)
-        rate = spend / n if spend > 0 else sum((d.spend for d in running), ZERO) / n
+        # the same day rows on both sides (C2): ``spend`` may hold days the Connector did not read
+        rate = sum((d.spend for d in running), ZERO) / n
         capped_days = [
             d for d in running if d.daily_budget and d.spend >= CAPPED_SHARE * d.daily_budget
         ]

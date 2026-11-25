@@ -21,6 +21,7 @@ from dataclasses import replace
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+from juli_backend.services.shopee_analytics.compute import SOURCE_REPORT, campaign_of
 from juli_backend.services.shopee_analytics.fmt import num, pct, ratio
 from juli_backend.services.shopee_analytics.shared import five_json
 from juli_backend.services.shopee_profit.five_numbers import (
@@ -770,7 +771,7 @@ def eval_price(
 def campaign_profile(env: RecoEnv, campaign_key: str) -> dict[str, Any] | None:
     """Spend, direct revenue and break-even of one campaign from the ads report (placed
     orders): direct revenue x each product's contribution rate = profit before ads."""
-    alloc = next((c for c in env.view.ads.campaigns if c.key == campaign_key), None)
+    alloc = campaign_of(env.view.ads.campaigns, campaign_key)
     if alloc is None or alloc.spend <= 0:
         return None
     days = Decimal(env.window_days)
@@ -789,19 +790,26 @@ def campaign_profile(env: RecoEnv, campaign_key: str) -> dict[str, Any] | None:
         d = fig.direct_gmv * min(share, ONE)
         weight += d
         weighted += d * (rate if rate is not None and rate > 0 else ZERO)
-    # P100 A.5: the campaign's spend and direct revenue are both scaled to the one daily spend,
-    # so ROAS is read from the campaign itself; the products only weight the contribution rate
-    # (their figures may sit on the report's own scale, which no longer equals the daily one)
-    direct = alloc.direct_gmv if alloc.direct_gmv > 0 else weight
-    before_ads = direct * (weighted / weight) if weight > 0 else ZERO
+    # C2: ROAS is read from the campaign's own figures and a measured 0 stays 0; the products only
+    # weight the contribution rate. The products' direct revenue stands in when the campaign's is
+    # not known (a Connector day without the count, a report that gives it per product only).
+    direct = alloc.direct_gmv
+    if direct is None or (direct == 0 and alloc.source == SOURCE_REPORT):
+        direct = weight if weight > 0 else direct
+    known = direct is not None
+    direct = direct or ZERO
+    rate = weighted / weight if weight > 0 else None
+    before_ads = direct * rate if rate is not None else ZERO
     return {
         "alloc": alloc,
         "spend_per_day": alloc.spend / days,
         "direct_per_day": direct / days,
         "profit_before_ads_per_day": before_ads / days,
-        "roas_direct": safe_div(direct, alloc.spend),
-        "break_even_roas": safe_div(direct, before_ads) if before_ads > 0 else None,
-        "rate": safe_div(before_ads, direct) if direct > 0 else None,
+        "direct_known": known,
+        "roas_direct": safe_div(direct, alloc.spend) if known else None,
+        # from the contribution rate alone, so a campaign that sold nothing still has one
+        "break_even_roas": ONE / rate if rate is not None and rate > 0 else None,
+        "rate": rate,
     }
 
 
@@ -993,7 +1001,7 @@ def eval_ads(
         "spend_per_day_now": num(spend_now),
         "spend_per_day_after": num(spend_after),
         "roas_direct": ratio(roas, 2),
-        "roas_broad": ratio(safe_div(alloc.gmv, alloc.spend), 2),
+        "roas_broad": ratio(alloc.roas, 2),
         "break_even_roas": ratio(be, 2),
         "below_break_even": None if be is None or roas is None else roas < be,
         "profit_before_ads_per_day": num(profit_before_ads),

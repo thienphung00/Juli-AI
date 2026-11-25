@@ -14,7 +14,7 @@ from typing import Any
 
 from juli_backend.services.metrics.registry import Platform, metric_reason
 from juli_backend.services.shopee_analytics import funnel
-from juli_backend.services.shopee_analytics.compute import PeriodView
+from juli_backend.services.shopee_analytics.compute import PeriodView, known_sum
 from juli_backend.services.shopee_analytics.fmt import (
     ADS_BASIS,
     ASSUMED_COST_LABEL,
@@ -344,13 +344,14 @@ def _fee_sources(view: PeriodView) -> dict[str, int]:
 def _ads_block(view: PeriodView, platform: str = "shopee") -> dict[str, Any]:
     ads = view.ads
     daily = view.data.ads_daily
-    camp_gmv = sum((c.gmv for c in ads.campaigns), ZERO)
     return {
         "basis": ADS_BASIS,
         "note": ads_basis_note(platform),
         "in_which": "trong đó (overlay, không phải một dòng của tổng)",
         "spend": num(ads.total_spend),
-        "gmv_placed": num(daily.gmv if daily.days_covered else camp_gmv),
+        "gmv_placed": num(
+            daily.gmv if daily.days_covered else known_sum([c.gmv for c in ads.campaigns])
+        ),
         "orders_placed": num(daily.orders if daily.days_covered else None),
         "roas": ratio(safe_div(daily.gmv, daily.spend), 2) if daily.spend else None,
         "spend_per_day": num(safe_div(ads.total_spend, Decimal(view.window.days))),

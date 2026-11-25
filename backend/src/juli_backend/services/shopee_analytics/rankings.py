@@ -345,6 +345,7 @@ def _campaigns(view: PeriodView) -> Rows:
             {"campaign_key": c.key},
         )
         for c in view.ads.campaigns
+        if c.gmv is not None and c.orders is not None  # unknown: in "Các chiến dịch khác", never 0
     }
 
 
@@ -399,8 +400,8 @@ def _cell_other(kind: str, view: PeriodView) -> M:
         if d.complete:
             return M(d.gmv, d.orders, None, ZERO, spend=d.spend)
         return M(
-            sum((c.gmv for c in view.ads.campaigns), ZERO),
-            sum((c.orders for c in view.ads.campaigns), ZERO),
+            sum((c.gmv for c in view.ads.campaigns if c.gmv is not None), ZERO),
+            sum((c.orders for c in view.ads.campaigns if c.orders is not None), ZERO),
             None,
             ZERO,
             spend=view.ads.total_spend,

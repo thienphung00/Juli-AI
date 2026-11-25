@@ -376,7 +376,8 @@ def ads_edit_option(spec: sp.AdsSpec, f: AdsEditFacts) -> OptionInput:
             fixed_cost=cost,
             note=" ".join([NOTE_NO_HISTORY, *notes]),
         )
-    n = Decimal(state.running_days)
+    # the campaign's rates at its spend per running day (its totals ÷ its running days)
+    n = c.spend / state.rate if c.spend > 0 and state.rate > 0 else Decimal(state.running_days)
     now = _Flow(
         c.spend / n,
         c.impressions / n,

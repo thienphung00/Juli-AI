@@ -294,7 +294,7 @@ def _ads_row(key, item, spend, gmv, period, *, name="Nhóm"):
     )
 
 
-def test_a_report_the_size_of_the_window_is_used_whole_and_scaled_to_the_daily_total():
+def test_a_report_the_size_of_the_window_is_used_whole_and_never_scaled_to_the_daily_total():
     w = Window(date(2026, 10, 1), date(2026, 10, 7))
     rows = [
         _ads_row("g", "", 100, 500, (w.start, w.end)),
@@ -309,9 +309,10 @@ def test_a_report_the_size_of_the_window_is_used_whole_and_scaled_to_the_daily_t
             rows, [], PeriodChoice(((w.start, w.end),), "exact", 7), PeriodChoice((), "none", 0)
         ),
     )
-    assert alloc.total_spend == D(200) and alloc.basis == "daily_scaled" and alloc.scale == D(2)
-    assert sum(alloc.product_spend.values()) == alloc.campaigns[0].spend == D(200)
-    assert alloc.product_figures["1"].roas_broad == D(5)  # ROAS survives the scaling
+    assert alloc.total_spend == D(200) and alloc.basis == "report_exact" and alloc.scale == D(1)
+    assert sum(alloc.product_spend.values()) == alloc.campaigns[0].spend == D(100)
+    assert alloc.remainder == D(100)  # C2: the rest of the daily total stays out of the campaign
+    assert alloc.product_figures["1"].roas_broad == D(5)
 
 
 def test_a_longer_report_is_prorated_by_overlapping_days_and_labelled_an_estimate():

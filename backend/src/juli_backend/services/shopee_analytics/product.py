@@ -15,7 +15,7 @@ from typing import Any
 
 from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.catalog import ItemInfo
-from juli_backend.services.shopee_analytics.compute import PeriodView
+from juli_backend.services.shopee_analytics.compute import SOURCE_REPORT, PeriodView
 from juli_backend.services.shopee_analytics.fee_table import fold
 from juli_backend.services.shopee_analytics.fmt import (
     ASSUMED_COST_LABEL,
@@ -634,6 +634,13 @@ def daily_block(view: PeriodView, product_id: str, rows: list[Any], source: str)
     }
 
 
+def _part_of(total: Decimal | None, value: Decimal, of: Decimal) -> Decimal | None:
+    """``total`` x ``value`` / ``of``; 0 of a total of 0, ``None`` without a share."""
+    if total is None or total == 0:
+        return total
+    return total * value / of if of > 0 else None
+
+
 def ads_campaigns_block(view: PeriodView, product_id: str) -> dict[str, Any]:
     """The ad campaigns this product is in: its spend (allocated to the window, as the shop
     totals are) and the report's placed-order figures prorated to the same share."""
@@ -643,12 +650,40 @@ def ads_campaigns_block(view: PeriodView, product_id: str) -> dict[str, Any]:
         spend = c.products.get(product_id)
         if spend is None:
             continue
-        mine = [r for r in reports if r.key == c.key and r.item_id == product_id]
+        mine = [r for r in reports if r.key in c.report_keys and r.item_id == product_id]
         report_spend = sum((r.spend for r in mine), ZERO)
         k = safe_div(spend, report_spend) if report_spend > 0 else None
         gmv = sum((r.gmv for r in mine), ZERO)
         direct = sum((r.direct_gmv for r in mine), ZERO)
         orders = sum((r.orders for r in mine), ZERO)
+        if c.source != SOURCE_REPORT:
+            # C2: the product's part of the campaign's own figures (its share of the report's),
+            # never a report's sales carried into days the campaign did not sell
+            part = [r for r in reports if r.key in c.report_keys and r.item_id]
+            own_gmv, own_direct, own_orders = (
+                _part_of(total, value, sum((getattr(r, attr) for r in part), ZERO))
+                for total, value, attr in (
+                    (c.gmv, gmv, "gmv"),
+                    (c.direct_gmv, direct, "direct_gmv"),
+                    (c.orders, orders, "orders"),
+                )
+            )
+            rows.append(
+                {
+                    "campaign_key": c.key,
+                    "name": c.name,
+                    "running": c.running,
+                    "spend": num(spend),
+                    "gmv_placed": num(own_gmv),
+                    "direct_gmv_placed": num(own_direct),
+                    "orders_placed": num(own_orders),
+                    "roas_broad": None if own_gmv is None else ratio(safe_div(own_gmv, spend), 2),
+                    "roas_direct": None
+                    if own_direct is None
+                    else ratio(safe_div(own_direct, spend), 2),
+                }
+            )
+            continue
         rows.append(
             {
                 "campaign_key": c.key,
