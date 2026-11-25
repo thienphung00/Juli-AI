@@ -22,8 +22,14 @@ INSERT, UPDATE -- rows are rebuilt by upsert, never deleted):
   sources of a scope add up to its shop (or product) row exactly; ``chenh_lech_nguon`` holds what
   Shopee does not assign. ``ads_*`` is the "trong đó Quảng cáo" share of ``the_san_pham_khac``.
 
+Migration 140 (data layer, decision #62/#66) adds the registry components every screen, export
+and Chat reads as additive numeric columns (ids = ``services/metrics/components.py``; NULL =
+missing, never 0) and ``derivation_version`` on every row; ratios are never stored, they are
+evaluated at read time from summed components. ``campaign_metrics_daily``: one row per (shop,
+day, campaign) from the Connector's ``ads_campaign_daily`` (only days with spend or GMV).
+
 Written by ``services/shopee_analytics/materialize`` from the raw tables after each ingest write
-and by the backfill CLI (``scripts/backfill_shopee_metrics.py``). Money is VND.
+and by the triggered backfill (``backfill_shop``). Money is VND.
 """
 
 from __future__ import annotations
@@ -102,6 +108,30 @@ class ShopeeShopMetricsDaily(Base):
     cogs_coverage: Mapped[Decimal | None] = mapped_column(Numeric(7, 4), nullable=True)
     line_gmv: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
     line_orders: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: migration 140: the registry components of the day (``metrics/components.py`` ids)
+    net_revenue: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    net_revenue_known: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    cogs: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    cogs_known_gmv: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    packaging: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    fees: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    shipping_net: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    offer_promo: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    offer_voucher: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    offer_combo: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    affiliate_commission: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    affiliate_gmv: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    other_marketing: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    #: A2 (contract §6): the AFF / ads cost of the covered orders (registry ``KNOWN_SHARE_RULE``)
+    affiliate_commission_known: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    ads_spend_known: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    #: the ads funnel components (registry ids); NULL = the report has none that day
+    ads_gmv_direct: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    ads_gmv_confirmed: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    ads_views: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ads_clicks: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ads_orders: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    derivation_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     #: column -> shop_totals | order_lines | connector | file
     sources: Mapped[dict[str, Any]] = mapped_column(JSONBType, default=dict)
     #: figures the screens need that are not columns: the Seller Centre AOV numerator, the
@@ -140,6 +170,31 @@ class ShopeeProductMetricsDaily(Base):
     profit: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
     line_gmv: Mapped[Decimal] = mapped_column(_MONEY, default=Decimal(0))
     line_orders: Mapped[int] = mapped_column(Integer, default=0)
+    #: migration 140: the registry components of the day (``metrics/components.py`` ids)
+    net_revenue: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    net_revenue_known: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    cogs: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    cogs_known_gmv: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    packaging: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    fees: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    shipping_net: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    offer_promo: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    offer_voucher: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    offer_combo: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    affiliate_commission: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    affiliate_gmv: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    #: the ads-by-product GMV of the day, each campaign-day counted once (A6)
+    ads_gmv: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    #: A2 (contract §6): the AFF / ads cost of the covered orders (registry ``KNOWN_SHARE_RULE``)
+    affiliate_commission_known: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    ads_spend_known: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    #: the ads funnel components (registry ids); NULL = the report has none that day
+    ads_gmv_direct: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    ads_gmv_confirmed: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    ads_views: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ads_clicks: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ads_orders: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    derivation_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     source: Mapped[str] = mapped_column(String(16))
     scaled_to_totals: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     built_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())
@@ -217,4 +272,148 @@ class ShopeeSourceMetricsDaily(Base):
     ads_spend: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
     #: the traffic tables' own đơn / GMV for this source were scaled to the ShopMetrics totals
     scaled_to_totals: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    derivation_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    built_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())
+
+
+CHANNELS: tuple[str, ...] = ("organic", "ads", "affiliate")
+#: A9: bought with / without a shop discount; ``unknown`` = GMV no order line explains
+DISCOUNTED: tuple[str, ...] = ("with", "without", "unknown")
+
+
+class ProductChannelMetricsDaily(Base):
+    """One product, one day, one channel, one discount state (migration 140, F2 / A7 / A9).
+
+    Organic / Quảng cáo / TTLK x bought with / without a shop discount; the cells of a product
+    day add up to its ``product_metrics_daily`` row exactly (GMV, đơn once per order, every line
+    component). TTLK first (the order-line affiliate flag), Quảng cáo capped at what it leaves
+    (``capped_gmv`` records a cap that bites), Organic the rest. Sparse: no row for an empty
+    cell."""
+
+    __tablename__ = "product_channel_metrics_daily"
+    __table_args__ = (
+        UniqueConstraint(
+            "shop_id",
+            "day",
+            "item_id",
+            "channel",
+            "discounted",
+            name="uq_product_channel_metrics_daily",
+        ),
+        CheckConstraint(
+            f"channel IN ({_in(CHANNELS)})", name="ck_product_channel_metrics_daily_channel"
+        ),
+        CheckConstraint(
+            f"discounted IN ({_in(DISCOUNTED)})",
+            name="ck_product_channel_metrics_daily_discounted",
+        ),
+        Index("ix_product_channel_metrics_daily_item", "shop_id", "item_id", "day"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"))
+    day: Mapped[date] = mapped_column(Date)
+    item_id: Mapped[str] = mapped_column(String(64))
+    channel: Mapped[str] = mapped_column(String(12))
+    discounted: Mapped[str] = mapped_column(String(8))
+    gmv: Mapped[Decimal] = mapped_column(_MONEY)
+    orders: Mapped[int] = mapped_column(Integer)
+    units: Mapped[int] = mapped_column(Integer, default=0)
+    net_revenue: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    net_revenue_known: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    cogs: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    cogs_known_gmv: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    packaging: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    fees: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    shipping_net: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    offer_promo: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    offer_voucher: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    offer_combo: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    affiliate_commission: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    ads_spend: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    #: A7: what the channel's source said beyond the cap (on the ``without`` cell)
+    capped_gmv: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    derivation_version: Mapped[str] = mapped_column(String(32))
+    built_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())
+
+
+class ShopChannelMetricsDaily(Base):
+    """The shop's day per channel and discount state (migration 140, contract §6): the shop's own
+    đơn, counted once per order (B1: an order is TTLK when any of its lines is), so the cells add
+    up to the ``shop_metrics_daily`` row; product đơn are never summed into it. Same rule as
+    :class:`ProductChannelMetricsDaily` over all the shop's lines."""
+
+    __tablename__ = "shop_channel_metrics_daily"
+    __table_args__ = (
+        UniqueConstraint(
+            "shop_id",
+            "day",
+            "channel",
+            "discounted",
+            name="uq_shop_channel_metrics_daily",
+        ),
+        CheckConstraint(
+            f"channel IN ({_in(CHANNELS)})", name="ck_shop_channel_metrics_daily_channel"
+        ),
+        CheckConstraint(
+            f"discounted IN ({_in(DISCOUNTED)})",
+            name="ck_shop_channel_metrics_daily_discounted",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"))
+    day: Mapped[date] = mapped_column(Date)
+    channel: Mapped[str] = mapped_column(String(12))
+    discounted: Mapped[str] = mapped_column(String(8))
+    gmv: Mapped[Decimal] = mapped_column(_MONEY)
+    orders: Mapped[int] = mapped_column(Integer)
+    units: Mapped[int] = mapped_column(Integer, default=0)
+    net_revenue: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    net_revenue_known: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    cogs: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    cogs_known_gmv: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    packaging: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    fees: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    shipping_net: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    offer_promo: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    offer_voucher: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    offer_combo: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    affiliate_commission: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    ads_spend: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    #: A7: what the channel's source said beyond the cap (on the ``without`` cell)
+    capped_gmv: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    derivation_version: Mapped[str] = mapped_column(String(32))
+    built_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())
+
+
+class CampaignMetricsDaily(Base):
+    """One ads campaign on one day (migration 140, F3): the Connector's ``ads_campaign_daily``
+    row, stored only when it spent or sold. A day before the shop's first campaign row has no
+    row (missing, never 0). ``contribution_products`` (its products' contribution) is not
+    additive across campaigns: two campaigns can advertise one product (registry
+    ``sums_across``)."""
+
+    __tablename__ = "campaign_metrics_daily"
+    __table_args__ = (
+        UniqueConstraint("shop_id", "day", "campaign_id", name="uq_campaign_metrics_daily"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"))
+    day: Mapped[date] = mapped_column(Date)
+    #: the Connector's campaign key (segment hash)
+    campaign_id: Mapped[str] = mapped_column(String(64))
+    ad_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    spend: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    gmv: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    gmv_direct: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    orders: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    orders_direct: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    impressions: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    clicks: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    contribution_products: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    #: the campaign's daily budget that day (``ads_campaign_daily`` extra); NULL = not read
+    daily_budget: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    derivation_version: Mapped[str] = mapped_column(String(32))
     built_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())

@@ -14,7 +14,7 @@ decisions §11). Pure: no DB, no I/O, no clock. Step 1 of the migration: nothing
 | `registry` | `MetricDef`, `SourceSpec`, `METRICS` (every §5 id), `PARAMS`, `DERIVATION_VERSION`; formulas as data (`("div", "gmv", "orders")`) |
 | `components` | `COMPONENTS` (§4 ids + the ones a §5 metric needs, `in_doc=False`), the `Components` value type |
 | `compute` | `evaluate(metric_id, components) -> MetricValue`; `change`, `per_day`; `kol_status` |
-| `allocation` | `channel_partition` (§6), `shop_lines` (§7 "Cả shop" lines) |
+| `allocation` | `channel_partition` (§6), `shop_lines` (§7 "Cả shop" lines), `deoverlap_periods` (A6) |
 
 Generated TS contract: `apps/demo/src/lib/metrics/registry.generated.ts`, written by
 `scripts/gen_metric_contract.py`; `tests/unit/test_metric_contract.py` fails when it is stale.
@@ -27,6 +27,15 @@ Generated TS contract: `apps/demo/src/lib/metrics/registry.generated.ts`, writte
 - Rounding once, on the metric asked for (`shopee_profit/money.py` helpers).
 - Cost-dependent metrics carry `coverage` (`cost_coverage`) and `partial` below 100 %.
 - A formula change bumps `DERIVATION_VERSION`, and the TS file is regenerated.
+
+## Stored components (data layer, decisions #62-#66)
+
+- Every component declares `sums_across` (`Dim`: day, item, channel, discounted, campaign);
+  `check_sum` raises `InvalidSum` for any other sum (product đơn never add up to shop đơn). The
+  stored daily tables (migration 140) hold components under their registry ids.
+- `METRIC_ALIASES`: `margin_before_marketing` = `margin_contribution` (A9, one formula);
+  `evaluate` resolves an alias. `ADS_PERIOD_RULE` (A6) is the ads-by-product day rule.
+- `affiliate_commission` is THE AFF cost (`shopee_profit.ladder.affiliate_cost`, A1).
 
 ## TikTok traffic sources and reason codes (W3, decision #7)
 

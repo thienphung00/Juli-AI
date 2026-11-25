@@ -34,6 +34,7 @@ from juli_backend.models.ops import STAGE_PILOT, OpsShopSettings
 from juli_backend.models.shop_proposals import STATUS_EXECUTED, ShopProposal
 from juli_backend.services.ops import ops_role
 from juli_backend.services.ops.overview import list_shops
+from juli_backend.services.reviewer.config import reviewer_sample_shop_ids
 from juli_backend.services.shopee_analytics import materialize
 from juli_backend.services.shopee_recommendations import measure
 
@@ -111,9 +112,14 @@ async def shopee_shop_ids(session: Any) -> list[uuid.UUID]:
 async def _rebuild_outdated_days(factory: SessionFactory, shop_ids: list[uuid.UUID]) -> int:
     """Decision #39 / F7.10: a rule change rebuilds every Shopee shop's stored days, a day budget
     per run (``materialize.OUTDATED_DAYS_PER_RUN``, newest first). The pilot shops' learning run
-    does the same first; a day it rebuilt is current here and costs nothing."""
+    does the same first; a day it rebuilt is current here and costs nothing.
+
+    Data layer F6 (batch-1124-c-data): this is the triggered backfill of the stored facts after a
+    ``derivation_version`` change (registry, rows rule or fee schedule). The reviewer sample shop
+    is left out: its stored days are rebuilt by its own reset job (Session B)."""
     days = 0
-    for shop_id in shop_ids:
+    sample = reviewer_sample_shop_ids()
+    for shop_id in (s for s in shop_ids if s not in sample):
         try:
             async with factory() as session:
                 async with with_shop_scope(session, shop_id):

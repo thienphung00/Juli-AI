@@ -33,7 +33,13 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
 
-DERIVATION_VERSION = "2026-11-24.2"
+#: 2026-11-25.1 (batch-1124-c-data, decisions #62-#66): components carry ``sums_across`` (F4);
+#: ``affiliate_commission`` is the one AFF basis (A1); the ads-by-product period rule (A6);
+#: ``margin_before_marketing`` names Biên đóng góp (A9); cost shares ÷ net_revenue_known (L3);
+#: ``profit`` deducts the covered-order ads / AFF cost (A2, #71).
+#: Stored rows of an older version are
+#: rebuilt in the background (``materialize.rebuild_outdated``).
+DERIVATION_VERSION = "2026-11-25.1"
 
 #: an expression: a bare id, or ``(operator, *operands)``
 Expr = str | tuple[Any, ...]
@@ -445,7 +451,9 @@ def _build() -> dict[str, MetricDef]:
         "Lợi nhuận ròng",
         V,
         D,
-        sub("contribution", "ads_spend", "affiliate_commission", "other_marketing"),
+        # A2 (#71): like with like: the ads and AFF cost of the same covered orders the
+        # contribution is counted on (KNOWN_SHARE_RULE)
+        sub("contribution", "ads_spend_known", "affiliate_commission_known", "other_marketing"),
         summable=True,
         known=True,
         shopee=_src(
@@ -472,6 +480,8 @@ def _build() -> dict[str, MetricDef]:
         div("contribution", "net_revenue_known"),
         summable=False,
         known=True,
+        note="the margin before marketing (A9, #65/#66): every product-level layer shows it; "
+        "Ưu đãi is kept (it is in the order lines), ads and AFF are not deducted",
     )
     b.add(
         "margin",
@@ -626,7 +636,8 @@ def _build() -> dict[str, MetricDef]:
             f"{label} (% doanh thu thực)",
             PP,
             P1,
-            div(cid, "net_revenue"),
+            # L3 (contract §6): every share of doanh thu thực divides by the covered base
+            div(cid, "net_revenue_known"),
             summable=False,
         )
 
@@ -911,3 +922,37 @@ def _build() -> dict[str, MetricDef]:
 
 
 METRICS: Mapping[str, MetricDef] = MappingProxyType(_build())
+
+#: A9 (owner #65 / #66): the names a surface may use for one registry metric. Ads and AFF are
+#: deducted only on Tổng quan and Kế hoạch (``profit``, ``margin``); every product-level layer
+#: (product cards, Phân tích product level, Đề xuất cards, Chat per-product answers) shows the
+#: margin before them, which IS Biên đóng góp -- an alias, never a second formula.
+METRIC_ALIASES: Mapping[str, str] = MappingProxyType(
+    {
+        "margin_before_marketing": "margin_contribution",
+        "contribution_before_marketing": "contribution",
+    }
+)
+
+
+def metric_id(name: str) -> str:
+    """The registry id behind ``name`` (an id, or an alias of :data:`METRIC_ALIASES`)."""
+    return METRIC_ALIASES.get(name, name)
+
+
+#: A6: how the ads report by product (``ads_campaign_period``) becomes days. Shopee posts one
+#: campaign x product over overlapping windows (a single day, then a 3-day and a 9-day window
+#: that run past the read). Per campaign x product, windows are taken shortest first; a window
+#: gives each of its days not yet covered by a shorter one an equal share of what is left of it
+#: (its total minus the days the shorter windows already gave, never below 0). Each day is
+#: counted once; a window's days outside the asked window are dropped, never piled onto the days
+#: inside. Spend keeps decision #39 (the Connector's campaign day x the product's share,
+#: ``shopee_analytics.product_ads``). Code: ``metrics.allocation.deoverlap_periods``.
+ADS_PERIOD_RULE = "shortest_first_remainder_spread"
+
+#: A2 / contract §6: the ads cost of the covered orders of a scope-day (shop or product):
+#: ``ads_spend_known = ads_spend x min(1, cogs_known_gmv / gmv)``; a day with ad spend and no sale
+#: (gmv 0) keeps the whole spend (no order, no cost gap; decision #39). AFF needs no share:
+#: ``affiliate_commission`` is already the covered lines' commission (A1), so
+#: ``affiliate_commission_known`` equals it. Every margin divides by ``net_revenue_known`` (L3).
+KNOWN_SHARE_RULE = "ads_spend_x_covered_gmv_share"
