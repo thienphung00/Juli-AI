@@ -12,7 +12,7 @@ registry formulas over them. Results are cached on the session for the request.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy import event
@@ -51,9 +51,17 @@ async def data_days(
     key = (shop_id, start, end)
     if key not in cache:
         from juli_backend.services.shopee_analytics import stored
-        from juli_backend.services.shopee_analytics.windows import Window
+        from juli_backend.services.shopee_analytics.windows import MAX_WINDOW_DAYS, Window
 
-        cache[key] = await stored.data_days_in(session, shop_id, Window(start, end))
+        # a read range (Chat's 400-day series, a compare pair) may be longer than one screen
+        # window: ask in screen-sized pieces
+        days: set[date] = set()
+        lo = start
+        while lo <= end:
+            hi = min(end, lo + timedelta(days=MAX_WINDOW_DAYS - 1))
+            days |= await stored.data_days_in(session, shop_id, Window(lo, hi))
+            lo = hi + timedelta(days=1)
+        cache[key] = frozenset(days)
     return cache[key]
 
 
