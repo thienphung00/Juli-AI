@@ -123,15 +123,17 @@ def _flash(inputs: Inputs, before: Inputs) -> list[dict[str, Any]]:
     return out
 
 
-#: change_kind -> where else on its sliders to try it. At most three are kept (four versions).
+#: change_kind -> where else on its sliders to try it. At most three are kept (four versions);
+#: the slider kinds list spare points so a point that lands on a slider limit (and equals another)
+#: is replaced, and ``compare`` still has four points (O4).
 ALTERNATIVES: dict[str, Rule] = {
-    "ads_budget": _from_current("daily_budget", 0.8, 1.2, 1.5),
-    "ads_roas_target": _scale(("roas_target",), 0.85, 1.15, 1.3),
-    "product_discount": _shift("discount_pct", -3, 3, 5),
+    "ads_budget": _from_current("daily_budget", 0.8, 1.2, 1.5, 0.5, 2.0, 3.0),
+    "ads_roas_target": _scale(("roas_target",), 0.85, 1.15, 1.3, 0.7, 1.5, 2.0),
+    "product_discount": _shift("discount_pct", -3, 3, 5, -5, 8, -8, 10, -10),
     "price": _shift("new_price_pct", 2, 4, -2),
-    "min_spend_voucher": _scale(("value", "max_value", "min_spend"), 0.7, 1.3, 1.6),
+    "min_spend_voucher": _scale(("value", "max_value", "min_spend"), 0.7, 1.3, 1.6, 0.5, 2.0, 2.5),
     "review_voucher": _scale(("value", "min_spend"), 0.7, 1.4),
-    "voucher_cap": _scale(("value",), 0.8, 0.6, 1.2),
+    "voucher_cap": _scale(("value",), 0.8, 0.6, 1.2, 0.4, 1.5, 2.0),
     "flash_sale": _flash,
     "program_registration": _flash,
     "bundle_deal": _tiers,

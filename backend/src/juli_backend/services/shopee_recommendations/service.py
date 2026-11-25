@@ -67,6 +67,7 @@ from juli_backend.services.shopee_recommendations import (
     freshness,
     job_view,
     manual,
+    opportunities,
     plan_codes,
     product_queue,
     result_store,
@@ -80,7 +81,7 @@ from juli_backend.services.shopee_recommendations import (
     sheet as sheet_mod,
 )
 from juli_backend.services.shopee_recommendations import targets as multi
-from juli_backend.services.shopee_recommendations.cards import build_card
+from juli_backend.services.shopee_recommendations.cards import build_card, refusal_of
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.generators import generate
 from juli_backend.services.shopee_recommendations.kinds import KINDS, spec
@@ -279,23 +280,47 @@ async def generate_cards(
     max_cards: int | None = None,
     staff_id: uuid.UUID | None = None,
     env: RecoEnv | None = None,
+    record_source: str | None = None,
+    only_products: Sequence[str] | None = None,
 ) -> GenerationReport:
-    """Generate, rank and (optionally) persist the shop's cards as ``draft`` proposals."""
+    """Generate, rank and (optionally) persist the shop's cards as ``draft`` proposals.
+
+    Every candidate also becomes a ``shopee_opportunities`` row with its outcome (O1): a
+    persisting run writes them as ``daily``; ``record_source="on_demand"`` (``opportunities.
+    generate_for``) writes only those rows, for ``only_products`` (an empty list = shop-scope
+    candidates)."""
     now = _naive(now)
     env = env or await load_env(session, shop_id, as_of=as_of, now=now)
     if env is None:
         raise ProposalError(ERROR_NO_DATA, 409, "Shop chưa có số liệu Shopee.")
     cands, _critical = await build_candidates(session, shop_id, env)
+    if only_products is not None:
+        wanted = {str(p) for p in only_products}
+        cands = [
+            c for c in cands if (wanted & {str(i) for i in c.items}) or (not wanted and not c.items)
+        ]
     report = GenerationReport(as_of=env.as_of)
+    ledger = (
+        opportunities.Ledger(opportunities.run_day(now), record_source or opportunities.DAILY)
+        if persist or record_source
+        else None
+    )
+    if ledger is not None and not (only_products or ()):
+        opportunities.record_shop_refusals(ledger, cands)
     built: list[tuple[Candidate, dict[str, Any]]] = []
     for c in cands:
         card = build_card(env, c, now=now)
         if card is None:
             report.skipped_refusals[c.kind] += 1
+            if ledger is not None:
+                ledger.add(c, opportunities.REFUSED, reason=refusal_of(env, c))
             continue
         card["versions"] = versions.build_versions(env, c, card, now=now)
         built.append((c, card))
-    built, below_band = trigger_adapter.route_cards(env, built)  # F11
+    built, below_band, below_cards = trigger_adapter.route_cards_detailed(env, built)  # F11
+    if ledger is not None:
+        for c, card in below_cards:
+            ledger.add(c, opportunities.BELOW_BAND, card=card, reason="below_band")
     report.skipped_refusals.update({f"below_band:{k}": n for k, n in below_band.items()})
     report.generated = len(built)
     # one card, one number: each version's engine result is stored and ranked on
@@ -310,6 +335,12 @@ async def generate_cards(
     inputs = [_rank_input(cid, card, env) for cid, (_, card) in cards_by_id.items()]
     result = rank(inputs, gaps, locked=env.locked, top_n=top_n, explore_slot=explore_slot)
     kept = [r.id for r in result.ordered]
+    if ledger is not None:
+        for d in result.dropped:
+            c, card = cards_by_id[d["id"]]
+            ledger.add(
+                c, opportunities.RANKED_OUT, card=card, reason=",".join(d["reasons"][:1]) or None
+            )
     mega_card: dict[str, Any] | None = None
     consumed: set[str] = set()
     if mega_window is not None:
@@ -369,9 +400,24 @@ async def generate_cards(
         card["product_queue"] = r.product_queue
         report.by_family[card["family"]] += 1
         report.by_kind[card["change_kind"]] += 1
-        if persist and await store.find_open_duplicate(session, shop_id, card) is not None:
+        twin = (
+            await store.find_open_duplicate(session, shop_id, card)
+            if persist or ledger is not None
+            else None
+        )
+        if twin is not None:
             report.skipped_duplicates += 1  # S4: the same change is already open
+            if ledger is not None:
+                ledger.add(
+                    cards_by_id[r.id][0],
+                    opportunities.DUPLICATE,
+                    card=card,
+                    score=r.score,
+                    card_code=twin.code,
+                )
             continue
+        if not persist and ledger is not None:  # on demand: it would be published, nothing is
+            ledger.add(cards_by_id[r.id][0], opportunities.PUBLISHED, card=card, score=r.score)
         if persist:
             cid = await store.save_card(
                 session,
@@ -385,9 +431,32 @@ async def generate_cards(
             )
             report.card_ids.append(str(cid))
             report.persisted += 1
+            if ledger is not None:
+                saved = await session.get(ShopProposal, cid)
+                ledger.add(
+                    cards_by_id[r.id][0],
+                    opportunities.PUBLISHED,
+                    card=card,
+                    score=r.score,
+                    card_code=None if saved is None else saved.code,
+                )
             queued.update(str(i) for i in card["scope"]["product_ids"][:1])
     if persist and queued:  # merge with the open cards earlier runs left on these products
         await product_queue.requeue_products(session, shop_id, queued, now)
+    if ledger is not None:
+        for r in result.ordered[len(kept_all) :]:  # cut by the daily card cap
+            c, card = cards_by_id[r.id]
+            ledger.add(
+                c,
+                opportunities.RANKED_OUT,
+                card=card,
+                reason=opportunities.REASON_MAX_CARDS,
+                score=r.score,
+            )
+        for cid_, (c, card) in cards_by_id.items():  # merged into a mega card
+            if ledger.get(c) is None:
+                ledger.add(c, opportunities.RANKED_OUT, card=card, reason="merged_into_mega")
+        await ledger.save(session, shop_id, now=now)
     for r in result.ordered[:5]:
         _, card = cards_by_id[r.id]
         report.top.append(
