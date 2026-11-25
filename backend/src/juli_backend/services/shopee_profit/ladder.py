@@ -59,6 +59,25 @@ def unknown_orders(pairs: Sequence[tuple[Any, Any]]) -> set[Any]:
     }
 
 
+def offers_cost(
+    pairs: Sequence[tuple[Any, Any]], *, basis: Sequence[tuple[Any, Any]] | None = None
+) -> Decimal:
+    """Ưu đãi as a COST (khuyến mãi + combo + the voucher the seller bore) of the known orders:
+    the same whole-order rule as the ladder's offers, so Tổng chi phí is the sum of the rows
+    beside it. Not for "what was given away" screens (campaigns, vouchers)."""
+    unknown = unknown_orders(pairs if basis is None else basis)
+    return sum(
+        (
+            pb.offer_cost
+            for ln, pb in pairs
+            if pb.excluded_reason is None
+            and pb.contribution is not None
+            and ln.order_id not in unknown
+        ),
+        ZERO,
+    )
+
+
 def affiliate_cost(
     pairs: Sequence[tuple[Any, Any]], *, basis: Sequence[tuple[Any, Any]] | None = None
 ) -> Decimal | None:
@@ -148,6 +167,7 @@ __all__ = [
     "LADDER_METRICS",
     "Ladder",
     "affiliate_cost",
+    "offers_cost",
     "unknown_orders",
     "components_of",
     "covered",

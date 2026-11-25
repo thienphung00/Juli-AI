@@ -90,6 +90,7 @@ from juli_backend.services.shopee_profit.ladder import (
     affiliate_cost,
     covered,
     ladder_of,
+    offers_cost,
     unknown_orders,
 )
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
@@ -706,7 +707,7 @@ def _offers_cost(view: PeriodView, product_id: str | None) -> Decimal | None:
     pairs = [(ln, pb) for ln, pb in view.pairs if product_id is None or ln.product_id == product_id]
     if not pairs:
         return None
-    return sum((pb.offer_cost for _, pb in pairs), Decimal(0))
+    return offers_cost(pairs, basis=view.pairs)
 
 
 ZERO_D = Decimal(0)
@@ -732,8 +733,8 @@ def _sums(
     pairs: Sequence[tuple[Any, Any]], basis: Sequence[tuple[Any, Any]] | None = None
 ) -> dict[str, Decimal]:
     """GMV and đơn of the sale lines; doanh thu thực and Lợi nhuận đóng góp of the covered lines
-    (every cost known); Ưu đãi (the combined seller cost, ``ProfitBreakdown.offer_cost``) of all
-    lines; the affiliate commission of the covered lines."""
+    (every cost known); Ưu đãi (the combined seller cost, ``ProfitBreakdown.offer_cost``) of the
+    known orders; the affiliate commission of the covered lines."""
     sale = [ln for ln, _ in pairs if counts_in_sales(ln)]
     unknown = unknown_orders(pairs if basis is None else basis)
     known = [pb for ln, pb in pairs if covered(pb) and ln.order_id not in unknown]
@@ -741,7 +742,7 @@ def _sums(
         "gmv": sum((ln.order_value for ln in sale), ZERO_D),
         "orders": Decimal(len({ln.order_id for ln in sale})),
         "net_revenue": sum((pb.revenue for pb in known), ZERO_D),
-        "cost_offers": sum((pb.offer_cost for _, pb in pairs), ZERO_D),
+        "cost_offers": offers_cost(pairs, basis=basis),
         "contribution": sum((pb.organic_contribution or ZERO_D for pb in known), ZERO_D),
         "cost_affiliate": affiliate_cost(pairs, basis=basis) or ZERO_D,
     }

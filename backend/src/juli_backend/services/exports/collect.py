@@ -43,7 +43,7 @@ from juli_backend.services.shopee_analytics import (
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_analytics.windows import Window
-from juli_backend.services.shopee_profit.ladder import unknown_orders
+from juli_backend.services.shopee_profit.ladder import offers_cost, unknown_orders
 from juli_backend.services.shopee_recommendations import (
     change_sets,
     execution_state,
@@ -91,21 +91,15 @@ async def _view(
     return view, rows
 
 
-def _line_offer(pair: tuple[Any, Any]) -> float:
-    """Ưu đãi of one line (``ProfitBreakdown.offer_cost``, the seller-borne basis): as Tổng quan
-    (``channel_split._offers_cost``): khuyến mãi + voucher + combo, so the days add up to it."""
-    _ln, bd = pair
-    return float(bd.offer_cost)
-
-
 def _offer_cost(view: PeriodView, product: str | None = None, day: date | None = None) -> float:
-    """Chi phí ưu đãi = Chương Trình Của Shop + voucher + combo discount of the lines."""
-    total = 0.0
-    for pair in view.pairs:
-        ln = pair[0]
-        if (product is None or ln.product_id == product) and (day is None or ln.order_date == day):
-            total += _line_offer(pair)
-    return total
+    """Chi phí ưu đãi = Chương Trình Của Shop + voucher + combo discount of the known orders'
+    lines: the one rule of ``channel_split._offers_cost`` (days and products add up to it)."""
+    pairs = [
+        (ln, pb)
+        for ln, pb in view.pairs
+        if (product is None or ln.product_id == product) and (day is None or ln.order_date == day)
+    ]
+    return float(offers_cost(pairs, basis=view.pairs))
 
 
 def _aff_cost_day(view: PeriodView, day: date, product: str | None = None) -> float | None:
