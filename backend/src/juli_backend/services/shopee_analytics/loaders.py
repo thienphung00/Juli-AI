@@ -346,11 +346,14 @@ async def load_income(
             refund_amount=r.refund_amount,
             lost_compensation=r.lost_compensation,
             # vat_withheld / pit_withheld stay stored, never passed to profit (no tax calculation,
-            # owner 2026-11-15)
+            # owner 2026-11-15); their sum is a term of C9's settlement arithmetic only
+            withheld_from_payout=(r.vat_withheld or ZERO) + (r.pit_withheld or ZERO),
             seller_coin_borne=r.seller_coin_borne,
             trade_in_bonus_seller=r.trade_in_bonus_seller,
             payout=r.payout,
             seller_voucher_borne=r.seller_voucher_borne,
+            product_price=r.product_price,
+            fee_other=r.fee_other,
         )
         for r in rows
     }

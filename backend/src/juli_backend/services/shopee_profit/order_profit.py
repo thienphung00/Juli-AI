@@ -169,6 +169,9 @@ class OrderLine:
     #: decision #50: the part of ``shop_voucher_share`` the platform funded, not the seller
     #: (settlement ``seller_voucher_borne`` below the buyer-side share); 0 without a settlement
     voucher_funded: Decimal = ZERO
+    #: C9 (E151): the settlement does not show who bore the shop voucher. It is not charged, and
+    #: a sale with it is not costed (missing ``seller_voucher``: a missing cost is never 0)
+    voucher_unknown: bool = False
 
     def __post_init__(self) -> None:
         if self.qty <= 0:
@@ -335,6 +338,8 @@ def line_profit(
             excluded_reason="no_fee_no_profit",
         )
     missing: list[str] = []  # a sale (``delivered``) from here on
+    if line.voucher_unknown:
+        missing.append("seller_voucher")
 
     fees: tuple[tuple[str, Decimal], ...] | None = None
     fees_total: Decimal | None = None

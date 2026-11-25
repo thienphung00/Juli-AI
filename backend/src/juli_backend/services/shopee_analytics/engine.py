@@ -298,14 +298,18 @@ def attach_income(lines: list[ShopLine], income: Mapping[str, IncomeOrder]) -> l
         shares = split_income(income[order_id], [lines[i].line.buyer_paid for i in idxs])
         for i, share in zip(idxs, shares, strict=True):
             ln = lines[i].line
+            # C9 (E151): who bore it is unknown (the settlement's arithmetic does not close): the
+            # voucher is not charged and the line leaves the profit basis (``seller_voucher``)
+            unknown = share.seller_voucher_unknown and ln.shop_voucher_share > 0
             # decision #50: the buyer-side shop voucher the seller did NOT bear (the settlement
             # states what the seller bore) is platform-funded: not a cut of doanh thu thực
             funded = (
                 max(ZERO, ln.shop_voucher_share - share.seller_voucher)
                 if share.seller_voucher_known
-                else ZERO
+                else (ln.shop_voucher_share if unknown else ZERO)
             )
-            out[i] = replace(lines[i], line=replace(ln, income=share, voucher_funded=funded))
+            line = replace(ln, income=share, voucher_funded=funded, voucher_unknown=unknown)
+            out[i] = replace(lines[i], line=line)
     return out
 
 

@@ -160,7 +160,9 @@ def apply_offer(
     v_disc = offer.voucher.discount_for(after_combo) if offer.voucher is not None else ZERO
     v_shares = _spread(v_disc, [ln.order_value - s for ln, s in zip(lines, shares, strict=True)])
     out = [
-        replace(ln, bundle_discount=s, shop_voucher_share=v, voucher_funded=ZERO)
+        replace(
+            ln, bundle_discount=s, shop_voucher_share=v, voucher_funded=ZERO, voucher_unknown=False
+        )
         for ln, s, v in zip(lines, shares, v_shares, strict=True)
     ]
     return out, disc, v_disc

@@ -300,3 +300,14 @@ describe("pairing page lines to answer lines (verifier D1, D2, D4, D5)", () => {
     ]);
   });
 });
+
+describe("C9 (E150): a page that does not show every combo line yet is not matched", () => {
+  it("one page line of a two-line combo never names the whole combo", () => {
+    expect(withPageSkus(answer([comboParent(MODELS)]), [{ sku: "SKU-A01", variationName: "Vị A", qty: 1, listPrice: 100_000, lineTotal: 100_000 }])).toBeNull();
+  });
+  it("two page lines of a three-line combo are not split over two", () => {
+    const three = [...MODELS, { modelId: 8003, sku: "SKU-A03", name: "Vị C" }];
+    const page = MODELS.map((m) => ({ sku: m.sku, variationName: m.name, qty: 1, listPrice: 100_000, lineTotal: 100_000 }));
+    expect(withPageSkus(answer([comboParent(three)]), page)).toBeNull();
+  });
+});

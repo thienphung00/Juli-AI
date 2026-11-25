@@ -885,6 +885,11 @@ export function withPageSkus(body: unknown, page: readonly PageItem[]): unknown 
         }),
       );
     }
+  } else if (items.some((item) => combo(item) && subsOf(item).length > 1) && page.some((p) => p.listPrice !== undefined)) {
+    // C9 (E150): the page draws the combo's own lines (`.bundle-deal-item`, the only lines with a
+    // list price) but not all of them (yet). Naming the parent
+    // with the one line shown would post the whole combo price as one unit of it: not matched.
+    return null;
   } else if (items.length === page.length) {
     fixed = items.map((item, i) => (hasSku(item) ? item : named(item, page[i] as PageItem)));
   } else if (items.length === 1 && page.length > 1 && !hasSku(items[0] as Record<string, unknown>)) {

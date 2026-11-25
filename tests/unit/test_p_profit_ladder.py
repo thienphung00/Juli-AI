@@ -59,7 +59,11 @@ def _with_settlement(voucher_share: D, borne: D | None):
     from juli_backend.services.shopee_profit.income import IncomeOrder
 
     ln = line("v1", shop_voucher_share=voucher_share)
-    income = {"v1": IncomeOrder("v1", fee_service=D(0), seller_voucher_borne=borne)}
+    # C9: the settlement's arithmetic confirms the stated amount (goods − payout = the voucher)
+    settled = {"product_price": ln.order_value, "payout": ln.order_value - (borne or D(0))}
+    if borne is None:
+        settled = {}
+    income = {"v1": IncomeOrder("v1", fee_service=D(0), seller_voucher_borne=borne, **settled)}
     out = attach_income([ShopLine(ln, ln.order_date, "S1")], income)
     return out[0].line
 

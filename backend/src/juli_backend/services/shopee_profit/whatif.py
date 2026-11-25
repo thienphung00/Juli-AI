@@ -212,7 +212,9 @@ def _apply_rule(
             )
             left -= share
             # a what-if voucher is the seller's own: none of it is platform-funded
-            out.append(replace(ln, shop_voucher_share=share, voucher_funded=ZERO))
+            out.append(
+                replace(ln, shop_voucher_share=share, voucher_funded=ZERO, voucher_unknown=False)
+            )
     return out, qualifying, total
 
 
