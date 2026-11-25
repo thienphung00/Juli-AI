@@ -21,7 +21,7 @@ Add-only: nothing here changes the primary engine (``database.py``).
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -48,14 +48,30 @@ class ReadOnlySessionError(RuntimeError):
 _factories: dict[str, async_sessionmaker[AsyncSession]] = {}
 
 
+def _asyncpg_url(raw: str) -> str:
+    """The minimal sync -> asyncpg form; the API process installs the full conversion
+    (``core.config.runtime.async_database_url``: libpq query, Supabase ssl) at boot."""
+    if raw.startswith("postgresql://"):
+        return raw.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return raw
+
+
+#: the URL conversion (``database`` may not import ``core``: the API wires it, ``configure``)
+_url_of: Callable[[str], str] = _asyncpg_url
+
+
+def configure(url_normaliser: Callable[[str], str]) -> None:
+    """Install the process's async-URL conversion (the API's ``async_database_url``)."""
+    global _url_of
+    _url_of = url_normaliser
+
+
 def read_database_url() -> str | None:
     """``DATABASE_READ_URL`` as an async URL, or ``None`` when unset (= the primary)."""
     raw = (os.environ.get(READ_URL_ENV) or "").strip()
     if not raw:
         return None
-    from juli_backend.core.config.runtime import async_database_url
-
-    return async_database_url(raw)
+    return _url_of(raw)
 
 
 def read_session_factory() -> async_sessionmaker[AsyncSession] | None:
@@ -139,6 +155,7 @@ __all__ = [
     "ReadOnlySessionError",
     "is_read_session",
     "mark_wrote",
+    "configure",
     "read_database_url",
     "read_session",
     "read_session_factory",

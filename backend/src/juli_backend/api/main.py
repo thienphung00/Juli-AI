@@ -81,6 +81,10 @@ async def lifespan(app: FastAPI):
     log_runtime_env_report("api")
 
     database_url = async_database_url(require_env("DATABASE_URL"))
+    # Q5: the analytical read engine (DATABASE_READ_URL) converts its URL the same way
+    from juli_backend.database import read_engine
+
+    read_engine.configure(async_database_url)
     # P29: the tuned pool (no pre-ping, idle guard, keep-warm); see database.py.
     engine = create_api_engine(database_url)
     init_session_factory(create_session_factory(engine))
