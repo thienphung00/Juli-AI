@@ -197,6 +197,12 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "shopee_stock_alert_sends"): "tenant_direct",
     # P98 / ADR-122 d.3 (migration 126): the funnel per traffic source, per day (shop and item).
     ("public", "source_metrics_daily"): "tenant_direct",
+    # Data layer (migration 140, decision #62): campaign facts per day and every card candidate
+    # of the daily run with its outcome.
+    ("public", "product_channel_metrics_daily"): "tenant_direct",
+    ("public", "shop_channel_metrics_daily"): "tenant_direct",
+    ("public", "campaign_metrics_daily"): "tenant_direct",
+    ("public", "shopee_opportunities"): "tenant_direct",
     # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised
     # delayed control and their members (arm per product).
     ("public", "card_groups"): "tenant_direct",

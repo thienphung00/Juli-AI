@@ -7,12 +7,15 @@
 - :func:`shop_lines` builds the labelled "Cả shop" lines that close Σ product to the shop:
   ads with no product stay "Quảng cáo chưa gán sản phẩm" (no hidden spread). What the three
   named lines do not explain is carried by a fourth, labelled remainder line (never hidden).
+- :func:`deoverlap_periods` (A6, registry ``ADS_PERIOD_RULE``) turns one campaign x product's
+  overlapping report windows into day values, each day counted once.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import date, timedelta
 from decimal import Decimal
 
 from juli_backend.services.metrics.components import Components
@@ -105,3 +108,36 @@ def shop_lines(shop: Components, products: Sequence[Mapping[str, Decimal | None]
         shop_profit=shop.get("profit"),
         gap=gap,
     )
+
+
+@dataclass(frozen=True)
+class PeriodValue:
+    """One report window's figure (``start``..``end`` inclusive)."""
+
+    start: date
+    end: date
+    value: Decimal
+
+
+_CENT = Decimal("0.01")
+
+
+def deoverlap_periods(periods: Iterable[PeriodValue]) -> dict[date, Decimal]:
+    """A6 (registry ``ADS_PERIOD_RULE``): the day values of one campaign x product's report
+    windows, each day counted once. Windows are taken shortest first (then earliest); a window
+    gives the days no shorter window covered an equal share of what is left of it (its value
+    minus what those shorter windows gave its other days, never below 0), to the cent, the last
+    day taking the rounding. A window whose days are all covered adds nothing. A day no window
+    covers is absent (missing, never 0). The caller drops days outside the window it reads."""
+    out: dict[date, Decimal] = {}
+    for p in sorted(set(periods), key=lambda p: ((p.end - p.start).days, p.start, p.value)):
+        days = [p.start + timedelta(days=i) for i in range((p.end - p.start).days + 1)]
+        free = [d for d in days if d not in out]
+        if not free:
+            continue
+        left = max(p.value - sum((out[d] for d in days if d in out), ZERO), ZERO)
+        share = (left / len(free)).quantize(_CENT)
+        for d in free[:-1]:
+            out[d] = share
+        out[free[-1]] = left - share * (len(free) - 1)
+    return out

@@ -94,6 +94,9 @@ from juli_backend.models.shopee_connector import (
 )
 from juli_backend.models.shopee_fill import ShopeeFillJob
 from juli_backend.models.shopee_metrics import (
+    CampaignMetricsDaily,
+    ProductChannelMetricsDaily,
+    ShopChannelMetricsDaily,
     ShopeePlanBaseSnapshot,
     ShopeeProductMetricsDaily,
     ShopeeShopMetricsDaily,
@@ -207,6 +210,9 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopeeProductMetricsDaily,
     ShopeeShopMetricsDaily,
     ShopeeSourceMetricsDaily,
+    CampaignMetricsDaily,
+    ProductChannelMetricsDaily,
+    ShopChannelMetricsDaily,
     ShopeeConnectorCommand,
     ShopeeConnectorState,
     ShopeeConnectorTokenState,
