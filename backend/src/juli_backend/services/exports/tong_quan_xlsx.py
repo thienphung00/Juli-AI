@@ -345,7 +345,7 @@ def _overview(wb: Workbook, data: TongQuanData) -> None:
         if key in SHARE_ROWS:
             b0 = OV["base"]
             put(ws, r, 3, f'=IF(ISNUMBER(B{r}),IFERROR(B{r}/B${b0},"{DASH}"),"{DASH}")', PCT)
-        elif key == "gmv":
+        elif key == "base":  # L3: the base of every cost % and margin
             put(ws, r, 3, 1.0, PCT)
         put(ws, r, 4, _dash(prev[key]), fmt)
         if key in ("margin", "margin_gross", "margin_contribution", "coverage"):  # a rate: points

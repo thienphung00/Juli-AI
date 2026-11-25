@@ -1063,10 +1063,13 @@ async def split_figures(
     read of the window, no previous period, no plan block): what a per-product loop needs."""
     body_rows, kpis = await _figures(session, shop_id, view, window, product_id, platform)
     if _on_facts(platform):
-        kpis, _prev, split = await _facts_figures(session, shop_id, window, product_id)
-        return {"rows": body_rows, "kpis": kpis, "profit_split": split}
-    split = _split_of(view, product_id, kpis, platform)
-    return {"rows": body_rows, "kpis": kpis, "profit_split": split}
+        kpis, _prev, facts_split = await _facts_figures(session, shop_id, window, product_id)
+        return {"rows": body_rows, "kpis": kpis, "profit_split": facts_split}
+    return {
+        "rows": body_rows,
+        "kpis": kpis,
+        "profit_split": _split_of(view, product_id, kpis, platform),
+    }
 
 
 def _split_of(

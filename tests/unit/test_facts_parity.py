@@ -82,19 +82,19 @@ async def test_q3_stored_equals_the_raw_fallback(session: Any, shop: Any, kind: 
     assert checked >= 20  # never a gate that checked nothing
 
 
-async def test_q3_auto_reads_raw_until_the_stored_rows_are_current(session: Any, shop: Any):
+async def test_q3_auto_reads_raw_until_the_backfill_marks_the_shop_ready(session: Any, shop: Any):
     from sqlalchemy import update
 
-    from juli_backend.models.shopee_metrics import ShopeeShopMetricsDaily
+    from juli_backend.models.shopee_metrics import ShopFactsStatus
 
     window = (CUR_END - timedelta(days=6), CUR_END)
     before = await query(session, shop.shop_id, ["gmv", "profit"], scope=Scope.shop(),
                          window=window)  # fmt: skip
     assert before.origin == "stored"
     await session.execute(
-        update(ShopeeShopMetricsDaily)
-        .where(ShopeeShopMetricsDaily.shop_id == shop.shop_id)
-        .values(derivation_version=None)
+        update(ShopFactsStatus)
+        .where(ShopFactsStatus.shop_id == shop.shop_id)
+        .values(derivation_version="an-older-rule", complete=False, ready_from=None)
     )
     after = await query(session, shop.shop_id, ["gmv", "profit"], scope=Scope.shop(),
                         window=window)  # fmt: skip
@@ -182,3 +182,24 @@ async def test_q3_channel_table_equals_query(session: Any, shop: Any, days: int)
     for ch in ("organic", "ads", "affiliate"):
         for key in ("gmv", "orders", "contribution", "profit"):
             assert _same(rows[ch][key], by.get(ch, {}).get(key) or Decimal(0)), (ch, key, days)
+
+
+@pytest.mark.parametrize("days", [7, 30, 90])
+async def test_q3_product_list_equals_query(session: Any, shop: Any, days: int):
+    from juli_backend.services.shopee_analytics import channel_split
+
+    start, end = CUR_END - timedelta(days=days - 1), CUR_END
+    listing = await channel_split.channel_split_products(
+        session, shop.shop_id, period="custom", start=start, end=end
+    )
+    assert listing["products"]
+    ids = [p["product_id"] for p in listing["products"]]
+    q = await query(
+        session, shop.shop_id, ["gmv", "margin_contribution"], scope=Scope.products(ids),
+        window=(start, end), group_by="item", allow_partial=True,
+    )  # fmt: skip
+    by = {r["item"]: r for r in q.rows}
+    for p in listing["products"]:
+        row = by.get(p["product_id"], {})
+        assert _same(p["gmv"], row.get("gmv")), (p["product_id"], days)
+        assert _same(p["margin"], row.get("margin_contribution")), (p["product_id"], days)
