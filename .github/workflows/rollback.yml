@@ -135,7 +135,7 @@ jobs:
         uses: appleboy/ssh-action@v1.2.5
         env:
           ACTION: ${{ needs.resolve.outputs.action }}
-          TARGET: ${{ needs.resolve.outputs.target }}
+          ROLLBACK_TARGET: ${{ needs.resolve.outputs.target }}
         with:
           host: ${{ secrets.VPS_SSH_HOST }}
           username: ${{ secrets.VPS_SSH_USER }}
@@ -143,7 +143,7 @@ jobs:
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
           script_stop: true
           command_timeout: 30m
-          envs: ACTION,TARGET
+          envs: ACTION,ROLLBACK_TARGET
           script: |
             set -euo pipefail
             cd ~/Juli-AI-v2
@@ -154,9 +154,9 @@ jobs:
               exit 1
             fi
             case "${ACTION}" in
-              plan)     ./infra/scripts/rollback-release.sh --plan ${TARGET:+"${TARGET}"} ;;
+              plan)     ./infra/scripts/rollback-release.sh --plan ${ROLLBACK_TARGET:+"${ROLLBACK_TARGET}"} ;;
               verify)   ./infra/scripts/rollback-release.sh --verify ;;
-              rollback) ./infra/scripts/rollback-release.sh ${TARGET:+"${TARGET}"} ;;
+              rollback) ./infra/scripts/rollback-release.sh ${ROLLBACK_TARGET:+"${ROLLBACK_TARGET}"} ;;
             esac
 
   # The runner's independent look from outside the VPS, as fasttrack-deploy.yml does.
