@@ -26,7 +26,7 @@ SHOPEE = Platform.shopee
 #: the metrics the sheet explains, in reading order (every id is a registry metric)
 NOTE_METRICS = (
     "gmv", "orders", "aov", "cost_ads", "cost_affiliate", "cost_offers", "cost_marketing",
-    "cost_total", "roi", "gross_profit", "contribution", "profit", "margin_gross",
+    "cost_total", "gross_profit", "contribution", "profit", "margin_gross",
     "margin_contribution", "margin",
 )  # fmt: skip
 
@@ -48,17 +48,41 @@ BASE_TEXT = {
     "orders": "Số đơn đặt của shop trong kỳ, do Shopee tính sẵn.",
     "cost_ads": "Tổng chi phí quảng cáo (DVHT) trong kỳ, mọi ngày kể cả ngày không có đơn.",
     "cost_affiliate": (
-        "Tổng hoa hồng trả cho tiếp thị liên kết (TTLK) trên các dòng đơn có cờ TTLK trong kỳ."
+        "Tổng hoa hồng của các dòng đơn tiếp thị liên kết đã giao và đủ chi phí trong kỳ."
     ),
 }
+
+#: a derived metric whose rendered formula would mislead: the text Session A confirmed (25/11).
+#: ROI is left out until its denominator parts are confirmed to share one basis.
+OVERRIDE_TEXT = {
+    "cost_offers": "Khuyến mãi + Voucher + Combo do shop chịu, trên các đơn không hủy.",
+    "profit": (
+        "Lợi nhuận đóng góp − Quảng cáo phần của các đơn đủ chi phí và của ngày không có đơn "
+        "− Hoa hồng tiếp thị liên kết − Chi phí marketing khác."
+    ),
+}
+
+#: the margins' base: a component, so it has no registry label
+BASE_NOTE = (
+    COMPONENT_LABELS["net_revenue_known"],
+    "Giá trị đơn sau Khuyến mãi, Voucher, Combo do shop chịu; đơn hoàn được chấp nhận tính bằng "
+    "không.",
+    "Đơn hàng Shopee",
+)
+
+#: what counts as an assumption (no rate, floor or coverage rule here)
+ASSUMPTIONS = (
+    ("Giả định: Đóng gói", "Chưa nhập thì tính bằng không và ghi là giả định.", "Thông số shop"),
+    ("Giả định: Phí sàn", "Chưa quyết toán thì tính theo biểu phí.", "Biểu phí Shopee"),
+)
 
 #: where a component's dataset comes from, as the seller knows it
 DATASET_TEXT = {
     "shop_overview": "Số liệu tổng quan shop của Shopee",
     "ads_report": "Báo cáo Dịch vụ hiển thị (DVHT)",
     "affiliate_lines": "Dòng đơn tiếp thị liên kết",
-    "order_lines": "File đơn hàng",
-    "order_income": "File thu nhập",
+    "order_lines": "Đơn hàng Shopee",
+    "order_income": "Quyết toán Shopee",
     "shop_rules": "Thông số shop",
 }
 
@@ -106,24 +130,29 @@ def _refs(expr: Expr) -> list[str]:
 def note_of(metric_id: str) -> tuple[str, str]:
     """(Cách tính, Nguồn số liệu) of one metric."""
     m = METRICS[metric_id]
-    how = BASE_TEXT[metric_id] if isinstance(m.formula, str) else render(m.formula) + "."
+    if isinstance(m.formula, str):
+        how = BASE_TEXT[metric_id]
+    else:
+        how = OVERRIDE_TEXT.get(metric_id) or render(m.formula) + "."
     datasets = dict.fromkeys(
         COMPONENTS[c].sources[SHOPEE].dataset for c in leaf_components(metric_id)
     )
     return how, "; ".join(DATASET_TEXT[d] for d in datasets)
 
 
+def note_rows() -> list[tuple[str, str, str]]:
+    """Every row of the sheet: the metrics, the margins' base, the assumptions."""
+    rows = [(METRICS[m].label_vi, *note_of(m)) for m in NOTE_METRICS]
+    return [*rows, BASE_NOTE, *ASSUMPTIONS]
+
+
 def notes_sheet(wb: Workbook) -> None:
     ws = wb.create_sheet(SHEET_NOTES)
     put(ws, 1, 1, NOTES_TITLE).font = TITLE
     header(ws, 3, NOTES_HEADER)
-    for i, metric_id in enumerate(NOTE_METRICS):
-        r = NOTES_FIRST + i
-        how, source = note_of(metric_id)
-        put(ws, r, 1, METRICS[metric_id].label_vi, bold=True)
-        put(ws, r, 2, how)
-        put(ws, r, 3, source)
-        for c in (1, 2, 3):
+    for r, row in enumerate(note_rows(), start=NOTES_FIRST):
+        for c, text in enumerate(row, start=1):
+            put(ws, r, c, text, bold=c == 1)
             ws.cell(r, c).alignment = Alignment(wrap_text=True, vertical="top")
     widths(ws, {1: 30, 2: 80, 3: 50})
     finish(ws, "A4")

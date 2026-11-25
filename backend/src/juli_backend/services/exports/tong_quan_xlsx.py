@@ -277,7 +277,7 @@ def _overview_values(fig: Figures) -> dict[str, float | None]:
     return {
         "gmv": fig.gmv, "orders": fig.orders, "aov": _div(fig.gmv, fig.orders),
         "profit": fig.profit, "ads": fig.ads_cost, "aff": fig.aff_cost, "offer": fig.offer_cost,
-        "cost": cost or 0.0, "cost_total": fig.cost_total,
+        "cost": cost, "cost_total": fig.cost_total,
         "gross": fig.gross_profit, "contribution": fig.contribution,
         "margin_gross": _div(fig.gross_profit, fig.net_revenue_known),
         "margin_contribution": _div(fig.contribution, fig.net_revenue_known),
@@ -319,7 +319,7 @@ def _overview(wb: Workbook, data: TongQuanData) -> None:
         if key == "aov":
             v: object = f'=IFERROR(B{OV["gmv"]}/B{OV["orders"]},"{DASH}")'
         elif key == "cost":
-            v = f"=SUM(B{OV['ads']}:B{OV['offer']})"
+            v = DASH if now[key] is None else f"=SUM(B{OV['ads']}:B{OV['offer']})"
         elif key == "roi":
             v = f'=IFERROR(B{OV["profit"]}/B{OV["cost_total"]},"{DASH}")'
         elif key in ("margin_gross", "margin_contribution"):
@@ -634,10 +634,10 @@ def _days(wb: Workbook, data: TongQuanData) -> None:
         put(ws, r, 8, _dash(d.profit), MONEY)
     total = r + 1
     put(ws, total, 1, "Tổng", bold=True)
-    first, last = DAY_FIRST, max(r, DAY_FIRST)
     for c in range(2, 9):
         L = col(c)
-        put(ws, total, c, f"=SUM({L}{first}:{L}{last})", INT if c == 6 else MONEY, bold=True)
+        v = f"=SUM({L}{DAY_FIRST}:{L}{r})" if data.days else DASH  # no rows: never its own cell
+        put(ws, total, c, v, INT if c == 6 else MONEY, bold=True)
     widths(ws, {1: 12}, 15)
     finish(ws, "B4")
 
@@ -692,16 +692,16 @@ def _products(wb: Workbook, data: TongQuanData) -> None:
         put(ws, r, P_ISSUE_COL, p.cause)
         put(ws, r, P_ISSUE_COL + 1, p.fix)
         _product_formulas(ws, r, total, p.now.gmv)
-    last = max(r, P_FIRST)
     put(ws, total, 1, "Tổng", bold=True)
     for c in (5, 15, 16, 17, 18):
         L = col(c)
-        put(ws, total, c, f"=SUM({L}{P_FIRST}:{L}{last})", MONEY, bold=True)
+        v = f"=SUM({L}{P_FIRST}:{L}{r})" if data.products else DASH  # no rows: never its own cell
+        put(ws, total, c, v, MONEY, bold=True)
     prev_total = _sum(
         *((p.prev.gmv if p.prev.gmv is not None else gmv_of(p.prev)) for p in data.products)
     )
     put(ws, total, 4, _change_vs(f"C{total}", prev_total), PCT)
-    _product_formulas(ws, total, total, f"=SUM(C{P_FIRST}:C{last})")
+    _product_formulas(ws, total, total, f"=SUM(C{P_FIRST}:C{r})" if data.products else DASH)
     widths(ws, {1: 16, 2: 44, 19: 44, 20: 36}, 15)
     _hide(ws, *P_HELP)
     finish(ws, "C4")
@@ -826,7 +826,8 @@ def _multi(wb: Workbook, datas: list[TongQuanData]) -> None:
             if key == "aov":
                 v: object = f'=IFERROR({L}{row["gmv"]}/{L}{row["orders"]},"")'
             elif key == "cost":
-                v = f"=SUM({L}{row['ads']}:{L}{row['offer']})"
+                parts = f"=SUM({L}{row['ads']}:{L}{row['offer']})"
+                v = DASH if values[j][key] is None else parts
             elif key == "roi":
                 v = f'=IFERROR({L}{row["profit"]}/{L}{row["cost_total"]},"")'
             elif key == "margin":

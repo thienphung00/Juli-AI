@@ -55,13 +55,16 @@ def test_the_notes_sheet_is_the_last_sheet_with_one_row_per_metric_from_the_regi
     assert [r[0] for r in rows] == [METRICS[m].label_vi for m in ns.NOTE_METRICS]
     assert {m for m in ns.NOTE_METRICS} >= {
         "gmv", "orders", "aov", "cost_ads", "cost_affiliate", "cost_offers", "cost_marketing",
-        "cost_total", "roi", "gross_profit", "contribution", "profit", "margin_gross",
+        "cost_total", "gross_profit", "contribution", "profit", "margin_gross",
         "margin_contribution", "margin",
     }  # fmt: skip
-    assert ws.cell(4 + len(ns.NOTE_METRICS), 1).value is None  # nothing after the last metric
+    tail = [tuple(c.value for c in ws[r][:3]) for r in range(4 + len(rows), ws.max_row + 1)]
+    assert tail == [ns.BASE_NOTE, *ns.ASSUMPTIONS]
+    assert "roi" not in ns.NOTE_METRICS  # held until its parts share one confirmed basis
+    assert not any("File " in r[2] for r in [*rows, *tail])
     by_label = {r[0]: r for r in rows}
     assert by_label["Lợi nhuận ròng"][1].startswith(
-        "Lợi nhuận đóng góp − Quảng cáo − Hoa hồng tiếp thị liên kết"
+        "Lợi nhuận đóng góp − Quảng cáo phần của các đơn đủ chi phí"
     )
     assert by_label["Biên lợi nhuận"][1].startswith(
         "Lợi nhuận ròng ÷ Doanh thu thực của đơn đủ chi phí"
@@ -106,3 +109,17 @@ def test_the_all_shops_export_gets_the_notes_sheet_once_and_last():
     assert wb.sheetnames.count(ns.SHEET_NOTES) == 1
     assert wb[ns.SHEET_NOTES]["A4"].value == METRICS["gmv"].label_vi
     save_bytes(wb, strict=True)
+
+
+def test_unknown_marketing_cost_and_empty_day_product_sheets_show_a_dash():
+    d = _data()
+    d.days, d.products = [], []
+    d.now.ads_cost = d.now.aff_cost = d.now.offer_cost = None
+    wb = tq.build(d)
+    assert wb[tq.SHEET_OVERVIEW].cell(tq.OV["cost"], 2).value == DASH  # missing is never 0
+    assert wb[tq.SHEET_DAY].cell(tq.DAY_FIRST, 2).value == DASH
+    assert wb[tq.SHEET_PRODUCT].cell(tq.P_FIRST, 5).value == DASH
+    save_bytes(wb, strict=True)  # no total reads its own cell
+    multi = tq.build_multi([d, _data()])[tq.SHEET_OVERVIEW]
+    assert multi.cell(tq.OV["cost"], 2).value == DASH
+    assert str(multi.cell(tq.OV["cost"], 3).value).startswith("=SUM(")
