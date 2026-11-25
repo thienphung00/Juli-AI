@@ -30,6 +30,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
+from juli_backend.services.shopee_analytics import levels
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import (
     ADS_BASIS,
@@ -592,8 +593,7 @@ def build_critical(
         if pid:
             it.update(price_block(now, pid))
             it["margin_basis"] = margin_basis(now, pid, now.profit.products.get(pid))
-            pp = now.profit.products.get(pid)
-            it["margin_pct"] = pct(pp.margin_pct) if pp else None
+            it["margin_pct"] = pct(levels.product_contribution(now, (pid,)).margin_pct)
     for rank, it in enumerate(items, 1):
         it["rank"] = rank
     if ctx.rules.target("margin_pct") is None:

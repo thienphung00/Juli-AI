@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 
-from juli_backend.services.shopee_analytics import materialize
+from juli_backend.services.shopee_analytics import levels, materialize
 from juli_backend.services.shopee_analytics.matrix import product_row
 from juli_backend.services.shopee_builder import ads_builder, specs_p98
 from juli_backend.services.shopee_builder import service as builder
@@ -335,13 +335,17 @@ async def test_so_sanh_hom_nay_is_the_versions_own_scope(session, shop):
 
 async def test_one_margin_on_luong_tu_tao_so_sanh_and_ke_hoach(session, shop):
     seeded, env = shop
-    luong = product_row(env.view, ITEM)["profit"]["margin_pct"]
-    assert luong is not None
-    want = float(shop_profit.scope_margin_pct(env.view.profit, [ITEM]) or 0)
-    assert luong == pytest.approx(want, abs=0.05)
+    # L1 (#66 / #67): Luồng sản phẩm and the Tự tạo list are product level = Biên đóng góp
+    luong_level = product_row(env.view, ITEM)["profit"]["margin_pct"]
+    assert luong_level is not None
+    want = float(levels.product_contribution(env.view, [ITEM]).margin_pct or 0)
+    assert luong_level == pytest.approx(want, abs=0.05)
     listed = await builder.products(session, seeded.shop_id, as_of=AS_OF)
     row = next(r for r in listed["products"] if r["item_id"] == ITEM)
-    assert row["margin_pct"] == pytest.approx(luong, abs=0.05)  # Tự tạo list
+    assert row["margin_pct"] == pytest.approx(luong_level, abs=0.05)  # Tự tạo list
+    # So sánh / Kế hoạch "hôm nay" are Track OPP's (outcome.py, plan_aggregate); until OPP moves
+    # them to Đóng góp they still read the one scope margin
+    luong = float(shop_profit.scope_margin_pct(env.view.profit, [ITEM]) or 0)
     out = await builder.evaluate_versions(session, seeded.shop_id, [COMBO], as_of=AS_OF, now=NOW)
     assert out["today"]["margin_pct"] == pytest.approx(luong, abs=0.05)  # So sánh "Hôm nay"
     v = out["versions"][0]

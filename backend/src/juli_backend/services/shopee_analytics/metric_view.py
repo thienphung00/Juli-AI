@@ -48,7 +48,14 @@ from juli_backend.services.metrics.registry import (
     Platform,
     metric_reason,
 )
-from juli_backend.services.shopee_analytics import channel_split, funnel, kol, loaders, service
+from juli_backend.services.shopee_analytics import (
+    channel_split,
+    funnel,
+    kol,
+    levels,
+    loaders,
+    service,
+)
 from juli_backend.services.shopee_analytics import kol_labels as labels
 from juli_backend.services.shopee_analytics.catalog import Catalog
 from juli_backend.services.shopee_analytics.data_through import ads_last_day, data_through
@@ -713,8 +720,9 @@ def unavailable_channels(platform: str, metric: str) -> dict[str, str]:
 
 def _margins(view: Any) -> dict[str, Decimal | None]:
     out: dict[str, Decimal | None] = {}
-    for item, pp in view.profit.products.items():
-        m = pp.margin_pct
+    # L1: a product's margin here is Biên đóng góp (before ads and affiliate)
+    for item, pc in levels.contribution_by_item(view).items():
+        m = pc.margin_pct
         out[item] = None if m is None else Decimal(str(m)) / 100
     return out
 

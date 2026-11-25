@@ -10,7 +10,7 @@ import uuid
 from collections.abc import Mapping
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -450,3 +450,76 @@ def test_every_component_a_grain_maps_to_is_a_registry_component() -> None:
         for comps in grain.columns.values():
             for comp in comps:
                 assert comp in COMPONENTS or comp in future, (grain.name, comp)
+
+
+async def test_campaign_rows_carry_their_name_and_margins_are_percentage_points() -> None:
+    src = _source(
+        1,
+        campaign_metrics_daily=[
+            {"shop_id": SHOP, "day": _day(0), "campaign_id": "c1", "spend": D(10), "gmv": D(80),
+             "gmv_direct": D(50), "orders": 2, "impressions": 100, "clicks": 5},
+        ],
+        campaign_names=[{"campaign_id": "c1", "name": "Synthetic campaign"}],
+    )  # fmt: skip
+    win = (_day(0), _day(0))
+    res = await q.query(
+        None, SHOP, ["ads_gmv_platform", "ads_gmv_direct", "cost_ads"], scope=Scope.shop(),
+        window=win, group_by="campaign", source=src,
+    )  # fmt: skip
+    assert res.rows[0]["campaign"] == "c1"
+    assert res.rows[0]["campaign_name"] == "Synthetic campaign"
+    assert res.rows[0]["ads_gmv_direct"] == D(50)  # a component id is accepted as a metric id
+    shop = await q.query(None, SHOP, ["margin"], scope=Scope.shop(), window=win, source=src)
+    # (380 - 50 - 40 - 5) / 800 = 35.6 %: percentage points, the registry's pct_points
+    assert shop.values["margin"] == D("35.6")
+
+
+async def test_campaign_products_reads_the_ads_report_by_product(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from juli_backend.services.shopee_analytics import loaders
+
+    rows = [
+        SimpleNamespace(key="c1", item_id="p2"),
+        SimpleNamespace(key="c1", item_id="p1"),
+        SimpleNamespace(key="c1", item_id="p1"),
+        SimpleNamespace(key="shop", item_id=""),
+    ]
+
+    async def fake(session: object, shop_id: object, window: object) -> SimpleNamespace:
+        return SimpleNamespace(campaign_rows=rows)
+
+    monkeypatch.setattr(loaders, "load_ads_reports", fake)
+
+    class Primary:
+        info: dict[str, object] = {}
+
+    got = await q.campaign_products(cast(AsyncSession, Primary()), SHOP, (_day(0), _day(6)))
+    assert got == {"c1": ["p1", "p2"], "shop": []}
+
+
+async def test_chat_ids_read_at_campaign_and_day_grain() -> None:
+    ids = ["ads_orders", "ads_gmv_platform", "ads_gmv_direct", "cost_ads", "roas_break_even"]
+    src = _source(
+        2,
+        campaign_metrics_daily=[
+            {"shop_id": SHOP, "day": _day(0), "campaign_id": "c1", "spend": D(10), "gmv": D(80),
+             "gmv_direct": D(50), "orders": 2},
+        ],
+    )  # fmt: skip
+    win = (_day(0), _day(1))
+    camp = await q.query(
+        None, SHOP, ids, scope=Scope.shop(), window=win, group_by="campaign", source=src
+    )
+    row = camp.rows[0]
+    assert (row["ads_orders"], row["ads_gmv_direct"], row["cost_ads"]) == (D(2), D(50), D(10))
+    # a campaign row has no cost components: ROAS hoà vốn is unknown there, never 0
+    assert row["roas_break_even"] is None
+    day = await q.query(None, SHOP, ids, scope=Scope.shop(), window=win, group_by="day", source=src)
+    assert day.rows[0]["cost_ads"] == D(50)
+    assert day.rows[0]["roas_break_even"] is not None
+    with pytest.raises(KeyError) as excinfo:
+        await q.query(None, SHOP, ["daily_budget"], scope=Scope.shop(), window=win, source=src)
+    assert "daily_budget" in str(excinfo.value)

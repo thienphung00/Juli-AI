@@ -126,6 +126,12 @@ class Grain:
     has_basis: bool = False
     #: the item key column, when the grain has one
     item_col: str | None = None
+    #: components that are structurally 0 at this grain (a shop-level cost has no product or
+    #: channel share: ``other_marketing`` is the shop's own row, registry ``profit`` note)
+    constants: Mapping[str, Decimal] = field(default_factory=dict)
+    #: costs a cell carries only on its own channel: NULL on another channel's cell is 0 there
+    #: (Organic has no ads spend; only TTLK carries the commission), never "unknown"
+    own_channel_costs: tuple[str, ...] = ()
 
 
 def _same(*ids: str) -> dict[str, tuple[str, ...]]:
@@ -177,6 +183,7 @@ PRODUCT = Grain(
     extras=("variation_id",),
     has_basis=True,
     item_col="item_id",
+    constants={"other_marketing": Decimal(0)},
 )
 _CELL_COLUMNS = {
     **_same("gmv", "orders", "units", "ads_spend"),
@@ -189,12 +196,16 @@ PRODUCT_CHANNEL = Grain(
     _CELL_COLUMNS,
     extras=("capped_gmv",),
     item_col="item_id",
+    constants={"other_marketing": Decimal(0)},
+    own_channel_costs=("ads_spend", "affiliate_commission"),
 )
 SHOP_CHANNEL = Grain(
     "shop_channel",
     "shop_channel_metrics_daily",
     ("day", "channel", "discounted"),
     _CELL_COLUMNS,
+    constants={"other_marketing": Decimal(0)},
+    own_channel_costs=("ads_spend", "affiliate_commission"),
 )
 CAMPAIGN = Grain(
     "campaign",
@@ -354,6 +365,10 @@ class RowSource(Protocol):
         self, session: AsyncSession | None, shop_id: uuid.UUID, start: date, end: date, basis: str
     ) -> set[date]: ...
 
+    async def campaign_names(
+        self, session: AsyncSession | None, shop_id: uuid.UUID, start: date, end: date
+    ) -> dict[str, str]: ...
+
 
 def _matches(row: Mapping[str, Any], read: Read) -> bool:
     if row.get("shop_id") not in (None, read.shop_id, str(read.shop_id)):
@@ -388,6 +403,13 @@ class MemoryRowSource:
     ) -> set[date]:
         read = Read(SHOP, shop_id, start, end, basis)
         return {r["day"] for r in await self.rows(session, read)}
+
+    async def campaign_names(
+        self, session: AsyncSession | None, shop_id: uuid.UUID, start: date, end: date
+    ) -> dict[str, str]:
+        return {
+            str(r["campaign_id"]): str(r["name"]) for r in self.tables.get("campaign_names", [])
+        }
 
 
 def _table(grain: Grain) -> sa.TableClause:
@@ -441,6 +463,22 @@ class SqlRowSource:
         return {d if isinstance(d, date) else date.fromisoformat(str(d)) for d in
                 (await session.execute(stmt)).scalars().all()}  # fmt: skip
 
+    async def campaign_names(
+        self, session: AsyncSession | None, shop_id: uuid.UUID, start: date, end: date
+    ) -> dict[str, str]:
+        """campaign id (the report segment) -> its name (``platform_source``), a dimension read
+        from the Connector's ``ads_campaign_daily`` rows (the source of the campaign facts)."""
+        if session is None:
+            raise ValueError("SqlRowSource needs a session")
+        from juli_backend.repositories.shopee_analytics import PlatformDailyMetricsRepo
+
+        rows = await PlatformDailyMetricsRepo(session).window(
+            shop_id, datasets=["ads_campaign_daily"], start=start, end=end, streams=["ads"]
+        )
+        return {
+            r.segment: r.platform_source for r in rows if r.segment != "all" and r.platform_source
+        }
+
 
 SQL_SOURCE: RowSource = SqlRowSource()
 
@@ -479,9 +517,13 @@ def _num(v: Any) -> Decimal | None:
 def sum_components(grain: Grain, rows: Sequence[Mapping[str, Any]]) -> dict[str, Decimal | None]:
     """Σ of each component over ``rows``; a component no row knows is ``None``."""
     acc: dict[str, Decimal | None] = {}
+    if rows:
+        acc.update(grain.constants)
     for col, comps in grain.columns.items():
         known = [_num(r.get(col)) for r in rows if r.get(col) is not None]
         total = sum((k for k in known if k is not None), Decimal(0)) if known else None
+        if total is None and rows and col in grain.own_channel_costs:
+            total = Decimal(0)
         for comp in comps:
             acc[comp] = total
     return acc
@@ -528,6 +570,7 @@ def _window_result(
     shop_days: set[date],
     group_by: str | None,
     allow_partial: bool,
+    names: Mapping[str, str] | None = None,
 ) -> QueryResult:
     start, end = window
     in_window = [r for r in rows if start <= r["day"] <= end]
@@ -555,9 +598,10 @@ def _window_result(
             vals, cov, part = _evaluate(metrics, sum_components(grain, g), row_days)
             if group_by == "day" and key in missing:
                 vals = dict.fromkeys(metrics)
-            out_rows.append(
-                {group_by: key, **vals, "_coverage": cov, "_partial": part, "_rows": len(g)}
-            )
+            entry: dict[str, Any] = {group_by: key}
+            if group_by == "campaign":
+                entry["campaign_name"] = (names or {}).get(str(key))
+            out_rows.append({**entry, **vals, "_coverage": cov, "_partial": part, "_rows": len(g)})
     return QueryResult(
         window=window,
         grain=grain.name,
@@ -620,6 +664,11 @@ async def query(
 
         async with read_session(session) as rs:
             rows = await src.rows(rs, read)
+            names = (
+                await src.campaign_names(rs, shop_id, read_from, end)
+                if group_by == "campaign"
+                else {}
+            )
             shop_days = (
                 {r["day"] for r in rows}
                 if grain is SHOP
@@ -627,18 +676,44 @@ async def query(
             )
     else:
         rows = await src.rows(session, read)
+        names = (
+            await src.campaign_names(session, shop_id, read_from, end)
+            if group_by == "campaign"
+            else {}
+        )
         shop_days = (
             {r["day"] for r in rows}
             if grain is SHOP
             else await src.shop_days(session, shop_id, read_from, end, basis)
         )
     rows = [{**r, "day": _as_date(r["day"])} for r in rows]
-    result = _window_result(grain, metrics, rows, window, shop_days, group_by, allow_partial)
+    result = _window_result(grain, metrics, rows, window, shop_days, group_by, allow_partial, names)
     if compare:
         result.previous = _window_result(
-            grain, metrics, rows, prev, shop_days, group_by, allow_partial
+            grain, metrics, rows, prev, shop_days, group_by, allow_partial, names
         )
     return result
+
+
+async def campaign_products(
+    session: AsyncSession, shop_id: uuid.UUID, window: tuple[date, date]
+) -> dict[str, list[str]]:
+    """campaign id -> the products it advertises in ``window``: a dimension read from the ads
+    report by product (the report window that fits each campaign best,
+    ``shopee_analytics.loaders.load_ads_reports``), not a fact. A campaign whose rows name no
+    product (a shop campaign) maps to ``[]``."""
+    from juli_backend.database.read_engine import read_session
+    from juli_backend.services.shopee_analytics.loaders import load_ads_reports
+    from juli_backend.services.shopee_analytics.windows import Window
+
+    async with read_session(session) as rs:
+        reports = await load_ads_reports(rs, shop_id, Window(*window))
+    out: dict[str, set[str]] = {}
+    for r in reports.campaign_rows:
+        out.setdefault(r.key, set())
+        if r.item_id:
+            out[r.key].add(str(r.item_id))
+    return {k: sorted(v) for k, v in sorted(out.items())}
 
 
 def _as_date(v: Any) -> date:
@@ -658,6 +733,7 @@ __all__ = [
     "RowSource",
     "Scope",
     "SqlRowSource",
+    "campaign_products",
     "check_sum",
     "components_of",
     "grain_of",
