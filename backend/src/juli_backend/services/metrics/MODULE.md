@@ -5,7 +5,8 @@
 The metric registry (owner decisions T5, T6, T8): every number a seller, Ops, a reviewer, the
 recommender, the measurement, an export or an agent tool sees is one id here with one formula
 over canonical components. Design: `docs/architecture/metric-registry.md` (draft 2; owner
-decisions §11). Pure: no DB, no I/O, no clock. Step 1 of the migration: nothing reads it yet.
+decisions §11). Pure (no DB, no I/O, no clock) except `query`, which reads the stored daily
+facts from the DB (read engine when `DATABASE_READ_URL` is set).
 
 ## Layers
 
@@ -15,6 +16,7 @@ decisions §11). Pure: no DB, no I/O, no clock. Step 1 of the migration: nothing
 | `components` | `COMPONENTS` (§4 ids + the ones a §5 metric needs, `in_doc=False`), the `Components` value type |
 | `compute` | `evaluate(metric_id, components) -> MetricValue`; `change`, `per_day`; `kol_status` |
 | `allocation` | `channel_partition` (§6), `shop_lines` (§7 "Cả shop" lines), `deoverlap_periods` (A6) |
+| `query` | **reads the DB**: `query(session, shop_id, metrics, scope=, window=, group_by=, compare=)` sums one range of the stored `*_metrics_daily` rows, refuses a sum `sums_across` forbids, evaluates through `compute.evaluate`; `campaign_products`. The one read for screens, export and Chat (decision #62) |
 
 Generated TS contract: `apps/demo/src/lib/metrics/registry.generated.ts`, written by
 `scripts/gen_metric_contract.py`; `tests/unit/test_metric_contract.py` fails when it is stale.
