@@ -63,10 +63,10 @@ ORDER_DIMS: frozenset[Dim] = frozenset({Dim.day, Dim.channel, Dim.discounted})
 class InvalidSum(ValueError):
     """A sum the registry refuses (``sums_across``): the result would not be the number."""
 
-    def __init__(self, component_id: str, refused: frozenset[Dim]) -> None:
+    def __init__(self, component_id: str, refused: frozenset[Dim] | frozenset[str]) -> None:
         self.component_id = component_id
         self.refused = refused
-        dims = ", ".join(sorted(d.value for d in refused))
+        dims = ", ".join(sorted(str(getattr(d, "value", d)) for d in refused))
         super().__init__(f"{component_id} may not be summed over {dims}")
 
 

@@ -63,8 +63,9 @@ def _cell(i: int, channel: str, gmv: int, orders: int, item: str | None = None, 
         "orders": orders,
         "units": orders,
         **_costs(gmv),
-        "ads_spend": None,
-        "affiliate_commission": None,
+        # FACT read rule: a structural 0 on another channel's cell (NULL = unknown)
+        "ads_spend": D(0),
+        "affiliate_commission": D(0),
     }
     if item is not None:
         row["item_id"] = item

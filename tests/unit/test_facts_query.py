@@ -520,6 +520,14 @@ async def test_chat_ids_read_at_campaign_and_day_grain() -> None:
     day = await q.query(None, SHOP, ids, scope=Scope.shop(), window=win, group_by="day", source=src)
     assert day.rows[0]["cost_ads"] == D(50)
     assert day.rows[0]["roas_break_even"] is not None
-    with pytest.raises(KeyError) as excinfo:
-        await q.query(None, SHOP, ["daily_budget"], scope=Scope.shop(), window=win, source=src)
-    assert "daily_budget" in str(excinfo.value)
+    # daily_budget is a registry component (FACT): stored on the campaign rows, summed over days
+    budget = await q.query(
+        None, SHOP, ["daily_budget"], scope=Scope.shop(), window=win, group_by="campaign",
+        source=_source(2, campaign_metrics_daily=[
+            {"shop_id": SHOP, "day": _day(0), "campaign_id": "c1", "spend": D(10),
+             "daily_budget": D(100)},
+            {"shop_id": SHOP, "day": _day(1), "campaign_id": "c1", "spend": D(10),
+             "daily_budget": D(100)},
+        ]),
+    )  # fmt: skip
+    assert budget.rows[0]["daily_budget"] == D(200)

@@ -65,13 +65,8 @@ GROUP_BYS: tuple[str, ...] = (
 )
 
 
-class InvalidSum(ValueError):
-    """A sum the registry refuses: the result would not be the number (``sums_across``)."""
-
-    def __init__(self, component_id: str, refused: frozenset[str]) -> None:
-        self.component_id = component_id
-        self.refused = refused
-        super().__init__(f"{component_id} may not be summed over {', '.join(sorted(refused))}")
+#: the registry's refusal (``components.InvalidSum``, Track FACT F4), re-exported
+InvalidSum = components_mod.InvalidSum
 
 
 # -- scope -------------------------------------------------------------------------------------
@@ -129,9 +124,6 @@ class Grain:
     #: components that are structurally 0 at this grain (a shop-level cost has no product or
     #: channel share: ``other_marketing`` is the shop's own row, registry ``profit`` note)
     constants: Mapping[str, Decimal] = field(default_factory=dict)
-    #: costs a cell carries only on its own channel: NULL on another channel's cell is 0 there
-    #: (Organic has no ads spend; only TTLK carries the commission), never "unknown"
-    own_channel_costs: tuple[str, ...] = ()
 
 
 def _same(*ids: str) -> dict[str, tuple[str, ...]]:
@@ -197,7 +189,6 @@ PRODUCT_CHANNEL = Grain(
     extras=("capped_gmv",),
     item_col="item_id",
     constants={"other_marketing": Decimal(0)},
-    own_channel_costs=("ads_spend", "affiliate_commission"),
 )
 SHOP_CHANNEL = Grain(
     "shop_channel",
@@ -205,7 +196,6 @@ SHOP_CHANNEL = Grain(
     ("day", "channel", "discounted"),
     _CELL_COLUMNS,
     constants={"other_marketing": Decimal(0)},
-    own_channel_costs=("ads_spend", "affiliate_commission"),
 )
 CAMPAIGN = Grain(
     "campaign",
@@ -218,6 +208,7 @@ CAMPAIGN = Grain(
         "orders": ("ads_orders",),
         "impressions": ("ads_views",),
         "clicks": ("ads_clicks",),
+        **_same("daily_budget"),
     },
     extras=("ad_type", "orders_direct", "contribution_products"),
 )
@@ -264,37 +255,13 @@ def grain_of(scope: Scope, group_by: str | None) -> Grain:
 
 # -- sums_across -------------------------------------------------------------------------------
 
-#: distinct-order counts: over days, channels and the discount split, never over products
-_ORDER_DIMS = frozenset({"day", "channel", "discounted"})
-_FALLBACK_SUMS: Mapping[str, frozenset[str]] = {
-    "orders": _ORDER_DIMS,
-    "line_orders": _ORDER_DIMS,
-    "ads_orders": _ORDER_DIMS | {"campaign"},
-}
-
 
 def check_sum(component_id: str, dims: Iterable[str]) -> None:
-    """Refuse summing ``component_id`` over ``dims`` when the registry does not allow it.
-
-    The rule is the registry's (``ComponentDef.sums_across``, Track FACT F4); until that field
-    exists the written contract rule (CONTRACT-parallel §1: đơn never over products) stands in.
-    """
+    """Refuse summing ``component_id`` over ``dims`` when the registry does not allow it
+    (``ComponentDef.sums_across`` through :func:`components.check_sum`)."""
     dims = frozenset(str(d) for d in dims)
-    if not dims:
-        return
-    registry_check = getattr(components_mod, "check_sum", None)
-    if registry_check is not None:
-        try:
-            registry_check(component_id, dims)
-        except ValueError as exc:
-            raise InvalidSum(component_id, dims) from exc
-        return
-    allowed = _FALLBACK_SUMS.get(component_id)
-    if allowed is None:
-        return
-    refused = dims - allowed
-    if refused:
-        raise InvalidSum(component_id, frozenset(refused))
+    if dims:
+        components_mod.check_sum(component_id, dims)
 
 
 def components_of(metric_id: str) -> frozenset[str]:
@@ -520,10 +487,12 @@ def sum_components(grain: Grain, rows: Sequence[Mapping[str, Any]]) -> dict[str,
     if rows:
         acc.update(grain.constants)
     for col, comps in grain.columns.items():
+        if col in components_mod.KNOWN_FALLBACK and not any(col in r for r in rows):
+            # no row carries the known part: leave it absent, the registry reads the plain cost
+            # (``components.KNOWN_FALLBACK``); a stored NULL stays None
+            continue
         known = [_num(r.get(col)) for r in rows if r.get(col) is not None]
         total = sum((k for k in known if k is not None), Decimal(0)) if known else None
-        if total is None and rows and col in grain.own_channel_costs:
-            total = Decimal(0)
         for comp in comps:
             acc[comp] = total
     return acc
