@@ -80,6 +80,7 @@ GENERATED_TABLES = frozenset(
             # from the loaded data (materialize / the daily run), so a reload replaces them
             "product_channel_metrics_daily",
             "shop_channel_metrics_daily",
+            "shop_facts_status",
             "campaign_metrics_daily",
             "shopee_opportunities",
             "platform_promotions",
