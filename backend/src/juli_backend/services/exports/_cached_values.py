@@ -1,6 +1,6 @@
 """Cached formula results for the xlsx exports.
 
-openpyxl writes every formula cell as ``<f>..</f><v/>`` with no result, so Protected View, phone
+openpyxl writes every formula cell as ``<f>..</f><v/>`` with no result, so Protected View, mobile
 viewers and file previews (which do not recalculate) show 0 or blank. This module evaluates the
 workbook's own formulas in memory and writes each result into the sheet XML ``<v>`` beside the
 formula. It only evaluates what is already in the workbook: it computes no number of its own, the
@@ -23,7 +23,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from openpyxl import Workbook
 from openpyxl.utils import column_index_from_string, get_column_letter
@@ -366,11 +366,11 @@ class _Eval:
             v = self.cells[sheet][key]
             if v is FAILED:
                 raise UnsupportedFormula("depends on a formula that cannot be computed")
-            return v  # type: ignore[no-any-return]
+            return cast(Scalar, v)
         v = self.cells[sheet].get(key)
         if v is FAILED:
             raise UnsupportedFormula("depends on a cell value the evaluator cannot read")
-        return v  # type: ignore[no-any-return]
+        return cast(Scalar, v)
 
     def _range(self, sheet: str, r1: int, c1: int, r2: int, c2: int) -> _Range | XlError:
         if sheet not in self.cells:
@@ -399,7 +399,7 @@ class _Eval:
     def ev(self, node: Node) -> Scalar | _Range:
         kind = node[0]
         if kind in ("num", "str", "bool"):
-            return node[1]  # type: ignore[no-any-return]
+            return cast(Scalar, node[1])
         if kind == "ref":
             _, sheet, r1, c1, r2, c2 = node
             if (r1, c1) == (r2, c2):
@@ -437,10 +437,10 @@ def _args_numbers(ev: _Eval, args: list[Node]) -> list[float] | XlError:
     """SUM/MAX/MIN arguments: ranges and refs count numbers only; direct values are coerced."""
     out: list[float] = []
     for a in args:
-        v = ev.ev(a)
-        if isinstance(v, XlError):
-            return v
         if a[0] == "ref":
+            v = ev.ev(a)
+            if isinstance(v, XlError):
+                return v
             items = v if isinstance(v, _Range) else [v]
             for item in items:
                 if isinstance(item, XlError):
@@ -448,7 +448,7 @@ def _args_numbers(ev: _Eval, args: list[Node]) -> list[float] | XlError:
                 if isinstance(item, float):
                     out.append(item)
         else:
-            n = _num(v)  # type: ignore[arg-type]
+            n = _num(ev.scalar(a))
             if isinstance(n, XlError):
                 return n
             out.append(n)
