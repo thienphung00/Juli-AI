@@ -1029,6 +1029,28 @@ async def _figures(
     return body, _kpis(view, base, product_id, platform)
 
 
+def _on_facts(platform: str) -> bool:
+    """Q2 (#62 / #74): a Shopee scope's KPI row and channel table come from the stored facts
+    (``metrics.query`` via :mod:`.facts_reads`; the same rows from the raw tables until the
+    facts are ready). TikTok keeps its own path (out of this batch)."""
+    return platform == Platform.shopee and has_profit(platform)
+
+
+async def _facts_figures(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    window: Window,
+    product_id: str | None,
+) -> tuple[dict[str, Any], dict[str, Any] | None, dict[str, Any]]:
+    """(KPIs, previous KPIs, profit split) of a Shopee scope from the stored facts."""
+    from juli_backend.services.shopee_analytics import facts_reads
+
+    span = (window.start, window.end)
+    kpis, prev = await facts_reads.kpis(session, shop_id, span, product_id=product_id)
+    split = await facts_reads.profit_split(session, shop_id, span, product_id=product_id)
+    return kpis, prev, split
+
+
 async def split_figures(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -1040,6 +1062,9 @@ async def split_figures(
     """``{"rows", "kpis"}`` of ``channel_split`` for a view the caller already loaded (no second
     read of the window, no previous period, no plan block): what a per-product loop needs."""
     body_rows, kpis = await _figures(session, shop_id, view, window, product_id, platform)
+    if _on_facts(platform):
+        kpis, _prev, split = await _facts_figures(session, shop_id, window, product_id)
+        return {"rows": body_rows, "kpis": kpis, "profit_split": split}
     split = _split_of(view, product_id, kpis, platform)
     return {"rows": body_rows, "kpis": kpis, "profit_split": split}
 
@@ -1108,6 +1133,11 @@ async def channel_split(
     for r in body_rows:
         before = prev_rows.get(r["key"])
         r["prev"] = None if before is None else {k: before[k] for k in (*_CELLS, "share")}
+    split: dict[str, Any] | None
+    if _on_facts(platform):
+        kpis, prev_kpis, split = await _facts_figures(session, shop_id, window, product_id)
+    else:
+        split = _split_of(view, product_id, kpis, platform)
     plan = await _plan_block(session, shop_id, view, window, product_id, plan_last)
     through = data_through(
         await loaders.load_freshness(session, shop_id),
@@ -1132,8 +1162,40 @@ async def channel_split(
         "plan": plan,
         # P7 (#42 / #49): Organic / Quảng cáo / TTLK of GMV, đơn, doanh thu thực, Ưu đãi, đóng góp,
         # QC, AFF and lợi nhuận ròng; None where the platform has no profit (D23)
-        "profit_split": _split_of(view, product_id, kpis, platform),
+        "profit_split": split,
     }
+
+
+async def _products_on_facts(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window, products: list[dict[str, Any]]
+) -> None:
+    """Q2 / A8 / L1: each listed product's GMV, its Organic / Quảng cáo / TTLK parts and its Biên
+    đóng góp from the stored facts. A product whose report rows are zeros is 0đ; "—" (``None``)
+    only when it has no row."""
+    from juli_backend.services.metrics.query import Scope, query
+    from juli_backend.services.shopee_analytics import facts_reads
+
+    span = (window.start, window.end)
+    ids = [p["product_id"] for p in products]
+    gmv = await facts_reads.product_channel_gmv(session, shop_id, span, ids)
+    margins = await query(
+        session,
+        shop_id,
+        ["margin_contribution"],
+        scope=Scope.products(ids),
+        window=span,
+        group_by="item",
+        allow_partial=True,
+    )
+    margin = {r["item"]: r["margin_contribution"] for r in margins.rows}
+    for p in products:
+        g = gmv.get(p["product_id"], {})
+        p["gmv"] = num(g.get("gmv"))
+        p["organic_gmv"] = num(g.get("organic_gmv"))
+        p["ads_gmv"] = num(g.get("ads_gmv"))
+        p["affiliate_gmv"] = num(g.get("affiliate_gmv"))
+        m = margin.get(p["product_id"])
+        p["margin"] = None if m is None else float(m)
 
 
 async def channel_split_products(
@@ -1225,6 +1287,8 @@ async def channel_split_products(
                 "weakest_metric": weakest_metric(values, item),
             }
         )
+    if _on_facts(platform) and products:
+        await _products_on_facts(session, shop_id, window, products)
     products.sort(key=lambda p: -(p["gmv"] or 0))
     unmatched_gmv = [
         t

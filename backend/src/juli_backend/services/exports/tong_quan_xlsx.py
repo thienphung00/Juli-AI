@@ -66,6 +66,7 @@ MARGIN_GROSS_LABEL = METRICS["margin_gross"].label_vi
 MARGIN_CONTRIBUTION_LABEL = METRICS["margin_contribution"].label_vi
 #: the margin's base is a component, which has no label of its own in the registry
 BASE_LABEL = "Doanh thu thực của đơn đủ chi phí"
+COVERAGE_LABEL = METRICS["cost_coverage"].label_vi
 
 SHEET_OVERVIEW = "Tổng quan"
 SHEET_CHANNEL = "Theo kênh"
@@ -105,6 +106,9 @@ class Figures:
     #: the margin base (registry ``net_revenue_known``): the buyer paid, after output VAT, of the
     #: orders whose every cost is known; ``None`` = unknown (the margin is then "—")
     net_revenue_known: float | None = None
+    #: A2: the share of GMV whose every cost is known (registry ``cost_coverage``, 0-1) -- the
+    #: profit and margins of each period are on these orders only; ``None`` = unknown
+    coverage: float | None = None
     #: "overlay" (Seller Centre's ads overlay) | "report" (ads report): the basis of the Quảng cáo
     #: GMV; periods on different bases do not compare ("—")
     ads_basis: str | None = None
@@ -253,7 +257,7 @@ def cost_of(fig: Figures) -> float | None:
 # ----------------------------------------------------------------------------- Tổng quan
 
 OVERVIEW_HEADER = [
-    "Chỉ số", "Kỳ này", "% doanh thu", "Kỳ trước", "Thay đổi", "Mục tiêu (Kế hoạch)",
+    "Chỉ số", "Kỳ này", "% doanh thu thực", "Kỳ trước", "Thay đổi", "Mục tiêu (Kế hoạch)",
     "So với mục tiêu",
 ]  # fmt: skip
 OV = {  # row of each metric on the "Tổng quan" sheet
@@ -262,8 +266,11 @@ OV = {  # row of each metric on the "Tổng quan" sheet
     "cost_total": 19,  # decision #44: below the notes; the ROI's denominator
     # decision #51: the ladder's subtotals and their margins (÷ doanh thu thực), export-only
     "gross": 20, "margin_gross": 21, "contribution": 22, "margin_contribution": 23,
+    # A2: each period's cost coverage beside its profit and margins
+    "coverage": 24,
 }  # fmt: skip
-#: rows that are costs / profit: shown as a % of the revenue (GMV)
+#: rows that are costs / profit: shown as a % of the margin base (L3: covered doanh thu thực,
+#: registry ``net_revenue_known``, the base of every margin and cost %)
 SHARE_ROWS = ("profit", "ads", "aff", "offer", "cost")
 #: the rows Chi phí marketing sums (the registry's cost_marketing)
 COST_ROWS = ("ads", "aff", "offer")
@@ -281,6 +288,7 @@ def _overview_values(fig: Figures) -> dict[str, float | None]:
         "roi": None if fig.profit is None else _div(fig.profit, fig.cost_total),
         "margin": None if fig.profit is None else _div(fig.profit, fig.net_revenue_known),
         "base": fig.net_revenue_known,
+        "coverage": fig.coverage,
     }  # fmt: skip
 
 
@@ -304,12 +312,12 @@ def _overview(wb: Workbook, data: TongQuanData) -> None:
         ("gross", f"{GROSS_LABEL} (đ)", MONEY), ("margin_gross", MARGIN_GROSS_LABEL, PCT),
         ("contribution", f"{CONTRIBUTION_LABEL} (đ)", MONEY),
         ("margin_contribution", MARGIN_CONTRIBUTION_LABEL, PCT),
+        ("coverage", f"{COVERAGE_LABEL} (% GMV)", PCT),
     ]  # fmt: skip
     prev = _overview_values(data.prev)
     now = _overview_values(data.now)
     goals = {"gmv": data.goal_gmv, "profit": data.goal_profit}
     goals["margin"] = _div(data.goal_profit, data.goal_gmv)
-    g = OV["gmv"]
     for key, label, fmt in rows:
         r = OV[key]
         put(ws, r, 1, label)
@@ -335,11 +343,12 @@ def _overview(wb: Workbook, data: TongQuanData) -> None:
             v = _dash(now[key])
         put(ws, r, 2, v, fmt)
         if key in SHARE_ROWS:
-            put(ws, r, 3, f'=IF(ISNUMBER(B{r}),IFERROR(B{r}/B${g},"{DASH}"),"{DASH}")', PCT)
+            b0 = OV["base"]
+            put(ws, r, 3, f'=IF(ISNUMBER(B{r}),IFERROR(B{r}/B${b0},"{DASH}"),"{DASH}")', PCT)
         elif key == "gmv":
             put(ws, r, 3, 1.0, PCT)
         put(ws, r, 4, _dash(prev[key]), fmt)
-        if key in ("margin", "margin_gross", "margin_contribution"):  # a rate: change in points
+        if key in ("margin", "margin_gross", "margin_contribution", "coverage"):  # a rate: points
             put(ws, r, 5, f'=IF(AND(ISNUMBER(B{r}),ISNUMBER(D{r})),B{r}-D{r},"{DASH}")', PCT)
         else:
             put(

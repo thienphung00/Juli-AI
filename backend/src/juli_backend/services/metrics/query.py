@@ -29,6 +29,7 @@ session already is a read session or the request wrote.
 
 from __future__ import annotations
 
+import importlib
 import uuid
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
@@ -379,14 +380,31 @@ class MemoryRowSource:
         }
 
 
-def _table(grain: Grain) -> sa.TableClause:
+def _columns(grain: Grain) -> set[str]:
     cols = {"shop_id", "day", "built_at", *grain.columns, *grain.extras}
     cols.update(_KEY_COLUMN[k] for k in grain.keys)
     if grain.has_basis:
         cols.add("order_type")
     if grain.item_col is not None:
         cols.add(grain.item_col)
-    return sa.table(grain.table, *(sa.column(c) for c in sorted(cols)))
+    return cols
+
+
+def _table(grain: Grain) -> sa.Table:
+    """The grain's table with its typed columns (the ORM metadata: dates, numerics, uuids read
+    back as they are stored on every dialect)."""
+    from juli_backend.orm_base import Base
+
+    importlib.import_module("juli_backend.models")  # registers the tables on the metadata
+
+    return Base.metadata.tables[grain.table]
+
+
+def _select(grain: Grain) -> tuple[sa.Table, sa.Select[Any]]:
+    t = _table(grain)
+    # a column the stored table does not have (yet) is not read: its component stays None
+    cols = [t.c[c] for c in sorted(_columns(grain)) if c in t.c]
+    return t, sa.select(*cols)
 
 
 class SqlRowSource:
@@ -398,9 +416,9 @@ class SqlRowSource:
     async def rows(self, session: AsyncSession | None, read: Read) -> list[Mapping[str, Any]]:
         if session is None:
             raise ValueError("SqlRowSource needs a session")
-        t = _table(read.grain)
+        t, stmt = _select(read.grain)
         c = t.c
-        stmt = sa.select(t).where(c.shop_id == read.shop_id, c.day >= read.start, c.day <= read.end)
+        stmt = stmt.where(c.shop_id == read.shop_id, c.day >= read.start, c.day <= read.end)
         if read.grain.has_basis:
             stmt = stmt.where(c.order_type == read.basis)
         if read.grain.item_col is not None:
@@ -470,6 +488,9 @@ class QueryResult:
     previous: QueryResult | None = None
     #: the summed components (for a caller that must show one, e.g. the export's cost lines)
     components: dict[str, Decimal | None] = field(default_factory=dict)
+    #: where the rows came from: ``stored`` facts, ``raw`` (built on the fly while the stored
+    #: facts are not ready) or ``memory`` (a test source)
+    origin: str = "stored"
 
     def get(self, metric_id: str) -> Decimal | None:
         return self.values.get(metric_id)
@@ -597,12 +618,15 @@ async def query(
     basis: str = DEFAULT_BASIS,
     allow_partial: bool = False,
     source: RowSource | None = None,
+    mode: Literal["auto", "stored", "raw"] = "auto",
 ) -> QueryResult:
     """The metrics of ``scope`` over ``window`` (both ends included) from the stored rows.
 
     ``metrics`` are registry metric ids (or component ids, returned summed). ``group_by`` adds
     one row per key. ``compare`` adds ``previous``: the same number of days ending the day
-    before ``window`` starts. ``source`` replaces the database (tests)."""
+    before ``window`` starts. ``source`` replaces the database (tests). ``mode``: ``auto`` reads
+    the stored rows when the window's facts are ready, else the same rows built from the raw
+    tables (``shopee_analytics.facts_source``); ``stored`` / ``raw`` force one (parity tests)."""
     for mid in metrics:
         if mid not in METRICS and mid not in COMPONENTS:
             raise KeyError(f"unknown metric id {mid!r}")
@@ -628,11 +652,23 @@ async def query(
         channel=scope.channel,
         campaign_ids=scope.ids if scope.kind == "campaigns" else (),
     )
+    origin = "memory" if source is not None else "stored"
     if source is None and session is not None:
         from juli_backend.database.read_engine import read_session
+        from juli_backend.services.shopee_analytics import facts_source
 
         async with read_session(session) as rs:
-            rows = await src.rows(rs, read)
+            data_src: RowSource = src
+            if mode == "raw" or (
+                mode == "auto"
+                and not await facts_source.facts_ready(rs, shop_id, read_from, end, basis)
+            ):
+                # owner #74: the same rows from the raw tables until the stored ones are ready
+                data_src = await facts_source.source_for(
+                    rs, shop_id, read_from, end, basis, src, force_raw=True
+                )
+                origin = "raw"
+            rows = [{**r, "day": _as_date(r["day"])} for r in await data_src.rows(rs, read)]
             names = (
                 await src.campaign_names(rs, shop_id, read_from, end)
                 if group_by == "campaign"
@@ -641,10 +677,13 @@ async def query(
             shop_days = (
                 {r["day"] for r in rows}
                 if grain is SHOP
-                else await src.shop_days(rs, shop_id, read_from, end, basis)
+                else await data_src.shop_days(rs, shop_id, read_from, end, basis)
             )
+            # a window day with no raw data at all is no data, not a missing day
+            with_data = await facts_source.data_days(rs, shop_id, read_from, end)
+            shop_days |= {d for d in _days(read_from, end) if d not in with_data}
     else:
-        rows = await src.rows(session, read)
+        rows = [{**r, "day": _as_date(r["day"])} for r in await src.rows(session, read)]
         names = (
             await src.campaign_names(session, shop_id, read_from, end)
             if group_by == "campaign"
@@ -655,12 +694,13 @@ async def query(
             if grain is SHOP
             else await src.shop_days(session, shop_id, read_from, end, basis)
         )
-    rows = [{**r, "day": _as_date(r["day"])} for r in rows]
     result = _window_result(grain, metrics, rows, window, shop_days, group_by, allow_partial, names)
+    result.origin = origin
     if compare:
         result.previous = _window_result(
             grain, metrics, rows, prev, shop_days, group_by, allow_partial, names
         )
+        result.previous.origin = origin
     return result
 
 

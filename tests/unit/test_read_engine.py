@@ -161,6 +161,15 @@ async def test_query_reads_through_the_read_session(
             return []
 
     monkeypatch.setattr(q, "SQL_SOURCE", Spy())
-    await q.query(primary, SHOP, ["gmv"], scope=q.Scope.shop(), window=(date(2026, 3, 1),) * 2)
+    from juli_backend.services.shopee_analytics import facts_source
+
+    async def no_data(*_: object) -> frozenset[date]:
+        return frozenset()
+
+    monkeypatch.setattr(facts_source, "data_days", no_data)
+    await q.query(
+        primary, SHOP, ["gmv"], scope=q.Scope.shop(), window=(date(2026, 3, 1),) * 2,
+        mode="stored",
+    )  # fmt: skip
     assert seen and seen[0] is not primary
     assert read_engine.is_read_session(seen[0])
