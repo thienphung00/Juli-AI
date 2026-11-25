@@ -70,9 +70,16 @@ def finish(ws: Worksheet, freeze: str) -> None:
     ws.sheet_view.showGridLines = True
 
 
-def save_bytes(wb: Workbook) -> bytes:
+def save_bytes(wb: Workbook, *, strict: bool = False) -> bytes:
+    """The workbook as .xlsx with each formula's computed result cached beside it.
+
+    ``strict`` (tests) raises when a formula cannot be evaluated; production logs it, keeps the
+    download working and leaves that cell without a cached value.
+    """
     import io
+
+    from juli_backend.services.exports._cached_values import with_cached_values
 
     buf = io.BytesIO()
     wb.save(buf)
-    return buf.getvalue()
+    return with_cached_values(wb, buf.getvalue(), strict=strict)

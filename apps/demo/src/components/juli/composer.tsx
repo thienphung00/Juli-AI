@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, type RefObject } from "react";
+import { useState, type KeyboardEvent, type RefObject } from "react";
 import type { JuliTemplate } from "@juli/contracts";
 
+/** The API accepts at most this many characters per question (juli_agent.py text max_length). */
+export const MAX_QUESTION_CHARS = 2000;
 export const INPUT_PLACEHOLDER = "Hỏi Juli về shop của bạn…";
 export const INPUT_PLACEHOLDER_RUNNING = "Bạn có thể gõ câu tiếp theo…";
 
@@ -25,6 +27,13 @@ export function TemplateRow({
   );
 }
 
+/** Grow the textarea to its content; CSS max-height takes over with a scrollbar. Plain DOM write, no state. */
+function fit(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
+
 export function Composer({
   running,
   disabled,
@@ -35,33 +44,48 @@ export function Composer({
   readonly running: boolean;
   /** Limit or backfilling: the input is off. */
   readonly disabled: boolean;
-  readonly inputRef: RefObject<HTMLInputElement | null>;
+  readonly inputRef: RefObject<HTMLTextAreaElement | null>;
   readonly onSubmit: (text: string) => void;
   readonly onStop: () => void;
 }) {
   const [text, setText] = useState("");
   const trimmed = text.trim();
   const canSend = !running && !disabled && trimmed.length > 0;
+  const send = () => {
+    if (!canSend) return;
+    onSubmit(trimmed);
+    setText("");
+    if (inputRef.current) inputRef.current.style.height = "";
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey) return; // Shift+Enter: a new line
+    // A Vietnamese Telex / IME composition uses Enter to commit the word: never send then.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    event.preventDefault();
+    send();
+  };
   return (
     <form
       className={`juli-input${disabled ? " juli-input--off" : ""}`}
       onSubmit={(event) => {
         event.preventDefault();
-        if (!canSend) return;
-        onSubmit(trimmed);
-        setText("");
+        send();
       }}
     >
-      <input
+      <textarea
         ref={inputRef}
         className="juli-input__field"
-        type="text"
+        rows={1}
         aria-label="Hỏi Juli về shop của bạn"
         placeholder={running ? INPUT_PLACEHOLDER_RUNNING : INPUT_PLACEHOLDER}
         value={text}
         disabled={disabled}
-        maxLength={500}
-        onChange={(e) => setText(e.target.value)}
+        maxLength={MAX_QUESTION_CHARS}
+        onKeyDown={onKeyDown}
+        onChange={(e) => {
+          setText(e.target.value);
+          fit(e.target);
+        }}
       />
       {running ? (
         <button type="button" className="juli-stop" onClick={onStop}>

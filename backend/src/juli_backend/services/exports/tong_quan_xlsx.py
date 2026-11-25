@@ -7,7 +7,9 @@ baseline or goal: those are in the Kế hoạch export (UI grill G21).
 
 Every number is an input; the ratios (AOV, CTR, CTOR, % GMV, ROI, Thay đổi, % đạt) and the
 totals are Excel formulas over the cells of the sheet, so the file recomputes when a figure is
-edited. ``fullCalcOnLoad`` is set (no cached values are stored). Only Excel-2007 functions.
+edited. ``fullCalcOnLoad`` is set and ``save_bytes`` caches each formula's computed result beside
+it, so the figures show in a viewer that does not calculate. Only Excel-2007 functions. The last
+sheet, "Ghi chú" (``notes_sheet``), says how each core metric is computed.
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from datetime import date
 
 from openpyxl import Workbook
 
+from juli_backend.services.exports import notes_sheet
 from juli_backend.services.exports import report_sheets as rs
 from juli_backend.services.exports._style import (
     DATE,
@@ -65,7 +68,7 @@ CONTRIBUTION_LABEL = METRICS["contribution"].label_vi
 MARGIN_GROSS_LABEL = METRICS["margin_gross"].label_vi
 MARGIN_CONTRIBUTION_LABEL = METRICS["margin_contribution"].label_vi
 #: the margin's base is a component, which has no label of its own in the registry
-BASE_LABEL = "Doanh thu thực của đơn đủ chi phí"
+BASE_LABEL = notes_sheet.COMPONENT_LABELS["net_revenue_known"]
 
 SHEET_OVERVIEW = "Tổng quan"
 SHEET_CHANNEL = "Theo kênh"
@@ -274,7 +277,7 @@ def _overview_values(fig: Figures) -> dict[str, float | None]:
     return {
         "gmv": fig.gmv, "orders": fig.orders, "aov": _div(fig.gmv, fig.orders),
         "profit": fig.profit, "ads": fig.ads_cost, "aff": fig.aff_cost, "offer": fig.offer_cost,
-        "cost": cost or 0.0, "cost_total": fig.cost_total,
+        "cost": cost, "cost_total": fig.cost_total,
         "gross": fig.gross_profit, "contribution": fig.contribution,
         "margin_gross": _div(fig.gross_profit, fig.net_revenue_known),
         "margin_contribution": _div(fig.contribution, fig.net_revenue_known),
@@ -316,7 +319,7 @@ def _overview(wb: Workbook, data: TongQuanData) -> None:
         if key == "aov":
             v: object = f'=IFERROR(B{OV["gmv"]}/B{OV["orders"]},"{DASH}")'
         elif key == "cost":
-            v = f"=SUM(B{OV['ads']}:B{OV['offer']})"
+            v = DASH if now[key] is None else f"=SUM(B{OV['ads']}:B{OV['offer']})"
         elif key == "roi":
             v = f'=IFERROR(B{OV["profit"]}/B{OV["cost_total"]},"{DASH}")'
         elif key in ("margin_gross", "margin_contribution"):
@@ -631,10 +634,10 @@ def _days(wb: Workbook, data: TongQuanData) -> None:
         put(ws, r, 8, _dash(d.profit), MONEY)
     total = r + 1
     put(ws, total, 1, "Tổng", bold=True)
-    first, last = DAY_FIRST, max(r, DAY_FIRST)
     for c in range(2, 9):
         L = col(c)
-        put(ws, total, c, f"=SUM({L}{first}:{L}{last})", INT if c == 6 else MONEY, bold=True)
+        v = f"=SUM({L}{DAY_FIRST}:{L}{r})" if data.days else DASH  # no rows: never its own cell
+        put(ws, total, c, v, INT if c == 6 else MONEY, bold=True)
     widths(ws, {1: 12}, 15)
     finish(ws, "B4")
 
@@ -689,16 +692,16 @@ def _products(wb: Workbook, data: TongQuanData) -> None:
         put(ws, r, P_ISSUE_COL, p.cause)
         put(ws, r, P_ISSUE_COL + 1, p.fix)
         _product_formulas(ws, r, total, p.now.gmv)
-    last = max(r, P_FIRST)
     put(ws, total, 1, "Tổng", bold=True)
     for c in (5, 15, 16, 17, 18):
         L = col(c)
-        put(ws, total, c, f"=SUM({L}{P_FIRST}:{L}{last})", MONEY, bold=True)
+        v = f"=SUM({L}{P_FIRST}:{L}{r})" if data.products else DASH  # no rows: never its own cell
+        put(ws, total, c, v, MONEY, bold=True)
     prev_total = _sum(
         *((p.prev.gmv if p.prev.gmv is not None else gmv_of(p.prev)) for p in data.products)
     )
     put(ws, total, 4, _change_vs(f"C{total}", prev_total), PCT)
-    _product_formulas(ws, total, total, f"=SUM(C{P_FIRST}:C{last})")
+    _product_formulas(ws, total, total, f"=SUM(C{P_FIRST}:C{r})" if data.products else DASH)
     widths(ws, {1: 16, 2: 44, 19: 44, 20: 36}, 15)
     _hide(ws, *P_HELP)
     finish(ws, "C4")
@@ -735,12 +738,16 @@ def _skus(wb: Workbook, data: TongQuanData) -> None:
         r += 1
         put(ws, r, 1, SKU_GAP_LABEL)
         put(ws, r, 5, f"='{SHEET_OVERVIEW}'!B{OV['gmv']}-SUM(E{SKU_FIRST}:E{r - 1})", MONEY)
-    total, last = r + 1, max(r, SKU_FIRST)
+    total = r + 1
     put(ws, total, 1, "Tổng", bold=True)
     for c, fmt in ((4, INT), (5, MONEY), (6, MONEY), (8, INT)):
         L = col(c)
-        put(ws, total, c, f"=SUM({L}{SKU_FIRST}:{L}{last})", fmt, bold=True)
-    _sku_formulas(ws, total, need=False)
+        # no rows: the total is "—" (a SUM over its own cell is circular, and missing is not 0)
+        put(ws, total, c, f"=SUM({L}{SKU_FIRST}:{L}{r})" if data.skus else DASH, fmt, bold=True)
+    if data.skus:
+        _sku_formulas(ws, total, need=False)
+    else:
+        put(ws, total, 7, DASH, PCT)
     widths(ws, {1: 18, 2: 22, 3: 38, 12: 30}, 15)
     finish(ws, "D4")
 
@@ -819,7 +826,8 @@ def _multi(wb: Workbook, datas: list[TongQuanData]) -> None:
             if key == "aov":
                 v: object = f'=IFERROR({L}{row["gmv"]}/{L}{row["orders"]},"")'
             elif key == "cost":
-                v = f"=SUM({L}{row['ads']}:{L}{row['offer']})"
+                parts = f"=SUM({L}{row['ads']}:{L}{row['offer']})"
+                v = DASH if values[j][key] is None else parts
             elif key == "roi":
                 v = f'=IFERROR({L}{row["profit"]}/{L}{row["cost_total"]},"")'
             elif key == "margin":
@@ -859,6 +867,7 @@ def _multi(wb: Workbook, datas: list[TongQuanData]) -> None:
 def build_multi(datas: list[TongQuanData]) -> Workbook:
     wb = new_workbook()
     _multi(wb, datas)
+    notes_sheet.notes_sheet(wb)
     for ws in wb.worksheets:
         for r in ws.iter_rows():
             for c in r:
@@ -884,6 +893,7 @@ def build(data: TongQuanData) -> Workbook:
     rs.months_sheet(wb, title, data.months)
     rs.koc_sheet(wb, title, data.koc, data.affiliate_share or rs.AffiliateShare())
     rs.analysis_sheet(wb, title, data.analysis)
+    notes_sheet.notes_sheet(wb)
     for ws in wb.worksheets:
         for row in ws.iter_rows():
             for c in row:
