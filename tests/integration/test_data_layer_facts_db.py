@@ -175,6 +175,27 @@ def test_the_natural_keys_and_the_checks_hold(owner_engine, two_tenants):
         conn.rollback()
 
 
+def test_a_large_ranking_score_is_stored(owner_engine, two_tenants):
+    # the sample shop's scores reach 10^6+ (VND-sized gains): numeric(12,6) overflowed
+    a, _ = two_tenants
+    with owner_engine.connect() as conn:
+        for n, score in enumerate((2_500_000.125, 7.5e12)):
+            conn.execute(
+                text(
+                    "INSERT INTO public.shopee_opportunities (id, shop_id, run_date, kind, scope, "
+                    "outcome, score, derivation_version) VALUES (:id, :shop, :day, :kind, "
+                    "'product', 'ranked_out', :score, 'v')"
+                ),
+                {"id": uuid.uuid4(), "shop": a.shop_id, "day": DAY, "kind": f"k{n}",
+                 "score": score},
+            )  # fmt: skip
+        got = conn.execute(
+            text("SELECT score FROM public.shopee_opportunities ORDER BY score")
+        ).scalars()
+        assert [float(s) for s in got] == [2_500_000.125, 7.5e12]
+        conn.rollback()
+
+
 @asynccontextmanager
 async def pg_session():
     engine = create_async_engine(async_database_url(os.environ["DATABASE_URL"]))

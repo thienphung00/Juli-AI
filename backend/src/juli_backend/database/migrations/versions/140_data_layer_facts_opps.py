@@ -244,7 +244,8 @@ def upgrade() -> None:
         sa.Column("inputs", _jsonb(), nullable=False, server_default="{}"),
         sa.Column("outcome", sa.String(length=12), nullable=False),
         sa.Column("source", sa.String(length=16), nullable=False, server_default="daily"),
-        sa.Column("score", sa.Numeric(12, 6), nullable=True),
+        # double precision: a ranking score has no fixed scale (VND-sized gains reach 10^6+)
+        sa.Column("score", sa.Double(), nullable=True),
         sa.Column("reason", sa.String(length=64), nullable=True),
         sa.Column("card_code", sa.String(length=64), nullable=True),
         sa.Column("derivation_version", sa.String(length=32), nullable=False),

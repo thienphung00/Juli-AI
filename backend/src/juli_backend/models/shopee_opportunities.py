@@ -27,6 +27,7 @@ from typing import Any
 from sqlalchemy import (
     CheckConstraint,
     Date,
+    Double,
     ForeignKey,
     Index,
     Numeric,
@@ -81,7 +82,8 @@ class ShopeeOpportunity(Base):
     cost: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
     inputs: Mapped[dict[str, Any]] = mapped_column(JSONBType, default=dict)
     outcome: Mapped[str] = mapped_column(String(16))
-    score: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    # double precision: a ranking score has no fixed scale (VND-sized gains reach 10^6+)
+    score: Mapped[Decimal | None] = mapped_column(Double(asdecimal=True), nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     card_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     derivation_version: Mapped[str] = mapped_column(String(32))
