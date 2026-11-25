@@ -256,6 +256,9 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         # T5: migration 134 round trip with rows seeded at 133 (naive times, an unknown status),
         # after its two-tenant RLS tests through the tables and the compat views.
         "test_t5_canonical_tables_db.py",
+        # batch-1125-idx: migration 139 round trip (downgrade 139 -> 138 and back), after
+        # seeding five shops x 2,000 rows in three tables so the planner's choices are stable.
+        "test_hot_path_indexes_db.py",
     }
 )
 
