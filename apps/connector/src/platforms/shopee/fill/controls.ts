@@ -138,7 +138,7 @@ export function textBoxesIn(row: Element): HTMLInputElement[] {
  * runner reads it again later. True when it reads back equal right now.
  */
 /**
- * E72 / E146: a whole number the page shows with its own formatting ("2.000", "2,000", "₫ 2000",
+ * Hardening (E72 / E146; not the cause of the live ✗, see chooseSelect): a whole number the page shows with its own formatting ("2.000", "2,000", "₫ 2000",
  * "2 000") is the same number. Anything else (text, decimals) must be equal as typed.
  */
 export function sameBoxValue(seen: string, want: string): boolean {
@@ -248,11 +248,18 @@ export function chooseRadio(env: Env, label: string, option: string | readonly s
 
 // -- select ---------------------------------------------------------------------------------
 
+/** The row's visible text without its label's own words and without any input's value. */
+function rowTextOutsideInputs(row: Element): string {
+  const clone = row.cloneNode(true) as Element;
+  clone.querySelectorAll("input,textarea,select,script,style").forEach((n) => n.remove());
+  return normalizeLabel((clone.textContent ?? "").replace(/\s+/g, " "));
+}
+
 /**
  * The select labelled `label` on `option`: a native <select> takes the value (a value write); a
  * Shopee drop-down is "done" when it already shows the option, else highlighted for the person.
  */
-export function chooseSelect(env: Env, label: string, option: string, index = 0, within?: Element): Guide {
+export function chooseSelect(env: Env, label: string, option: string, index = 0, within?: Element, others: readonly string[] = []): Guide {
   const row = findRow(env.doc, label, within);
   if (!row) return "missing";
   const wanted = normalizeLabel(option);
@@ -272,7 +279,16 @@ export function chooseSelect(env: Env, label: string, option: string, index = 0,
   const selector = Array.from(row.querySelectorAll<HTMLElement>('[class*="eds-selector"],[role="combobox"]'))
     .filter(usable)
     .filter((el) => !el.parentElement?.closest('[class*="eds-selector"],[role="combobox"]'))[index];
-  if (!selector) return "missing";
+  if (!selector) {
+    // E146: the drop-down is not one Juli can identify. The row's own text (outside the boxes) is
+    // read: exactly the wanted option and none of the others means the type is already right;
+    // anything else is "missing" (a guided step of its own, never a ✗ on the amount beside it).
+    const shown = () => rowTextOutsideInputs(row);
+    const clear = () => shown().includes(wanted) && !others.map(normalizeLabel).some((o) => shown().includes(o));
+    if (!clear()) return "missing";
+    recordChoice(env, row, option, shown(), shown, clear);
+    return "done";
+  }
   const shows = () => visibleText(selector).includes(wanted);
   recordChoice(env, selector, option, (selector.textContent ?? "").trim(), () => (selector.textContent ?? "").trim(), shows);
   if (shows()) return mark(selector) && "done";

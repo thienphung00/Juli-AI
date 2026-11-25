@@ -54,16 +54,29 @@ describe("E72 / E146 the read-back compares the number", () => {
 });
 
 describe("E146 the display option the page really has", () => {
-  it("names the page's options and picks none when the card's wording is not there", async () => {
+  const relabel = (second: string) => {
     loadPage("voucher-live.html");
-    const labels = Array.from(document.querySelectorAll('input[name="disp"] + span'));
-    labels[1]!.textContent = "Không công khai";
+    Array.from(document.querySelectorAll('input[name="disp"] + span'))[1]!.textContent = second;
+  };
+  it("owner-approved: «Không công khai» is the card's «Chia sẻ thông qua mã Voucher» (highlighted for the person, never pressed)", async () => {
+    relabel("Không công khai");
+    const h = jobHarness(job(), { path: "/portal/marketing/vouchers/new" });
+    afterPanel(h, () => {
+      (document.querySelector('input[name="disp"][value="code"]') as HTMLInputElement).checked = true;
+      document.querySelector('input[name="disp"][value="multi"]')!.removeAttribute("checked");
+      (document.querySelector('input[name="disp"][value="multi"]') as HTMLInputElement).checked = false;
+    });
+    await runFillJob(h.deps);
+    expect(panelText()).toContain("Chia sẻ thông qua mã Voucher");
+    expect(panelText()).not.toContain("hoặc «Không công khai»");
+    const detail = h.details.filter(Boolean).at(-1)!;
+    expect(detail.fields.find((f) => f.key === "display")).toEqual({ key: "display", ok: true, seen: "Không công khai" });
+  });
+  it("names the page's options and picks none when neither wording exists", async () => {
+    relabel("Chỉ người theo dõi");
     const h = jobHarness(job(), { path: "/portal/marketing/vouchers/new" });
     await runFillJob(h.deps);
-    const text = panelText();
-    expect(text).toContain("«Hiển thị nhiều nơi» hoặc «Không công khai»");
-    expect(text).toContain("thẻ ghi «Chia sẻ thông qua mã Voucher»");
-    expect((document.querySelector('input[name="disp"][value="multi"]') as HTMLInputElement).checked).toBe(true); // untouched
+    expect(panelText()).toContain("«Hiển thị nhiều nơi» hoặc «Chỉ người theo dõi»");
     expect((document.querySelector('input[name="disp"][value="code"]') as HTMLInputElement).checked).toBe(false);
   });
 });
@@ -106,5 +119,34 @@ describe("E149 the saved banner", () => {
   });
   it("the three banner texts differ", () => {
     expect(new Set([BANNER_SAVED, BANNER_SAVED_DONE, BANNER_SAVED_WAIT]).size).toBe(3);
+  });
+});
+
+describe("E146 the discount type selector the Connector cannot identify", () => {
+  const unknownSelector = (shown: string) => {
+    loadPage("voucher-live.html");
+    document.getElementById("dtype")!.outerHTML = `<div class="x-dd"><span>${shown}</span></div>`;
+  };
+  it("takes the type as right when the row's text shows exactly the wanted option; the amount stays ✓", async () => {
+    unknownSelector("Theo số tiền");
+    const h = jobHarness(job(), { path: "/portal/marketing/vouchers/new" });
+    await runFillJob(h.deps);
+    expect(panelText()).toContain("✓ Giảm");
+    expect(panelText()).not.toContain("✗ Giảm");
+    expect((document.getElementById("dvalue") as HTMLInputElement).value).toBe("2000");
+  });
+  it("keeps the type as its own guided step, apart from the amount, when the row shows the other option", async () => {
+    unknownSelector("Theo phần trăm");
+    const h = jobHarness(job(), { path: "/portal/marketing/vouchers/new" });
+    await runFillJob(h.deps);
+    expect(panelText()).toMatch(/✗ \d+\. Chọn «Theo số tiền»/);
+    expect(panelText()).toMatch(/✓ Giảm/); // the amount, right on its own
+  });
+  it("same when the row shows neither option", async () => {
+    unknownSelector("Chọn");
+    const h = jobHarness(job(), { path: "/portal/marketing/vouchers/new" });
+    await runFillJob(h.deps);
+    expect(panelText()).toMatch(/✗ \d+\. Chọn «Theo số tiền»/);
+    expect(panelText()).not.toContain("✗ Giảm");
   });
 });

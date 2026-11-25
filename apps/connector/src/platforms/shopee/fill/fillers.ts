@@ -113,7 +113,8 @@ const DISPLAY_OPTION = { multi: "Hiển thị nhiều nơi", code: "Chia sẻ th
 /** Every spelling of a display option seen on Seller Centre (and on Juli's card: "Chia sẻ qua mã voucher"). */
 const DISPLAY_ALIASES = {
   multi: ["Hiển thị nhiều nơi"],
-  code: ["Chia sẻ thông qua mã Voucher", "Chia sẻ qua mã voucher"],
+  // owner 25/11: on the product-voucher page "Không công khai" is Shopee's wording for sharing by code
+  code: ["Chia sẻ thông qua mã Voucher", "Chia sẻ qua mã voucher", "Không công khai"],
   private: ["Không công khai"],
 } as const;
 export const SMART_MISSING = "Trang không có ô «Mã giảm giá thông minh»; bật tay nếu cần";
@@ -197,10 +198,11 @@ export async function fillVoucher(env: Env, v: VoucherPayload): Promise<FillOutc
     choice(add, setSwitch(k("smart"), L.smart, v.smart), `Mã giảm giá thông minh: ${v.smart ? "bật" : "tắt"}`, `${v.smart ? "Bật" : "Tắt"} «Mã giảm giá thông minh»`, ["smart"]);
   } else if (v.smart) add("Mã giảm giá thông minh: bật", false, { note: SMART_MISSING });
   const kindText = v.discount.type === "amount" ? "Theo số tiền" : "Theo phần trăm";
-  const kind = chooseSelect(k("discount_type"), L.discount, kindText);
+  const kind = chooseSelect(k("discount_type"), L.discount, kindText, 0, undefined, ["Theo số tiền", "Theo phần trăm"]);
   const valueText = v.discount.type === "amount" ? `Giảm ${dong(v.discount.value)}` : `Giảm ${v.discount.value}%`;
   const typed = setRowText(k("discount"), L.discount, String(v.discount.value));
-  if (kind === "todo") {
+  if (kind === "todo" || kind === "missing") {
+    // a type Juli cannot see is the person's own step; the amount is judged on its own
     add(`Chọn «${kindText}»`, false, { keys: ["discount_type"], guide: true });
     add(valueText, typed, { keys: ["discount"] });
   } else add(valueText, kind === "done" && typed, { keys: ["discount_type", "discount"] });
