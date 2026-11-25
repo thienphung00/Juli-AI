@@ -271,6 +271,13 @@ celery_app.conf.update(
             "task": "juli_backend.businesses_backfill",
             "schedule": crontab(minute="6-59/10"),
         },
+        # Data layer (owner #74): rebuild the stored facts a deploy made stale, also queued once
+        # at worker start (services/shopee_analytics/facts_backfill.py). A run with nothing
+        # pending is a status refresh per shop. Minutes 23 and 53. Default queue.
+        "shopee-facts-backfill": {
+            "task": "juli_backend.shopee_facts_backfill",
+            "schedule": crontab(minute="23,53"),
+        },
     },
 )
 
