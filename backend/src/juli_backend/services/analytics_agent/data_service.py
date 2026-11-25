@@ -27,6 +27,7 @@ SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 
 
 SHOP_SCOPE_VI = "cả shop"
+RESIDUAL_ITEM = "__residual__"  # the stored day row that completes the shop total
 #: How far back the daily series reads (the chains' baselines and freshness walk back from `as_of`).
 SERIES_DAYS = 400
 OPPORTUNITIES_MODULE = "juli_backend.services.shopee_recommendations.opportunities"
@@ -47,6 +48,11 @@ DAY_IDS = ("gmv", "orders", "units", "views", "clicks", "cost_ads", "ads_gmv_pla
 
 def _num(v: Any) -> Any:
     return float(v) if isinstance(v, Decimal) else v
+
+
+def _is_product(item: Any) -> bool:
+    """A stored item row that is a product: not the day's residual row, not a `sku:` row."""
+    return item is not None and item != RESIDUAL_ITEM and not str(item).startswith("sku:")
 
 
 def _plain(res: Any) -> dict[str, Any]:
@@ -104,7 +110,10 @@ class ServiceData(EntitySql):
                 )  # fmt: skip
             finally:
                 await s.rollback()
-        return _plain(res)
+        out = _plain(res)
+        if group_by == "item":  # the residual and SKU rows are not products (a row filter)
+            out["rows"] = [r for r in out["rows"] if _is_product(r.get("item"))]
+        return out
 
     async def _opps(self, fn_name: str, *args: Any, **kw: Any) -> Any:
         mod = importlib.import_module(OPPORTUNITIES_MODULE)
