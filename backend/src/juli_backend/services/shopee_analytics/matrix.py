@@ -12,6 +12,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
+from juli_backend.services.shopee_analytics import levels
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import (
     ADS_BASIS,
@@ -120,8 +121,11 @@ def price_block(view: PeriodView, product_id: str) -> dict[str, Any]:
 
 def margin_basis(view: PeriodView, product_id: str, pp: ProductProfit | None) -> str:
     """Basis of the biên: "theo đơn thực tế" when every order has an Income row and a giá vốn,
-    "ước tính" when the fee formula or an assumed cost stands in, "chưa tính" without a margin."""
-    if pp is None or pp.margin_pct is None:
+    "ước tính" when the fee formula or an assumed cost stands in, "chưa tính" without a margin
+    (L1: the product's Biên đóng góp, ``levels.product_contribution``; ``pp`` is kept for the
+    callers' signature)."""
+    del pp
+    if levels.product_contribution(view, (product_id,)).margin_pct is None:
         return BASIS_UNKNOWN
     pairs = [(ln, b) for ln, b in getattr(view, "pairs", []) if ln.product_id == product_id]
     if any(not view.costs.cogs_is_real(ln.sku) for ln, _ in pairs):
@@ -172,6 +176,7 @@ def product_row(view: PeriodView, product_id: str, platform: str = "shopee") -> 
     total = view.matrix.totals.get(product_id)
     flows = view.flows.products.get(product_id) if view.flows else None
     pf = view.data.product_flows
+    pc = levels.product_contribution(view, (product_id,))
     split = view.metrics.split(product_id)  # order lines scaled to the shop totals (D85.2)
     gmv = split.gmv if split else (total.gmv if total else None)
     return {
@@ -187,9 +192,12 @@ def product_row(view: PeriodView, product_id: str, platform: str = "shopee") -> 
         "profit": None
         if pp is None
         else {
-            "profit": num(pp.profit),
-            "margin_pct": pct(pp.margin_pct),
-            "contribution": num(pp.contribution),
+            # L1 / L4 (#66 / #67): the product level stops at Lợi nhuận đóng góp (before ads
+            # AND affiliate) and Biên đóng góp, ÷ the covered doanh thu thực
+            "profit": num(pc.contribution),
+            "margin_pct": pct(pc.margin_pct),
+            "contribution": num(pc.contribution),
+            "margin_metric": "margin_contribution",
             "net_revenue": num(pp.buyer_paid),
             "ad_spend": num(pp.ad_spend),
             "break_even_roas": ratio(pp.break_even_roas, 2),

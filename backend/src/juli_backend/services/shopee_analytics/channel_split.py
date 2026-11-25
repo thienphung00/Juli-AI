@@ -70,7 +70,7 @@ from juli_backend.services.metrics.registry import (
     counts_in_total,
     metric_reason,
 )
-from juli_backend.services.shopee_analytics import funnel, loaders, service
+from juli_backend.services.shopee_analytics import funnel, levels, loaders, service
 from juli_backend.services.shopee_analytics.catalog import UNMATCHED_LABEL, Catalog
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.data_through import ads_last_day, data_through
@@ -84,7 +84,6 @@ from juli_backend.services.shopee_builder.engine.contract import (
     FunnelBase,
     SourceFunnel,
 )
-from juli_backend.services.shopee_profit import shop_profit
 from juli_backend.services.shopee_profit.ladder import (
     Ladder,
     affiliate_cost,
@@ -1203,7 +1202,7 @@ async def channel_split_products(
             organic_gmv = _sum(
                 [x.gmv for k in (CARD, VIDEO, LIVE) if (x := src.get(k)) is not None]
             )
-        margin = shop_profit.scope_margin_pct(view.profit, (item,))
+        margin = levels.product_contribution(view, (item,)).margin_pct  # L1: Biên đóng góp
         header = snaps[item].header if item in snaps else None
         images = list(header.image_urls) if header and header.image_urls else []
         # C4: the three channels partition the product's GMV (sum = GMV, 100 %). The ads report

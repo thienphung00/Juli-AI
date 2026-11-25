@@ -16,7 +16,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.repositories import PlatformItemSnapshotsRepo
-from juli_backend.services.shopee_analytics import ads_gate, kol, loaders, service, stored
+from juli_backend.services.shopee_analytics import ads_gate, kol, levels, loaders, service, stored
 from juli_backend.services.shopee_analytics import kol_compare as kol_compare_mod
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.critical import build_critical
@@ -188,7 +188,7 @@ async def product_price_margin(
         pp = view.profit.products.get(item_id)
         out[item_id] = {
             **price_block(view, item_id),
-            "margin_pct": None if pp is None else pct(pp.margin_pct),
+            "margin_pct": pct(levels.product_contribution(view, (item_id,)).margin_pct),
             "margin_basis": margin_basis(view, item_id, pp),
         }
     return out
