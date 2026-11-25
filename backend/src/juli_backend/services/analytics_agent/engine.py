@@ -158,6 +158,7 @@ async def run(
     req: AskRequest,
     *,
     read_session_factory: SessionFactory | None = None,
+    write_session_factory: SessionFactory | None = None,
     llm: LLMPort,
     jev: JevPort,
     sink: EventSink,
@@ -176,7 +177,10 @@ async def run(
     if data is None:
         assert read_session_factory is not None, "read_session_factory or data is required"
         data = ServiceData(read_session_factory, req.shop_id)
-        card_engine = card_engine or ServiceCardEngine(read_session_factory, req.shop_id)
+        # OPP's on-demand opportunity rows persist through the primary (write) factory
+        card_engine = card_engine or ServiceCardEngine(
+            read_session_factory, req.shop_id, write_factory=write_session_factory
+        )
     as_of = req.as_of or (clock().date() - timedelta(days=1))
     try:
         await out.emit(present.status("thinking"))

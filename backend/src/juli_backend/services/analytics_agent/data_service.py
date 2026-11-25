@@ -93,7 +93,7 @@ class ServiceData(EntitySql):
         sc = {
             "shop": lambda: q.Scope.shop(),
             "products": lambda: q.Scope.products(list(items or [])),
-            "channel": lambda: q.Scope.channel(str(channel)),
+            "channel": lambda: q.Scope.channel_of(str(channel), list(items or [])),
             "campaigns": lambda: q.Scope.campaigns(list(campaigns or [])),
         }[scope]()
         async with self._f() as s:
@@ -133,7 +133,8 @@ class ServiceData(EntitySql):
         mod = importlib.import_module(OPPORTUNITIES_MODULE)
         async with self._f() as s:
             try:
-                return _opp_dict(await mod.draft_card(s, self.shop, opportunity_id))
+                oid = uuid.UUID(str(opportunity_id))  # OPP's row key is a uuid
+                return _opp_dict(await mod.draft_card(s, self.shop, oid))
             finally:
                 await s.rollback()
 
