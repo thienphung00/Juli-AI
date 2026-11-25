@@ -82,8 +82,16 @@ class Ladder:
         return self.values.get(metric_id)
 
 
-def components_of(pairs: Iterable[tuple[OrderLine, ProfitBreakdown]]) -> dict[str, Decimal]:
-    """The covered lines' ladder components (whole-window sums)."""
+def components_of(
+    pairs: Iterable[tuple[OrderLine, ProfitBreakdown]],
+    *,
+    basis: Sequence[tuple[Any, Any]] | None = None,
+) -> dict[str, Decimal]:
+    """The known orders' ladder components (whole-window sums): an order with any counted unknown
+    line is out whole, the rule of ``known_cost_profit``. ``basis`` = the full pairs when
+    ``pairs`` is a slice (a product, a day): an order is known by all its lines."""
+    pairs = list(pairs)
+    unknown = unknown_orders(pairs if basis is None else basis)
     c = dict.fromkeys(
         (
             "net_revenue_known",
@@ -98,8 +106,8 @@ def components_of(pairs: Iterable[tuple[OrderLine, ProfitBreakdown]]) -> dict[st
         ),
         ZERO,
     )
-    for _, pb in pairs:
-        if pb.excluded_reason is not None or pb.contribution is None:
+    for ln, pb in pairs:
+        if pb.excluded_reason is not None or pb.contribution is None or ln.order_id in unknown:
             continue
         c["net_revenue_known"] += pb.revenue
         c["cogs"] += (pb.cogs or ZERO) - pb.vat_input_credit
@@ -119,10 +127,11 @@ def ladder_of(
     ads_spend: Decimal | None,
     other_marketing: Decimal | None = ZERO,
     profit: Decimal | None = None,
+    basis: Sequence[tuple[Any, Any]] | None = None,
 ) -> Ladder:
     """The scope's ladder. ``profit`` (the shown Lợi nhuận ròng) wins over the registry's own
     difference when given, so the ROI and the margin end on the screen's figure."""
-    comps: dict[str, Decimal | None] = dict(components_of(pairs))
+    comps: dict[str, Decimal | None] = dict(components_of(pairs, basis=basis))
     comps["ads_spend"] = ads_spend
     comps["other_marketing"] = other_marketing
     ctx = _Context(comps, None, {})

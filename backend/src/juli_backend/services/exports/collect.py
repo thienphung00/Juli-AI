@@ -17,6 +17,7 @@ import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,6 +43,7 @@ from juli_backend.services.shopee_analytics import (
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_analytics.windows import Window
+from juli_backend.services.shopee_profit.ladder import unknown_orders
 from juli_backend.services.shopee_recommendations import (
     change_sets,
     execution_state,
@@ -188,8 +190,17 @@ def _net_revenue_known(view: PeriodView, product_id: str | None) -> float | None
     paid of the orders whose costs are known, the base of the screen's margin."""
     if product_id is None:
         return _f(shop_profit_of(view).buyer_paid)
-    product = view.profit.products.get(product_id)
-    return None if product is None else _f(product.buyer_paid_covered)
+    unknown = unknown_orders(view.pairs)  # whole known orders, the rule of the shop figure
+    lines = [
+        pb for ln, pb in view.pairs
+        if ln.product_id == product_id and pb.excluded_reason is None
+        and pb.contribution is not None and ln.order_id not in unknown
+    ]  # fmt: skip
+    return (
+        None
+        if product_id not in view.profit.products
+        else _f(sum((pb.revenue for pb in lines), Decimal(0)))
+    )
 
 
 def _gmv_of(listing: dict[str, Any], product_id: str) -> float:

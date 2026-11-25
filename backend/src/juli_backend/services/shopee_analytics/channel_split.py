@@ -90,6 +90,7 @@ from juli_backend.services.shopee_profit.ladder import (
     affiliate_cost,
     covered,
     ladder_of,
+    unknown_orders,
 )
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 
@@ -734,7 +735,8 @@ def _sums(
     (every cost known); Ưu đãi (the combined seller cost, ``ProfitBreakdown.offer_cost``) of all
     lines; the affiliate commission of the covered lines."""
     sale = [ln for ln, _ in pairs if counts_in_sales(ln)]
-    known = [pb for _, pb in pairs if covered(pb)]
+    unknown = unknown_orders(pairs if basis is None else basis)
+    known = [pb for ln, pb in pairs if covered(pb) and ln.order_id not in unknown]
     return {
         "gmv": sum((ln.order_value for ln in sale), ZERO_D),
         "orders": Decimal(len({ln.order_id for ln in sale})),
@@ -941,7 +943,7 @@ def _kpis(
         other = ZERO_D
     pairs = [(ln, pb) for ln, pb in view.pairs if product_id is None or ln.product_id == product_id]
     ladder = (
-        ladder_of(pairs, ads_spend=ads_cost, other_marketing=other, profit=profit)
+        ladder_of(pairs, ads_spend=ads_cost, other_marketing=other, profit=profit, basis=view.pairs)
         if pairs
         else None
     )
