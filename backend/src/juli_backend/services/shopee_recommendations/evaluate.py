@@ -108,7 +108,7 @@ def _item_gmv(lines: Sequence[OrderLine], item: str) -> Decimal:
 def _scope_gmv_per_day(env: RecoEnv, items: Sequence[str] | None) -> Decimal:
     now = current.current_30d(env, items)
     if now is not None and now.total("orders"):  # F1; a listing with no sale keeps its reference
-        return (now.total("gmv") or ZERO) / Decimal(now.window_days)
+        return (now.total("gmv") or ZERO) / current.known_days(now)
     wanted = None if not items else set(items)
     gmv = sum(
         (ln.order_value for ln, _ in env.sales_pairs if wanted is None or ln.product_id in wanted),
@@ -122,7 +122,7 @@ def _scope_orders_per_day(env: RecoEnv, items: Sequence[str] | None) -> Decimal:
     count, the denominator of figures summed over those lines."""
     now = current.current_30d(env, items)
     if now is not None and now.total("orders"):
-        return (now.total("orders") or ZERO) / Decimal(now.window_days)
+        return (now.total("orders") or ZERO) / current.known_days(now)
     return Decimal(_scope_orders(env, items)) / Decimal(env.window_days)
 
 

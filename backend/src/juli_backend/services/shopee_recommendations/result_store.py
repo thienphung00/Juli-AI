@@ -136,6 +136,8 @@ def core_of(r: OptionResult) -> dict[str, Any]:
         "break_even_orders": _s(r.break_even_orders),
         "break_even_aov": _s(r.break_even_aov),
         "notes": list(r.notes),
+        "days_with_data": r.days_with_data,
+        "window_days": r.window_days,
         "margin_basis": None
         if r.margin_basis is None
         else {
@@ -197,6 +199,8 @@ def option_of(core: Mapping[str, Any]) -> OptionResult:
         break_even_aov=_d(core.get("break_even_aov")),
         notes=tuple(core.get("notes") or ()),
         margin_basis=_basis_of(core.get("margin_basis")),
+        days_with_data=int(core.get("days_with_data") or 0),
+        window_days=int(core.get("window_days") or 0),
     )
 
 

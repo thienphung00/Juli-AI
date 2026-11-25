@@ -148,7 +148,9 @@ def _base(env: RecoEnv, cand: Candidate) -> Any:
         return None
     # staleness is judged against ``env.today`` (the loader's rule: now, else the explicit as_of,
     # else today; None = no check)
-    return forecast_base.adaptive_base(rows, "", item_ids=tuple(cand.items), today=env.today)
+    return forecast_base.adaptive_base(
+        rows, "", item_ids=tuple(cand.items), today=env.today, days=env.window_days
+    )
 
 
 def _history(env: RecoEnv, cand: Candidate) -> dict[str, Any] | None:

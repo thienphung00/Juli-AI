@@ -326,6 +326,20 @@ class BuildUpPart:
     text: str
 
 
+def base_scale(days: int, known_days: int, window_days: int) -> float:
+    """What the base's sums are multiplied by for a card of ``days`` days. Every day of the window
+    known: ``days / window``. Some missing (``known_days`` of ``window_days``): the mean per KNOWN
+    day x ``days`` up to the known days; a longer card inside the window keeps the real sum (the
+    days that never arrived are not made up, F1: said as coverage); beyond the window it grows
+    with the days. A base that does not count its days (0) is taken as complete."""
+    window = max(1, window_days)
+    if not 0 < known_days < window:
+        return days / window
+    if days <= known_days:
+        return days / known_days
+    return max(1.0, days / window)
+
+
 @dataclass(frozen=True)
 class OptionResult:
     """Everything the card and the comparison table show (ADR-122 d.5). ``before`` is the base

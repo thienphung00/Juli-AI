@@ -122,6 +122,7 @@ def base_for(env: RecoEnv, item_ids: Sequence[str], shop_id: str = "") -> Funnel
         item_ids=items,
         contribution_rate=rate,
         today=env.today,
+        days=env.window_days,
     )
     base = funnel.on_contribution(base, rate)
     return replace(base, margin_basis=margin_basis(env.view.profit, items))

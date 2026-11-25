@@ -33,7 +33,10 @@ def funnel_json(env: RecoEnv, rows: FunnelRows | None) -> dict[str, Any]:
     while the shop has no source rows yet."""
     m = env.metrics
     if rows is not None and rows.available:
-        n = funnel.numbers(funnel.base_from_rows(rows, ""), env.shop_orders_30d)
+        base = funnel.base_from_rows(
+            rows, "", day_totals=True
+        )  # one base: lượt xem, lượt nhấp AND đơn
+        n = funnel.numbers(base, base.total("orders"))
     else:
         views = None if m.views is None else Decimal(m.views)
         clicks = None if m.clicks is None else Decimal(m.clicks)
@@ -55,6 +58,10 @@ def base_json(env: RecoEnv, rows: FunnelRows | None = None) -> dict[str, Any]:
     the stored source rows, P98)."""
     m = env.metrics
     gmv, orders = float(env.shop_gmv_30d), env.shop_orders_30d
+    if rows is not None and rows.available:  # the same base the funnel lines stand on
+        one = funnel.base_from_rows(rows, "", day_totals=True)
+        gmv = float(one.total("gmv") or 0)
+        orders = int(one.total("orders") or 0)
     fig = shop_profit_of(env.view).json()  # P100 B.5: the one shop profit
     return {
         "as_of": env.as_of.isoformat(),

@@ -184,6 +184,7 @@ def current_30d(
     *,
     item_ids: Sequence[str] = (),
     contribution_rate: Decimal | None = None,
+    days: int = BASE_DAYS,
 ) -> FunnelBase:
     """F1 (owner 2026-11-25): the one "hiện tại": the plain sums of the last :data:`BASE_DAYS`
     days up to the window's end, read exactly as the picker reads them (the stored rows through
@@ -191,9 +192,9 @@ def current_30d(
     a missing day is not filled in and nothing is scaled up."""
     end = rows.window.end
     ads = last_days(rows).ads
-    sl = _slice(rows, end - timedelta(days=BASE_DAYS - 1), end, ads)
+    sl = _slice(rows, end - timedelta(days=days - 1), end, ads)
     return funnel.base_from_rows(
-        sl, shop_id, item_ids=tuple(item_ids), contribution_rate=contribution_rate
+        sl, shop_id, item_ids=tuple(item_ids), contribution_rate=contribution_rate, day_totals=True
     )
 
 
@@ -217,6 +218,7 @@ def adaptive_base(
     contribution_rate: Decimal | None = None,
     today: date | None = None,
     platform: str = "shopee",
+    days: int = BASE_DAYS,
 ) -> FunnelBase:
     """The F2 base of the shop (``item_ids`` empty) or of those products."""
     items = tuple(item_ids)
@@ -225,7 +227,9 @@ def adaptive_base(
         rows, shop_id, item_ids=items, contribution_rate=contribution_rate
     )
     if last.orders is None:  # no order data at all: nothing to adapt
-        return current_30d(rows, shop_id, item_ids=items, contribution_rate=contribution_rate)
+        return current_30d(
+            rows, shop_id, item_ids=items, contribution_rate=contribution_rate, days=days
+        )
     end = rows.window.end
     floor = rows.window.start
     ol = min(last.orders, end)
@@ -284,7 +288,7 @@ def adaptive_base(
     bo, _ = base_of(ol, w_ord)
     b_ctr = _by_source(bc)
     b_ctor = _by_source(bt)
-    cur = current_30d(rows, shop_id, item_ids=items, contribution_rate=contribution_rate)
+    cur = current_30d(rows, shop_id, item_ids=items, contribution_rate=contribution_rate, days=days)
 
     out: list[SourceFunnel] = []
     for so in cur.sources:

@@ -921,11 +921,15 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
     """2026-11-15 (prod S2): Combo "mua 2 giảm 5 % / mua 3 giảm 8 %" on Nước rửa chén + Túi rác gave
     ΔGMV +4,34 tr on +1,6 đơn (every one-unit order "reached" Mua 2: a 100 % take-up), and a set
     at 110k gave +1,07 tr whatever its price, with no cost for the buyers who switch to it."""
+    from statistics import median
+
     from juli_backend.database.tenant_context import with_shop_scope
     from juli_backend.services.sample_shop.catalog import PRODUCTS
     from juli_backend.services.shopee_builder import service as builder
+    from juli_backend.services.shopee_builder.engine.engine import run as engine_run
     from juli_backend.services.shopee_builder.engine_families import (
         adapters,
+        common,
         integrate,
         option_for,
     )
@@ -978,20 +982,29 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # rate, before ads and affiliate) instead of the after-ads profit per order, so a
             # different draw is the middle-PROFIT one: 389_340 on 3,17 orders (was 336_249 /
             # 2,74). The combo's reach and take-up are unchanged.
-            # F1 (2026-11-25): the base is the real 30 days (208 đơn, 25,1 tr: the picker's figure)
-            # instead of a 14-day rate x 30, so another draw is the middle-profit one: 679_014 on
-            # 2,93 orders with a 1,3 % basket lift (the upper half of the reach band). The combo's
-            # reach and take-up are unchanged.
+            # F1 (2026-11-25): the base is the real 30 days (208 đơn, 25,1 tr: the picker's figure).
+            # The middle-PROFIT draw is ONE of 4000 whose profits are nearly equal (Δ profit is the
+            # tier's cost, -918k ± 0,3 % over any seed), so its ΔGMV is arbitrary: 254k .. 970k over
+            # 60 seeds. A 1 % change of one source moves it 679k -> 292k. Pinned here: what is
+            # stable (Δ profit, the median over seeds) and that before / after / Δ reconcile.
             assert c["detail"]["before"]["orders"] == sum(
                 ctx.env.metrics.split(i).orders for i in (nrc, tdr)
             )
-            assert cd["gmv"] == pytest.approx(679_014, rel=0.02)
-            assert round(cd["orders"]) == 3
-            # never a GMV with almost no orders (445.900đ on 0,31 đơn): the middle draw's ΔGMV is
-            # its Δ orders plus at most a small basket lift
-            aov = c["detail"]["before"]["aov"]
-            assert aov <= c["detail"]["likely"]["aov"] <= aov * 1.02
-            assert cd["profit"] < 0
+            before, after = c["detail"]["before"], c["detail"]["likely"]
+            assert after["gmv"] == pytest.approx(after["orders"] * after["aov"], rel=1e-9)
+            assert before["gmv"] == pytest.approx(before["orders"] * before["aov"], rel=1e-9)
+            assert cd["gmv"] == pytest.approx(after["gmv"] - before["gmv"], rel=1e-9)
+            assert cd["profit"] == pytest.approx(-918_479, rel=0.01)
+            option = common.floor_prior_drivers(
+                option_for(combo, ctx, integrate.extras_for(combo_done.base))
+            )
+            seeds = [engine_run(combo_done.base, option, seed=k) for k in range(15)]
+            gmvs = [float(r.likely.gmv - r.before.gmv) for r in seeds if r.likely is not None]
+            assert median(gmvs) == pytest.approx(351_471, rel=0.15)
+            # never a GMV with almost no orders (445.900đ on 0,31 đơn): reach is 0 at P50, so over
+            # the seeds the typical gain is its extra orders at today's AOV
+            aovs = [float(r.likely.gmv / r.likely.orders) for r in seeds if r.likely is not None]
+            assert median(aovs) == pytest.approx(before["aov"], rel=0.01)
             ctx = await builder.build_context(session, report.shop_id, [set2], as_of=END, now=NOW)
             base = integrate.base_for(ctx.env, [nrc], "")
             o = option_for(set2, ctx, integrate.extras_for(base))

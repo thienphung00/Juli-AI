@@ -40,6 +40,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
     OptionInput,
     OptionResult,
     Scenario,
+    base_scale,
 )
 from juli_backend.services.shopee_builder.engine.vn import (
     DRIVER_LABELS,
@@ -434,7 +435,7 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
     horizon: Literal["duration", "first_30_days"] = (
         "duration" if option.duration_days else "first_30_days"
     )
-    scale = days / max(1, base.window_days)
+    scale = base_scale(days, base.days, base.window_days)
     srcs = _prepare(base, scale)
     keys = [s.key for s in srcs]
     cr = None if base.contribution_rate is None else float(base.contribution_rate)

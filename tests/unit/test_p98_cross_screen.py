@@ -22,11 +22,8 @@ async def built(session):
 
 
 async def test_every_screen_shows_the_same_funnel_numbers(session, built, monkeypatch):
-    from juli_backend.services.shopee_analytics import forecast_base
     from juli_backend.services.shopee_recommendations import config
 
-    # F1: hiện tại is a 30-day figure; this test shows every screen on 7 days, hiện tại included
-    monkeypatch.setattr(forecast_base, "BASE_DAYS", 7)
     monkeypatch.setattr(config, "HISTORY_DAYS", 7)  # the plan base reads the window the others show
     surfaces, waterfalls = await collect_shop(session, built.shop_id, CUR_END, days=7)
     assert {s.name for s in surfaces} == {
@@ -45,11 +42,8 @@ async def test_every_screen_shows_the_same_funnel_numbers(session, built, monkey
 
 
 async def test_ctr_and_ctor_carry_full_precision_on_every_screen(session, built, monkeypatch):
-    from juli_backend.services.shopee_analytics import forecast_base
     from juli_backend.services.shopee_recommendations import config
 
-    # F1: hiện tại is a 30-day figure; this test shows every screen on 7 days, hiện tại included
-    monkeypatch.setattr(forecast_base, "BASE_DAYS", 7)
     monkeypatch.setattr(config, "HISTORY_DAYS", 7)
     surfaces, waterfalls = await collect_shop(session, built.shop_id, CUR_END, days=7)
     for field in ("ctr", "ctor"):
@@ -60,11 +54,9 @@ async def test_ctr_and_ctor_carry_full_precision_on_every_screen(session, built,
 async def test_the_headline_profit_is_the_shop_metrics_profit_with_the_waterfall_as_detail(
     session, built, monkeypatch
 ):
-    from juli_backend.services.shopee_analytics import forecast_base, queries
+    from juli_backend.services.shopee_analytics import queries
     from juli_backend.services.shopee_recommendations import config
 
-    # F1: hiện tại is a 30-day figure; this test shows every screen on 7 days, hiện tại included
-    monkeypatch.setattr(forecast_base, "BASE_DAYS", 7)
     monkeypatch.setattr(config, "HISTORY_DAYS", 7)
     surfaces, waterfalls = await collect_shop(session, built.shop_id, CUR_END, days=7)
     want = next(s for s in surfaces if s.name == "tong_quan").values["profit"]

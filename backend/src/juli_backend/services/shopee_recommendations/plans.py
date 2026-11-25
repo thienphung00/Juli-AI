@@ -249,15 +249,14 @@ async def _aggregate(
     today: date | None = None,
     default_start: date | None = None,
     default_end: date | None = None,
+    fresh: bool = False,
 ) -> tuple[dict[str, Any], list[Any]]:
     """``aggregate`` with the variations of the cards' products: the option results (P98 / ADR-122
     d.2) rebuild a price lever's builder spec from them.
 
-    One card, one number: a card whose chosen version holds a fresh stored result (same inputs
-    hash on this env, no what-if inputs moved in the plan) is counted with exactly that result;
-    a missing or stale one is recomputed here the same way (the builder's context) and used,
-    never saved (the refresh job stores it)."""
-    stored = await stored_results(session, shop_id, env, entries, now=now)
+    One card, one number: a card is counted with exactly the stored result of its chosen version
+    (unless what-if inputs moved in the plan); see :func:`stored_results`."""
+    stored = await stored_results(session, shop_id, env, entries, now=now, fresh=fresh)
     items = list(
         dict.fromkeys(
             i for e in entries for i in (e.base.get("scope") or {}).get("product_ids", [])
@@ -302,20 +301,29 @@ async def _aggregate(
 
 
 async def stored_results(
-    session: AsyncSession, shop_id: uuid.UUID, env: Any, entries: list[Entry], *, now: datetime
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    env: Any,
+    entries: list[Entry],
+    *,
+    now: datetime,
+    fresh: bool = False,
 ) -> dict[str, dict[str, Any]]:
-    """Entry id -> the result block of its chosen version: the stored one when fresh on ``env``,
-    else recomputed now (in memory). Entries with what-if inputs are left to the plan."""
+    """Entry id -> the result block of its chosen version: the last STORED one, fresh or not (it
+    carries its own data-through day). A page never recomputes: a release or a new data day makes
+    every result stale at once, and the triggered job (``result_store.refresh_shop``: start-up,
+    daily, after an input write) is what recomputes them. Only ``fresh`` (the approval freezes
+    these numbers) recomputes the stale ones, in memory. Entries with what-if inputs are left to
+    the plan; a card with no stored result says so ("Chưa ước tính được")."""
     out: dict[str, dict[str, Any]] = {}
     todo: list[tuple[Entry, result_store.Job]] = []
     for e in entries:
         if e.overrides:
             continue
         block = result_store.version_result(e.base, e.version)
-        # C3 (batch-1117b): a card in a plan is re-based on the plan's data day before it shows or
-        # adds up -- a stored result computed on an older data day (same inputs hash, one more
-        # day of orders) is recomputed here, in memory, never shown on its old base
-        if block is not None and result_store.is_fresh(block, env, e.base, same_day=True):
+        if not fresh:
+            out[e.card_id] = block if block is not None else result_store.missing_block()
+        elif block is not None and result_store.is_fresh(block, env, e.base, same_day=True):
             out[e.card_id] = block
         else:
             todo.append((e, result_store.Job(dict(e.base), wanted=[e.version])))
@@ -1143,6 +1151,7 @@ async def confirm(
         now=now,
         base=base,
         today=today,
+        fresh=True,
     )
     group_aggs: dict[str, dict[str, Any]] = {}
     group_evs: dict[str, Any] = {}
@@ -1156,6 +1165,7 @@ async def confirm(
             session, shop_id, env, entries, now=now, base=base, today=today,
             default_start=windows_of[g.id][0],
             default_end=windows_of[g.id][1],
+            fresh=True,
         )  # fmt: skip
         group_aggs[g.letter] = gagg
         group_evs.update({e.entry.card_id: e for e in gev})

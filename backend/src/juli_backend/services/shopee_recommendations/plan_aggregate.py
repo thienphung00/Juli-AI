@@ -215,6 +215,8 @@ class CardResult:
     #: a product is in one campaign at a time: the code of the card that won the product
     #: instead of this one (this card then adds nothing to the plan's Δ and cost)
     replaced_by: str | None = None
+    #: the data day the stored result stands on (an older one shows until the job recomputed it)
+    data_through: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -287,7 +289,11 @@ class CardResult:
         r = self.result
         if r is None:
             return None
-        k = HORIZON_DAYS / r.days
+        from juli_backend.services.shopee_builder.engine.contract import base_scale
+
+        # back to the base's own real sum (F1), never 30 x a mean over missing days
+        window = r.window_days or HORIZON_DAYS
+        k = 1 / base_scale(r.days, r.days_with_data, window)
         b = r.before
 
         def f(x: Any) -> float | None:
@@ -991,7 +997,10 @@ def _from_block(e: Evaluated, block: Mapping[str, Any]) -> dict[str, CardResult]
     def one(cid: str, core: Mapping[str, Any] | None, product: str | None) -> CardResult:
         if core is None:
             return CardResult(cid, None, block.get("reason") or "refused", start, product)
-        res = CardResult(cid, option_of(core), start=start, product=product)
+        res = CardResult(
+            cid, option_of(core), start=start, product=product,
+            data_through=block.get("data_through") or block.get("as_of"),
+        )  # fmt: skip
         if not res.ok:
             res.reason = "not_estimable"
         return res
@@ -1534,7 +1543,7 @@ def _today(env: RecoEnv, base: Mapping[str, Any] | None = None) -> dict[str, Any
         "views_30d": None if views is None else float(views),
         "clicks_30d": None if clicks is None else float(clicks),
         "ctr": float(clicks / views) if views and clicks is not None else None,
-        "ctor": orders / float(clicks) if clicks else None,
+        "ctor": float(orders) / float(clicks) if clicks else None,
         "profit_30d": fig["profit"],
         "shop_profit": fig,
     }
@@ -1627,6 +1636,7 @@ def _card_result_json(
         "horizon": h.json(),
         "own_dates": None if lead is None else _span_json(lead.own_span(h)),
         "own_days": None if first is None else first.days,
+        "data_through": min((r.data_through for r in have if r.data_through), default=None),
         "dated": None if lead is None else lead.start is not None,
         "counted_dates": None if lead is None else _span_json(lead.counted(h)),
         "counted_days": counted_days if have else None,

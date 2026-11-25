@@ -39,9 +39,14 @@ def current_30d(env: RecoEnv, item_ids: Iterable[str] | None = None) -> FunnelBa
     key = (id(rows), items)
     cached = env._current_cache.get(key)
     if cached is None:
-        cached = forecast_base.current_30d(rows, "", item_ids=items)
+        cached = forecast_base.current_30d(rows, "", item_ids=items, days=env.window_days)
         env._current_cache[key] = cached
     return cached
+
+
+def known_days(base: FunnelBase) -> Decimal:
+    """The days a per-day figure of ``base`` divides by: the days with order data."""
+    return Decimal(base.days if 0 < base.days < base.window_days else base.window_days)
 
 
 def gmv_30d(env: RecoEnv, item_ids: Iterable[str] | None = None) -> Decimal | None:
@@ -66,4 +71,4 @@ def of_orders(
     return int((Decimal(part) / Decimal(total) * n).to_integral_value()), n
 
 
-__all__ = ["current_30d", "gmv_30d", "of_orders", "orders_30d", "rows_of"]
+__all__ = ["current_30d", "gmv_30d", "known_days", "of_orders", "orders_30d", "rows_of"]
