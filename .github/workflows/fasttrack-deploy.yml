@@ -505,6 +505,9 @@ jobs:
     name: fasttrack/check.sh (shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     needs: plan
+    # Same wall as fasttrack-pr.yml's check job (a healthy shard takes ~15 min). Without it a
+    # hung test held the shard for GitHub's 6 h default (deploy 20261124T1428Z, twice).
+    timeout-minutes: 60
     # P96 (owner, 2026-11-06): four parallel shards, each with its own database; every selected
     # test file runs in exactly one shard (fasttrack/ci_shard.py), isolation / gitleaks / ruff in
     # shard 1. `needs: check` downstream waits for all four; any failed shard fails `check`.

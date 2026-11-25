@@ -401,7 +401,11 @@ else
         echo "      with CalledProcessError. Run: pnpm install --frozen-lockfile --filter './packages/contracts...'" >&2
     fi
     # `live` tests need third-party sandbox credentials (merge_group only in pr.yml).
-    if run_pytest lenient pytest "${TEST_FILES[@]}" -q --tb=short -m "not live" -p no:cacheprovider; then
+    # timeout_method=thread: pytest.ini's 30 s timeout uses SIGALRM by default, which cannot
+    # interrupt a test blocked in a C call (a database wait on a lock): the 1428Z deploy hung
+    # 6 h on one. The thread method dumps every thread's stack, naming the test, and ends the run.
+    if run_pytest lenient pytest "${TEST_FILES[@]}" -q --tb=short -m "not live" -p no:cacheprovider \
+        -o timeout_method=thread; then
         record pytest PASS "${#TEST_FILES[@]} file(s): ${PYTEST_LAST_LINE}"
     else
         record pytest FAIL "${#TEST_FILES[@]} file(s): ${PYTEST_LAST_LINE:-pytest failed}"
