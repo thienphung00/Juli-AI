@@ -328,7 +328,7 @@ class TestTheMigrationMatchesTheModel:
         # forecast grill F6 `133_fleet_draws_real_shops` (on W2a 132);
         # Connector R7 `135_connector_multi_computer` (on 133); T5 `134_canonical_tables` (on 135).
         # Juli tab `137_juli_agent_chat` (on 134).
-        # Juli tab spend 138_juli_agent_spend (on 137); data layer 140 (on 138).
+        # Juli tab spend 138 (on 137); hot-path indexes 139 (on 138); data layer 140 (on 139).
         assert heads == ["140_data_layer_facts_opps"], heads
 
     def test_every_model_column_is_added_by_the_migration(self):

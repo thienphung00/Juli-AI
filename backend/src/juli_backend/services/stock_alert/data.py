@@ -26,7 +26,7 @@ import uuid
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -107,11 +107,15 @@ async def load_skus(
 ) -> dict[str, SkuData]:
     """Every variation the stock history knows, with its reads and order lines."""
     start = today - timedelta(days=HISTORY_DAYS)
+    # the oldest GMT+7 day kept below is ``start - HISTORY_DAYS``; read_at is UTC, so one more day
+    # of padding keeps every read of that day (the Python filter stays exact). The bound lets
+    # ``ix_stock_history_read`` (shop_id, read_at) stop the read at the window (batch-1125-idx).
+    floor = datetime.combine(start - timedelta(days=HISTORY_DAYS + 1), time.min)
     hist = (
         (
             await session.execute(
                 select(ShopeeStockHistory)
-                .where(ShopeeStockHistory.shop_id == shop_id)
+                .where(ShopeeStockHistory.shop_id == shop_id, ShopeeStockHistory.read_at >= floor)
                 .order_by(ShopeeStockHistory.read_at)
             )
         )

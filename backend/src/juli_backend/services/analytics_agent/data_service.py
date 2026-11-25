@@ -269,7 +269,8 @@ class ServiceData(EntitySql):
         return await self._q(
             """select item_id, read_at::date as day, min(available) as min_available,
                       string_agg(distinct listing_status, ',') as statuses
-                 from stock_history where shop_id = :s and read_at::date between :a and :b
+                 from stock_history where shop_id = :s
+                  and read_at >= cast(:a as date) and read_at < cast(:b as date) + 1
                 group by item_id, read_at::date""",
             a=a,
             b=b,

@@ -1530,7 +1530,6 @@ async def jobs_for_shop(
     """Jobs the Connector may still work on, oldest approval first (the route checks the switch).
     With the polling ``token_id`` only the jobs it now holds (claimed or extended) are served."""
     await resolve_voucher_captures(session, shop_id)
-    await resolve_voucher_captures(session, shop_id)
     query = (
         select(ShopeeFillJob, ShopProposal.code, ShopProposal.subject_label)
         .join(ShopProposal, ShopProposal.id == ShopeeFillJob.proposal_id)
@@ -1568,7 +1567,6 @@ async def jobs_of_card(
     session: AsyncSession, shop_id: uuid.UUID, proposal_id: uuid.UUID
 ) -> list[dict[str, Any]]:
     """Every job of a card (the Demo checklist), approval order."""
-    await resolve_voucher_captures(session, shop_id)
     await resolve_voucher_captures(session, shop_id)
     rows = (
         await session.scalars(

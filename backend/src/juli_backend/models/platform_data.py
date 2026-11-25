@@ -231,6 +231,8 @@ class PlatformPromotion(Base):
         ),
         CheckConstraint("period_end >= period_start", name="ck_platform_promotions_period"),
         Index("ix_platform_promotions_dates", "shop_id", "platform", "period_start"),
+        # a promo type's newest captures, with or without platform (migration 139)
+        Index("ix_platform_promotions_type_capture", "shop_id", "promo_type", "captured_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
