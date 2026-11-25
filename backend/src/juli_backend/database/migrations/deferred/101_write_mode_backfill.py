@@ -70,7 +70,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "101_write_mode_backfill"
-down_revision: str | None = "138_juli_agent_spend"
+down_revision: str | None = "139_hot_path_indexes"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

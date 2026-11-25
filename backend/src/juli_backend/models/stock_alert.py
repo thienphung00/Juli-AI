@@ -50,7 +50,6 @@ class ShopeeStockHistory(Base):
         UniqueConstraint(
             "shop_id", "item_id", "variation_id", "read_at", name="uq_stock_history_read"
         ),
-        Index("ix_stock_history_sku", "shop_id", "item_id", "variation_id", "read_at"),
         Index("ix_stock_history_read", "shop_id", "read_at"),
     )
 

@@ -89,7 +89,7 @@ def test_revision_fits_alembic_follows_135_and_is_the_single_head():
     assert mod.revision == "134_canonical_tables" and len(mod.revision) <= 32
     assert mod.down_revision == "135_connector_multi_computer"
     script = ScriptDirectory.from_config(Config(str(REPO / "alembic.ini")))
-    assert script.get_heads() == ["138_juli_agent_spend"]  # Juli tab 137 -> 138 on top
+    assert script.get_heads() == ["139_hot_path_indexes"]  # 137 -> 138 -> indexes 139
     assert "134_canonical_tables" in {r.revision for r in script.walk_revisions()}
 
 

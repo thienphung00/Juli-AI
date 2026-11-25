@@ -176,6 +176,8 @@ class PlatformItemSnapshot(Base):
             desc("captured_at"),
             unique=True,
         ),
+        # the shop's newest capture / newest-first reads (migration 139)
+        Index("ix_platform_item_snapshots_capture", "shop_id", "platform", "captured_at"),
         CheckConstraint(
             f"platform IN ({_in(PLATFORMS)})", name="ck_platform_item_snapshots_platform"
         ),
