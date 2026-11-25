@@ -924,8 +924,10 @@ def _kpis(
     view: PeriodView, base: FunnelBase, product_id: str | None, platform: str = "shopee"
 ) -> dict[str, Any]:
     base = total_base(base, platform)
+    withheld = False
     if product_id is None:
-        profit = shop_profit_of(view).profit
+        fig = shop_profit_of(view)
+        profit, withheld = fig.profit, fig.withheld
         ads_cost: Decimal | None = view.profit.total_ad_spend
         other: Decimal | None = view.profit.other_marketing_costs
     else:
@@ -939,7 +941,7 @@ def _kpis(
         if pairs
         else None
     )
-    return kpis_of(
+    out = kpis_of(
         base.total("gmv"),
         base.total("orders"),
         profit,
@@ -948,6 +950,9 @@ def _kpis(
         _offers_cost(view, product_id),
         ladder,
     )
+    if withheld:  # R1: the ladder would recompute its own net profit, margin and ROI
+        out.update({"profit": None, "margin_pct": None, "roi": None})
+    return out
 
 
 def plan_block_of(r: Mapping[str, Any]) -> dict[str, Any]:
@@ -1055,9 +1060,15 @@ def _split_of(
     def dec(v: Any) -> Decimal | None:
         return None if v is None else Decimal(str(v))
 
-    return profit_split(
+    split = profit_split(
         view, product_id, kpi_gmv=dec(kpis.get("gmv")), kpi_orders=dec(kpis.get("orders"))
     )
+    if product_id is None and shop_profit_of(view).withheld:
+        # R1: the channels' profits add up to the shop's: withheld with it
+        for row in (*split["rows"].values(), split[UNATTRIBUTED], split["total"]):
+            if row is not None:
+                row["profit"] = None
+    return split
 
 
 _CELLS = ("views", "clicks", "ctr", "ctor", "aov", "gmv", "orders")

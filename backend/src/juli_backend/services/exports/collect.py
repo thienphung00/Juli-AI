@@ -42,6 +42,7 @@ from juli_backend.services.shopee_analytics import (
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_analytics.windows import Window
+from juli_backend.services.shopee_profit.shop_profit import stored_day_profit_trusted
 from juli_backend.services.shopee_recommendations import (
     change_sets,
     execution_state,
@@ -189,6 +190,24 @@ def _net_revenue_known(view: PeriodView, product_id: str | None) -> float | None
         return _f(shop_profit_of(view).buyer_paid)
     product = view.profit.products.get(product_id)
     return None if product is None else _f(product.buyer_paid_covered)
+
+
+def _stored_day_profit(
+    view: PeriodView, row: Any, day: date, *, product: bool = False
+) -> float | None:
+    """R1: a stored day's profit, or ``None`` ("—") when it cannot be trusted: rows written before
+    the in-transit fix hold ``-ads`` for a day of in-transit orders. Shop days also need the
+    day's known-cost GMV share in 70-100 %; a product day only the in-transit check (its share
+    is a product-level figure)."""
+    if row is None or row.profit is None:
+        return None
+    ok = stored_day_profit_trusted(
+        view.pairs,
+        day,
+        None if product else row.gmv,
+        check_share=not product,
+    )
+    return float(row.profit) if ok else None
 
 
 def _gmv_of(listing: dict[str, Any], product_id: str) -> float:
@@ -391,7 +410,7 @@ async def collect_tong_quan(
                 _f(sd.ads_spend) if product_id and sd else None if product_id else _f(spend.get(d)),
                 _aff_cost_day(view, d, product_id),
                 _offer_cost(view, product_id, d),
-                None if sd is None else _f(sd.profit),
+                _stored_day_profit(view, sd, d, product=bool(product_id)),
                 total_gmv=None if sd is None else _f(sd.gmv),
                 total_orders=None if sd is None else _f(sd.orders),
             )  # fmt: skip
@@ -851,7 +870,9 @@ async def collect_ke_hoach_shop(
     ]
     plan = await _plan(session, shop_id, window, view, now, daily=True)
     actual_gmv = {d.day: float(d.gmv) for d in rows.shop_days}
-    actual_profit = {d.day: float(d.profit) for d in rows.shop_days if d.profit is not None}
+    actual_profit = {
+        d.day: p for d in rows.shop_days if (p := _stored_day_profit(view, d, d.day)) is not None
+    }
     goal = kh.GoalRow(
         shop_name, platform, _f(plan.get("baseline_gmv")), _f(plan.get("goal_gmv")),
         sum(actual_gmv.values()) if actual_gmv else None,

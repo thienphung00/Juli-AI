@@ -65,7 +65,7 @@ from juli_backend.services.shopee_analytics.metrics import (
     shop_metrics,
 )
 from juli_backend.services.shopee_analytics.period_spread import ShopDay, SpreadDay
-from juli_backend.services.shopee_analytics.shared import order_data_days, shop_profit_of
+from juli_backend.services.shopee_analytics.shared import order_data_days, shop_profit_raw
 from juli_backend.services.shopee_analytics.stored import ORDER_TYPE
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_profit.flows import FLOW_ORDER, RESIDUAL_KEY, FlowTable
@@ -331,7 +331,7 @@ def day_rows(
     covered = p.buyer_paid_covered
     # P100 B.5 / F7.10: the stored profit is the known-cost figure of the day, never scaled to
     # the shop totals: the one ``shop_profit_of`` the dashboard headline shows
-    day_profit = shop_profit_of(view).profit
+    day_profit = shop_profit_raw(view).profit  # R1: stored raw, the readers gate
     if day_profit is None:
         day_profit = _no_order_day_profit(view, day)
     net_gmv = sum(

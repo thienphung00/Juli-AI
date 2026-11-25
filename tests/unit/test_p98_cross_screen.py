@@ -13,6 +13,8 @@ from juli_backend.services.shopee_analytics import materialize
 from tests.support.shopee_analytics import CUR_END, seed_shopee_shop
 from tests.support.shopee_cross_screen import FIELDS, agreed, collect_shop
 
+pytestmark = pytest.mark.usefixtures("ungated_profit")
+
 
 @pytest.fixture
 async def built(session):

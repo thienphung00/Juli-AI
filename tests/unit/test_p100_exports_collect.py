@@ -21,6 +21,9 @@ from tests.unit.test_p99_one_base import _save_and_plan
 from tests.unit.test_p100c_month_plan import _executed_plan_and_draft, _voucher
 from tests.unit.test_shopee_reco_plan import _USER_IDS, NOW, _actor
 
+pytestmark = pytest.mark.usefixtures("ungated_profit")
+
+
 FIRST = date(2026, 10, 1)
 MONTH_END = date(2026, 10, 31)
 

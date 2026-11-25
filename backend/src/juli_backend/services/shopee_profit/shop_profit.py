@@ -37,7 +37,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Collection, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -430,10 +430,12 @@ class KnownCostProfit:
     ads_total: Decimal = ZERO  # all the ad spend of the window (charged or not)
     #: R11: the spend of days with no counted order (charged whole, its own bridge line)
     ads_no_order_days: Decimal = ZERO
+    #: R1: the reliability gate withheld profit / margin (the raw figure: ``shop_profit_raw``)
+    withheld: bool = False
 
     @property
     def label(self) -> str:
-        if self.profit is None or self.orders == 0:
+        if self.orders == 0 or (self.profit is None and not self.withheld):
             return NO_KNOWN_COST_LABEL
         if self.gmv_share_pct is None:
             return f"trên {self.orders} đơn có chi phí"
@@ -475,6 +477,59 @@ class KnownCostProfit:
                 "ads_label": self.ads_label,
             },
         }
+
+
+#: R1 (owner 2026-11-25): Lợi nhuận ròng and everything derived from it (levels, margin, ROI) is
+#: shown only when the known-cost share of the period's GMV lies in this closed range
+MIN_KNOWN_GMV_SHARE_PCT = Decimal("70")
+MAX_KNOWN_GMV_SHARE_PCT = Decimal("100")
+
+
+def profit_is_reliable(kp: KnownCostProfit) -> bool:
+    """THE reliability rule. Share known: ``70 <= share <= 100``. Share unknown (no shop GMV):
+    reliable only when there are known-cost orders (today's behaviour, reported to the owner)."""
+    if kp.profit is None:
+        return False
+    if kp.gmv_share_pct is None:
+        return kp.orders > 0
+    return MIN_KNOWN_GMV_SHARE_PCT <= kp.gmv_share_pct <= MAX_KNOWN_GMV_SHARE_PCT
+
+
+def gate_profit(kp: KnownCostProfit) -> KnownCostProfit:
+    """``kp`` with the profit, its margin and the bridge profit withheld (``None``) when
+    :func:`profit_is_reliable` says no; the coverage, GMV, ads and costs stay."""
+    if kp.profit is None or profit_is_reliable(kp):
+        return kp
+    return replace(kp, profit=None, margin_pct=None, product_profit=None, withheld=True)
+
+
+def stored_day_profit_trusted(
+    pairs: Pairs, day: date, day_gmv: Decimal | float | None = None, *, check_share: bool = True
+) -> bool:
+    """R1: may a STORED day profit (``shop_metrics_daily`` / ``product_metrics_daily``) be shown?
+    Rows written before the in-transit fix hold ``-ads`` for a day of in-transit orders. Not
+    trusted: the day has an in-transit order, or (``check_share``) its known-cost share of the
+    day's GMV (``day_gmv``, else the day's lines) is outside the 70-100 % range. A day without a
+    line is trusted (a zero-order day's stored profit is its ads)."""
+    day_pairs = [(ln, pb) for ln, pb in pairs if ln.order_date == day]
+    if any(getattr(ln, "status", None) is OrderStatus.IN_TRANSIT for ln, _ in day_pairs):
+        return False
+    if not check_share or not day_pairs:
+        return True
+    counted = [(ln, pb) for ln, pb in day_pairs if pb.excluded_reason is None]
+    unknown = {ln.order_id for ln, pb in counted if pb.contribution is None}
+    known = sum(
+        (ln.order_value for ln, _ in counted if ln.order_id not in unknown and counts_in_sales(ln)),
+        ZERO,
+    )
+    whole = (
+        Decimal(str(day_gmv))
+        if day_gmv is not None and day_gmv > 0
+        else sum((ln.order_value for ln, _ in counted if counts_in_sales(ln)), ZERO)
+    )
+    if whole <= 0:
+        return True
+    return MIN_KNOWN_GMV_SHARE_PCT <= known * 100 / whole <= MAX_KNOWN_GMV_SHARE_PCT
 
 
 def _vn_money(value: Decimal) -> str:

@@ -19,6 +19,8 @@ from tests.support.shopee_reco import AS_OF, seed_reco_shop
 from tests.unit.test_p99_one_base import ITEM, _save_and_plan
 from tests.unit.test_shopee_reco_plan import _USER_IDS, NOW, _actor
 
+pytestmark = pytest.mark.usefixtures("ungated_profit")
+
 
 @pytest.fixture
 async def shop(session):

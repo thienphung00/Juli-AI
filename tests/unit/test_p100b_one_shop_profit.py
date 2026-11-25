@@ -24,6 +24,8 @@ from juli_backend.services.shopee_profit.shop_profit import (
 )
 from tests.support.shopee_analytics import CUR_END, seed_shopee_shop
 
+pytestmark = pytest.mark.usefixtures("ungated_profit")
+
 
 @pytest.fixture
 async def built(session):
