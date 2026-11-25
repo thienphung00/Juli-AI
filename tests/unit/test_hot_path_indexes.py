@@ -3,7 +3,9 @@
 - 139 chains on 138, its id fits alembic, the tree keeps ONE head, the additive gate accepts it;
 - the models carry the same two indexes (name, table, columns) as the migration, so the ORM schema
   the SQLite tests build matches Postgres;
-- upgrade creates exactly these two (``IF NOT EXISTS``), downgrade drops exactly these two;
+- upgrade creates exactly these two (``IF NOT EXISTS``) and drops the duplicate
+  ``ix_stock_history_sku`` (same columns as ``uq_stock_history_read``); downgrade drops exactly
+  the two and recreates the duplicate; the model no longer declares it;
 - ``latest_per_item(shop, item_ids)`` filters the grouping subquery too (it used to group the
   shop's whole snapshot history to answer for one item) and still returns the newest per variation;
 - ``load_skus`` bounds ``read_at`` in SQL and keeps a read from the first minutes of the oldest
@@ -76,22 +78,46 @@ def test_the_additive_gate_accepts_139():
     assert result.accepted is True
 
 
-def test_upgrade_creates_exactly_the_two_indexes_and_downgrade_drops_exactly_them():
+def test_upgrade_creates_the_two_drops_the_duplicate_and_downgrade_reverses_exactly_that():
     mig = _module()
     up, down = _body("upgrade"), _body("downgrade")
     created = re.findall(r"CREATE INDEX IF NOT EXISTS (\w+) \"\s*\"ON public\.(\w+) \((.*?)\)", up)
     assert {(n, t, tuple(c.split(", "))) for n, t, c in created} == set(mig.INDEXES)
-    assert up.count("op.execute(") == 2 and "CONCURRENTLY" not in up and "DROP" not in up
+    assert set(re.findall(r"DROP INDEX IF EXISTS public\.(\w+)", up)) == {
+        name for name, _, _ in mig.DROPPED
+    }
+    assert up.count("op.execute(") == 3 and "CONCURRENTLY" not in up
     dropped = set(re.findall(r"DROP INDEX IF EXISTS public\.(\w+)", down))
     assert dropped == {name for name, _, _ in mig.INDEXES}
-    assert down.count("op.execute(") == 2
+    # the duplicate comes back exactly as 129 / 134 left it
+    recreated = re.findall(
+        r"CREATE INDEX (\w+) ON public\.(\w+) \"\s*\"USING btree \((.*?)\)", down
+    )
+    assert {(n, t, tuple(c.split(", "))) for n, t, c in recreated} == set(mig.DROPPED)
+    assert down.count("op.execute(") == 3
+
+
+def test_the_dropped_index_duplicates_the_unique_key():
+    from sqlalchemy import UniqueConstraint
+
+    ((_, table, columns),) = _module().DROPPED
+    assert ShopeeStockHistory.__tablename__ == table
+    unique = next(
+        c
+        for c in ShopeeStockHistory.__table__.constraints
+        if isinstance(c, UniqueConstraint) and c.name == "uq_stock_history_read"
+    )
+    assert tuple(c.name for c in unique.columns) == columns
 
 
 def test_the_models_carry_the_migrations_indexes():
-    for name, table, columns in _module().INDEXES:
+    mig = _module()
+    for name, table, columns in mig.INDEXES:
         index = next(i for i in MODELS[table].__table__.indexes if i.name == name)
         assert tuple(c.name for c in index.columns) == columns
         assert not index.unique
+    for name, _, _ in mig.DROPPED:
+        assert name not in {i.name for i in ShopeeStockHistory.__table__.indexes}
 
 
 # =========================================================================== reads

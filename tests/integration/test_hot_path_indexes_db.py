@@ -1,6 +1,7 @@
 """Migration 139 on real Postgres: the hot-path indexes exist and the hot reads use them.
 
-- the two 139 indexes exist with their columns; ``ix_stock_history_read`` (134) is still there;
+- the two 139 indexes exist with their columns; the duplicate ``ix_stock_history_sku`` is gone,
+  ``ix_stock_history_read`` (134) and the unique ``uq_stock_history_read`` are still there;
 - on tables seeded across FIVE shops (``ROWS_PER_SHOP`` = 2,000 rows each, 10,000 per table,
   then ``ANALYZE``), ``EXPLAIN`` of each hot read shape names the index it should use:
   - the screens' freshness ``max(captured_at)`` -> ``ix_platform_item_snapshots_capture``;
@@ -9,7 +10,10 @@
   - the voucher read-back (``captured_at >= since``) -> ``ix_platform_promotions_type_capture``;
   - the stock alert / funnel / Juli-tab stock reads, now bounded on ``read_at`` ->
     ``ix_stock_history_read``;
-- last: ``downgrade`` to 138 drops exactly the two indexes; ``upgrade head`` restores them.
+  - ``stock_alert.cards.variation_keys`` (DISTINCT item, variation) still reads an index without
+    the duplicate (``ix_stock_history_read``), the same plan as with it;
+- last: ``downgrade`` to 138 drops exactly the two indexes and recreates ``ix_stock_history_sku``
+  as 129 / 134 left it; ``upgrade head`` restores the 139 state.
 
 Why five shops and 2,000 rows: with one or two shops owning every row, ``shop_id = X`` matches
 half the table or more and a sequential scan of a few dozen pages IS the cheaper plan, so the
@@ -50,6 +54,11 @@ NEW_INDEXES = {
         "(shop_id, promo_type, captured_at)",
     ),
 }
+DROPPED = "ix_stock_history_sku"
+DROPPED_DEF = (
+    "CREATE INDEX ix_stock_history_sku ON public.stock_history "
+    "USING btree (shop_id, item_id, variation_id, read_at)"
+)
 
 
 @pytest.fixture(scope="module")
@@ -152,6 +161,8 @@ def test_the_two_indexes_exist_with_their_columns(owner_engine):
             assert definition is not None, name
             assert f"ON public.{table} USING btree {columns}" in definition
         assert _indexdef(conn, "ix_stock_history_read") is not None
+        assert _indexdef(conn, "uq_stock_history_read") is not None
+        assert _indexdef(conn, DROPPED) is None
 
 
 def test_the_freshness_max_reads_one_index_entry(owner_engine, shops):
@@ -221,6 +232,28 @@ def test_bounded_stock_reads_use_the_shop_read_index(owner_engine, shops, where)
         assert "ix_stock_history_read" in _plan(conn, sql, {"shop": shops[4]})
 
 
+def test_variation_keys_distinct_keeps_its_plan_without_the_duplicate(owner_engine, shops):
+    """stock_alert.cards.variation_keys (recommendations loader, per run; card apply).
+
+    The planner never chose the duplicate for this read: with or without it, the plan is a bitmap
+    scan of ``ix_stock_history_read`` on the shop + HashAggregate (local PG 16, this seed; under a
+    one-shop skew it is a seq scan both ways). So the drop removes an index write, not a plan:
+    the index set the plan reads is the same after recreating the duplicate (rolled back)."""
+    sql = "SELECT DISTINCT item_id, variation_id FROM public.stock_history WHERE shop_id = :shop"
+    with owner_engine.connect() as conn:
+        without = _plan(conn, sql, {"shop": shops[0]})
+        assert without and set(without) <= {"ix_stock_history_read", "uq_stock_history_read"}
+        conn.rollback()  # end the autobegun read; the DDL below is rolled back too
+        try:
+            conn.execute(text(DROPPED_DEF))
+            conn.execute(text("ANALYZE public.stock_history"))
+            with_duplicate = _plan(conn, sql, {"shop": shops[0]})
+        finally:
+            conn.rollback()
+        assert with_duplicate == without
+        assert _indexdef(conn, DROPPED) is None
+
+
 def test_zz_downgrade_drops_exactly_the_two_indexes(owner_engine):
     from alembic import command
     from alembic.config import Config
@@ -247,10 +280,12 @@ def test_zz_downgrade_drops_exactly_the_two_indexes(owner_engine):
             }
 
     before = names()
-    assert set(NEW_INDEXES) <= before
+    assert set(NEW_INDEXES) <= before and DROPPED not in before
     command.downgrade(cfg, "138_juli_agent_spend")
     try:
-        assert names() == before - set(NEW_INDEXES)
+        assert names() == (before - set(NEW_INDEXES)) | {DROPPED}
+        with owner_engine.connect() as conn:
+            assert _indexdef(conn, DROPPED) == DROPPED_DEF
     finally:
         command.upgrade(cfg, "head")
     assert names() == before
