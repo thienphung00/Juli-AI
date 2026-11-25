@@ -70,7 +70,7 @@ from juli_backend.services.shopee_analytics.stored import ORDER_TYPE
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_profit.flows import FLOW_ORDER, RESIDUAL_KEY, FlowTable
 from juli_backend.services.shopee_profit.money import ZERO
-from juli_backend.services.shopee_profit.order_profit import counts_in_sales
+from juli_backend.services.shopee_profit.order_profit import OrderStatus, counts_in_sales
 
 logger = logging.getLogger(__name__)
 
@@ -279,8 +279,11 @@ def _no_order_day_profit(view: PeriodView, day: date) -> Decimal | None:
     order line is charged whole to the shop profit (the window headline subtracts it), so the day
     stores ``-spend`` and the days sum to the headline. A day whose orders all lack costs stays
     None (missing is not zero)."""
-    if any(pb.excluded_reason is None for _, pb in view.pairs):
-        return None
+    if any(
+        pb.excluded_reason is None or getattr(ln, "status", None) is OrderStatus.IN_TRANSIT
+        for ln, pb in view.pairs
+    ):
+        return None  # C1: in-transit orders are orders whose costs are not known yet
     spent = view.data.ads_daily.spend_by_day.get(day, ZERO)
     days = order_data_days(view)
     if spent > 0 and (days is None or day in days):

@@ -45,6 +45,7 @@ from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
 from juli_backend.services.shopee_profit.order_profit import (
     AdsPool,
     OrderLine,
+    OrderStatus,
     ProfitBreakdown,
     counts_in_sales,
 )
@@ -503,7 +504,11 @@ def known_cost_profit(
     split between the products' report spend and the spend not tied to a product in the window's
     proportion, so the bridge adds up.
 
-    R11: a day with spend and NO counted order line, inside ``order_data_days`` (the days the order
+    C1: an in-transit order is outside the profit but inside the ads share (the day's, the
+    window's and its product's), and its day is not a day without orders.
+
+    R11: a day with spend and NO order line (none counted, none in transit),
+    inside ``order_data_days`` (the days the order
     data speaks for, a zero-order day included; ``None`` = every day), is charged whole as its own
     bridge line (:data:`NO_ORDER_DAYS_ADS_LABEL`), never dropped. A day outside ``order_data_days``
     (its order data never arrived) and a day whose orders all lack costs stay uncharged (missing is
@@ -516,7 +521,10 @@ def known_cost_profit(
     unknown = {ln.order_id for ln, pb in counted if pb.contribution is None}
     known = [(ln, pb) for ln, pb in counted if ln.order_id not in unknown]
     known_orders = {ln.order_id for ln, _ in known}
-    paid_all = sum((pb.revenue for _, pb in counted), ZERO)
+    # C1 (owner 2026-11-25): an order still on its way has no cost yet, so it is out of the profit;
+    # it is an order all the same, so its share of the ads is not charged to the known ones
+    moving = [(ln, pb) for ln, pb in pairs if getattr(ln, "status", None) is OrderStatus.IN_TRANSIT]
+    paid_all = sum((pb.revenue for _, pb in counted + moving), ZERO)
     paid_known = sum((pb.revenue for _, pb in known), ZERO)
     contribution = sum((pb.contribution or ZERO for _, pb in known), ZERO)
     # the coverage ("trên N đơn có chi phí, X % GMV") measures sales: a refund line in the profit
@@ -538,6 +546,8 @@ def known_cost_profit(
             day_all[ln.order_date] += ln.order_value
             if ln.order_id not in unknown:
                 day_known[ln.order_date] += ln.order_value
+        for ln, _ in moving:
+            day_all[ln.order_date] += ln.order_value
         charged = ZERO
         for d, spent in spend_days.items():
             if day_all.get(d, ZERO) <= 0:
@@ -556,8 +566,13 @@ def known_cost_profit(
         for ln, pb in known:
             paid_by_product[ln.product_id] += pb.revenue
         ads_products = ZERO
+        paid_moving: dict[str, Decimal] = defaultdict(lambda: ZERO)
+        for ln, pb in moving:
+            paid_moving[ln.product_id] += pb.revenue
         for pid, pp in profit.products.items():
-            part = safe_div(paid_by_product.get(pid, ZERO), pp.buyer_paid)
+            part = safe_div(
+                paid_by_product.get(pid, ZERO), pp.buyer_paid + paid_moving.get(pid, ZERO)
+            )
             if part is not None:
                 ads_products += pp.ad_spend * part
         ads_unattributed = unattributed_total * share
