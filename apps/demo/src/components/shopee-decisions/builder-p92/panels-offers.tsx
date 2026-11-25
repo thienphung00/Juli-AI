@@ -442,7 +442,7 @@ function VarRows({ ctx, rows, mode, direction, onRow, labels, bounded, variation
               </span>
             ) : null}
             {ctx.market && val.trim() !== "" ? (
-              <MarketPriceMarker draftPrice={next} itemId={ctx.product.item_id} scope={ctx.market} variationId={v.variation_id || undefined} />
+              <MarketPriceMarker draftPrice={bounded && next !== null && next >= (bound?.paid ?? v.selling_price ?? Infinity) ? null : next} itemId={ctx.product.item_id} scope={ctx.market} variationId={v.variation_id || undefined} />
             ) : null}
           </div>
         );
