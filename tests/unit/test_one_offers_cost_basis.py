@@ -83,3 +83,13 @@ def test_export_offers_follow_the_screen() -> None:
 
 def test_channel_rows_offers_known_orders_only() -> None:
     assert channel_split._sums(PAIRS, PAIRS)["cost_offers"] == D(30)
+
+
+def test_no_known_order_is_unknown_not_zero():
+    """Orders exist and none has its costs: Ưu đãi is unknown; no order at all is a real 0."""
+    from juli_backend.services.shopee_profit.ladder import offers_cost, unknown_orders
+
+    bad = unknown_orders(PAIRS)
+    only_unknown = [(ln, pb) for ln, pb in PAIRS if ln.order_id in bad]
+    assert only_unknown and offers_cost(only_unknown) is None
+    assert offers_cost([]) == D(0)

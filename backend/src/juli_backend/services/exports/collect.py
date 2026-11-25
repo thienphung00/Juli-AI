@@ -91,7 +91,9 @@ async def _view(
     return view, rows
 
 
-def _offer_cost(view: PeriodView, product: str | None = None, day: date | None = None) -> float:
+def _offer_cost(
+    view: PeriodView, product: str | None = None, day: date | None = None
+) -> float | None:
     """Chi phí ưu đãi = Chương Trình Của Shop + voucher + combo discount of the known orders'
     lines: the one rule of ``channel_split._offers_cost`` (days and products add up to it)."""
     pairs = [
@@ -99,7 +101,8 @@ def _offer_cost(view: PeriodView, product: str | None = None, day: date | None =
         for ln, pb in view.pairs
         if (product is None or ln.product_id == product) and (day is None or ln.order_date == day)
     ]
-    return float(offers_cost(pairs, basis=view.pairs))
+    cost = offers_cost(pairs, basis=view.pairs)
+    return None if cost is None else float(cost)
 
 
 def _aff_cost_day(view: PeriodView, day: date, product: str | None = None) -> float | None:

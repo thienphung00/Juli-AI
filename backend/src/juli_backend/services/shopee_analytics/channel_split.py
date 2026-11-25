@@ -742,7 +742,7 @@ def _sums(
         "gmv": sum((ln.order_value for ln in sale), ZERO_D),
         "orders": Decimal(len({ln.order_id for ln in sale})),
         "net_revenue": sum((pb.revenue for pb in known), ZERO_D),
-        "cost_offers": offers_cost(pairs, basis=basis),
+        "cost_offers": offers_cost(pairs, basis=basis) or ZERO_D,
         "contribution": sum((pb.organic_contribution or ZERO_D for pb in known), ZERO_D),
         "cost_affiliate": affiliate_cost(pairs, basis=basis) or ZERO_D,
     }
