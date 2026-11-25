@@ -38,7 +38,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import uuid
-from collections.abc import Iterable, Mapping
+from collections.abc import AsyncIterator, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -60,6 +60,7 @@ from juli_backend.models.shopee_metrics import (
     ShopeeProductMetricsDaily,
     ShopeeShopMetricsDaily,
     ShopeeSourceMetricsDaily,
+    ShopFactsStatus,
 )
 from juli_backend.models.shopee_profit import ShopeeOrderLine
 from juli_backend.repositories import PlatformDailyMetricsRepo
@@ -774,11 +775,23 @@ def _same_keys(model: Any, values: list[dict[str, Any]]) -> list[dict[str, Any]]
     return out
 
 
-async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable[date]) -> int:
-    """Recompute and upsert these days. Returns the number of days written."""
-    wanted = sorted(set(days))
-    if not wanted:
-        return 0
+@dataclass
+class BuiltDay:
+    """One day's rows as :func:`rebuild_days` writes them (before the zeroed "left the day"
+    products, which depend on what is already stored)."""
+
+    day: date
+    rows: DayRows
+    campaigns: list[dict[str, Any]]
+    #: TikTok (settlement-only): no channel cells / campaign days are written
+    settlement_only: bool
+
+
+async def _build_days(
+    session: AsyncSession, shop_id: uuid.UUID, wanted: list[date]
+) -> AsyncIterator[BuiltDay]:
+    """Read the raw tables and build each wanted day's rows (no write). The one code path of
+    both :func:`rebuild_days` (stored) and :func:`compute_facts` (the in-memory fallback)."""
     ctx0 = await loaders.load_context(session, shop_id)
     shop = await session.get(Shop, shop_id)
     settlement_only = shop is not None and shop.platform in tiktok_days.SETTLEMENT_ONLY_PLATFORMS
@@ -815,6 +828,28 @@ async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable
         if settlement_only:
             rows = tiktok_days.settled_profit_only(rows, tiktok_days.unsettled_items(view))
             rows = tiktok_days.without_ads_profit(rows)  # owner W3-Q5 = a
+        campaigns = (
+            []
+            if settlement_only
+            else day_facts.campaign_rows(
+                facts.campaign_days.get(day, []),
+                shop_id=shop_id,
+                day=day,
+                version=version,
+                contribution_by_campaign=_campaign_contribution(rows.products, facts, day),
+            )
+        )
+        yield BuiltDay(day, rows, campaigns, settlement_only)
+
+
+async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable[date]) -> int:
+    """Recompute and upsert these days. Returns the number of days written."""
+    wanted = sorted(set(days))
+    if not wanted:
+        return 0
+    async for built in _build_days(session, shop_id, wanted):
+        day, rows = built.day, built.rows
+        version = rows.shop.get("derivation_version")
         have = set(
             (
                 await session.execute(
@@ -852,7 +887,7 @@ async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable
             ("shop_id", "day", "order_type", "item_id"),
         )
         await _upsert_sources(session, shop_id, day, rows.sources)
-        if settlement_only:  # TikTok: no channel cells / campaign days in this batch
+        if built.settlement_only:  # TikTok: no channel cells / campaign days in this batch
             continue
         await _replace_day(
             session,
@@ -871,18 +906,7 @@ async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable
             ("channel", "discounted"),
         )
         await _replace_day(
-            session,
-            CampaignMetricsDaily,
-            shop_id,
-            day,
-            day_facts.campaign_rows(
-                facts.campaign_days.get(day, []),
-                shop_id=shop_id,
-                day=day,
-                version=version,
-                contribution_by_campaign=_campaign_contribution(rows.products, facts, day),
-            ),
-            ("campaign_id",),
+            session, CampaignMetricsDaily, shop_id, day, built.campaigns, ("campaign_id",)
         )
     await session.flush()
     return len(wanted)
@@ -1092,13 +1116,16 @@ async def rebuild_outdated(
 ) -> int:
     """F7.10: rebuild the stored days an older rule built (automatic, no manual step; the daily
     learning / measurement job calls it first). Never raises: a failed rebuild is logged and
-    retried next day. Returns the days rebuilt."""
-    days = (await outdated_days(session, shop_id))[-limit:]
+    retried next day. Returns the days rebuilt. Data layer (#74): the pending days also include
+    data days with no stored row; the shop's ``shop_facts_status`` is refreshed after the run."""
+    days = (await pending_days(session, shop_id))[-limit:]
     if not days:
         return 0
     try:
         async with session.begin_nested():
-            return await rebuild_days(session, shop_id, days)
+            written = await rebuild_days(session, shop_id, days)
+            await refresh_status(session, shop_id)
+            return written
     except (SQLAlchemyError, RuntimeError, ArithmeticError, LookupError, TypeError, ValueError):
         logger.warning(
             "shopee_metrics_outdated_rebuild_failed",
@@ -1254,6 +1281,7 @@ async def after_rules_change(
     try:
         async with session.begin_nested():
             written = await rebuild_days(session, shop_id, days)
+            await refresh_status(session, shop_id)
     except (SQLAlchemyError, RuntimeError, ArithmeticError, LookupError, TypeError, ValueError):
         logger.warning(
             "shopee_metrics_rule_rebuild_failed",
@@ -1261,6 +1289,7 @@ async def after_rules_change(
             exc_info=True,
         )
         await _clear_days(session, shop_id, days)
+        await refresh_status(session, shop_id)  # the cleared days are pending: not ready
         return RuleRebuild(cleared=len(days))
     return RuleRebuild(days=written)
 
@@ -1289,10 +1318,117 @@ async def backfill_shop(
         if (not start or d >= start) and (not end or d <= end)
     ]
     written = await rebuild_days(session, shop_id, days)
+    await refresh_status(session, shop_id)
     found = await funnel_check.check_days(session, shop_id, days)
     return BackfillReport(
         len(days), written, days[0] if days else None, days[-1] if days else None, len(found)
     )
+
+
+# -- deploy plan #74: readiness, the in-memory fallback, the pending days ----------------------
+
+
+def code_version() -> str:
+    """The code part of the stamp (registry version / rows rule): what a deploy changes."""
+    return f"{DERIVATION_VERSION}/r{ROWS_VERSION}/"
+
+
+async def pending_days(session: AsyncSession, shop_id: uuid.UUID) -> list[date]:
+    """The days the stored layer still owes: stored days of an older stamp
+    (:func:`outdated_days`) and data days with no stored shop row (a grain added since)."""
+    t = ShopeeShopMetricsDaily
+    stored = set(
+        (
+            await session.execute(
+                select(t.day).where(t.shop_id == shop_id, t.order_type == ORDER_TYPE)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    missing = {d for d in await data_days(session, shop_id) if d not in stored}
+    return sorted(set(await outdated_days(session, shop_id)) | missing)
+
+
+async def refresh_status(session: AsyncSession, shop_id: uuid.UUID) -> ShopFactsStatus:
+    """Write the shop's ``shop_facts_status`` row from what is stored now (idempotent): the
+    current stamp, ``complete`` when nothing is pending, else ``ready_from`` = the day after the
+    newest pending day (every later day is current)."""
+    stamp = stamp_of(await loaders.load_context(session, shop_id))
+    pending = await pending_days(session, shop_id)
+    ready_from = None if not pending else pending[-1] + timedelta(days=1)
+    t = ShopFactsStatus
+    await _upsert(
+        session,
+        t,
+        [
+            {
+                "shop_id": shop_id,
+                "derivation_version": stamp,
+                "complete": not pending,
+                "ready_from": ready_from,
+                "pending_days": len(pending),
+            }
+        ],
+        ("shop_id",),
+    )
+    await session.flush()
+    row = (await session.execute(select(t).where(t.shop_id == shop_id))).scalar_one()
+    return row
+
+
+async def facts_ready(
+    session: AsyncSession, shop_id: uuid.UUID, window: tuple[date, date] | Window
+) -> bool:
+    """May ``facts.query`` read this shop's stored rows for ``window``? One indexed read: the
+    status row is of this code version and either complete or current from before the window's
+    first day. False when there is no status row yet (the backfill has not reached the shop)."""
+    start = window[0] if isinstance(window, tuple) else window.start
+    t = ShopFactsStatus
+    row = (
+        await session.execute(
+            select(t.derivation_version, t.complete, t.ready_from).where(t.shop_id == shop_id)
+        )
+    ).one_or_none()
+    if row is None or not row.derivation_version.startswith(code_version()):
+        return False
+    return bool(row.complete) or (row.ready_from is not None and start >= row.ready_from)
+
+
+@dataclass
+class FactRows:
+    """The rows of every stored grain for a date range, keyed by table name; the same dicts
+    (same column names) :func:`rebuild_days` writes."""
+
+    shop_metrics_daily: list[dict[str, Any]] = field(default_factory=list)
+    product_metrics_daily: list[dict[str, Any]] = field(default_factory=list)
+    source_metrics_daily: list[dict[str, Any]] = field(default_factory=list)
+    product_channel_metrics_daily: list[dict[str, Any]] = field(default_factory=list)
+    shop_channel_metrics_daily: list[dict[str, Any]] = field(default_factory=list)
+    campaign_metrics_daily: list[dict[str, Any]] = field(default_factory=list)
+
+
+async def compute_facts(
+    session: AsyncSession, shop_id: uuid.UUID, start: date, end: date
+) -> FactRows:
+    """The in-memory fallback (deploy plan #74): the rows the stored layer would hold for the
+    shop's data days in ``start``..``end``, computed from the raw tables by the same code as
+    :func:`rebuild_days`, written nowhere. For ``facts.query`` while :func:`facts_ready` is
+    False."""
+    wanted = [d for d in await data_days(session, shop_id) if start <= d <= end]
+    out = FactRows()
+    if not wanted:
+        return out
+    async for built in _build_days(session, shop_id, wanted):
+        out.shop_metrics_daily.append(built.rows.shop)
+        out.product_metrics_daily += built.rows.products
+        out.source_metrics_daily += built.rows.sources
+        if built.settlement_only:
+            continue
+        out.product_channel_metrics_daily += built.rows.channels
+        out.shop_channel_metrics_daily += built.rows.shop_channels
+        out.campaign_metrics_daily += built.campaigns
+    return out
 
 
 __all__ = [
@@ -1303,6 +1439,11 @@ __all__ = [
     "SourceSplit",
     "after_ingest",
     "after_rules_change",
+    "compute_facts",
+    "facts_ready",
+    "pending_days",
+    "refresh_status",
+    "FactRows",
     "backfill_shop",
     "day_rows",
     "rebuild_days",

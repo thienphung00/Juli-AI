@@ -387,6 +387,30 @@ class ShopChannelMetricsDaily(Base):
     built_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())
 
 
+class ShopFactsStatus(Base):
+    """Is a shop's stored daily facts layer current (migration 140, deploy plan #74)?
+
+    One row per shop, written by the triggered facts backfill and the rebuilds: the
+    ``derivation_version`` the shop's days were last brought to, ``complete`` when no stored or
+    data day is older than it, else ``ready_from`` = the first day from which every day is current
+    (the backfill goes newest first, so a 90-day window is ready before the older days are).
+    Readers (``facts.query``) use stored rows only when :func:`materialize.facts_ready` says so."""
+
+    __tablename__ = "shop_facts_status"
+    __table_args__ = (UniqueConstraint("shop_id", name="uq_shop_facts_status"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"))
+    derivation_version: Mapped[str] = mapped_column(String(32))
+    complete: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    #: NULL = no day is current yet
+    ready_from: Mapped[date | None] = mapped_column(Date, nullable=True)
+    #: days still to rebuild at the last check
+    pending_days: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    #: when the status last changed
+    built_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())
+
+
 class CampaignMetricsDaily(Base):
     """One ads campaign on one day (migration 140, F3): the Connector's ``ads_campaign_daily``
     row, stored only when it spent or sold. A day before the shop's first campaign row has no

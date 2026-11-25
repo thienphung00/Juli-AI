@@ -669,8 +669,14 @@ async def metric_view(
         d.item_id for d in now_rows.product_days if d.item_id and (d.gmv or d.orders or d.views)
     } - set(now_view.excluded)
     ids = {i for i in ids if not Catalog.is_unmatched(i)}  # C4: not a product
-    margins_now = _margins(now_view)
-    margins_before = _margins(prev_view) if prev_view else {}
+    if platform == Platform.shopee and ids:
+        # Q2 / L1: Biên đóng góp per product from the stored facts (now and the previous window)
+        margins_now, margins_before = await _facts_margins(session, shop_id, window, sorted(ids))
+        if prev_view is None:
+            margins_before = {}
+    else:
+        margins_now = _margins(now_view)
+        margins_before = _margins(prev_view) if prev_view else {}
     names = dict(now_view.names)
     refs = [r for r, _ in await open_cards(session, shop_id, audience=audience)]
     through = data_through(
@@ -716,6 +722,34 @@ def unavailable_channels(platform: str, metric: str) -> dict[str, str]:
         if reason is not None:
             out[key] = reason
     return out
+
+
+async def _facts_margins(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window, item_ids: list[str]
+) -> tuple[dict[str, Decimal | None], dict[str, Decimal | None]]:
+    """item -> Biên đóng góp as a fraction (the shape ``_margins`` gives), now and the previous
+    window, from ``metrics.query``."""
+    from juli_backend.services.metrics.query import Scope, query
+
+    res = await query(
+        session,
+        shop_id,
+        ["margin_contribution"],
+        scope=Scope.products(item_ids),
+        window=(window.start, window.end),
+        group_by="item",
+        compare=True,
+        allow_partial=True,
+    )
+
+    def frac(rows: list[dict[str, Any]]) -> dict[str, Decimal | None]:
+        out: dict[str, Decimal | None] = {}
+        for r in rows:
+            m = r["margin_contribution"]
+            out[r["item"]] = None if m is None else m / 100
+        return out
+
+    return frac(res.rows), frac(res.previous.rows if res.previous else [])
 
 
 def _margins(view: Any) -> dict[str, Decimal | None]:
