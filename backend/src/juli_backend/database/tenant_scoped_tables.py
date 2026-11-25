@@ -201,6 +201,7 @@ TABLE_CLASSIFICATION_MAP = {
     # of the daily run with its outcome.
     ("public", "product_channel_metrics_daily"): "tenant_direct",
     ("public", "shop_channel_metrics_daily"): "tenant_direct",
+    ("public", "shop_facts_status"): "tenant_direct",
     ("public", "campaign_metrics_daily"): "tenant_direct",
     ("public", "shopee_opportunities"): "tenant_direct",
     # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised

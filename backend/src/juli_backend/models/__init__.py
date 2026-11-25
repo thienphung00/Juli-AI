@@ -101,6 +101,7 @@ from juli_backend.models.shopee_metrics import (
     ShopeeProductMetricsDaily,
     ShopeeShopMetricsDaily,
     ShopeeSourceMetricsDaily,
+    ShopFactsStatus,
 )
 from juli_backend.models.shopee_opportunities import ShopeeOpportunity
 from juli_backend.models.shopee_plans import (
@@ -214,6 +215,7 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     CampaignMetricsDaily,
     ProductChannelMetricsDaily,
     ShopChannelMetricsDaily,
+    ShopFactsStatus,
     ShopeeConnectorCommand,
     ShopeeConnectorState,
     ShopeeConnectorTokenState,

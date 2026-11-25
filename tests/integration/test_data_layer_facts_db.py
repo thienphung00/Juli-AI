@@ -38,6 +38,7 @@ DAY = date(2026, 11, 5)
 NEW_TABLES = {
     "product_channel_metrics_daily": {"SELECT", "INSERT", "UPDATE", "DELETE"},
     "shop_channel_metrics_daily": {"SELECT", "INSERT", "UPDATE", "DELETE"},
+    "shop_facts_status": {"SELECT", "INSERT", "UPDATE"},
     "campaign_metrics_daily": {"SELECT", "INSERT", "UPDATE", "DELETE"},
     "shopee_opportunities": {"SELECT", "INSERT", "UPDATE"},
 }
@@ -261,3 +262,24 @@ def test_zz_downgrade_drops_and_upgrade_restores(owner_engine):
     finally:
         command.upgrade(cfg, "head")
     assert state() == (True, True)
+
+
+async def test_a_second_backfill_run_skips_while_one_holds_the_lock():
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from juli_backend.services.shopee_analytics import facts_backfill
+
+    engine = create_async_engine(async_database_url(os.environ["DATABASE_URL"]))
+    try:
+        async with engine.connect() as holder:
+            await holder.begin()
+            held = await holder.execute(
+                text("SELECT pg_try_advisory_xact_lock(:k)"),
+                {"k": facts_backfill.ADVISORY_LOCK_KEY},
+            )
+            assert held.scalar() is True
+            result = await facts_backfill.run(async_sessionmaker(engine, expire_on_commit=False))
+            assert result.skipped == "locked" and result.shops == 0
+            await holder.rollback()
+    finally:
+        await engine.dispose()

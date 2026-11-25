@@ -22,6 +22,9 @@ components (ids of ``services/metrics/components.py``); ratios are evaluated at 
 - Both daily rows also get ``affiliate_commission_known`` / ``ads_spend_known`` (A2: the covered
   orders' AFF and ads cost) and the ads funnel components ``ads_gmv_direct``,
   ``ads_gmv_confirmed``, ``ads_views``, ``ads_clicks``, ``ads_orders``.
+- ``shop_facts_status`` (deploy plan #74): one row per shop, is its stored layer current
+  (``derivation_version``, ``complete`` / ``ready_from``); written by the triggered backfill.
+  ``juli_app``: SELECT, INSERT, UPDATE.
 - ``campaign_metrics_daily``: one row per (shop, day, campaign) from the Connector's
   ``ads_campaign_daily``, only for days with spend or GMV. ``juli_app``: SELECT, INSERT, UPDATE,
   DELETE (a campaign that no longer spent that day is removed on rebuild: sparse rows).
@@ -187,6 +190,21 @@ def upgrade() -> None:
     )
 
     op.create_table(
+        "shop_facts_status",
+        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("shop_id", sa.Uuid(), sa.ForeignKey("shops.id"), nullable=False),
+        sa.Column("derivation_version", sa.String(length=32), nullable=False),
+        sa.Column("complete", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("ready_from", sa.Date(), nullable=True),
+        sa.Column("pending_days", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column(
+            "built_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.PrimaryKeyConstraint("id", name="pk_shop_facts_status"),
+        sa.UniqueConstraint("shop_id", name="uq_shop_facts_status"),
+    )
+
+    op.create_table(
         "campaign_metrics_daily",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("shop_id", sa.Uuid(), sa.ForeignKey("shops.id"), nullable=False),
@@ -278,6 +296,20 @@ def upgrade() -> None:
         "ON public.shop_channel_metrics_daily "
         "FOR DELETE USING (shop_id = app_current_shop_id())"
     )
+    op.execute("ALTER TABLE public.shop_facts_status ENABLE ROW LEVEL SECURITY")
+    op.execute(
+        "CREATE POLICY shop_facts_status_select_public ON public.shop_facts_status "
+        "FOR SELECT USING (shop_id = app_current_shop_id())"
+    )
+    op.execute(
+        "CREATE POLICY shop_facts_status_insert_public ON public.shop_facts_status "
+        "FOR INSERT WITH CHECK (shop_id = app_current_shop_id())"
+    )
+    op.execute(
+        "CREATE POLICY shop_facts_status_update_public ON public.shop_facts_status "
+        "FOR UPDATE USING (shop_id = app_current_shop_id()) "
+        "WITH CHECK (shop_id = app_current_shop_id())"
+    )
     op.execute("ALTER TABLE public.campaign_metrics_daily ENABLE ROW LEVEL SECURITY")
     op.execute(
         "CREATE POLICY product_channel_metrics_daily_select_public "
@@ -338,6 +370,7 @@ def upgrade() -> None:
             EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.product_channel_metrics_daily TO juli_app';
             EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.shop_channel_metrics_daily TO juli_app';
             EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.campaign_metrics_daily TO juli_app';
+            EXECUTE 'GRANT SELECT, INSERT, UPDATE ON public.shop_facts_status TO juli_app';
             EXECUTE 'GRANT SELECT, INSERT, UPDATE ON public.shopee_opportunities TO juli_app';
         END IF;
     END
@@ -384,6 +417,7 @@ def downgrade() -> None:
         IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'juli_app') THEN
             EXECUTE 'REVOKE ALL ON public.shopee_opportunities FROM juli_app';
             EXECUTE 'REVOKE ALL ON public.campaign_metrics_daily FROM juli_app';
+            EXECUTE 'REVOKE ALL ON public.shop_facts_status FROM juli_app';
             EXECUTE 'REVOKE ALL ON public.product_channel_metrics_daily FROM juli_app';
             EXECUTE 'REVOKE ALL ON public.shop_channel_metrics_daily FROM juli_app';
         END IF;
@@ -392,6 +426,7 @@ def downgrade() -> None:
     """)
     op.drop_table("shopee_opportunities")
     op.drop_table("campaign_metrics_daily")
+    op.drop_table("shop_facts_status")
     op.drop_table("shop_channel_metrics_daily")
     op.drop_index(
         "ix_product_channel_metrics_daily_item", table_name="product_channel_metrics_daily"
