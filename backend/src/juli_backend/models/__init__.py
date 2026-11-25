@@ -102,6 +102,7 @@ from juli_backend.models.shopee_metrics import (
     ShopeeShopMetricsDaily,
     ShopeeSourceMetricsDaily,
 )
+from juli_backend.models.shopee_opportunities import ShopeeOpportunity
 from juli_backend.models.shopee_plans import (
     ShopRecoChangeSet,
     ShopRecoPlan,
@@ -236,5 +237,6 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopHealthDaily,
     AdsChangeLog,
     ShopeeSimPriorRun,
+    ShopeeOpportunity,
     ShopeeRecoCalibration,
 )
