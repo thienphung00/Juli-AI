@@ -137,17 +137,28 @@ export function textBoxesIn(row: Element): HTMLInputElement[] {
  * change), keeping the value it held before (for the revert) and recording the write so the job
  * runner reads it again later. True when it reads back equal right now.
  */
+/**
+ * E72 / E146: a whole number the page shows with its own formatting ("2.000", "2,000", "₫ 2000",
+ * "2 000") is the same number. Anything else (text, decimals) must be equal as typed.
+ */
+export function sameBoxValue(seen: string, want: string): boolean {
+  if (seen === want) return true;
+  if (!/^\d+$/.test(want)) return false;
+  const shown = seen.replace(/[\s.,₫đĐ]/g, "");
+  return shown !== "" && /^\d+$/.test(shown) && /^[\d\s.,₫đĐ]+$/.test(seen) && BigInt(shown) === BigInt(want);
+}
+
 export function writeBox(env: Env, box: HTMLInputElement, value: string): boolean {
   // a greyed (locked) box is never written (batch-1123-a D6)
   if (box.disabled || box.readOnly) return false;
   const key = env.log?.keyOf(env);
   if (env.log && key) {
     env.log.captureBefore(key, box.value);
-    env.log.wrote({ key, el: box, want: value, seen: () => box.value, ok: () => box.value === value, rewrite: () => writeValue(box, value) });
+    env.log.wrote({ key, el: box, want: value, seen: () => box.value, ok: () => sameBoxValue(box.value, value), rewrite: () => writeValue(box, value) });
   }
   // 0.3.28 (F5.1): no focus / blur any more (a focus event is a UI event): the value write only
-  const ok = writeValue(box, value) && box.value === value;
-  return ok && mark(box);
+  writeValue(box, value);
+  return sameBoxValue(box.value, value) && mark(box);
 }
 
 /** Types into the `index`-th text box of the labelled row; true when it reads back equal. */
@@ -211,6 +222,15 @@ export function radioOf(doc: Document, label: string, option: string | readonly 
   const holder = (target.closest("label") ?? target) as HTMLElement;
   const chosen = () => checkedText(row);
   return { holder, chosen, holds: () => isChecked(holder) && names.includes(normalizeLabel(chosen())) };
+}
+
+/** The options of the radio group labelled `label` as the page draws them (text and holder), outermost duplicates dropped. */
+export function radioOptions(doc: Document, label: string): { text: string; holder: HTMLElement }[] {
+  const row = findRow(doc, label);
+  if (!row) return [];
+  const all = Array.from(row.querySelectorAll<HTMLElement>("label,[role='radio']")).filter((h) => usable(h) && (h.textContent ?? "").trim() !== "");
+  const inner = all.filter((h) => !all.some((o) => o !== h && h.contains(o)));
+  return inner.map((h) => ({ text: (h.textContent ?? "").trim(), holder: h }));
 }
 
 /**

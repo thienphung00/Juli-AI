@@ -90,7 +90,7 @@ function startJob(): void {
       return answer?.ok && answer.value ? (answer.value as JobReply) : { ok: false, reason: "error" };
     },
     report: async (jobId, status, error, progress, detail, ref) => {
-      await send({
+      const answer = await send({
         type: "fill-job-report",
         jobId,
         status,
@@ -99,6 +99,8 @@ function startJob(): void {
         ...(detail ? { detail } : {}),
         ...(ref ? { capturedRef: ref } : {}),
       });
+      const value = answer?.ok === true ? (answer.value as { cardDone?: unknown } | undefined) : undefined;
+      return typeof value?.cardDone === "boolean" ? { cardDone: value.cardDone } : undefined;
     },
     // contract D: what the page shows Shopee holds now (the service worker validates and posts)
     postCurrent: async (rows) => {

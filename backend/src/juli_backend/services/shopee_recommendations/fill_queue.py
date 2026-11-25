@@ -1550,6 +1550,27 @@ async def jobs_for_shop(
     return [job_json(j, c, t) for j, c, t in rows]
 
 
+async def leased_elsewhere_ids(
+    session: AsyncSession, shop_id: uuid.UUID, token_id: uuid.UUID, now: datetime | None = None
+) -> list[str]:
+    """E130: ids of the open jobs another live computer holds under an unexpired lease. The poll
+    withholds them from ``token_id``; naming them lets its page say "another computer is filling
+    this" instead of "gone"."""
+    moment = _naive_now(now)
+    rows = await session.scalars(
+        select(ShopeeFillJob.id).where(
+            ShopeeFillJob.shop_id == shop_id,
+            ShopeeFillJob.status.in_(OPEN_STATUSES),
+            _servable_card_jobs(),
+            ShopeeFillJob.claimed_by_token_id.is_not(None),
+            ShopeeFillJob.claimed_by_token_id != token_id,
+            ShopeeFillJob.lease_until > moment,
+            ShopeeFillJob.claimed_by_token_id.in_(_live_tokens(shop_id, moment)),
+        )
+    )
+    return [str(i) for i in rows.all()]
+
+
 async def _held_by_other(
     session: AsyncSession, j: ShopeeFillJob, token_id: uuid.UUID, now: datetime
 ) -> bool:
@@ -1662,9 +1683,21 @@ async def report(
 
             await revert_fill.queue_readback_after_revert(session, shop_id, j, now=j.updated_at)
         return job_json(j)
+    out = job_json(j)
     if status in (STATUS_SAVED, STATUS_CAPTURED):
-        await auto_execute(session, shop_id, j.proposal_id, now=j.updated_at)
-    return job_json(j)
+        # E149: tells the Connector panel whether "Đã làm" was recorded (else the person does)
+        done = await auto_execute(session, shop_id, j.proposal_id, now=j.updated_at)
+        if not done:  # an earlier report (the save answer's id) may have recorded it already
+            done = (
+                await session.scalar(
+                    select(ShopProposal.status).where(
+                        ShopProposal.id == j.proposal_id, ShopProposal.shop_id == shop_id
+                    )
+                )
+                == STATUS_EXECUTED
+            )
+        out["card_done"] = done
+    return out
 
 
 async def auto_execute(

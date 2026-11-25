@@ -112,6 +112,19 @@ def test_a_saved_programme_says_it_was_not_read_back():
         )
 
 
+def test_an_open_undo_is_not_saved_because_the_card_is_executed():
+    """E148: the card's `executed` flag belongs to the forward save; an undo job that is only
+    filled (the delete not seen yet) must not read "Đã lưu trên Shopee · chưa đọc lại"."""
+    for kind in ("voucher_end", "combo_end"):
+        filled = job_view.view(_job(kind, key="revert:x", status="filled"), {}, executed=True)
+        assert filled["role"] == "revert"
+        assert filled["status_label"] == "Đã điền · chờ bạn lưu"
+        queued = job_view.view(_job(kind, key="revert:x"), {}, executed=True)
+        assert queued["status_label"] == "Chờ điền"
+        saved = job_view.view(_job(kind, key="revert:x", status="saved"), {}, executed=True)
+        assert saved["status_label"] == "Đã lưu trên Shopee · chưa đọc lại"
+
+
 # --------------------------------------------------------------------------- S-E110
 
 
