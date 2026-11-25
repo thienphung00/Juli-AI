@@ -314,6 +314,7 @@ async def test_kol_and_title_cards_draft_from_a_stored_row_after_the_daily_run(s
         out = await opp.draft_card(session, seeded.shop_id, r.id, now=NOW)
         assert out["ok"], out
         assert out["card"]["change_kind"] == r.kind
+        assert "margin_split" not in out["card"]  # #75: one combined Biên đóng góp, no split
 
 
 def split(row):
@@ -415,3 +416,25 @@ def test_ke_hoach_goal_minus_baseline_is_the_sum_of_net_deltas(monkeypatch):
         view=None,
     )
     assert plan_aggregate._today(env)["profit_30d"] == baseline
+
+
+def test_card_margin_is_all_the_products_purchases_together():
+    """#75: Biên đóng góp = Σ contribution ÷ Σ doanh thu thực covered, over every purchase of the
+    product (with a discount, without, and discount-unknown lines together)."""
+    from types import SimpleNamespace as NS
+
+    from juli_backend.services.shopee_builder.outcome import scope_contribution_margin_pct
+
+    lines = [  # (doanh thu thực covered, contribution before ads and AFF): with / without / unknown
+        (Decimal(400), Decimal(72)),
+        (Decimal(600), Decimal(240)),
+        (Decimal(100), Decimal(20)),
+    ]
+    paid = sum(p for p, _ in lines)
+    contribution = sum(c for _, c in lines)
+    row = NS(buyer_paid_covered=paid, organic_contribution=contribution)
+    profit = NS(products={"p": row}, buyer_paid_covered=paid, organic_contribution=contribution)
+    got = scope_contribution_margin_pct(profit, ["p"])
+    assert got == (contribution / paid * 100).quantize(Decimal("0.1"))  # 332 / 1100 = 30.2
+    assert got == Decimal("30.2")
+    assert got != Decimal("18.0") and got != Decimal("40.0")  # neither side alone
