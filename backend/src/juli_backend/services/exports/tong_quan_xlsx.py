@@ -7,7 +7,9 @@ baseline or goal: those are in the Kế hoạch export (UI grill G21).
 
 Every number is an input; the ratios (AOV, CTR, CTOR, % GMV, ROI, Thay đổi, % đạt) and the
 totals are Excel formulas over the cells of the sheet, so the file recomputes when a figure is
-edited. ``fullCalcOnLoad`` is set (no cached values are stored). Only Excel-2007 functions.
+edited. ``fullCalcOnLoad`` is set and ``save_bytes`` caches each formula's computed result beside
+it, so the figures show in a viewer that does not calculate. Only Excel-2007 functions. The last
+sheet, "Ghi chú" (``notes_sheet``), says how each core metric is computed.
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from datetime import date
 
 from openpyxl import Workbook
 
+from juli_backend.services.exports import notes_sheet
 from juli_backend.services.exports import report_sheets as rs
 from juli_backend.services.exports._style import (
     DATE,
@@ -65,7 +68,7 @@ CONTRIBUTION_LABEL = METRICS["contribution"].label_vi
 MARGIN_GROSS_LABEL = METRICS["margin_gross"].label_vi
 MARGIN_CONTRIBUTION_LABEL = METRICS["margin_contribution"].label_vi
 #: the margin's base is a component, which has no label of its own in the registry
-BASE_LABEL = "Doanh thu thực của đơn đủ chi phí"
+BASE_LABEL = notes_sheet.COMPONENT_LABELS["net_revenue_known"]
 
 SHEET_OVERVIEW = "Tổng quan"
 SHEET_CHANNEL = "Theo kênh"
@@ -735,12 +738,16 @@ def _skus(wb: Workbook, data: TongQuanData) -> None:
         r += 1
         put(ws, r, 1, SKU_GAP_LABEL)
         put(ws, r, 5, f"='{SHEET_OVERVIEW}'!B{OV['gmv']}-SUM(E{SKU_FIRST}:E{r - 1})", MONEY)
-    total, last = r + 1, max(r, SKU_FIRST)
+    total = r + 1
     put(ws, total, 1, "Tổng", bold=True)
     for c, fmt in ((4, INT), (5, MONEY), (6, MONEY), (8, INT)):
         L = col(c)
-        put(ws, total, c, f"=SUM({L}{SKU_FIRST}:{L}{last})", fmt, bold=True)
-    _sku_formulas(ws, total, need=False)
+        # no rows: the total is "—" (a SUM over its own cell is circular, and missing is not 0)
+        put(ws, total, c, f"=SUM({L}{SKU_FIRST}:{L}{r})" if data.skus else DASH, fmt, bold=True)
+    if data.skus:
+        _sku_formulas(ws, total, need=False)
+    else:
+        put(ws, total, 7, DASH, PCT)
     widths(ws, {1: 18, 2: 22, 3: 38, 12: 30}, 15)
     finish(ws, "D4")
 
@@ -859,6 +866,7 @@ def _multi(wb: Workbook, datas: list[TongQuanData]) -> None:
 def build_multi(datas: list[TongQuanData]) -> Workbook:
     wb = new_workbook()
     _multi(wb, datas)
+    notes_sheet.notes_sheet(wb)
     for ws in wb.worksheets:
         for r in ws.iter_rows():
             for c in r:
@@ -884,6 +892,7 @@ def build(data: TongQuanData) -> Workbook:
     rs.months_sheet(wb, title, data.months)
     rs.koc_sheet(wb, title, data.koc, data.affiliate_share or rs.AffiliateShare())
     rs.analysis_sheet(wb, title, data.analysis)
+    notes_sheet.notes_sheet(wb)
     for ws in wb.worksheets:
         for row in ws.iter_rows():
             for c in row:

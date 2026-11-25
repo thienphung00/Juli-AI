@@ -195,11 +195,13 @@ def koc_sheet(wb: Workbook, title: str, rows: Sequence[KocRow], share: Affiliate
             POINTS,
         )
         put(ws, r, 13, k.top_product or DASH)
-    total, last = r + 1, max(r, KOC_FIRST)
+    total = r + 1
     put(ws, total, 1, "Tổng", bold=True)
     tot_cols = ((3, INT), (4, MONEY), (5, MONEY), (6, MONEY), (7, MONEY), (9, MONEY), (11, MONEY))
     for c, fmt in tot_cols:
-        put(ws, total, c, f"=SUM({col(c)}{KOC_FIRST}:{col(c)}{last})", fmt, bold=True)
+        # no rows: "—" (a SUM over its own cell is circular, and missing is not 0)
+        v = f"=SUM({col(c)}{KOC_FIRST}:{col(c)}{r})" if rows else DASH
+        put(ws, total, c, v, fmt, bold=True)
     s = total + 2
     put(ws, s, 1, "Số KOC có đơn", bold=True)
     put(ws, s, 2, koc_effective_count(rows), INT, bold=True)
