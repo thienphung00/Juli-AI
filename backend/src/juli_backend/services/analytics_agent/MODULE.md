@@ -17,6 +17,8 @@ from Juli's recommendation engine, an explanation, and a stream of events. Publi
 | `chains` | orders / CTR / CTOR / GMV / profit+margin / ads / `cost_change`; step 0 freshness + coverage, formula (LMDI, rate/mix), scope, time, bottom-up fallback; `within_noise` decided at the bottom |
 | `lookup` | data answers rendered by code (metric_total, top_products, daily_trend, channel_breakdown) |
 | `advisor`, `levers` | the advise loop (#52/#53): `emit_plan` = lead + actions {lever, card_ref, why}; `levers` is the finding -> lever table as data (enum from `kinds.py` minus the out-set, tool-result tags); code validates schema, refs, card kind == lever and numbers only |
+| `advisor_tools` | the advisor's tools (C1): `metrics`, `rank`, `opportunities`, `open_cards`, `calendar`, `draft_card(opportunity_id)`, `compare`; schemas generated from `metrics.registry` ids and the kinds table; every number is what `DataPort.metrics` (= `metrics.query.query`) returned |
+| `compare` | C6: the `compare` block (event kind `compare`): exactly 4 priced options from OPP's `compare` / stored opportunities, one pick (highest Δ lợi nhuận as returned), lead names the figure; question type `compare_options` |
 | `cards` | G1-G5, Jev picks actionable / kind / product / version, engine values via `CardEnginePort` |
 | `writer` | writer prompt, alignment check, sanitiser, code template |
 | `present` | path row, stop labels, status lines |

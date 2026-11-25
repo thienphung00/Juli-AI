@@ -93,7 +93,7 @@ class DataPort(Protocol):
     """Read-only data the chains need. The shop is bound by the implementation, never by a model."""
 
     async def shop_daily(self, end: date, item: str | None = None) -> list[dict[str, Any]]: ...
-    async def source_daily(
+    async def source_totals(
         self, a: date, b: date, item: str | None = None
     ) -> list[dict[str, Any]]: ...
     async def product_daily(self, a: date, b: date) -> list[dict[str, Any]]: ...
@@ -119,6 +119,27 @@ class DataPort(Protocol):
     async def voucher_rows(self, a: date, b: date) -> list[dict[str, Any]]: ...
     async def campaign_rows(self, a: date, b: date) -> list[dict[str, Any]]: ...
     async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]: ...
+    async def campaign_products(self, a: date, b: date) -> dict[str, list[str]]: ...
+    async def metrics(
+        self,
+        ids: list[str],
+        a: date,
+        b: date,
+        *,
+        scope: str = "shop",
+        items: list[str] | None = None,
+        channel: str | None = None,
+        campaigns: list[str] | None = None,
+        group_by: str | None = None,
+        compare: bool = False,
+    ) -> dict[str, Any]: ...
+    async def opportunities(
+        self, *, kind: str | None = None, item: str | None = None
+    ) -> list[dict[str, Any]]: ...
+    async def compare_options(
+        self, kind: str, *, item: str | None = None, points: list[Any] | None = None
+    ) -> dict[str, Any]: ...
+    async def draft_opportunity(self, opportunity_id: str) -> dict[str, Any]: ...
 
 
 class CardEnginePort(Protocol):

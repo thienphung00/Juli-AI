@@ -73,3 +73,44 @@ def delta(metric: str, now: float | None, before: float | None) -> dict[str, str
 
 def day(d: Any) -> str:
     return f"{d:%d/%m}"
+
+
+# ------------------------------------------------------------------ registry ids (formatting only)
+
+
+def _unit(metric_id: str) -> str | None:
+    from juli_backend.services.metrics.registry import METRICS
+
+    d = METRICS.get(metric_id)
+    return d.unit.value if d else None
+
+
+def value_id(metric_id: str, v: float | None) -> str:
+    """A registry metric's value in the app's format, by the registry's own unit. Registry
+    percentage points (42.8) are shown as 42,8%; a ratio fraction (0.428) as 42,8% too."""
+    if v is None:
+        return NODATA
+    unit = _unit(metric_id)
+    if unit == "vnd":
+        return integer(v) + "đ"
+    if unit == "pct_points":
+        return decimal(v, 2 if metric_id in ("ctr", "ctor", "ctr_ads", "ctor_ads") else 1) + "%"
+    if unit == "ratio":
+        return decimal(100 * v, 1) + "%"
+    if unit == "x":
+        return decimal(v, 2)
+    return integer(v)
+
+
+def delta_id(metric_id: str, now: float | None, before: float | None) -> dict[str, str]:
+    """`delta` for a registry id: points metrics change in percentage points, the rest in %."""
+    if _unit(metric_id) == "pct_points":
+        scale = 100.0
+        n = None if now is None else now / scale
+        b = None if before is None else before / scale
+        return delta(
+            "ctr" if metric_id in ("ctr", "ctor", "ctr_ads", "ctor_ads") else "margin", n, b
+        )
+    if _unit(metric_id) == "ratio":
+        return delta("margin", now, before)
+    return delta("gmv" if _unit(metric_id) == "vnd" else metric_id, now, before)

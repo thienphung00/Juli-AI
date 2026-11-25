@@ -4,6 +4,7 @@ leaves every other shop alone. Synthetic tenants only."""
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 
 from sqlalchemy import delete
@@ -36,4 +37,13 @@ async def test_only_the_pilot_stage_shop_is_picked_and_it_runs_clean(shopee_tena
     summary = await daily.run_daily_learning(juli_app_session, now=NOW)
     assert summary.shops >= 1 and summary.failed == 0
     again = await daily.run_daily_learning(juli_app_session, now=NOW)  # idempotent
-    assert again == summary
+    # Data layer #74: the job also backfills every Shopee shop's pending stored days (data days
+    # with no stored row, or an older stamp), a day budget per shop per run. On a shared test
+    # database other tests' shops may still be catching up, so ``rebuilt_days`` falls run by run
+    # (never the same days twice) until nothing is pending; the learning itself is idempotent.
+    assert replace(again, rebuilt_days=0) == replace(summary, rebuilt_days=0)
+    rebuilt = [summary.rebuilt_days, again.rebuilt_days]
+    while rebuilt[-1] and len(rebuilt) < 12:
+        rebuilt.append((await daily.run_daily_learning(juli_app_session, now=NOW)).rebuilt_days)
+    assert rebuilt[-1] == 0, rebuilt
+    assert all(b <= a for a, b in zip(rebuilt[1:], rebuilt[2:], strict=False)), rebuilt

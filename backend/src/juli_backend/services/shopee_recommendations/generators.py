@@ -169,7 +169,9 @@ def gen_min_spend_voucher(env: RecoEnv, crit: dict[str, Any] | None, item: str) 
     if aov <= 0:
         return []
     min_spend = _ceil_to(aov * Decimal("1.25"), config.VOUCHER_MIN_SPEND_STEP)
-    per_day = Decimal(env.orders_of(item)) / env.window_days
+    # O3: no product = the whole-shop voucher, sized on the shop's own orders per day
+    orders = env.orders_of(item) if item else env.shop_orders_30d
+    per_day = Decimal(orders) / env.window_days
     for share in (Decimal("0.05"), Decimal("0.04"), Decimal("0.03"), Decimal("0.02")):
         value = int(_ceil_to(min_spend * share, 1000))
         cand = _mk(
@@ -803,6 +805,8 @@ def generate(env: RecoEnv, critical: dict[str, Any]) -> list[Candidate]:
         )
         add(gen_ads_add_product(env, None, item))
         add(gen_affiliate_target(env, None, item))
+    # O3: the shop-wide voucher is its own shop-scope candidate, never "needs a product"
+    add(gen_min_spend_voucher(env, None, ""))
     # the listing audit needs no critical metric: a missing / late core keyword is its own cause
     for item in env.listing_item_ids()[: config.LISTING_OPPORTUNITY_PRODUCTS]:
         add(gen_title(env, None, item))

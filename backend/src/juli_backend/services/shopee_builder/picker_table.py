@@ -1,7 +1,7 @@
 """P97 D85.12: the extra columns and filters of the table picker.
 
 One table serves every kind of the builder: besides the catalogue columns (``catalogue.picker``)
-a row carries what the filters need -- ngành hàng, biên (Luồng sản phẩm's margin of the last 30
+a row carries what the filters need -- ngành hàng, biên (Biên đóng góp of the last 30
 days), CTOR of the last 30 days against the 30 days before it, whether the product has a proposal
 waiting, and whether it runs Quảng cáo or KOL / Affiliate orders. Everything is read from views the
 builder already loads; a figure that cannot be known is ``None`` (a filter never matches it),
@@ -13,8 +13,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from juli_backend.services.shopee_analytics import levels
 from juli_backend.services.shopee_analytics.compute import PeriodView
-from juli_backend.services.shopee_profit import shop_profit
 
 #: a CTOR that fell by at least this share of the earlier one is "giảm"
 CTOR_DROP_SHARE = 0.05
@@ -34,14 +34,13 @@ def _ctor_by_item(view: PeriodView | None) -> dict[str, float]:
 
 
 def _margin_by_item(view: PeriodView) -> dict[str, float]:
-    """ADR-122 d.12 (P99): the product's margin is Luồng sản phẩm's -- ``ProductProfit.margin_pct``
-    (covered contribution - the product's ad spend from the ads report) ÷ covered buyer_paid,
-    over the same window -- never the display-only line ad split."""
+    """L1 (#66 / #67): a product's biên on the picker is Biên đóng góp -- the registry ladder's
+    contribution (before ads AND affiliate) ÷ the covered doanh thu thực, over the same window
+    (``shopee_analytics.levels``); never the after-ads ``ProductProfit.margin_pct``."""
     out: dict[str, float] = {}
-    for item in view.profit.products:
-        m = shop_profit.scope_margin_pct(view.profit, (item,))
-        if m is not None:
-            out[item] = float(m)
+    for item, pc in levels.contribution_by_item(view).items():
+        if pc.margin_pct is not None:
+            out[item] = float(pc.margin_pct)
     return out
 
 

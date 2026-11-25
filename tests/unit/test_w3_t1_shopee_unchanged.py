@@ -24,8 +24,11 @@ from tests.support.shopee_analytics import seed_shopee_shop
 #: batch-1124-a for owner decisions #39 (one product ad cost: a product-day with ad spend and no
 #: sale now gets its own order_lines row, profit = -ad cost; 8 such rows in the fixture) and
 #: #39/#50 (ROWS_VERSION 2 -> 4 in every shop row's ``detail.rows_v``). Every other row and
-#: every source row is unchanged against 3ff94165.
-BASE_DIGEST = "fc4de35745f00147bf79aa432f8b50dbaf4f5e5acda96fa28204b5d635eb2598"
+#: every source row is unchanged against 3ff94165. Re-pinned on batch-1124-c-data (FACT,
+#: migration 140; was fc4de357…5eb2598): the rows gain the data-layer columns (components,
+#: known AFF / ads cost, ads funnel, ``derivation_version``) and ROWS_VERSION 4 -> 5; every
+#: column that existed before is byte-identical (checked against 7c1255ae, all three tables).
+BASE_DIGEST = "0e851e365ae7690a4fbe8505c39b42bcc97dbf3d1aa44e17b36c59216608ca58"
 _SKIP = {"id", "shop_id", "built_at"}
 
 

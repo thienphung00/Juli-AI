@@ -6,12 +6,13 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from juli_backend.services.analytics_agent import advisor, levers
+from juli_backend.services.analytics_agent import advisor, advisor_tools, levers
 from juli_backend.services.analytics_agent.labels import shopee_labels
 from juli_backend.services.shopee_recommendations.kinds import KINDS
 from tests.unit.analytics_agent.test_advisor import _ctx
 
 L = shopee_labels()
+W = "last_full_week_vs_week_before"
 
 
 def _plan_schema() -> dict[str, Any]:
@@ -50,7 +51,7 @@ def test_emit_plan_has_a_lead_and_actions_with_a_required_card_ref() -> None:
     assert item["properties"]["card_ref"]["type"] == "string"  # null is not allowed
     assert "action" not in item["properties"] and "items" not in schema["properties"]
     draft = next(t for t in advisor.tool_specs(sorted(L.kinds)) if t["name"] == "draft_card")
-    assert draft["input_schema"]["properties"]["kind"]["enum"] == levers.card_kinds(L.kinds)
+    assert draft["input_schema"]["required"] == ["opportunity_id"]
     assert advisor.PLAN_TOOL["input_schema"]["required"] == ["lead", "actions"]
 
 
@@ -83,28 +84,31 @@ def test_the_prompt_carries_three_or_four_valid_few_shot_examples() -> None:
 
 async def test_tool_results_carry_findings_tagged_with_the_allowed_levers() -> None:
     ctx = await _ctx()
-    res = await advisor.run_tool(ctx, "campaigns", {})
+    res = await advisor.run_tool(ctx, "rank", {"metric": "cost_ads", "by": "campaign", "window": W})
     tags = {t["phát_hiện"]: t["lever"] for t in res["phát_hiện_và_lever"]}
     thin = levers.FINDING_BY_KEY["camp_thin"]
     assert tags[thin.label_vi] == list(thin.levers)
-    res = await advisor.run_tool(ctx, "traffic_sources", {})
+    res = await advisor.run_tool(ctx, "metrics", {"ids": ["gmv"], "window": W})
     lead_only = [t for t in res["phát_hiện_và_lever"] if isinstance(t["lever"], str)]
     assert lead_only and all("lead" in t["lever"] for t in lead_only)
     assert not any(ch.isdigit() for t in res["phát_hiện_và_lever"] for ch in t["phát_hiện"])
     # the model's own tools and refusals are not tagged
-    assert "phát_hiện_và_lever" not in await advisor.run_tool(ctx, "draft_card", {"kind": "title"})
+    assert "phát_hiện_và_lever" not in await advisor.run_tool(
+        ctx, "draft_card", {"opportunity_id": "x"}
+    )
 
 
 async def test_week_tools_accept_a_month_to_date_window_from_the_enum_only() -> None:
     ctx = await _ctx()
-    ok = await advisor.run_tool(ctx, "campaigns", {"window": "mtd_vs_same_days_last_month"})
+    args = {"metric": "cost_ads", "by": "campaign"}
+    ok = await advisor.run_tool(ctx, "rank", {**args, "window": "mtd_vs_same_days_last_month"})
     assert "lỗi" not in ok
-    assert await advisor.run_tool(ctx, "campaigns", {"window": "2026-11-01"}) == {
+    assert await advisor.run_tool(ctx, "rank", {**args, "window": "2026-11-01"}) == {
         "lỗi": "bad_argument"
     }
-    props = next(t for t in advisor.tool_specs([]) if t["name"] == "idle_budget_days")[
-        "input_schema"
-    ]["properties"]
+    props = next(t for t in advisor.tool_specs([]) if t["name"] == "rank")["input_schema"][
+        "properties"
+    ]
     assert props["window"]["enum"] == list(advisor.WINDOWS)
 
 
@@ -211,9 +215,13 @@ async def test_a11_shape_open_card_of_another_lever_is_refused_then_drafted() ->
     wrong = {"lever": "ads_roas_target", "card_ref": "open:JC-2611-0298", "why": why}
     llm = A11(
         agent_script=[
-            [tool_use("campaigns", "t1"), tool_use("open_cards", "t2")],
+            [
+                tool_use("rank", "t1", metric="cost_ads", by="campaign", window=W),
+                tool_use("open_cards", "t2"),
+                tool_use("opportunities", "t3"),
+            ],
             plan(wrong, budget),  # refused: the card is an ads_budget card
-            [tool_use("draft_card", "d1", kind="ads_roas_target")],
+            [tool_use("draft_card", "d1", opportunity_id="o-roas")],
         ]
     )
     sink, res, _ = await _ask_with(llm, _live_data())
@@ -298,10 +306,15 @@ async def test_a13_shape_a_removal_card_drafts_without_a_number_and_a_miss_says_
     assert not cardstage.estimable(no_est["card"], "ads_budget")  # sized kinds still need a number
 
     ctx = await _ctx()
-    ctx.engine = FakeCardEngine(per_kind={"ads_budget": no_est})
-    await advisor.run_tool(ctx, "product_margins", {})
-    miss = await advisor.run_tool(ctx, "draft_card", {"kind": "ads_budget", "item": "p1"})
-    assert miss["card_ref"] is None and miss["lý_do"] == advisor.NO_DRAFT_REASON_VI["not_estimable"]
+    from tests.unit.analytics_agent.fakes import opp
+
+    ctx.data.entity["opportunities"] = [opp("o-b", "ads_budget")]
+    ctx.data.entity["draft_cards"] = {"ads_budget": no_est["card"]}
+    await advisor.run_tool(ctx, "opportunities", {})
+    await advisor.run_tool(ctx, "rank", {"metric": "gmv", "by": "item", "window": W})
+    miss = await advisor.run_tool(ctx, "draft_card", {"opportunity_id": "o-b"})
+    assert miss["card_ref"] is None
+    assert miss["lý_do"] == advisor_tools.NO_DRAFT_REASON_VI["not_estimable"]
 
     def ref_of(m: Any) -> str:
         return next(
@@ -329,8 +342,8 @@ async def test_a13_shape_a_removal_card_drafts_without_a_number_and_a_miss_says_
 
     llm = A13(
         agent_script=[
-            [tool_use("product_margins", "t1")],
-            [tool_use("draft_card", "d1", kind="ads_remove_product", item="p1")],
+            [tool_use("opportunities", "t1")],
+            [tool_use("draft_card", "d1", opportunity_id="o-remove")],
         ]
     )
     sink, _, _ = await _ask_with(llm, card_engine=FakeCardEngine(result=no_est))
@@ -338,19 +351,15 @@ async def test_a13_shape_a_removal_card_drafts_without_a_number_and_a_miss_says_
     assert rows[0]["lever"] == "ads_remove_product" and rows[0]["value_vi"] == "Thẻ nháp"
 
 
-async def test_tool_descriptions_list_their_findings_and_levers_and_week_shows_sale_days() -> None:
+async def test_tool_descriptions_list_their_findings_and_levers_and_calendar_shows_sale_days() -> (
+    None
+):
     specs = {t["name"]: t for t in advisor.tool_specs(sorted(L.kinds))}
-    assert "ads_remove_product" in specs["product_profit"]["description"]
-    assert "flash_sale" in specs["week_summary"]["description"]
-    assert "review_voucher" in specs["metric_view"]["description"]
-    assert (
-        specs["draft_card"]["description"]
-        == next(t for t in advisor._tool_specs(sorted(L.kinds)) if t["name"] == "draft_card")[
-            "description"
-        ]
-    )
+    assert "ads_remove_product" in specs["rank"]["description"]
+    assert "flash_sale" in specs["calendar"]["description"]
+    assert "review_voucher" in specs["metrics"]["description"]
     ctx = await _ctx()
-    res = await advisor.run_tool(ctx, "week_summary", {})
+    res = await advisor.run_tool(ctx, "calendar", {})
     ahead = res["ngày_sale_sắp_tới"]
     assert ahead and all(len(d) == 5 and d[2] == "/" for d in ahead)
 
@@ -389,13 +398,13 @@ async def test_the_campaigns_tool_lists_each_campaigns_products_so_draft_card_ca
     ctx = await _ctx()
     for c in ctx.data.entity["campaigns"]:
         c["items"] = ["p1", "p2"]
-    res = await advisor.run_tool(ctx, "campaigns", {})
-    first = res["chiến_dịch"][0]
+    res = await advisor.run_tool(ctx, "rank", {"metric": "cost_ads", "by": "campaign", "window": W})
+    first = res["dòng"][0]
     assert [p["id"] for p in first["sản_phẩm_chạy_quảng_cáo"]] == ["p1", "p2"]
     assert first["sản_phẩm_chạy_quảng_cáo"][0]["tên"]
     # the ids are now known items: a campaign-level draft can name one (no `unknown_item`)
-    out = await advisor.run_tool(ctx, "draft_card", {"kind": "ads_roas_target", "item": "p1"})
-    assert out.get("lỗi") != "unknown_item"
+    out = await advisor.run_tool(ctx, "opportunities", {"lever": "ads_roas_target", "item": "p1"})
+    assert out.get("lỗi") != "unknown_item" and out["cơ_hội"][0]["mã"] == "o-roas"
 
 
 async def test_a16_shape_a_thin_campaign_gets_a_roas_target_draft_through_its_product() -> None:
@@ -428,8 +437,11 @@ async def test_a16_shape_a_thin_campaign_gets_a_roas_target_draft_through_its_pr
 
     llm = A16(
         agent_script=[
-            [tool_use("campaigns", "t1")],
-            [tool_use("draft_card", "d1", kind="ads_roas_target", item="p1")],
+            [
+                tool_use("rank", "t1", metric="cost_ads", by="campaign", window=W),
+                tool_use("opportunities", "t2"),
+            ],
+            [tool_use("draft_card", "d1", opportunity_id="o-roas")],
         ]
     )
     sink, res, _ = await _ask_with(llm, _campaign_data())
@@ -448,14 +460,22 @@ async def test_a30_shape_nhap_gia_von_needs_a_cogs_gap_in_the_data() -> None:
     from tests.unit.analytics_agent.test_weekly import _data
 
     data = _data()
-    for v in data.entity["product_profit"].values():  # no product misses giá vốn
-        v["coverage_pct"] = 100.0
+    data.entity["coverage"] = {"p1": 1.0, "p2": 1.0}  # no product misses giá vốn
     gap = {"lever": "nhap_gia_von", "card_ref": "none", "why": "Thiếu giá vốn."}
     lead = "Giá vốn đã đủ."
     llm = FakeLLM(
         agent_script=[
-            [tool_use("cogs_gaps", "g1"), tool_use("product_margins", "g2")],
-            plan(gap, lead=lead),  # refused: cogs_gaps reported nothing missing
+            [
+                tool_use(
+                    "rank",
+                    "g1",
+                    metric="cost_coverage",
+                    by="item",
+                    window=W,
+                    filter={"metric": "cost_coverage", "op": "lt", "value": 1},
+                )
+            ],
+            plan(gap, lead=lead),  # refused: rank reported nothing missing
             plan(lead=lead),
         ]
     )
@@ -489,18 +509,3 @@ def test_a_summary_quoting_part_of_a_product_name_passes_the_leak_check() -> Non
     text = "Sản phẩm [Deal 15.11] Combo Hộp Găng Tay TPE STAHAUS chiếm 79% GMV."
     assert writer.sanitise(text, None, [name])[1] == []
     assert "english_run" in writer.sanitise("Please check the shop report today.", None, [name])[1]
-
-
-def test_merged_campaigns_keep_the_products_they_spend_on_biggest_first() -> None:
-    from decimal import Decimal
-
-    from juli_backend.services.analytics_agent.data_service import merge_campaigns
-
-    raw = [
-        {"key": "c1", "name": "CDN/01", "spend": 100, "gmv": 400, "before_ads": 50,
-         "items": {"p1": Decimal(30), "p2": Decimal(70)}},
-        {"key": "c2", "name": "CDN/01", "spend": 50, "gmv": 100, "before_ads": 10,
-         "items": {"p1": Decimal(60)}},
-    ]  # fmt: skip
-    (row,) = merge_campaigns(raw)
-    assert row["items"] == ["p1", "p2"]  # p1 90 > p2 70

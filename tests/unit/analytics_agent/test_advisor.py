@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from juli_backend.services.analytics_agent import AskRequest, advisor, run
+from juli_backend.services.analytics_agent import AskRequest, advisor, levers, run
 from juli_backend.services.analytics_agent.types import Usage
 from tests.unit.analytics_agent.fakes import (
     FakeCardEngine,
@@ -23,16 +23,17 @@ from tests.unit.analytics_agent.test_engine import SHOP, L, full
 from tests.unit.analytics_agent.test_routing import intent
 from tests.unit.analytics_agent.test_weekly import YDAY, _data
 
+W = "last_full_week_vs_week_before"
 READ_ALL = [
-    tool_use("week_summary", "t1"),
-    tool_use("campaigns", "t2"),
-    tool_use("traffic_sources", "t3"),
-    tool_use("product_margins", "t4"),
+    tool_use("metrics", "t1", ids=["gmv", "orders"], window=W),
+    tool_use("rank", "t2", metric="cost_ads", by="campaign", window=W),
+    tool_use("rank", "t3", metric="gmv", by="item", window=W),
+    tool_use("opportunities", "t4"),
 ]
 DRAFTS = [
     tool_use("open_cards", "t5"),
-    tool_use("draft_card", "t6", kind="ads_roas_target"),
-    tool_use("draft_card", "t7", kind="title", item="p1"),
+    tool_use("draft_card", "t6", opportunity_id="o-roas"),
+    tool_use("draft_card", "t7", opportunity_id="o-title"),
 ]
 FIRST = {
     "why": "CDN/01 dưới ROAS hoà vốn, đang lỗ khi chạy quảng cáo.",
@@ -163,7 +164,7 @@ async def test_advice_is_an_ordered_list_with_cards_and_a_lead() -> None:
         [
             FIRST,
             {
-                "why": "Tên Găng tay chiếm 80% GMV mà còn ghi ngày sale đã hết.",
+                "why": "Tên Găng tay có GMV 100đ mà còn ghi ngày sale đã hết.",
                 "lever": "title",
                 "card_ref": "@title",
             },
@@ -175,14 +176,14 @@ async def test_advice_is_an_ordered_list_with_cards_and_a_lead() -> None:
     assert [r["label_vi"][:2] for r in rows] == ["1.", "2.", "3."]
     assert [r["lever"] for r in rows] == ["ads_roas_target", "title", "ads_budget"]
     assert rows[0]["value_vi"] == "Thẻ nháp" and rows[2]["value_vi"] == "Đã có thẻ JC-0001"
-    assert "80% GMV" in rows[1]["detail_vi"]  # traced to product_margins
+    assert "GMV 100đ" in rows[1]["detail_vi"]  # traced to the rank result
     assert {c["kind"] for c in sink.of("card")} == {"ads_roas_target", "title"}
     assert {c["kind"] for c in res.cards} == {"ads_roas_target", "title"}
     lead = "".join(e["text"] for e in sink.of("text_delta"))
     assert "Số liệu đến hết 22/11" in lead and "Tuần này có ngày sale kéo GMV lên." in lead
     assert lead.endswith("Việc nên làm trước: ROAS mục tiêu quảng cáo.")
     assert res.stop_reasons == ["data_answer"]
-    assert len(llm.agent_calls) == 3 and all(len(c["tools"]) == 11 for c in llm.agent_calls)
+    assert len(llm.agent_calls) == 3 and all(len(c["tools"]) == 8 for c in llm.agent_calls)
     assert any(s.get("step") == "advise" for s in res.routing)
 
 
@@ -192,12 +193,12 @@ async def test_invented_number_is_removed_and_traced_number_kept() -> None:
             {
                 **FIRST,
                 "why": "CDN/01 dưới ROAS hoà vốn. Làm vậy sẽ thêm 777.000đ doanh thu. "
-                "Tên Găng tay chiếm 80% GMV.",
+                "Tên Găng tay có GMV 100đ.",
             }
         ]
     )
     why = _rows(sink)[0]["detail_vi"]
-    assert "777" not in why and "80% GMV" in why and why.startswith("CDN/01 dưới")
+    assert "777" not in why and "GMV 100đ" in why and why.startswith("CDN/01 dưới")
 
 
 async def test_a_plan_with_a_bad_card_is_refused_and_the_model_drafts_it() -> None:
@@ -260,7 +261,21 @@ async def test_what_is_still_invalid_after_the_repair_round_is_dropped() -> None
 async def test_the_non_card_lever_needs_no_card_and_a_lead_only_plan_is_an_answer() -> None:
     gap = {"why": "Túi đay thiếu giá vốn.", "lever": "nhap_gia_von", "card_ref": "none"}
     sink, _, llm = await _ask_with(
-        FakeLLM(agent_script=[[tool_use("cogs_gaps", "g1")], plan(gap)])  # a real gap was read
+        FakeLLM(
+            agent_script=[
+                [
+                    tool_use(
+                        "rank",
+                        "g1",
+                        metric="cost_coverage",
+                        by="item",
+                        window=W,
+                        filter={"metric": "cost_coverage", "op": "lt", "value": 1},
+                    )
+                ],
+                plan(gap),
+            ]
+        )  # a real gap was read
     )
     rows = _rows(sink)
     assert rows[0]["value_vi"] == "" and rows[0]["label_vi"] == "1. Nhập giá vốn"
@@ -305,8 +320,8 @@ async def test_four_turns_at_most_and_the_last_is_forced_to_the_plan() -> None:
         [
             READ_ALL,
             [tool_use("open_cards", "a")],
-            [tool_use("cogs_gaps", "b")],
-            [tool_use("campaigns", "c")],
+            [tool_use("calendar", "b")],
+            [tool_use("opportunities", "c")],
         ]
     )
     assert len(llm.agent_calls) == 4
@@ -335,10 +350,11 @@ async def _ctx() -> advisor.Ctx:
             "margin_pct": 5.0,
             "gmv": 100.0,
             "break_even_roas": 3.0,
-            "contribution_before_ads": 80.0,
+            "contribution": 80.0,
         }
         for k, n, p in (("p1", "Găng tay sale 11.11", -20.0), ("p2", "Túi đay", 30.0))
     ]
+    data.entity["coverage"] = {"p1": 1.0, "p2": 0.6}
     return advisor.Ctx(
         data=data,
         engine=FakeCardEngine(per_kind={}),
@@ -357,30 +373,79 @@ async def test_tools_never_take_a_shop_a_free_date_or_an_unseen_item() -> None:
             assert props["window"]["enum"] == list(advisor.WINDOWS)
     ctx = await _ctx()
     bad_item = await advisor.run_tool(
-        ctx, "product_profit", {"window": advisor.WINDOWS[0], "item": "zzz"}
-    )
+        ctx, "metrics", {"ids": ["gmv"], "window": advisor.WINDOWS[0], "scope": "products",
+                         "items": ["zzz"]}
+    )  # fmt: skip
     assert bad_item == {"lỗi": "unknown_item"}
-    bad_window = await advisor.run_tool(
-        ctx, "metric_view", {"metric": "gmv", "window": "2026-01-01"}
-    )
+    bad_window = await advisor.run_tool(ctx, "metrics", {"ids": ["gmv"], "window": "2026-01-01"})
     assert bad_window == {"lỗi": "bad_argument"}
+    bad_id = await advisor.run_tool(ctx, "metrics", {"ids": ["not_a_metric"], "window": W})
+    assert bad_id == {"lỗi": "bad_argument"}
     assert await advisor.run_tool(ctx, "drop_table", {}) == {"lỗi": "công cụ không tồn tại"}
+
+
+async def test_the_tool_schemas_are_generated_from_the_registry_and_the_kinds_table() -> None:
+    from juli_backend.services.analytics_agent import advisor_tools
+    from juli_backend.services.metrics.registry import METRICS
+
+    specs = {t["name"]: t for t in advisor.tool_specs(sorted(L.kinds))}
+    assert list(specs) == [
+        "metrics", "rank", "opportunities", "open_cards", "calendar", "draft_card", "compare",
+        "emit_plan",
+    ]  # fmt: skip
+    ids = specs["metrics"]["input_schema"]["properties"]["ids"]["items"]["enum"]
+    assert ids == advisor_tools.metric_ids() and set(ids) <= set(METRICS)
+    assert {"gmv", "profit", "contribution", "roas_break_even", "margin_contribution"} <= set(ids)
+    kinds = levers.card_kinds(L.kinds)
+    assert specs["opportunities"]["input_schema"]["properties"]["lever"]["enum"] == [*kinds, None]
+    assert specs["compare"]["input_schema"]["properties"]["kind"]["enum"] == [*kinds, None]
 
 
 async def test_general_tools_answer_a_non_weekly_question() -> None:
     ctx = await _ctx()
-    await advisor.run_tool(ctx, "product_margins", {})  # item ids become known
+    await advisor.run_tool(ctx, "rank", {"metric": "gmv", "by": "item", "window": W})  # known items
+    ctx.data._values = lambda ids, a, b: (
+        {"margin": 10.0, "gmv": 200.0} if b >= YDAY else {"margin": 12.0, "gmv": 100.0}
+    )  # the current window, then the one before it (registry points)
     mv = await advisor.run_tool(
-        ctx, "metric_view", {"metric": "gmv", "window": "last_30d_vs_prev_30d", "item": "p1"}
-    )
+        ctx, "metrics",
+        {"ids": ["gmv", "margin"], "window": "last_30d_vs_prev_30d", "scope": "products",
+         "items": ["p1"]},
+    )  # fmt: skip
     assert mv.get("kỳ") and mv["số_liệu_đến"] == "Số liệu đến hết 22/11" and "lỗi" not in mv
-    pp = await advisor.run_tool(ctx, "product_profit", {"window": "last_30d_vs_prev_30d"})
-    assert pp["sản_phẩm"] and all("chi_QC" in r for r in pp["sản_phẩm"])
-    one = await advisor.run_tool(
-        ctx, "product_profit", {"window": "last_30d_vs_prev_30d", "item": "p2"}
-    )
-    assert [r["id"] for r in one["sản_phẩm"]] == ["p2"]
+    gmv, margin = mv["chỉ_số"]
+    assert gmv["giá_trị"] == "200đ" and gmv["kỳ_trước"] == "100đ" and gmv["thay_đổi"] == "▲ 100,0%"
+    assert margin["giá_trị"] == "10,0%" and margin["thay_đổi"].startswith("▼")
+    ranked = await advisor.run_tool(
+        ctx, "rank",
+        {"metric": "profit", "by": "item", "window": "last_30d_vs_prev_30d", "order": "asc"},
+    )  # fmt: skip
+    assert [r["id"] for r in ranked["dòng"]] == ["p1", "p2"]  # the worst after ads first
+    loss = await advisor.run_tool(
+        ctx, "rank",
+        {"metric": "profit", "by": "item", "window": W,
+         "filter": {"metric": "profit", "op": "lt", "value": 0}},
+    )  # fmt: skip
+    assert [r["id"] for r in loss["dòng"]] == ["p1"]  # a comparison of the returned values
     assert len(ctx.results) == 4  # every result is in the fact set the guards check against
+
+
+async def test_a_lever_without_an_opportunity_row_answers_from_the_row_and_runs_no_engine() -> None:
+    """C3: no row, or a row that was not published, is the answer: nothing is drafted."""
+    from tests.unit.analytics_agent.fakes import FakeCardEngine
+
+    ctx = await _ctx()
+    ctx.engine = FakeCardEngine(per_kind={})
+    none = await advisor.run_tool(ctx, "opportunities", {"lever": "flash_sale"})
+    assert none["kết_quả"] == "chưa có cơ hội" and none["cơ_hội"] == []
+    rows = (await advisor.run_tool(ctx, "opportunities", {"lever": "cover_image"}))["cơ_hội"]
+    assert rows[0]["kết_quả"] == "lợi ích chưa đủ để đề xuất" and "lý_do" in rows[0]
+    out = await advisor.run_tool(ctx, "draft_card", {"opportunity_id": "o-nope"})
+    assert out["kết_quả"] == "chưa có cơ hội" and out["card_ref"] is None and out["lý_do"]
+    assert ctx.engine.calls == [] and not ctx.drafts  # no engine run, no draft
+    assert not [c for c in ctx.data.calls if c.startswith("draft:")]
+    unknown = await advisor.run_tool(ctx, "draft_card", {"opportunity_id": "o-made-up"})
+    assert unknown == {"lỗi": "unknown_opportunity"}
 
 
 async def test_a_priority_question_routes_to_advise_not_jev() -> None:

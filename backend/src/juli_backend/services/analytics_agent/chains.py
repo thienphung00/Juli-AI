@@ -462,12 +462,15 @@ async def _count_chain(
         else:
             steps.append("step2: factors missing -> skip formula split")
 
-    srows = await data.source_daily(a0, b1, item_id)
+    sw0 = await data.source_totals(a0, b0, item_id)  # query(group_by="source"), window totals
+    sw1 = await data.source_totals(a1, b1, item_id)
 
-    def seg(a: date, b: date, num: str, den: str | None) -> dict[str, tuple[float, float]]:
+    def seg(
+        totals: list[dict[str, Any]], num: str, den: str | None
+    ) -> dict[str, tuple[float, float]]:
         out: dict[str, tuple[float, float]] = {}
         for src in (*KNOWN_SOURCES, OTHER):
-            rs = [r for r in srows if bucket(r["source"]) == src and a <= r["day"] <= b]
+            rs = [r for r in totals if bucket(r["source"]) == src]
             if den is None:
                 vals = [r[num] for r in rs if r[num] is not None]
                 if vals:
@@ -478,19 +481,15 @@ async def _count_chain(
                     out[src] = (float(sum(p[0] for p in pairs)), float(sum(p[1] for p in pairs)))
         return out
 
-    def src_cov(src: str, a: date, b: date) -> float:
-        return len(
-            {
-                r["day"]
-                for r in srows
-                if bucket(r["source"]) == src and r["views"] is not None and a <= r["day"] <= b
-            }
-        ) / ((b - a).days + 1)
+    def src_cov(src: str, totals: list[dict[str, Any]]) -> float:
+        """1 when the source reported views in the window, else 0 (the stored read has no
+        per-day coverage)."""
+        return float(any(bucket(r["source"]) == src and r["views"] is not None for r in totals))
 
     missing_src = [
         s
         for s in KNOWN_SOURCES
-        if s != "chenh_lech_nguon" and src_cov(s, a0, b0) >= 0.5 and src_cov(s, a1, b1) < 0.5
+        if s != "chenh_lech_nguon" and src_cov(s, sw0) >= 0.5 and src_cov(s, sw1) < 0.5
     ]
     for s in missing_src:
         findings.append(
@@ -505,7 +504,7 @@ async def _count_chain(
         )
     if followed in ("ctr", "ctor"):
         num, den = ("clicks", "views") if followed == "ctr" else ("orders", "clicks")
-        s0, s1 = seg(a0, b0, num, den), seg(a1, b1, num, den)
+        s0, s1 = seg(sw0, num, den), seg(sw1, num, den)
         for s in missing_src:
             s0.pop(s, None)
             s1.pop(s, None)
@@ -542,7 +541,7 @@ async def _count_chain(
             followed, "orders" if followed == "orders" else "gmv"
         )
         if followed != "aov":
-            s0, s1 = seg(a0, b0, key, None), seg(a1, b1, key, None)
+            s0, s1 = seg(sw0, key, None), seg(sw1, key, None)
             d_src = {
                 k: s1.get(k, (0.0, 1.0))[0] - s0.get(k, (0.0, 1.0))[0]
                 for k in set(s0) | set(s1)
@@ -570,17 +569,14 @@ async def _count_chain(
             steps.append(f"step3 additive {key}")
 
     sold_prev: set[str] | None = None
-    prow = await data.product_daily(a0, b1) if not item_id else []
-    if metric in ("orders", "gmv") and prow:
+    # per-product window totals (`query(group_by="item")`), one read per window
+    prow0 = await data.product_daily(a0, b0) if not item_id else []
+    prow1 = await data.product_daily(a1, b1) if not item_id else []
+    if metric in ("orders", "gmv") and (prow0 or prow1):
         key = "gmv" if metric == "gmv" else "orders"
-        p0: dict[str, float] = {}
-        p1: dict[str, float] = {}
-        for r in prow:
-            if a0 <= r["day"] <= b0:
-                p0[r["item_id"]] = p0.get(r["item_id"], 0) + float(r[key] or 0)
-            elif a1 <= r["day"] <= b1:
-                p1[r["item_id"]] = p1.get(r["item_id"], 0) + float(r[key] or 0)
-        cov0 = len({r["day"] for r in prow if a0 <= r["day"] <= b0}) / ((b0 - a0).days + 1)
+        p0 = {r["item_id"]: float(r[key] or 0) for r in prow0}
+        p1 = {r["item_id"]: float(r[key] or 0) for r in prow1}
+        cov0 = 1.0 if prow0 else 0.0  # the stored read gives no per-day coverage
         if cov0 < 0.5:
             findings.append(
                 Finding(
@@ -1066,10 +1062,7 @@ async def _cost_chain(
     steps.append("step2 lines: " + ", ".join(f"{k} {d:+.0f}" for k, d in line_d.items()))
     # scope 2: product (top sellers; the line figures per product come from the same channel split)
     if not item_id:
-        prow = await data.product_daily(a1, b1)
-        gmv: dict[str, float] = {}
-        for r in prow:
-            gmv[r["item_id"]] = gmv.get(r["item_id"], 0.0) + float(r["gmv"] or 0)
+        gmv = {r["item_id"]: float(r["gmv"] or 0) for r in await data.product_daily(a1, b1)}
         top = [k for k, _ in sorted(gmv.items(), key=lambda kv: -kv[1])[:5]]
         pd: dict[str, tuple[float, float]] = {}
         for k in top:

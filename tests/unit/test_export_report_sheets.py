@@ -53,13 +53,14 @@ def test_overview_has_percent_of_revenue_margin_prior_period_and_goal():
     d.goal_gmv, d.goal_profit = 6_000_000.0, 1_000_000.0
     ws = tq.build(d)[tq.SHEET_OVERVIEW]
     assert [c.value for c in ws[3]] == [
-        "Chỉ số", "Kỳ này", "% doanh thu", "Tháng trước (12/09/2026–11/10/2026)", "Thay đổi",
+        "Chỉ số", "Kỳ này", "% doanh thu thực", "Tháng trước (12/09/2026–11/10/2026)", "Thay đổi",
         "Mục tiêu (Kế hoạch)", "So với mục tiêu",
     ]  # fmt: skip
-    assert ws["C4"].value == 1.0  # GMV is the revenue
+    # L3: every cost % is ÷ the covered doanh thu thực (the margin base, row 14)
+    assert ws.cell(tq.OV["base"], 3).value == 1.0
     for key in ("profit", "ads", "aff", "offer", "cost"):
         r = tq.OV[key]
-        assert ws.cell(r, 3).value == f'=IF(ISNUMBER(B{r}),IFERROR(B{r}/B$4,"—"),"—")'
+        assert ws.cell(r, 3).value == f'=IF(ISNUMBER(B{r}),IFERROR(B{r}/B$14,"—"),"—")'
         assert ws.cell(r, 3).number_format == "0.0%"
     r = tq.OV["margin"]
     assert ws.cell(r, 1).value == tq.MARGIN_LABEL

@@ -311,12 +311,13 @@ def test_migration_126_is_additive_and_reversible():
     assert "item_id IS NULL" in src and "item_id IS NOT NULL" in src
     # migration 134 (T5) renamed the table
     assert TABLE_CLASSIFICATION_MAP[("public", "source_metrics_daily")] == "tenant_direct"
+    later = (versions / "140_data_layer_facts_opps.py").read_text("utf-8")
     for column in ShopeeSourceMetricsDaily.__table__.columns.keys():
-        assert f'"{column}"' in src, column
+        assert f'"{column}"' in src or f'"{column}"' in later, column
     for source in SOURCES:
         assert f"'{source}'" in src
     tail = versions.parent / "deferred/101_write_mode_backfill.py"
-    assert 'down_revision: str | None = "139_hot_path_indexes"' in tail.read_text("utf-8")
+    assert 'down_revision: str | None = "140_data_layer_facts_opps"' in tail.read_text("utf-8")
 
 
 async def test_product_sources_come_from_the_daily_item_traffic_and_sum_to_the_product_row(

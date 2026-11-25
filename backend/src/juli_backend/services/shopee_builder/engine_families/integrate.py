@@ -218,14 +218,22 @@ def profit_coverage_note(base: FunnelBase) -> str | None:
     return f"Lợi nhuận mỗi đơn tính trên {known} ngày có dữ liệu chi phí (trong {days} ngày)."
 
 
-def scope_today(env: RecoEnv, base: FunnelBase) -> dict[str, Any]:
+def scope_today(
+    env: RecoEnv, base: FunnelBase, *, level: Literal["net", "contribution"] = "net"
+) -> dict[str, Any]:
     """ "Hôm nay" of an option's own scope (P99, like with like): the stored funnel ``base`` the
     option's result was computed on (đơn, GMV, lợi nhuận, lượt xem / nhấp of the window) and the
-    scope's one margin (``shop_profit.scope_margin_pct``, Luồng sản phẩm's math). The builder's
-    So sánh, the saved card and Kế hoạch read the same block for the same scope."""
+    scope's margin at the surface's level (#67): ``net`` = Biên lợi nhuận
+    (``shop_profit.scope_margin_pct``, Kế hoạch), ``contribution`` = Biên đóng góp before ads and
+    AFF (``outcome.scope_contribution_margin_pct``, the builder's So sánh and the saved card)."""
     orders, gmv = base.total("orders"), base.total("gmv")
     views, clicks = funnel.known_total(base, "views"), funnel.known_total(base, "clicks")
-    margin = shop_profit.scope_margin_pct(env.view.profit, base.item_ids)
+    if level == "contribution":
+        from juli_backend.services.shopee_builder.outcome import scope_contribution_margin_pct
+
+        margin = scope_contribution_margin_pct(env.view.profit, base.item_ids)
+    else:
+        margin = shop_profit.scope_margin_pct(env.view.profit, base.item_ids)
     return {
         "scope": base.scope if base.scope == "shop" else "product",
         "items": list(base.item_ids),

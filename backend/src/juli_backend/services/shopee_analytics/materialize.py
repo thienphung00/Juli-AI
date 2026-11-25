@@ -16,6 +16,16 @@ source's own traffic-table count is its weight, the shortfall to the totals is t
 ``chenh_lech_nguon`` weight), so the sources add up to the shop / product row exactly. After a
 rebuild the hook runs the daily check (:mod:`funnel_check`), which only logs.
 
+Data layer (migration 140, decisions #62-#66; the pure parts in :mod:`day_facts`): the shop and
+product rows also hold the registry components (F1), a product's GMV / đơn are Shopee's product
+report where it has the day (A5) and its ads GMV is de-overlapped (A6); each product day is split
+into ``product_channel_metrics_daily`` cells (F2 / A7 / A9) and each campaign day into
+``campaign_metrics_daily`` (F3). Every row carries ``derivation_version`` = the registry's
+``DERIVATION_VERSION``, :data:`ROWS_VERSION` and a digest of the shop's fee schedule, so a
+formula or fee change makes the days stale and :func:`rebuild_outdated` (the daily background
+job) rebuilds them; nothing is rebuilt by hand (F5). Writes skip unchanged rows (an upsert only
+updates when a column differs), so a same-data rerun writes no tuple.
+
 P99: a day that stands on a longer Shopee period (product totals without order lines, or the
 period traffic table) gets its share of that period (:mod:`period_spread`), never the period
 total. ``rebuild_days`` loads the shop's daily series of each period once and passes the day's
@@ -25,30 +35,38 @@ spread to the pure ``day_rows``; the rows say so (product ``source`` = ``spread_
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import uuid
-from collections.abc import Iterable, Mapping
+from collections.abc import AsyncIterator, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, not_, or_, select, tuple_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import PlatformDailyMetric
 from juli_backend.models.models import Shop
+from juli_backend.models.platform_data import PlatformPeriodMetric
 from juli_backend.models.shopee_metrics import (
     FUNNEL_SOURCES,
     RESIDUAL_ITEM,
+    CampaignMetricsDaily,
+    ProductChannelMetricsDaily,
+    ShopChannelMetricsDaily,
     ShopeeProductMetricsDaily,
     ShopeeShopMetricsDaily,
     ShopeeSourceMetricsDaily,
+    ShopFactsStatus,
 )
 from juli_backend.models.shopee_profit import ShopeeOrderLine
 from juli_backend.repositories import PlatformDailyMetricsRepo
+from juli_backend.services.metrics.registry import DERIVATION_VERSION
 from juli_backend.services.shopee_analytics import (
+    day_facts,
     funnel_check,
     loaders,
     period_spread,
@@ -79,7 +97,9 @@ logger = logging.getLogger(__name__)
 #: ad cost is the ads report by product (:mod:`product_ads`), ad-only days get a row; 4 (decision
 #: #50): doanh thu thực subtracts only the shop voucher the seller bore (settlement). Bump it to
 #: rebuild every shop's stored days automatically (:func:`rebuild_outdated`).
-ROWS_VERSION = 4
+#: 5 (data layer, migration 140): the registry components, the product report (A5), the
+#: de-overlapped ads GMV (A6), the channel x discount cells and the campaign days.
+ROWS_VERSION = 5
 ROWS_VERSION_KEY = "rows_v"
 
 #: ingest datasets that cannot change a day's shop or product numbers
@@ -124,6 +144,10 @@ class DayRows:
     products: list[dict[str, Any]]
     #: ``shopee_source_metrics_daily`` rows (shop rows have ``item_id`` None)
     sources: list[dict[str, Any]] = field(default_factory=list)
+    #: ``product_channel_metrics_daily`` cells (F2 / A7 / A9)
+    channels: list[dict[str, Any]] = field(default_factory=list)
+    #: ``shop_channel_metrics_daily`` cells (contract §6: the shop's own đơn once per order)
+    shop_channels: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -295,11 +319,27 @@ def day_rows(
     traffic_tag: str,
     ads: AdsDay | None = None,
     spread: Mapping[str, SpreadDay] | None = None,
+    *,
+    item_report: Mapping[str, day_facts.ItemReport] | None = None,
+    ads_figures: Mapping[str, Mapping[str, Decimal | None]] | None = None,
+    version: str | None = None,
 ) -> DayRows:
     """The rows of one day from its (one-day) view. Pure. ``spread`` = each product's share of
-    the longer Shopee period the day stands on (:func:`period_spread.day_spread`)."""
+    the longer Shopee period the day stands on (:func:`period_spread.day_spread`).
+    ``item_report`` = the day's product report rows (A5), ``ads_figures`` = each product's
+    de-overlapped ads-by-product figures (A6, :func:`day_facts.ads_figures_by_item`), ``version``
+    = the rows' ``derivation_version``."""
     spread = spread or {}
     m = shop_metrics(view, spread=spread)
+    if item_report:
+        m = replace(m, splits=day_facts.item_report_splits(m.splits, item_report, m.gmv))
+    figures = ads_figures or {}
+    ads_gmv: dict[str, Decimal] = {}
+    for item, f in figures.items():
+        value = f.get("ads_gmv")
+        if value is not None:
+            ads_gmv[item] = value
+    by_item = day_facts.pairs_by_product(view.pairs)
     traffic_spread = {i: s for i, s in spread.items() if s.traffic_period is not None}
     p = view.profit
     ad_source = view.data.ads_daily.source_by_day.get(day)
@@ -356,6 +396,10 @@ def day_rows(
         else (covered / p.buyer_paid).quantize(Decimal("0.0001")),
         "line_gmv": _money(m.line_gmv),
         "line_orders": m.line_orders,
+        **day_facts.scope_components(view.pairs),
+        "other_marketing": _money(p.other_marketing_costs) if view.pairs else None,
+        **_shop_known_and_ads(view, m, ads, figures, ad_source is not None),
+        "derivation_version": version,
         "sources": sources,
         "detail": {
             "aov_sc_net_gmv": None if not m.line_orders else str(net_gmv),
@@ -402,6 +446,13 @@ def day_rows(
                 "profit": _money(profit),
                 "line_gmv": _money(s.line_gmv),
                 "line_orders": s.line_orders,
+                **_product_known_and_ads(
+                    day_facts.scope_components(by_item.get(item_id, [])),
+                    view.ads.product_spend.get(item_id),
+                    s.gmv,
+                    figures.get(item_id),
+                ),
+                "derivation_version": version,
                 "source": _row_source(s.basis),
                 "scaled_to_totals": s.basis
                 in ("scaled_order_lines", SPLIT_PRODUCT_PERIOD, SPLIT_SPREAD_PERIOD),
@@ -428,6 +479,10 @@ def day_rows(
                 "profit": _money(-ad_cost),
                 "line_gmv": ZERO,
                 "line_orders": 0,
+                **_product_known_and_ads(
+                    dict.fromkeys(day_facts.COMPONENT_COLUMNS), ad_cost, ZERO, figures.get(item_id)
+                ),
+                "derivation_version": version,
                 "source": "order_lines",
                 "scaled_to_totals": False,
             }
@@ -449,6 +504,8 @@ def day_rows(
             "profit": None,
             "line_gmv": ZERO,
             "line_orders": 0,
+            **_product_known_and_ads(dict.fromkeys(day_facts.COMPONENT_COLUMNS), None, None, None),
+            "derivation_version": version,
             "source": "shop_totals",
             "scaled_to_totals": False,
         }
@@ -468,10 +525,103 @@ def day_rows(
                 item_id=item_id,
                 ads=_product_ads(view, item_id),
             )
-    return DayRows(shop, products, funnel)
+    for r in funnel:
+        r["derivation_version"] = version
+    channels: list[dict[str, Any]] = []
+    for row in products:
+        item_id = row["item_id"]
+        if item_id == RESIDUAL_ITEM:
+            continue
+        channels += day_facts.channel_rows(
+            day_facts.ChannelInput(
+                item_id,
+                row["gmv"] or ZERO,
+                row["orders"] or 0,
+                by_item.get(item_id, []),
+                ads_gmv.get(item_id),
+                row["ads_spend"],
+                row["units"],
+            ),
+            shop_id=shop_id,
+            day=day,
+            version=version or "",
+        )
+    shop_channels = [
+        {k: v for k, v in r.items() if k != "item_id"}
+        for r in day_facts.channel_rows(
+            day_facts.ChannelInput(
+                "",
+                shop["gmv"] or ZERO,
+                shop["orders"] or 0,
+                view.pairs,
+                sum(ads_gmv.values(), ZERO) if ads_gmv else None,
+                shop["ads_spend"],
+                shop["units"],
+            ),
+            shop_id=shop_id,
+            day=day,
+            version=version or "",
+        )
+    ] if shop["gmv"] is not None else []  # fmt: skip
+    return DayRows(shop, products, funnel, channels, shop_channels)
+
+
+def _product_known_and_ads(
+    comps: dict[str, Decimal | None],
+    spend: Decimal | None,
+    gmv: Decimal | None,
+    figures: Mapping[str, Decimal | None] | None,
+) -> dict[str, Any]:
+    """A product day's components plus A2's known AFF / ads cost and the ads funnel (A6)."""
+    f = figures or {}
+
+    def whole(v: Decimal | None) -> int | None:
+        return None if v is None else int(v)
+
+    return {
+        **comps,
+        "affiliate_commission_known": comps.get("affiliate_commission"),
+        "ads_spend_known": day_facts.ads_spend_known(spend, comps.get("cogs_known_gmv"), gmv),
+        "ads_gmv": _money(f.get("ads_gmv")),
+        "ads_gmv_direct": _money(f.get("ads_gmv_direct")),
+        "ads_gmv_confirmed": None,  # Shopee posts no per-product confirmed ads GMV
+        "ads_views": whole(f.get("ads_views")),
+        "ads_clicks": whole(f.get("ads_clicks")),
+        "ads_orders": whole(f.get("ads_orders")),
+    }
+
+
+def _shop_known_and_ads(
+    view: PeriodView,
+    m: Any,
+    ads: AdsDay | None,
+    figures: Mapping[str, Mapping[str, Decimal | None]],
+    has_spend: bool,
+) -> dict[str, Any]:
+    """The shop day's A2 known AFF / ads cost and its ads funnel: the "trong đó Quảng cáo"
+    overlay (confirmed basis) for views / clicks / đơn / confirmed GMV, the ads report by product
+    (de-overlapped) for the direct GMV."""
+    comps = day_facts.scope_components(view.pairs)
+    direct: list[Decimal] = []
+    for f in figures.values():
+        value = f.get("ads_gmv_direct")
+        if value is not None:
+            direct.append(value)
+    spend = m.ad_spend if has_spend else None
+    return {
+        "affiliate_commission_known": comps["affiliate_commission"],
+        "ads_spend_known": day_facts.ads_spend_known(spend, comps["cogs_known_gmv"], m.gmv),
+        "ads_gmv_direct": _money(sum(direct, ZERO)) if direct else None,
+        "ads_gmv_confirmed": None if ads is None else _money(ads.gmv),
+        "ads_views": None if ads is None else ads.views,
+        "ads_clicks": None if ads is None else ads.clicks,
+        "ads_orders": None if ads is None else ads.orders,
+    }
 
 
 def _row_source(basis: str) -> str:
+    if basis == day_facts.SPLIT_ITEM_REPORT:
+        return day_facts.SPLIT_ITEM_REPORT
     if basis == SPLIT_SPREAD_PERIOD:
         return period_spread.ROW_SOURCE
     return "file" if basis == SPLIT_PRODUCT_PERIOD else "order_lines"
@@ -583,22 +733,65 @@ async def _upsert(
         return
     insert = _insert(session)
     now = datetime.now(UTC).replace(tzinfo=None)
+    values = _same_keys(model, values)
     stmt = insert(model).values([{**v, "id": uuid.uuid4(), "built_at": now} for v in values])
     update = {
         c.name: stmt.excluded[c.name]
         for c in model.__table__.columns
         if c.name not in ("id", "shop_id", *keys)
     }
+    # rule 9 (owner 25/11): an unchanged row is not rewritten (no new tuple): update only when a
+    # column other than ``built_at`` differs from the stored one
+    table = model.__table__
+    changed = or_(
+        *(
+            table.c[name].is_distinct_from(value)
+            for name, value in update.items()
+            if name != "built_at"
+        )
+    )
     await session.execute(
-        stmt.on_conflict_do_update(index_elements=list(keys), index_where=where, set_=update)
+        stmt.on_conflict_do_update(
+            index_elements=list(keys), index_where=where, set_=update, where=changed
+        )
     )
 
 
-async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable[date]) -> int:
-    """Recompute and upsert these days. Returns the number of days written."""
-    wanted = sorted(set(days))
-    if not wanted:
-        return 0
+def _same_keys(model: Any, values: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One multi-row INSERT needs one key set: a row built by another path (a TikTok analytics
+    product, a zeroed product) gets the columns it lacks at their column default (else None)."""
+    keys = set().union(*(v.keys() for v in values))
+    out: list[dict[str, Any]] = []
+    for v in values:
+        missing = keys - v.keys()
+        if not missing:
+            out.append(v)
+            continue
+        filled = dict(v)
+        for k in missing:
+            default = model.__table__.c[k].default
+            filled[k] = default.arg if default is not None and default.is_scalar else None
+        out.append(filled)
+    return out
+
+
+@dataclass
+class BuiltDay:
+    """One day's rows as :func:`rebuild_days` writes them (before the zeroed "left the day"
+    products, which depend on what is already stored)."""
+
+    day: date
+    rows: DayRows
+    campaigns: list[dict[str, Any]]
+    #: TikTok (settlement-only): no channel cells / campaign days are written
+    settlement_only: bool
+
+
+async def _build_days(
+    session: AsyncSession, shop_id: uuid.UUID, wanted: list[date]
+) -> AsyncIterator[BuiltDay]:
+    """Read the raw tables and build each wanted day's rows (no write). The one code path of
+    both :func:`rebuild_days` (stored) and :func:`compute_facts` (the in-memory fallback)."""
     ctx0 = await loaders.load_context(session, shop_id)
     shop = await session.get(Shop, shop_id)
     settlement_only = shop is not None and shop.platform in tiktok_days.SETTLEMENT_ONLY_PLATFORMS
@@ -608,6 +801,8 @@ async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable
     # P101 W3: a shop's daily analytics (none for a Shopee shop: nothing below changes for it)
     analytics = await tiktok_days.load_days(session, shop_id, wanted)
     analytics_known = await tiktok_days.headline_days(session, shop_id)
+    version = stamp_of(ctx0)
+    facts = await _load_day_facts(session, shop_id, wanted[0], wanted[-1])
     for day in wanted:
         ctx = replace(ctx0, rules=ctx0.rules.for_month(f"{day:%Y-%m}"))
         view = await service.load_view(session, shop_id, ctx, Window(day, day))
@@ -623,11 +818,38 @@ async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable
             await _traffic_tag(session, shop_id, day),
             await _ads_day(session, shop_id, day),
             period_spread.for_view(view, day, shop_days),
+            item_report=facts.item_report.get(day),
+            ads_figures=day_facts.ads_figures_by_item(facts.ad_rows, day),
+            version=version,
         )
         rows = _with_analytics(rows, analytics, analytics_known, shop_id, day)
+        for r in (*rows.products, *rows.sources):
+            r.setdefault("derivation_version", version)
         if settlement_only:
             rows = tiktok_days.settled_profit_only(rows, tiktok_days.unsettled_items(view))
             rows = tiktok_days.without_ads_profit(rows)  # owner W3-Q5 = a
+        campaigns = (
+            []
+            if settlement_only
+            else day_facts.campaign_rows(
+                facts.campaign_days.get(day, []),
+                shop_id=shop_id,
+                day=day,
+                version=version,
+                contribution_by_campaign=_campaign_contribution(rows.products, facts, day),
+            )
+        )
+        yield BuiltDay(day, rows, campaigns, settlement_only)
+
+
+async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable[date]) -> int:
+    """Recompute and upsert these days. Returns the number of days written."""
+    wanted = sorted(set(days))
+    if not wanted:
+        return 0
+    async for built in _build_days(session, shop_id, wanted):
+        day, rows = built.day, built.rows
+        version = rows.shop.get("derivation_version")
         have = set(
             (
                 await session.execute(
@@ -649,6 +871,10 @@ async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable
                     "variation_id": None, "gmv": ZERO, "orders": 0, "units": 0, "views": None,
                     "clicks": None, "ads_spend": None, "profit": None, "line_gmv": ZERO,
                     "line_orders": 0, "source": "order_lines", "scaled_to_totals": False,
+                    **_product_known_and_ads(
+                        dict.fromkeys(day_facts.COMPONENT_COLUMNS), None, None, None
+                    ),
+                    "derivation_version": version,
                 }
             )  # fmt: skip
         await _upsert(
@@ -661,8 +887,154 @@ async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable
             ("shop_id", "day", "order_type", "item_id"),
         )
         await _upsert_sources(session, shop_id, day, rows.sources)
+        if built.settlement_only:  # TikTok: no channel cells / campaign days in this batch
+            continue
+        await _replace_day(
+            session,
+            ProductChannelMetricsDaily,
+            shop_id,
+            day,
+            rows.channels,
+            ("item_id", "channel", "discounted"),
+        )
+        await _replace_day(
+            session,
+            ShopChannelMetricsDaily,
+            shop_id,
+            day,
+            rows.shop_channels,
+            ("channel", "discounted"),
+        )
+        await _replace_day(
+            session, CampaignMetricsDaily, shop_id, day, built.campaigns, ("campaign_id",)
+        )
     await session.flush()
     return len(wanted)
+
+
+def fee_digest(ctx: loaders.ShopContext) -> str:
+    """8 hex of the shop's fee schedule (the platform formulas and the learned phí dịch vụ rate):
+    the stored profit depends on it, so a change makes every day stale (F5)."""
+    text = repr((sorted(map(repr, ctx.formula_rows)), str(ctx.service_rate)))
+    return hashlib.sha1(text.encode(), usedforsecurity=False).hexdigest()[:8]
+
+
+def stamp_of(ctx: loaders.ShopContext) -> str:
+    """The rows' ``derivation_version``: registry version / rows rule / fee schedule (≤ 32)."""
+    return f"{DERIVATION_VERSION}/r{ROWS_VERSION}/f{fee_digest(ctx)}"
+
+
+@dataclass
+class DayFacts:
+    """Raw rows the data-layer columns read, loaded once per rebuild."""
+
+    item_report: dict[date, dict[str, day_facts.ItemReport]] = field(default_factory=dict)
+    ad_rows: list[day_facts.AdReportRow] = field(default_factory=list)
+    campaign_days: dict[date, list[Any]] = field(default_factory=dict)
+    #: (campaign key, day) -> the products its report windows covering the day name
+    campaign_items: dict[tuple[str, date], set[str]] = field(default_factory=dict)
+
+
+async def _load_day_facts(
+    session: AsyncSession, shop_id: uuid.UUID, start: date, end: date
+) -> DayFacts:
+    out = DayFacts()
+    daily = await PlatformDailyMetricsRepo(session).window(
+        shop_id,
+        datasets=[day_facts.ITEM_REPORT_DATASET, "ads_campaign_daily"],
+        start=start,
+        end=end,
+        any_item=True,
+    )
+    for r in daily:
+        if r.dataset == day_facts.ITEM_REPORT_DATASET:
+            if not r.item_id or r.order_type != loaders.CONFIRMED or r.segment != "all":
+                continue
+            units = (r.extra or {}).get("units")
+            out.item_report.setdefault(r.day, {})[r.item_id] = day_facts.ItemReport(
+                r.gmv or ZERO, int(r.orders or 0), None if units is None else int(units)
+            )
+        elif r.stream == "ads" and not r.item_id:
+            out.campaign_days.setdefault(r.day, []).append(r)
+    periods = (
+        await session.execute(
+            select(PlatformPeriodMetric).where(
+                PlatformPeriodMetric.shop_id == shop_id,
+                PlatformPeriodMetric.dataset.in_(PRODUCT_AD_DATASETS),
+                PlatformPeriodMetric.order_type == loaders.PLACED,
+                PlatformPeriodMetric.period_end >= start,
+                PlatformPeriodMetric.period_start <= end,
+                PlatformPeriodMetric.item_id != "",
+            )
+        )
+    ).scalars()
+    for p in periods:
+        extra = p.extra or {}
+        raw = extra.get("direct_sales")
+        direct = None if raw is None else Decimal(str(raw))
+        out.ad_rows.append(
+            day_facts.AdReportRow(
+                p.segment,
+                p.item_id,
+                p.period_start,
+                p.period_end,
+                direct if direct is not None else (p.gmv or ZERO),
+                direct=direct,
+                impressions=p.impressions,
+                clicks=p.clicks,
+                orders=p.orders,
+            )
+        )
+        d = max(p.period_start, start)
+        while d <= min(p.period_end, end):
+            out.campaign_items.setdefault((p.segment, d), set()).add(p.item_id)
+            d += timedelta(days=1)
+    return out
+
+
+def _campaign_contribution(
+    products: list[dict[str, Any]], facts: DayFacts, day: date
+) -> dict[str, Decimal | None]:
+    """A campaign-day's products' contribution before ads (registry ``contribution`` from the
+    stored components); None when a product of it has no known contribution."""
+    contribution: dict[str, Decimal | None] = {}
+    for row in products:
+        parts = [
+            row.get(k) for k in ("net_revenue_known", "cogs", "packaging", "fees", "shipping_net")
+        ]
+        if any(v is None for v in parts):
+            contribution[row["item_id"]] = None
+            continue
+        nrk, cogs, pack, fees, ship = (v or ZERO for v in parts)
+        contribution[row["item_id"]] = nrk - cogs - pack - fees - ship
+    out: dict[str, Decimal | None] = {}
+    for (key, d), items in facts.campaign_items.items():
+        if d != day:
+            continue
+        values = [contribution.get(i) for i in items]
+        out[key] = (
+            None if any(v is None for v in values) else sum((v or ZERO for v in values), ZERO)
+        )
+    return out
+
+
+async def _replace_day(
+    session: AsyncSession,
+    model: Any,
+    shop_id: uuid.UUID,
+    day: date,
+    rows: list[dict[str, Any]],
+    dims: tuple[str, ...],
+) -> None:
+    """Sparse fact rows of one day: the cells no longer present are deleted, the rest upserted
+    (unchanged ones are not rewritten)."""
+    cols = [model.__table__.c[d] for d in dims]
+    stale = delete(model).where(model.shop_id == shop_id, model.day == day)
+    if rows:
+        keep = [tuple(r[d] for d in dims) for r in rows]
+        stale = stale.where(not_(tuple_(*cols).in_(keep)))
+    await session.execute(stale)
+    await _upsert(session, model, rows, ("shop_id", "day", *dims))
 
 
 def _with_analytics(
@@ -724,16 +1096,19 @@ async def _upsert_sources(
 
 
 async def outdated_days(session: AsyncSession, shop_id: uuid.UUID) -> list[date]:
-    """The stored days built by an older rule (``detail.rows_v`` below :data:`ROWS_VERSION`)."""
+    """The stored days built by an older rule: ``derivation_version`` is not the current stamp
+    (registry version, :data:`ROWS_VERSION`, fee schedule; F5). A row stamped before migration
+    140 (NULL) is outdated too."""
+    current = stamp_of(await loaders.load_context(session, shop_id))
+    t = ShopeeShopMetricsDaily
     rows = await session.execute(
-        select(ShopeeShopMetricsDaily.day, ShopeeShopMetricsDaily.detail).where(
-            ShopeeShopMetricsDaily.shop_id == shop_id,
-            ShopeeShopMetricsDaily.order_type == ORDER_TYPE,
+        select(t.day).where(
+            t.shop_id == shop_id,
+            t.order_type == ORDER_TYPE,
+            or_(t.derivation_version.is_(None), t.derivation_version != current),
         )
     )
-    return sorted(
-        d for d, detail in rows.all() if (detail or {}).get(ROWS_VERSION_KEY) != ROWS_VERSION
-    )
+    return sorted(rows.scalars().all())
 
 
 async def rebuild_outdated(
@@ -741,13 +1116,16 @@ async def rebuild_outdated(
 ) -> int:
     """F7.10: rebuild the stored days an older rule built (automatic, no manual step; the daily
     learning / measurement job calls it first). Never raises: a failed rebuild is logged and
-    retried next day. Returns the days rebuilt."""
-    days = (await outdated_days(session, shop_id))[-limit:]
+    retried next day. Returns the days rebuilt. Data layer (#74): the pending days also include
+    data days with no stored row; the shop's ``shop_facts_status`` is refreshed after the run."""
+    days = (await pending_days(session, shop_id))[-limit:]
     if not days:
         return 0
     try:
         async with session.begin_nested():
-            return await rebuild_days(session, shop_id, days)
+            written = await rebuild_days(session, shop_id, days)
+            await refresh_status(session, shop_id)
+            return written
     except (SQLAlchemyError, RuntimeError, ArithmeticError, LookupError, TypeError, ValueError):
         logger.warning(
             "shopee_metrics_outdated_rebuild_failed",
@@ -874,7 +1252,14 @@ class RuleRebuild:
 
 
 async def _clear_days(session: AsyncSession, shop_id: uuid.UUID, days: list[date]) -> None:
-    for model in (ShopeeShopMetricsDaily, ShopeeProductMetricsDaily, ShopeeSourceMetricsDaily):
+    for model in (
+        ShopeeShopMetricsDaily,
+        ShopeeProductMetricsDaily,
+        ShopeeSourceMetricsDaily,
+        ProductChannelMetricsDaily,
+        ShopChannelMetricsDaily,
+        CampaignMetricsDaily,
+    ):
         await session.execute(delete(model).where(model.shop_id == shop_id, model.day.in_(days)))
     await session.flush()
 
@@ -896,6 +1281,7 @@ async def after_rules_change(
     try:
         async with session.begin_nested():
             written = await rebuild_days(session, shop_id, days)
+            await refresh_status(session, shop_id)
     except (SQLAlchemyError, RuntimeError, ArithmeticError, LookupError, TypeError, ValueError):
         logger.warning(
             "shopee_metrics_rule_rebuild_failed",
@@ -903,6 +1289,7 @@ async def after_rules_change(
             exc_info=True,
         )
         await _clear_days(session, shop_id, days)
+        await refresh_status(session, shop_id)  # the cleared days are pending: not ready
         return RuleRebuild(cleared=len(days))
     return RuleRebuild(days=written)
 
@@ -931,10 +1318,117 @@ async def backfill_shop(
         if (not start or d >= start) and (not end or d <= end)
     ]
     written = await rebuild_days(session, shop_id, days)
+    await refresh_status(session, shop_id)
     found = await funnel_check.check_days(session, shop_id, days)
     return BackfillReport(
         len(days), written, days[0] if days else None, days[-1] if days else None, len(found)
     )
+
+
+# -- deploy plan #74: readiness, the in-memory fallback, the pending days ----------------------
+
+
+def code_version() -> str:
+    """The code part of the stamp (registry version / rows rule): what a deploy changes."""
+    return f"{DERIVATION_VERSION}/r{ROWS_VERSION}/"
+
+
+async def pending_days(session: AsyncSession, shop_id: uuid.UUID) -> list[date]:
+    """The days the stored layer still owes: stored days of an older stamp
+    (:func:`outdated_days`) and data days with no stored shop row (a grain added since)."""
+    t = ShopeeShopMetricsDaily
+    stored = set(
+        (
+            await session.execute(
+                select(t.day).where(t.shop_id == shop_id, t.order_type == ORDER_TYPE)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    missing = {d for d in await data_days(session, shop_id) if d not in stored}
+    return sorted(set(await outdated_days(session, shop_id)) | missing)
+
+
+async def refresh_status(session: AsyncSession, shop_id: uuid.UUID) -> ShopFactsStatus:
+    """Write the shop's ``shop_facts_status`` row from what is stored now (idempotent): the
+    current stamp, ``complete`` when nothing is pending, else ``ready_from`` = the day after the
+    newest pending day (every later day is current)."""
+    stamp = stamp_of(await loaders.load_context(session, shop_id))
+    pending = await pending_days(session, shop_id)
+    ready_from = None if not pending else pending[-1] + timedelta(days=1)
+    t = ShopFactsStatus
+    await _upsert(
+        session,
+        t,
+        [
+            {
+                "shop_id": shop_id,
+                "derivation_version": stamp,
+                "complete": not pending,
+                "ready_from": ready_from,
+                "pending_days": len(pending),
+            }
+        ],
+        ("shop_id",),
+    )
+    await session.flush()
+    row = (await session.execute(select(t).where(t.shop_id == shop_id))).scalar_one()
+    return row
+
+
+async def facts_ready(
+    session: AsyncSession, shop_id: uuid.UUID, window: tuple[date, date] | Window
+) -> bool:
+    """May ``facts.query`` read this shop's stored rows for ``window``? One indexed read: the
+    status row is of this code version and either complete or current from before the window's
+    first day. False when there is no status row yet (the backfill has not reached the shop)."""
+    start = window[0] if isinstance(window, tuple) else window.start
+    t = ShopFactsStatus
+    row = (
+        await session.execute(
+            select(t.derivation_version, t.complete, t.ready_from).where(t.shop_id == shop_id)
+        )
+    ).one_or_none()
+    if row is None or not row.derivation_version.startswith(code_version()):
+        return False
+    return bool(row.complete) or (row.ready_from is not None and start >= row.ready_from)
+
+
+@dataclass
+class FactRows:
+    """The rows of every stored grain for a date range, keyed by table name; the same dicts
+    (same column names) :func:`rebuild_days` writes."""
+
+    shop_metrics_daily: list[dict[str, Any]] = field(default_factory=list)
+    product_metrics_daily: list[dict[str, Any]] = field(default_factory=list)
+    source_metrics_daily: list[dict[str, Any]] = field(default_factory=list)
+    product_channel_metrics_daily: list[dict[str, Any]] = field(default_factory=list)
+    shop_channel_metrics_daily: list[dict[str, Any]] = field(default_factory=list)
+    campaign_metrics_daily: list[dict[str, Any]] = field(default_factory=list)
+
+
+async def compute_facts(
+    session: AsyncSession, shop_id: uuid.UUID, start: date, end: date
+) -> FactRows:
+    """The in-memory fallback (deploy plan #74): the rows the stored layer would hold for the
+    shop's data days in ``start``..``end``, computed from the raw tables by the same code as
+    :func:`rebuild_days`, written nowhere. For ``facts.query`` while :func:`facts_ready` is
+    False."""
+    wanted = [d for d in await data_days(session, shop_id) if start <= d <= end]
+    out = FactRows()
+    if not wanted:
+        return out
+    async for built in _build_days(session, shop_id, wanted):
+        out.shop_metrics_daily.append(built.rows.shop)
+        out.product_metrics_daily += built.rows.products
+        out.source_metrics_daily += built.rows.sources
+        if built.settlement_only:
+            continue
+        out.product_channel_metrics_daily += built.rows.channels
+        out.shop_channel_metrics_daily += built.rows.shop_channels
+        out.campaign_metrics_daily += built.campaigns
+    return out
 
 
 __all__ = [
@@ -945,6 +1439,11 @@ __all__ = [
     "SourceSplit",
     "after_ingest",
     "after_rules_change",
+    "compute_facts",
+    "facts_ready",
+    "pending_days",
+    "refresh_status",
+    "FactRows",
     "backfill_shop",
     "day_rows",
     "rebuild_days",

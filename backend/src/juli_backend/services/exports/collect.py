@@ -29,6 +29,7 @@ from juli_backend.services.exports import report_sheets as rs
 from juli_backend.services.exports import sku as skumod
 from juli_backend.services.exports import tong_quan_xlsx as tq
 from juli_backend.services.exports.profit_bridge import profit_bridge
+from juli_backend.services.metrics.query import Scope, query
 from juli_backend.services.shopee_analytics import (
     NoShopeeData,
     RowsNotMaterialized,
@@ -40,7 +41,6 @@ from juli_backend.services.shopee_analytics import (
     service,
 )
 from juli_backend.services.shopee_analytics.compute import PeriodView
-from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_recommendations import (
     change_sets,
@@ -182,13 +182,20 @@ def _residual(shop: tq.Figures, parts: list[tq.Figures]) -> tq.Figures:
     )  # fmt: skip
 
 
-def _net_revenue_known(view: PeriodView, product_id: str | None) -> float | None:
-    """The margin base (registry ``net_revenue_known``) of the shop or of one product: the buyer
-    paid of the orders whose costs are known, the base of the screen's margin."""
-    if product_id is None:
-        return _f(shop_profit_of(view).buyer_paid)
-    product = view.profit.products.get(product_id)
-    return None if product is None else _f(product.buyer_paid_covered)
+async def _base_of(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window, product_id: str | None
+) -> tuple[float | None, float | None]:
+    """L3 / A2: the margin base (covered doanh thu thực, registry ``net_revenue_known``) and the
+    cost coverage of the scope over ``window``, from the stored facts (``metrics.query``)."""
+    scope = Scope.shop() if product_id is None else Scope.product(product_id)
+    res = await query(
+        session,
+        shop_id,
+        ["net_revenue_known", "cost_coverage"],
+        scope=scope,
+        window=(window.start, window.end),
+    )
+    return _f(res.values.get("net_revenue_known")), _f(res.values.get("cost_coverage"))
 
 
 def _gmv_of(listing: dict[str, Any], product_id: str) -> float:
@@ -329,9 +336,14 @@ async def collect_tong_quan(
         if v is None or rows_ is None:
             return tq.Figures()
         fig = _figures(await channel_split.split_figures(session, shop_id, v, w, pid))
-        base = _net_revenue_known(v, pid)
+        base, coverage = await _base_of(session, shop_id, w, pid)
         return partition(
-            replace(fig, ads_basis=_ads_basis(rows_, shop_id, pid), net_revenue_known=base)
+            replace(
+                fig,
+                ads_basis=_ads_basis(rows_, shop_id, pid),
+                net_revenue_known=base,
+                coverage=coverage,
+            )
         )
 
     shop_now = await figures(view, cur, None, frows)

@@ -13,6 +13,7 @@ from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.analytics_agent import fmt
+from juli_backend.services.analytics_agent.labels import METRICS_VI
 from juli_backend.services.analytics_agent.types import DataPort
 from juli_backend.services.analytics_agent.windows import (
     anchor_for,
@@ -83,11 +84,12 @@ def product_loss_row(r: dict[str, Any]) -> dict[str, Any]:
     """One product losing after ads: profit after ads, contribution before ads, ads spend and
     ROAS hoà vốn (the shared `ProductProfit` figures)."""
     be = r.get("break_even_roas")
-    contrib = r.get("contribution_before_ads")
+    contrib = r.get("contribution")
     return {
         "label_vi": str(r.get("name") or r["item_id"]),
         "value_vi": "Lỗ " + fmt.value("profit", abs(float(r["profit"]))),
-        "detail_vi": "đóng góp trước quảng cáo "
+        "detail_vi": METRICS_VI["contribution"].lower()
+        + " "
         + (fmt.value("profit", _f(contrib)) if contrib is not None else "chưa có")
         + f" · chi quảng cáo {fmt.value('ads_spend', _f(r.get('ad_spend')))}"
         + f" · hoà vốn {fmt.value('roas', _f(be)) if be is not None else 'chưa có'}",
@@ -273,9 +275,9 @@ async def run_entity(
         now_v = _f(p.get("break_even_roas"))
         old_v = None if before is None else _f(before.get("break_even_roas"))
         extra: dict[str, Any] = {}
-        if p.get("contribution_before_ads") is not None:
-            extra["contribution_vi"] = "Đóng góp trước quảng cáo " + fmt.value(
-                "profit", _f(p["contribution_before_ads"])
+        if p.get("contribution") is not None:
+            extra["contribution_vi"] = (
+                METRICS_VI["contribution"] + " " + fmt.value("profit", _f(p["contribution"]))
             )
         return [
             _answer(

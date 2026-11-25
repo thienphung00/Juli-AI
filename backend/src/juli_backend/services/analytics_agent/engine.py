@@ -31,6 +31,7 @@ from juli_backend.services.analytics_agent import (
     writer,
 )
 from juli_backend.services.analytics_agent import cards as cardstage
+from juli_backend.services.analytics_agent import compare as compare_mod
 from juli_backend.services.analytics_agent.cards_service import ServiceCardEngine
 from juli_backend.services.analytics_agent.chains import CHAIN_METRIC, ChainResult, run_chain
 from juli_backend.services.analytics_agent.data_service import ServiceData, SessionFactory
@@ -157,6 +158,7 @@ async def run(
     req: AskRequest,
     *,
     read_session_factory: SessionFactory | None = None,
+    write_session_factory: SessionFactory | None = None,
     llm: LLMPort,
     jev: JevPort,
     sink: EventSink,
@@ -175,7 +177,10 @@ async def run(
     if data is None:
         assert read_session_factory is not None, "read_session_factory or data is required"
         data = ServiceData(read_session_factory, req.shop_id)
-        card_engine = card_engine or ServiceCardEngine(read_session_factory, req.shop_id)
+        # OPP's on-demand opportunity rows persist through the primary (write) factory
+        card_engine = card_engine or ServiceCardEngine(
+            read_session_factory, req.shop_id, write_factory=write_session_factory
+        )
     as_of = req.as_of or (clock().date() - timedelta(days=1))
     try:
         await out.emit(present.status("thinking"))
@@ -530,6 +535,16 @@ async def _answer_inner(
                 }
             )
         result.stop_reasons.append("needs_choice" if what == "asked" else "data_answer")
+        return
+    if mode == "compare":  # C6: 4 priced options of OPP, one pick, the lead names the figure
+        await out.emit(present.status("checking_data"))
+        block, lead = await compare_mod.run_compare(
+            data, engine, labels, as_of, list(dec.get("kinds") or []),
+            str(intent.get("product_phrase") or ""),
+        )  # fmt: skip
+        await out.emit(block)
+        await out.emit({"type": "text_delta", "text": lead})
+        result.stop_reasons.append("data_answer")
         return
     if mode == "advise":  # J1-J5: the LLM advises over the shop's data; code checks the answer
         if _platform_has_analytics(req.platform) and engine is not None:

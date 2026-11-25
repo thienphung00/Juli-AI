@@ -43,14 +43,14 @@ async def test_metric_total_with_direction_and_freshness() -> None:
     assert isinstance(out["value"], str) and out["value_raw"] == 14_000_000.0
 
 
-async def test_metric_total_money_chain_metric_comes_from_overview() -> None:
+async def test_metric_total_money_chain_metric_comes_from_query() -> None:
     shop = shop_rows(AS_OF - timedelta(days=40), AS_OF, orders=5.0)
 
-    def ov(a: date, b: date) -> dict[str, Any]:
-        return {"shop_profit": {"margin_pct": 42.8 if b >= AS_OF else 40.0}}
+    def values(ids: list[str], a: date, b: date) -> dict[str, Any]:
+        return {"margin": 42.8 if b >= AS_OF else 40.0}  # registry points
 
     out = await lookup.run_lookup(
-        FakeData(shop, overview=ov), L, "metric_total", "margin", PRESET, AS_OF
+        FakeData(shop, values=values), L, "metric_total", "margin", PRESET, AS_OF
     )
     assert out["value"] == "42,8%" and out["delta"]["dir"] == "up"
 
@@ -88,13 +88,8 @@ async def test_channel_breakdown_labels_and_thieu_du_lieu() -> None:
     shop = shop_rows(AS_OF - timedelta(days=20), AS_OF, orders=5.0)
     srcs = source_rows(AS_OF - timedelta(days=6), AS_OF, "video", views=100, clicks=10, orders=1.0)
     srcs += source_rows(
-        AS_OF - timedelta(days=6),
-        AS_OF - timedelta(days=4),
-        "live",
-        views=100,
-        clicks=10,
-        orders=1.0,
-    )
+        AS_OF - timedelta(days=6), AS_OF, "live", views=None, clicks=None, orders=None
+    )  # live reported nothing in the window
     mv = {
         "channels": [
             {"key": "video", "now": 10.0},
@@ -108,7 +103,7 @@ async def test_channel_breakdown_labels_and_thieu_du_lieu() -> None:
     )
     rows = {r["channel"]: r for r in out["rows"]}
     assert rows["video"]["label_vi"] == "Video" and rows["video"]["note_vi"] is None
-    assert rows["live"]["note_vi"] == "thiếu dữ liệu"  # live has 3 of 7 days
+    assert rows["live"]["note_vi"] == "thiếu dữ liệu"  # live reported no views
     assert rows["trang_shop"]["value_vi"] == "thiếu dữ liệu"
     assert rows["o:55"]["label_vi"] == "Khác"
 

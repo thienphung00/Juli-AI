@@ -184,3 +184,13 @@ def test_a_failure_in_the_learning_step_does_not_fail_the_task(monkeypatch):
     monkeypatch.setattr(task, "measure_all", measured)
     monkeypatch.setattr(task.learning_daily, "run_daily_learning", learn)
     assert "learning_shops" not in asyncio.run(task._run(lambda: None))
+
+
+async def test_the_triggered_fact_backfill_leaves_the_reviewer_sample_shop_out(stubs, monkeypatch):
+    # data layer F6: real Shopee shops only; the sample shop's days are its reset job's (Session B)
+    sample = uuid.UUID(int=77)
+    stubs.every = [*SHOPS, sample]
+    monkeypatch.setattr(daily, "reviewer_sample_shop_ids", lambda: frozenset({sample}))
+    summary = await daily.run_daily_learning(stubs.factory, now=NOW)
+    assert stubs.rebuilt == SHOPS and sample not in stubs.rebuilt
+    assert summary.rebuilt_days == 7 * len(SHOPS)
