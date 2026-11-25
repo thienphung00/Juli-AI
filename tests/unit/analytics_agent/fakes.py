@@ -102,24 +102,115 @@ class FakeData:
         costs: Callable[[date, date, str | None], dict[str, Any]] | None = None,
         catalog: list[dict[str, Any]] | None = None,
         critical: dict[str, Any] | None = None,
+        values: Callable[[list[str], date, date], dict[str, Any]] | None = None,
     ):
         self.shop, self.sources, self.products = shop, sources or [], products or []
         self.names, self.stock, self.cards = names or {}, stock or [], cards or []
         self._overview, self._mv, self._costs = overview, mv or {}, costs
         self.catalog, self._critical = catalog or [], critical or {}
+        self._values = values  # scripted registry values (profit, margin, ...) by window
         self.calls: list[str] = []
 
     async def shop_daily(self, end: date, item: str | None = None) -> list[dict[str, Any]]:
         self.calls.append(f"shop_daily:{item}")
         return [r for r in self.shop if r["day"] <= end]
 
-    async def source_daily(self, a: date, b: date, item: str | None = None) -> list[dict[str, Any]]:
-        self.calls.append("source_daily")
-        return [r for r in self.sources if a <= r["day"] <= b]
+    async def source_totals(
+        self, a: date, b: date, item: str | None = None
+    ) -> list[dict[str, Any]]:
+        """`query(group_by="source")` stand-in: per-source window totals of the scripted days (a
+        source with no value in a column stays None)."""
+        self.calls.append("source_totals")
+        out: dict[str, dict[str, Any]] = {}
+        for r in self.sources:
+            if not a <= r["day"] <= b:
+                continue
+            o = out.setdefault(r["source"], {"source": r["source"]})
+            for k in ("views", "clicks", "orders", "gmv"):
+                if r.get(k) is not None:
+                    o[k] = (o.get(k) or 0.0) + r[k]
+        return [
+            {"views": None, "clicks": None, "orders": None, "gmv": None, **o} for o in out.values()
+        ]
 
     async def product_daily(self, a: date, b: date) -> list[dict[str, Any]]:
+        """`query(group_by="item")` stand-in: one total row per product over the window."""
         self.calls.append("product_daily")
-        return [r for r in self.products if a <= r["day"] <= b]
+        out: dict[str, dict[str, Any]] = {}
+        for r in self.products:
+            if a <= r["day"] <= b:
+                o = out.setdefault(
+                    r["item_id"], {"day": a, "item_id": r["item_id"], "gmv": 0.0, "orders": 0.0}
+                )
+                o["gmv"] += float(r["gmv"] or 0)
+                o["orders"] += float(r["orders"] or 0)
+        return list(out.values())
+
+    async def campaign_products(self, a: date, b: date) -> dict[str, list[str]]:
+        return {}
+
+    def _window_values(self, ids: list[str], a: date, b: date) -> dict[str, Any]:
+        """Totals of the scripted shop days for a window (a test stand-in for `query()`)."""
+        from juli_backend.services.analytics_agent.chains import metric_value
+        from juli_backend.services.analytics_agent.registry_reads import roas
+
+        rows = [r for r in self.shop if a <= r["day"] <= b and r.get("complete", True)]
+        out: dict[str, Any] = {}
+        scripted = self._values(ids, a, b) if self._values else {}
+        for i in ids:
+            if i in scripted:
+                out[i] = scripted[i]
+            elif i in ("gmv", "orders", "units", "views", "clicks", "aov", "ctr", "ctor"):
+                out[i] = metric_value(self.shop, i, a, b)
+            elif i == "cost_ads":
+                vals = [r["ads_spend"] for r in rows if r.get("ads_spend") is not None]
+                out[i] = float(sum(vals)) if vals else None
+            elif i == "roas":
+                g = [r["ads_gmv"] for r in rows if r.get("ads_gmv") is not None]
+                c = out.get("cost_ads") or [
+                    r["ads_spend"] for r in rows if r.get("ads_spend") is not None
+                ]
+                spend = c if isinstance(c, float) else (float(sum(c)) if c else None)
+                out[i] = roas(float(sum(g)), spend) if g and spend else None
+            else:
+                out[i] = None
+        return out
+
+    async def metrics(
+        self,
+        ids: list[str],
+        a: date,
+        b: date,
+        *,
+        scope: str = "shop",
+        items: list[str] | None = None,
+        channel: str | None = None,
+        campaigns: list[str] | None = None,
+        group_by: str | None = None,
+        compare: bool = False,
+    ) -> dict[str, Any]:
+        self.calls.append(f"metrics:{group_by}:{','.join(ids)}")
+        if group_by == "day":
+            rows = [
+                {"day": r["day"], **self._window_values(ids, r["day"], r["day"])}
+                for r in self.shop
+                if a <= r["day"] <= b
+            ]
+            return {"values": {}, "rows": rows, "coverage": {}, "partial": False, "previous": None}
+        if group_by is not None:
+            return {"values": {}, "rows": [], "coverage": {}, "partial": False, "previous": None}
+        n = (b - a).days + 1
+        res: dict[str, Any] = {
+            "values": self._window_values(ids, a, b),
+            "rows": [],
+            "coverage": {},
+            "partial": False,
+            "previous": None,
+        }
+        if compare:
+            pa, pb = a - timedelta(days=n), a - timedelta(days=1)
+            res["previous"] = {"values": self._window_values(ids, pa, pb), "rows": []}
+        return res
 
     async def item_names(self, ids: list[str]) -> dict[str, str]:
         return {i: self.names.get(i, i) for i in ids}
@@ -378,6 +469,9 @@ class FakeEntityData(FakeData):
     async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]:
         return [r for r in self.entity.get("budget_days", []) if a <= r["day"] <= b]
 
+    async def campaign_products(self, a: date, b: date) -> dict[str, list[str]]:
+        return {c["key"]: list(c.get("items") or []) for c in self.entity.get("campaigns", [])}
+
     # ---- the `metrics.query` / OPP seams (C1): scripted rows, no calculation here
 
     async def metrics(
@@ -425,7 +519,12 @@ class FakeEntityData(FakeData):
                     }
                 )
             return {"values": {}, "rows": rows, "coverage": {}, "partial": False, "previous": None}
-        vals = self.entity.get("values", {})
+        vals = self.entity.get("values")
+        if vals is None:
+            return await super().metrics(
+                ids, a, b, scope=scope, items=items, channel=channel, campaigns=campaigns,
+                group_by=group_by, compare=compare,
+            )  # fmt: skip
         now = {i: vals.get(i, (None, None))[0] for i in ids}
         before = {i: vals.get(i, (None, None))[1] for i in ids}
         return {
@@ -492,6 +591,9 @@ class ScriptedQuery:
 
             async def item_names(self, ids: list[str]) -> dict[str, str]:
                 return {i: f"Sản phẩm {i}" for i in ids}
+
+            async def campaign_products(self, a: date, b: date) -> dict[str, list[str]]:
+                return {"k1": ["p1"]}
 
         return _Svc()
 

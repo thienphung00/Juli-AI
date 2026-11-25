@@ -245,10 +245,12 @@ async def metrics(ctx: Ctx, a: dict[str, Any]) -> dict[str, Any]:
     if scope == "products" and not items:
         raise ValueError("bad_argument")
     w = await ctx.window(preset(a))
-    res = await ctx.data.metrics(
-        ids, *w.cur, scope=scope, items=items or None, compare=w.prev is not None
-    )
-    prev = (res.get("previous") or {}).get("values") or {}
+    res = await ctx.data.metrics(ids, *w.cur, scope=scope, items=items or None)
+    prev: dict[str, Any] = {}
+    if w.prev is not None:  # the window the comparison names (sale-aware), not "the days before"
+        prev = (await ctx.data.metrics(ids, *w.prev, scope=scope, items=items or None)).get(
+            "values"
+        ) or {}
     cov = res.get("coverage") or {}
     rows = []
     for i in ids:
@@ -311,6 +313,7 @@ async def rank(ctx: Ctx, a: dict[str, Any]) -> dict[str, Any]:
     names: dict[str, str] = {}
     if by == "item":
         names = await ctx.data.item_names([str(r["item"]) for r in picked])
+    products = await ctx.data.campaign_products(*w.cur) if by == "campaign" else {}
     out_rows = []
     for r in picked:
         key = str(r.get(by) if by != "item" else r["item"])
@@ -322,7 +325,7 @@ async def rank(ctx: Ctx, a: dict[str, Any]) -> dict[str, Any]:
             nm = str(r.get("campaign_name") or key)
             ctx.names.setdefault(key, nm)
             row["tên"] = nm
-            ids_ = [str(i) for i in (r.get("items") or [])]
+            ids_ = products.get(key, [])
             if ids_:  # the products it spends on: item ids draft / opportunities can take
                 inames = await ctx.data.item_names(ids_)
                 for i in ids_:

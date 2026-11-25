@@ -12,10 +12,7 @@ from typing import Any
 from juli_backend.services.analytics_agent import fmt
 from juli_backend.services.analytics_agent.chains import (
     CHAIN_METRIC,
-    COUNTS,
-    MONEY_METRICS,
     bucket,
-    metric_value,
 )
 from juli_backend.services.analytics_agent.types import DataPort, LabelTable
 from juli_backend.services.analytics_agent.windows import (
@@ -68,12 +65,13 @@ async def run_lookup(
     if sale := sale_days_vi(w):
         out["sale_vi"] = sale
     label = labels.metric(metric)
+    scope = "products" if item_id else "shop"
+    items = [item_id] if item_id else None
     if kind == "top_products":
-        tot: dict[str, list[float]] = {}
-        for r in await data.product_daily(*w.cur):
-            t = tot.setdefault(r["item_id"], [0.0, 0.0])
-            t[0] += float(r["gmv"] or 0)
-            t[1] += float(r["orders"] or 0)
+        tot = {  # `query(group_by="item")` window totals, one row per product
+            r["item_id"]: (float(r["gmv"] or 0), float(r["orders"] or 0))
+            for r in await data.product_daily(*w.cur)
+        }
         top = sorted(tot.items(), key=lambda kv: -kv[1][0])[:5]
         names = await data.item_names([k for k, _ in top])
         out["title_vi"] = "Top sản phẩm theo GMV"
@@ -95,12 +93,11 @@ async def run_lookup(
             for i, (k, (g, o)) in enumerate(top)
         ]
     elif kind == "top_decliners":
-        cur: dict[str, float] = {}
-        old: dict[str, float] = {}
-        for r in await data.product_daily(*w.cur):
-            cur[r["item_id"]] = cur.get(r["item_id"], 0.0) + float(r["gmv"] or 0)
-        for r in await data.product_daily(*w.prev) if w.prev else []:
-            old[r["item_id"]] = old.get(r["item_id"], 0.0) + float(r["gmv"] or 0)
+        cur = {r["item_id"]: float(r["gmv"] or 0) for r in await data.product_daily(*w.cur)}
+        old = {
+            r["item_id"]: float(r["gmv"] or 0)
+            for r in (await data.product_daily(*w.prev) if w.prev else [])
+        }
         drops = sorted(
             ((k, cur.get(k, 0.0) - v, cur.get(k, 0.0), v) for k, v in old.items()),
             key=lambda t: t[1],
@@ -122,16 +119,12 @@ async def run_lookup(
             for i, (k, d, now, before) in enumerate(drops)
         ]
     elif kind == "daily_trend":
-        series = [
-            (
-                r["day"],
-                metric_value(rows, metric, r["day"], r["day"])
-                if metric in (*COUNTS, "aov", "ctr", "ctor")
-                else None,
+        day_rows = (
+            await data.metrics(
+                [registry_id(metric)], *w.cur, scope=scope, items=items, group_by="day"
             )
-            for r in rows
-            if w.cur[0] <= r["day"] <= w.cur[1]
-        ]
+        ).get("rows", [])
+        series = [(r["day"], _scaled(metric, r.get(registry_id(metric)))) for r in day_rows]
         out["title_vi"] = f"{label} theo ngày"
         out["series"] = [
             {
@@ -144,19 +137,12 @@ async def run_lookup(
         ]
     elif kind == "channel_breakdown":
         v = await data.metric_view(metric, w.cur[0], w.cur[1], item_id)
-        srows = await data.source_daily(*w.cur, item_id)
-        n = (w.cur[1] - w.cur[0]).days + 1
-        cov: dict[str, float] = {}
-        for s in {bucket(r["source"]) for r in srows}:
-            cov[s] = (
-                len(
-                    {r["day"] for r in srows if bucket(r["source"]) == s and r["views"] is not None}
-                )
-                / n
-            )
+        srows = await data.source_totals(*w.cur, item_id)
+        seen = {bucket(r["source"]) for r in srows}
+        reported = {bucket(r["source"]) for r in srows if r["views"] is not None}
         ch = []
         for c in v.get("channels") or []:
-            partial = c["key"] in cov and cov[c["key"]] < 0.8
+            partial = c["key"] in seen and c["key"] not in reported
             missing = c.get("now") is None
             ch.append(
                 {
@@ -171,7 +157,7 @@ async def run_lookup(
         out["title_vi"] = f"{label} theo kênh"
         out["rows"] = ch
     else:
-        now, before = await _total(data, metric, w, rows)
+        now, before = await _total(data, metric, w, item_id)
         out["title_vi"] = label
         # `value` is the display string the UI renders (`JuliDataAnswerData.value`); an object here
         # crashed the page (React #31). The raw numbers ride beside it.
@@ -183,38 +169,44 @@ async def run_lookup(
     return out
 
 
+#: Chat metric keys that are named differently in the registry.
+REGISTRY_ID = {"ads_spend": "cost_ads"}
+POINTS = {
+    "margin",
+    "ctr",
+    "ctor",
+}  # the registry holds percentage points; the app formats a fraction
+
+
+def registry_id(metric: str) -> str:
+    return REGISTRY_ID.get(metric, metric)
+
+
+def _scaled(metric: str, v: Any) -> float | None:
+    """A registry value as the app's formatter takes it (points -> fraction); None stays None."""
+    if v is None:
+        return None
+    return float(v) / 100 if metric in POINTS else float(v)
+
+
 async def _total(
-    data: DataPort, metric: str, w: Any, rows: list[dict[str, Any]]
+    data: DataPort, metric: str, w: Any, item_id: str | None = None
 ) -> tuple[float | None, float | None]:
-    if metric == "roas_break_even":  # the shop's figure from the shared profit service
-        # the shop's ROAS hoà vốn is the overview's `profit` block (Tổng quan's own figure)
-        o1 = (await data.overview(*w.cur)).get("profit") or {}
-        o0 = ((await data.overview(*w.prev)).get("profit") or {}) if w.prev else {}
-        return _break_even(o1), (_break_even(o0) if w.prev else None)
-    if metric in MONEY_METRICS:
-        o1 = await data.overview(*w.cur)
-        o0 = await data.overview(*w.prev) if w.prev else {}
-        key = {
-            "profit": ("shop_profit", "profit"),
-            "margin": ("shop_profit", "margin_pct"),
-            "ads_spend": ("shop_metrics", "ad_spend"),
-            "roas": ("shop_metrics", "ads_roas_placed"),
-        }[metric]
-        now = (o1.get(key[0]) or {}).get(key[1])
-        before = (o0.get(key[0]) or {}).get(key[1]) if o0 else None
-        if metric == "margin":
-            now = None if now is None else now / 100
-            before = None if before is None else before / 100
-        return now, before
-    now = metric_value(rows, metric, *w.cur)
-    return now, (metric_value(rows, metric, *w.prev) if w.prev else None)
+    """The window's value and the window before it: one `query()` per window (the previous one is
+    the sale-aware window). ROAS hoà vốn, profit, margin, ads and the counts are registry ids;
+    nothing is summed here."""
+    rid = registry_id(metric)
+    scope = "products" if item_id else "shop"
+    items = [item_id] if item_id else None
+
+    async def read(win: tuple[date, date]) -> float | None:
+        res = await data.metrics([rid], *win, scope=scope, items=items)
+        return _scaled(metric, (res.get("values") or {}).get(rid))
+
+    now = await read(w.cur)
+    before = await read(w.prev) if w.prev else None  # the window the comparison names (sale-aware)
+    return now, before
 
 
 def default_metric(chain: str | None) -> str:
     return CHAIN_METRIC.get(chain or "", "gmv")
-
-
-def _break_even(profit: dict[str, Any]) -> float | None:
-    """The shop's ROAS hoà vốn as Tổng quan shows it (overview `profit.break_even_roas`)."""
-    v = profit.get("break_even_roas")
-    return None if v is None else float(v)

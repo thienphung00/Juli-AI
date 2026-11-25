@@ -223,13 +223,12 @@ async def test_client_shaped_fixture_roas_above_break_even_is_lai() -> None:
 
 
 async def test_lookup_reads_the_overview_profit_block() -> None:
-    def ov(a: Any, b: Any) -> dict[str, Any]:
-        # `shop_profit` has no contribution_before_ads; the figure lives in `profit`
-        return {"shop_profit": {"net_revenue": 1000}, "profit": {"break_even_roas": 3.09}}
+    def values(ids: list[str], a: Any, b: Any) -> dict[str, Any]:
+        return {"roas_break_even": 3.09}  # the registry id, as `query()` returns it
 
     shop = shop_rows(YDAY.replace(month=9), YDAY, gmv=1000.0, orders=3.0)
     out = await lookup.run_lookup(
-        FakeData(shop, overview=ov), entities_labels(), "metric_total", "roas_break_even",
+        FakeData(shop, values=values), entities_labels(), "metric_total", "roas_break_even",
         PRESET, YDAY,
     )  # fmt: skip
     assert out["value"] == "3,09" and out["value_raw"] == pytest.approx(3.09)
@@ -271,7 +270,7 @@ async def test_product_question_answers_from_the_products_own_value() -> None:
         item_id="p1", item_name="Sản phẩm A",
     )  # fmt: skip
     assert ans["title_vi"] == "ROAS hoà vốn · Sản phẩm A" and ans["value"] == "3,50"
-    assert ans["contribution_vi"] == "Đóng góp trước quảng cáo 300đ"
+    assert ans["contribution_vi"] == "Lợi nhuận đóng góp 300đ"  # the registry label
 
 
 async def test_which_products_lose_after_ads_lists_the_losing_ones_with_their_figures() -> None:
@@ -290,9 +289,7 @@ async def test_which_products_lose_after_ads_lists_the_losing_ones_with_their_fi
     assert ans["title_vi"] == "Sản phẩm đang lỗ sau quảng cáo"
     (row,) = ans["rows"]
     assert row["label_vi"] == "Sản phẩm A" and row["value_vi"] == "Lỗ 500đ"
-    assert (
-        "đóng góp trước quảng cáo 400đ" in row["detail_vi"] and "hoà vốn 4,50" in row["detail_vi"]
-    )
+    assert "lợi nhuận đóng góp 400đ" in row["detail_vi"] and "hoà vốn 4,50" in row["detail_vi"]
     none_lose = await entities.run_entity(
         "product_loss", FakeEntityData(_shop(), entity={"product_rows": rows[1:]}), it,
         "profit", PRESET, YDAY,

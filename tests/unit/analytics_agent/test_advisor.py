@@ -404,7 +404,9 @@ async def test_the_tool_schemas_are_generated_from_the_registry_and_the_kinds_ta
 async def test_general_tools_answer_a_non_weekly_question() -> None:
     ctx = await _ctx()
     await advisor.run_tool(ctx, "rank", {"metric": "gmv", "by": "item", "window": W})  # known items
-    ctx.data.entity["values"] = {"gmv": (200.0, 100.0), "margin": (10.0, 12.0)}
+    ctx.data._values = lambda ids, a, b: (
+        {"margin": 10.0, "gmv": 200.0} if b >= YDAY else {"margin": 12.0, "gmv": 100.0}
+    )  # the current window, then the one before it (registry points)
     mv = await advisor.run_tool(
         ctx, "metrics",
         {"ids": ["gmv", "margin"], "window": "last_30d_vs_prev_30d", "scope": "products",

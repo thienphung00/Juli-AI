@@ -213,14 +213,67 @@ def test_the_advisor_tools_do_no_arithmetic_on_metric_values() -> None:
     assert "ctx.data.metrics(" in (AGENT / "advisor_tools.py").read_text()
 
 
-def test_the_chat_labels_use_one_id_per_label_and_never_the_after_aff_figure() -> None:
-    """L4: 'Đóng góp' is before ads and AFF; the registry ids are `contribution` /
-    `margin_contribution`, and Ròng is `profit` / `margin`."""
-    from juli_backend.services.analytics_agent import advisor_tools
+def test_chat_metric_labels_are_the_registrys_one_label_per_id() -> None:
+    """L4: the weekly and chain labels come from the registry (generated); "Đóng góp" is
+    `contribution` / `margin_contribution` (before ads and AFF), Ròng is `profit` / `margin`, and
+    no label belongs to two metric ids."""
+    from juli_backend.services.analytics_agent.labels import (
+        CHAT_ONLY_METRICS_VI,
+        METRICS_VI,
+        shopee_labels,
+    )
     from juli_backend.services.metrics.registry import METRICS
 
-    ids = advisor_tools.metric_ids()
-    assert {"contribution", "margin_contribution", "profit", "margin"} <= set(ids)
-    labels = [METRICS[i].label_vi for i in ids]
-    assert len(labels) == len(set(labels))  # one label <-> one metric id
-    assert "đóng góp" in METRICS["contribution"].label_vi
+    assert METRICS_VI["contribution"] == METRICS["contribution"].label_vi == "Lợi nhuận đóng góp"
+    assert METRICS_VI["margin_contribution"] == METRICS["margin_contribution"].label_vi
+    assert METRICS_VI["profit"] == "Lợi nhuận ròng" and METRICS_VI["margin"] == "Biên lợi nhuận"
+    assert all(METRICS_VI[k] == m.label_vi for k, m in METRICS.items() if "{" not in m.label_vi)
+    labels = list(METRICS_VI.values())
+    assert len(labels) == len(set(labels))  # one label <-> one metric id (Chat-only keys included)
+    assert not set(CHAT_ONLY_METRICS_VI) & set(METRICS)  # a registry id is never re-labelled
+    assert shopee_labels().metric("contribution") == "Lợi nhuận đóng góp"
+    src = "".join(
+        (AGENT / n).read_text() for n in ("entities.py", "weekly.py", "lookup.py", "chains.py")
+    )
+    assert "trước quảng cáo" not in src  # the after-AFF / "trước quảng cáo" wording is gone
+
+
+async def test_sources_budget_days_and_campaign_products_come_from_query() -> None:
+    def script(ids: list[str], a: Any, b: Any, **kw: Any) -> dict[str, Any]:
+        if kw.get("group_by") == "source":
+            return {"rows": [{"source": "video", "views": 10.0, "clicks": None, "orders": 1.0,
+                              "gmv": 500.0}]}  # fmt: skip
+        if kw.get("group_by") == "day":
+            return {"rows": [{"day": date(2026, 11, 20), "cost_ads": 10.0, "daily_budget": 100.0,
+                              "ads_orders": 0.0}]}  # fmt: skip
+        return {"rows": []}
+
+    svc = ScriptedQuery(script)
+    (src,) = await svc.source_totals(date(2026, 11, 16), YDAY)
+    assert svc.asked[0]["group_by"] == "source" and src["clicks"] is None  # missing stays None
+    (day,) = await svc.budget_days(date(2026, 11, 16), YDAY)
+    got = svc.asked[1]
+    assert got["scope"] == "campaigns" and got["campaigns"] == ["k1"] and got["group_by"] == "day"
+    assert "daily_budget" in got["ids"]  # the stored column, not the ads report
+    assert day == {"day": date(2026, 11, 20), "spend": 10.0, "budget": 100.0, "ad_orders": 0.0}
+
+
+def test_weekly_and_lookup_sum_no_rows() -> None:
+    """C1/C2: window totals come from `query()`; the two readers add nothing up."""
+    for name in ("weekly.py", "lookup.py"):
+        src = (AGENT / name).read_text()
+        assert not re.search(r"\bsum\(", src), name
+        assert "source_daily" not in src and "_sum(" not in src, name
+
+
+def test_the_voucher_entity_sql_lives_in_one_named_module() -> None:
+    """The known exception to "every number from query()": `entity_sql.py`, nowhere else."""
+    holders = [
+        p.name
+        for p in AGENT.glob("*.py")
+        if re.search(
+            r"(from|join)\s+(order_lines|affiliate_lines|order_settlements)", p.read_text()
+        )
+        and p.name not in ("labels.py",)
+    ]
+    assert holders == ["entity_sql.py"]

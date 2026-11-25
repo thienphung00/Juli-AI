@@ -119,7 +119,7 @@ class Advice:
 FEW_SHOT: tuple[dict[str, Any], ...] = (
     {
         "câu_hỏi": "Tuần sau shop nên làm gì?",
-        "đọc_được": "Sản phẩm A lỗ sau quảng cáo (chi quảng cáo 200.000đ, đóng góp trước quảng cáo "
+        "đọc_được": "Sản phẩm A lỗ sau quảng cáo (chi quảng cáo 200.000đ, lợi nhuận đóng góp "
         "âm); chiến dịch X ROAS 3,4 so với hoà vốn 3,0; 2 ngày chi dưới ngân sách và không có "
         "đơn; sản phẩm C thiếu giá vốn; tuần trước có ngày sale kéo GMV; sản phẩm B chiếm 70% GMV; "
         "open_cards có thẻ ngân sách JC-0001 (lever ads_budget).",

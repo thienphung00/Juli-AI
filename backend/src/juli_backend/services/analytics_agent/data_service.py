@@ -21,6 +21,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.services.analytics_agent.entity_sql import EntitySql
+
 SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 
 
@@ -67,7 +69,7 @@ def _fold(text_: str) -> str:
     return "".join(c for c in d if unicodedata.category(c) != "Mn")
 
 
-class ServiceData:
+class ServiceData(EntitySql):
     def __init__(self, factory: SessionFactory, shop_id: uuid.UUID) -> None:
         self._f, self.shop = factory, shop_id
 
@@ -184,23 +186,23 @@ class ServiceData:
             for r in res.get("rows", [])
         ]
 
-    async def source_daily(self, a: date, b: date, item: str | None = None) -> list[dict[str, Any]]:
-        if item:
-            return await self._q(
-                """select day, source, views, clicks, orders, gmv from source_metrics_daily
-                                     where shop_id = :s and item_id = :i and day between :a and
-                                     :b""",
-                a=a,
-                b=b,
-                i=item,
-            )
-        return await self._q(
-            """select day, source, views, clicks, orders, gmv from source_metrics_daily
-                                 where shop_id = :s and item_id is null and day between :a and
-                                 :b""",
-            a=a,
-            b=b,
+    async def source_totals(
+        self, a: date, b: date, item: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Per traffic source over [a, b] from `query(group_by="source")`: views, clicks, orders,
+        GMV (None = the source reported nothing; never 0)."""
+        res = await self.metrics(
+            ["views", "clicks", "orders", "gmv"],
+            a,
+            b,
+            scope="products" if item else "shop",
+            items=[item] if item else None,
+            group_by="source",
         )
+        return [
+            {k: r.get(k) for k in ("views", "clicks", "orders", "gmv")} | {"source": r["source"]}
+            for r in res.get("rows", [])
+        ]
 
     async def product_daily(self, a: date, b: date) -> list[dict[str, Any]]:
         """One row per product over [a, b] from `query(group_by="item")` (the window's own totals,
@@ -335,115 +337,6 @@ class ServiceData:
             before = await self.cost_lines(a0, b0, item)
         return now, before
 
-    # ------------------------------------------------------------------ entities (Track J)
-
-    #: The shop headline basis (registry / `shopee_analytics.engine`): a confirmed line has a
-    #: payment time and a quantity, and counts in đơn / GMV / AOV unless its status is a refund
-    #: status (`counts_in_sales`); the day is the line's order day. Entity rows use exactly this,
-    #: so they are a subset of the shop totals.
-    @staticmethod
-    def _sales_basis() -> str:
-        from juli_backend.services.shopee_profit.order_profit import REFUND_STATUSES
-
-        refunds = ", ".join(f"'{x.value}'" for x in sorted(REFUND_STATUSES, key=lambda x: x.value))
-        return f"paid_at is not null and qty > 0 and status not in ({refunds})"
-
-    async def entity_totals(
-        self, kind: str, a: date, b: date, item: str | None = None
-    ) -> dict[str, Any]:
-        """Orders, GMV (deal price x qty) and the entity's own cost over [a, b], from the
-        canonical `order_lines`: voucher = lines with a seller voucher share (cost = that share,
-        registry `offer_voucher`); affiliate = lines flagged affiliate (cost = the commission of
-        `affiliate_lines`). Optionally one product."""
-        cond = {
-            "voucher": "shop_voucher_share > 0",
-            "no_voucher": "shop_voucher_share = 0",
-            "affiliate": "affiliate",
-            "all": "1 = 1",  # the shop's own lines on the same basis: the partition's whole
-        }[kind]
-        row = (
-            await self._q(
-                f"""select count(distinct order_ref) as orders,
-                           coalesce(sum(deal_price * qty), 0) as gmv,
-                           coalesce(sum(shop_voucher_share), 0) as voucher_cost
-                      from order_lines
-                     where shop_id = :s and platform = 'shopee' and day between :a and :b
-                       and {self._sales_basis()} and {cond}
-                       and (cast(:i as text) is null or item_id = cast(:i as text))""",  # nosec B608 — fragments are fixed literals (closed dict, registry enum)
-                a=a,
-                b=b,
-                i=item,
-            )
-        )[0]
-        cost = row["voucher_cost"]
-        if kind == "affiliate":
-            comm = await self._q(
-                """select sum(commission) as c from affiliate_lines
-                    where shop_id = :s and platform = 'shopee' and day between :a and :b
-                      and coalesce(valid, true)
-                      and (cast(:i as text) is null or item_id = cast(:i as text))""",
-                a=a,
-                b=b,
-                i=item,
-            )
-            cost = comm[0]["c"]
-        return {"orders": row["orders"], "gmv": row["gmv"], "cost": cost}
-
-    async def voucher_income(self, a: date, b: date) -> dict[str, Any]:
-        """Voucher orders and the voucher part of Ưu đãi from the stored per-order income
-        (`order_settlements`, the table the fee / profit loaders read): orders with
-        `seller_voucher_borne > 0`, the sum of `seller_voucher_borne`, and the GMV of those
-        orders from `order_lines`. Only orders that HAVE an income row count (a day without
-        income is not 0); `income_to` is the last order day the income holds in the window."""
-        head = (
-            await self._q(
-                """select count(*) as rows,
-                          count(*) filter (where seller_voucher_borne > 0) as orders,
-                          sum(seller_voucher_borne) as cost,
-                          max(ordered_on) as income_to
-                     from order_settlements
-                    where shop_id = :s and platform = 'shopee' and ordered_on between :a and :b""",
-                a=a,
-                b=b,
-            )
-        )[0]
-        gmv = (
-            await self._q(
-                f"""select coalesce(sum(deal_price * qty), 0) as gmv
-                      from order_lines
-                     where shop_id = :s and platform = 'shopee' and day between :a and :b
-                       and {self._sales_basis()}
-                       and order_ref in (select order_ref from order_settlements
-                                          where shop_id = :s and platform = 'shopee'
-                                            and ordered_on between :a and :b
-                                            and seller_voucher_borne > 0)""",  # nosec B608 — fragments are fixed literals (registry enum)
-                a=a,
-                b=b,
-            )
-        )[0]["gmv"]
-        return {
-            "rows": head["rows"],
-            "orders": head["orders"],
-            "gmv": gmv,
-            "cost": head["cost"],
-            "income_to": head["income_to"],
-        }
-
-    async def voucher_rows(self, a: date, b: date) -> list[dict[str, Any]]:
-        """One row per voucher code: orders, GMV, the voucher's cost."""
-        return await self._q(
-            f"""select voucher_code as code, count(distinct order_ref) as orders,
-                       coalesce(sum(deal_price * qty), 0) as gmv,
-                       coalesce(sum(shop_voucher_share), 0) as cost
-                  from order_lines
-                 where shop_id = :s and platform = 'shopee' and day between :a and :b
-                   and {self._sales_basis()} and shop_voucher_share > 0
-                   and voucher_code is not null
-                 group by voucher_code order by sum(deal_price * qty) desc""",  # nosec B608 — fragments are fixed literals (registry enum)
-            a=a,
-            b=b,
-        )
-
     @staticmethod
     def _profit_row(v: dict[str, Any]) -> dict[str, Any]:
         """A product's values keyed as the chains read them (registry ids -> the legacy keys)."""
@@ -489,6 +382,7 @@ class ServiceData:
             group_by="campaign",
         )
         shop_be = (res.get("values") or {}).get("roas_break_even")
+        products = await self.campaign_products(a, b)
         out = []
         for r in res.get("rows", []):
             spend = r.get("cost_ads")
@@ -505,42 +399,46 @@ class ServiceData:
                     "break_even": r.get("roas_break_even") or shop_be,
                     "break_even_scope": None if r.get("roas_break_even") else SHOP_SCOPE_VI,
                     "profit_after_ads": None if contrib is None else contrib - spend,
-                    "items": [str(i) for i in (r.get("items") or [])],
+                    "items": products.get(str(r["campaign"]), []),
                 }
             )
         return out
 
-    async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]:
-        """Per day: the shop's ad spend, its ad orders and its summed daily budget (None when a
-        campaign has no budget limit that day). The ads report rows `ads_campaign_daily`, read
-        through the existing `PlatformDailyMetricsRepo`."""
-        from decimal import Decimal
-
-        from juli_backend.repositories import PlatformDailyMetricsRepo
-        from juli_backend.services.shopee_recommendations.loader import ADS_DAILY
-
+    async def campaign_products(self, a: date, b: date) -> dict[str, list[str]]:
+        """{campaign id: [item id]} (QUERY's `campaign_products`, a dimension read from the ads
+        by product rows, not a fact)."""
+        q = importlib.import_module(QUERY_MODULE)
         async with self._f() as s:
             try:
-                rows = await PlatformDailyMetricsRepo(s).window(
-                    self.shop, datasets=[ADS_DAILY], start=a, end=b, any_item=True
-                )
-                plain = [(r.day, r.segment, dict(r.extra or {}), r.orders) for r in rows]
+                got = await q.campaign_products(s, self.shop, (a, b))
             finally:
                 await s.rollback()
-        per: dict[date, dict[str, Any]] = {}
-        for day, seg, extra, orders in plain:
-            if seg == "all":
-                continue
-            d = per.setdefault(
-                day, {"day": day, "spend": Decimal(0), "budget": Decimal(0), "ad_orders": 0.0}
-            )
-            d["ad_orders"] += float(orders or 0)
-            d["spend"] += Decimal(str(extra.get("cost") or 0))
-            bud = extra.get("daily_budget")
-            d["budget"] = (
-                None if bud is None or d["budget"] is None else d["budget"] + Decimal(str(bud))
-            )
-        return [per[k] for k in sorted(per)]
+        return {str(k): [str(i) for i in v] for k, v in dict(got).items()}
+
+    async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]:
+        """Per day: the shop's ad spend, its ad orders and its daily budget (None when no
+        campaign has a limit that day): `query(scope=campaigns, group_by="day")` over the shop's
+        campaigns, using the stored `daily_budget` column."""
+        camps = list(await self.campaign_products(a, b))
+        if not camps:
+            return []
+        res = await self.metrics(
+            ["cost_ads", "daily_budget", "ads_orders"],
+            a,
+            b,
+            scope="campaigns",
+            campaigns=camps,
+            group_by="day",
+        )
+        return [
+            {
+                "day": r["day"],
+                "spend": r.get("cost_ads"),
+                "budget": r.get("daily_budget"),
+                "ad_orders": r.get("ads_orders"),
+            }
+            for r in res.get("rows", [])
+        ]
 
 
 def _opp_dict(obj: Any) -> Any:

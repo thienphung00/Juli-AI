@@ -17,31 +17,28 @@ SHOPEE_SOURCES = {
     "ads_shop": "Dịch vụ hiển thị Shop+",
     "the_san_pham": "Thẻ sản phẩm",
 }
-METRICS_VI = {
-    "gmv": "GMV",
-    "orders": "Đơn hàng",
-    "aov": "AOV",
-    "units": "Sản phẩm bán",
-    "views": "Lượt xem",
-    "clicks": "Lượt click",
-    "ctr": "CTR",
-    "ctor": "CTOR",
-    "profit": "Lợi nhuận",
-    "margin": "Biên lợi nhuận",
+#: Chat-only keys (findings and cost lines that are not registry metrics, or the Chat spelling of
+#: one): not generated.
+CHAT_ONLY_METRICS_VI = {
     "ads_spend": "Chi phí quảng cáo",
-    "roas": "ROAS",
-    "roas_break_even": "ROAS hoà vốn",
     "product_profit": "Lợi nhuận sản phẩm",
     "ads_no_order_days": "Quảng cáo ngày không có đơn",
     "other_marketing": "Marketing khác",
-    "net_revenue": "Doanh thu thực",
     "ads_gmv": "GMV quảng cáo",
     "cost_ratio": "Tổng chi phí / doanh thu thực",
-    "cost_total": "Tổng chi phí",
-    "cost_ads": "Quảng cáo",
-    "cost_affiliate": "Tiếp thị liên kết",
-    "cost_offers": "Ưu đãi",
 }
+
+
+def _registry_labels() -> dict[str, str]:
+    """Every registry metric's label (L4: one label <-> one metric id, never hand-typed). The
+    product level's "Đóng góp" is `contribution` / `margin_contribution` (before ads and AFF),
+    Ròng is `profit` / `margin`."""
+    from juli_backend.services.metrics.registry import METRICS
+
+    return {k: m.label_vi for k, m in METRICS.items() if "{" not in m.label_vi}
+
+
+METRICS_VI = {**_registry_labels(), **CHAT_ONLY_METRICS_VI}
 KINDS_VI = {
     "product_discount": "Chương Trình Của Shop",
     "price": "Giá",

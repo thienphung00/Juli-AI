@@ -69,7 +69,7 @@ FINDINGS: tuple[Finding, ...] = (
     ),
     _f(
         "product_ads_no_contribution",
-        "Sản phẩm còn chi quảng cáo nhưng đóng góp trước quảng cáo bằng không hoặc deal đã hết hạn",
+        "Sản phẩm còn chi quảng cáo nhưng lợi nhuận đóng góp bằng không hoặc deal đã hết hạn",
         "rank, metrics",
         "ads_remove_product",
         "title",
