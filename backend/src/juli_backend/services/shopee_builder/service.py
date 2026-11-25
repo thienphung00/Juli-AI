@@ -550,8 +550,7 @@ def _evaluate_version_card(
         days=version_dates(spec, None)["days"],  # P99c: cost / break-even on the set dates
     )
     # P99 like with like: the version's own "hôm nay" = the base its result was computed on
-    # L1 (#67): So sánh / the saved card are product level = Biên đóng góp (Kế hoạch stays Ròng)
-    shaped["today"] = integrate.scope_today(ctx.env, ev.base, level="contribution")
+    shaped["today"] = integrate.scope_today(ctx.env, ev.base)
     shaped["dates"] = version_dates(spec, shaped.get("result"))
     if tr.multi is not None:
         _add_targets(shaped, ctx, tr, card, now)

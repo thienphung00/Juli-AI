@@ -8,65 +8,18 @@ series the chains need (shop / source / product rows, stock history, open cards)
 
 from __future__ import annotations
 
-import importlib
 import re
 import unicodedata
 import uuid
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from datetime import date, timedelta
-from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.services.analytics_agent.entity_sql import EntitySql
-
 SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
-
-
-SHOP_SCOPE_VI = "cả shop"
-RESIDUAL_ITEM = "__residual__"  # the stored day row that completes the shop total
-#: How far back the daily series reads (the chains' baselines and freshness walk back from `as_of`).
-SERIES_DAYS = 400
-OPPORTUNITIES_MODULE = "juli_backend.services.shopee_recommendations.opportunities"
-QUERY_MODULE = "juli_backend.services.metrics.query"
-#: The registry ids a product's profit answer reads (Đóng góp = before ads and AFF; Ròng = after).
-PRODUCT_PROFIT_IDS = (
-    "profit",
-    "margin",
-    "contribution",
-    "margin_contribution",
-    "cost_ads",
-    "cost_coverage",
-    "roas_break_even",
-    "gmv",
-)
-DAY_IDS = ("gmv", "orders", "units", "views", "clicks", "cost_ads", "ads_gmv_platform")
-
-
-def _num(v: Any) -> Any:
-    return float(v) if isinstance(v, Decimal) else v
-
-
-def _is_product(item: Any) -> bool:
-    """A stored item row that is a product: not the day's residual row, not a `sku:` row."""
-    return item is not None and item != RESIDUAL_ITEM and not str(item).startswith("sku:")
-
-
-def _plain(res: Any) -> dict[str, Any]:
-    """A `QueryResult` as plain dicts (Decimal -> float at the edge; None stays None)."""
-    if res is None:
-        return {}
-    return {
-        "values": {k: _num(v) for k, v in dict(res.values).items()},
-        "rows": [{k: _num(v) for k, v in dict(r).items()} for r in (res.rows or [])],
-        "coverage": {k: _num(v) for k, v in dict(res.coverage or {}).items()},
-        "partial": bool(res.partial),
-        "previous": _plain(res.previous) if res.previous is not None else None,
-        "built_at": res.built_at,
-    }
 
 
 def _fold(text_: str) -> str:
@@ -75,77 +28,91 @@ def _fold(text_: str) -> str:
     return "".join(c for c in d if unicodedata.category(c) != "Mn")
 
 
-class ServiceData(EntitySql):
+def merge_campaigns(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One row per campaign: rows with the same key, then rows with the same name (a campaign
+    split over several report segments), are summed; the latest name wins. ROAS and ROAS hoà vốn
+    are the registry's, evaluated on the sums. A campaign with no spend has no row."""
+    from decimal import Decimal
+
+    from juli_backend.services.analytics_agent.registry_reads import (
+        roas_break_even,
+        roas_direct,
+    )
+
+    groups: dict[str, dict[str, Any]] = {}
+    for r in raw:
+        gid = " ".join(str(r["name"]).casefold().split()) or str(r["key"])
+        g = groups.setdefault(
+            gid,
+            {
+                "keys": [],
+                "spend": Decimal(0),
+                "gmv": Decimal(0),
+                "before_ads": Decimal(0),
+                "items": {},
+            },
+        )
+        for item, sp in (r.get("items") or {}).items():
+            g["items"][item] = g["items"].get(item, Decimal(0)) + Decimal(str(sp))
+        g["keys"].append(r["key"])
+        g["name"] = r["name"]
+        g["spend"] += Decimal(str(r["spend"]))
+        g["gmv"] += Decimal(str(r["gmv"]))
+        g["before_ads"] = (
+            None
+            if g["before_ads"] is None or r["before_ads"] is None
+            else g["before_ads"] + Decimal(str(r["before_ads"]))
+        )
+    out = []
+    for g in groups.values():
+        if g["spend"] <= 0:
+            continue
+        before = g["before_ads"]
+        out.append(
+            {
+                "key": g["keys"][0],
+                "name": g["name"],
+                "spend": g["spend"],
+                "gmv": g["gmv"],
+                "roas": roas_direct(g["gmv"], g["spend"]),
+                "break_even": roas_break_even(g["gmv"], before) if before is not None else None,
+                "profit_after_ads": None if before is None else before - g["spend"],
+                # the products the campaign spends on, biggest spend first (ads report by product)
+                "items": sorted(g["items"], key=lambda k: -g["items"][k])[:5],
+            }
+        )
+    return out
+
+
+SHOP_SCOPE_VI = "cả shop"
+
+
+def apply_shop_break_even(rows: list[dict[str, Any]], shop_be: Any) -> list[dict[str, Any]]:
+    """A campaign whose own ROAS hoà vốn is unknown takes the shop's (the same figure as Tổng quan)
+    and says so: `break_even_scope` = "cả shop". The campaign's own value is never replaced."""
+    if shop_be is None:
+        return rows
+    for r in rows:
+        if r.get("break_even") is None:
+            r["break_even"] = float(shop_be)
+            r["break_even_scope"] = SHOP_SCOPE_VI
+    return rows
+
+
+def _product_break_even(p: Any) -> dict[str, Any]:
+    """The product's contribution before ads and ROAS hoà vốn, as the cards show them
+    (`ProductProfit.contribution` / `.break_even_roas`)."""
+    from juli_backend.services.shopee_analytics.fmt import ratio
+
+    return {
+        "contribution_before_ads": p.contribution,
+        "break_even_roas": ratio(p.break_even_roas, 2),
+    }
+
+
+class ServiceData:
     def __init__(self, factory: SessionFactory, shop_id: uuid.UUID) -> None:
         self._f, self.shop = factory, shop_id
-
-    async def metrics(
-        self,
-        ids: list[str],
-        a: date,
-        b: date,
-        *,
-        scope: str = "shop",
-        items: list[str] | None = None,
-        channel: str | None = None,
-        campaigns: list[str] | None = None,
-        group_by: str | None = None,
-        compare: bool = False,
-    ) -> dict[str, Any]:
-        """The one metrics read: `metrics.query.query` (the shop is bound here, the session is
-        read-only and rolled back). Returns plain dicts: values, rows, coverage, partial, previous,
-        built_at. Missing is None, never 0."""
-        q = importlib.import_module(QUERY_MODULE)
-        sc = {
-            "shop": lambda: q.Scope.shop(),
-            "products": lambda: q.Scope.products(list(items or [])),
-            "channel": lambda: q.Scope.channel_of(str(channel), list(items or [])),
-            "campaigns": lambda: q.Scope.campaigns(list(campaigns or [])),
-        }[scope]()
-        async with self._f() as s:
-            try:
-                res = await q.query(
-                    s, self.shop, list(ids), scope=sc, window=(a, b), group_by=group_by,
-                    compare=compare,
-                )  # fmt: skip
-            finally:
-                await s.rollback()
-        out = _plain(res)
-        if group_by == "item":  # the residual and SKU rows are not products (a row filter)
-            out["rows"] = [r for r in out["rows"] if _is_product(r.get("item"))]
-        return out
-
-    async def _opps(self, fn_name: str, *args: Any, **kw: Any) -> Any:
-        mod = importlib.import_module(OPPORTUNITIES_MODULE)
-        async with self._f() as s:
-            try:
-                return await getattr(mod, fn_name)(s, self.shop, *args, **kw)
-            finally:
-                await s.rollback()
-
-    async def opportunities(
-        self, *, kind: str | None = None, item: str | None = None
-    ) -> list[dict[str, Any]]:
-        """The stored opportunities (OPP `list_opportunities`), outcome and reason included."""
-        rows = await self._opps("list_opportunities", kind=kind, item_id=item)
-        return [_opp_dict(r) for r in rows]
-
-    async def compare_options(
-        self, kind: str, *, item: str | None = None, points: list[Any] | None = None
-    ) -> dict[str, Any]:
-        """OPP `compare`: exactly 4 options (or a reason each), priced by the engine."""
-        res = await self._opps("compare", kind, item_id=item, points=points)
-        return _opp_dict(res)
-
-    async def draft_opportunity(self, opportunity_id: str) -> dict[str, Any]:
-        """OPP `draft_card(opportunity_id)`: a Juli draft card from a stored opportunity."""
-        mod = importlib.import_module(OPPORTUNITIES_MODULE)
-        async with self._f() as s:
-            try:
-                oid = uuid.UUID(str(opportunity_id))  # OPP's row key is a uuid
-                return _opp_dict(await mod.draft_card(s, self.shop, oid))
-            finally:
-                await s.rollback()
 
     async def _q(self, sql: str, **p: Any) -> list[dict[str, Any]]:
         async with self._f() as s:
@@ -171,65 +138,94 @@ class ServiceData(EntitySql):
                 await s.rollback()
 
     async def shop_daily(self, end: date, item: str | None = None) -> list[dict[str, Any]]:
-        """Daily rows (the chains' series) from `query(group_by="day")`; a day with no GMV figure
-        is not `complete` (missing is None, never 0). One product = `Scope.products([item])`."""
-        res = await self.metrics(
-            list(DAY_IDS),
-            end - timedelta(days=SERIES_DAYS),
-            end,
-            scope="products" if item else "shop",
-            items=[item] if item else None,
-            group_by="day",
+        if item:
+            return await self._item_daily(end, item)
+        return await self._q(
+            """select day, gmv, orders, units, views, product_clicks as clicks, ads_spend, ads_gmv,
+            complete
+                 from shop_metrics_daily
+                where shop_id = :s and order_type = 'confirmed' and day <= :e order by day""",
+            e=end,
         )
-        return [
-            {
-                "day": r["day"],
-                "complete": r.get("gmv") is not None,
-                "gmv": r.get("gmv"),
-                "orders": r.get("orders"),
-                "units": r.get("units"),
-                "views": r.get("views"),
-                "clicks": r.get("clicks"),
-                "ads_spend": r.get("cost_ads"),
-                "ads_gmv": r.get("ads_gmv_platform"),
-            }
-            for r in res.get("rows", [])
-        ]
 
-    async def source_totals(
-        self, a: date, b: date, item: str | None = None
-    ) -> list[dict[str, Any]]:
-        """Per traffic source over [a, b] from `query(group_by="source")`: views, clicks, orders,
-        GMV (None = the source reported nothing; never 0)."""
-        res = await self.metrics(
-            ["views", "clicks", "orders", "gmv"],
-            a,
-            b,
-            scope="products" if item else "shop",
-            items=[item] if item else None,
-            group_by="source",
+    async def _item_daily(self, end: date, item: str) -> list[dict[str, Any]]:
+        """One product's rows shaped like shop rows. A complete shop day with no product row = 0
+        sales;
+        views / clicks stay NULL where the product has no source rows (NULL is not 0)."""
+        shop = await self._q(
+            """select day, complete from shop_metrics_daily
+                                 where shop_id = :s and order_type = 'confirmed' and day <= :e
+                                 order by day""",
+            e=end,
         )
-        return [
-            {k: r.get(k) for k in ("views", "clicks", "orders", "gmv")} | {"source": r["source"]}
-            for r in res.get("rows", [])
-        ]
+        pr = {
+            r["day"]: r
+            for r in await self._q(
+                """select day, sum(gmv) gmv, sum(orders) orders, sum(units) units,
+                sum(ads_spend) ads_spend, count(ads_spend) n_ads from product_metrics_daily
+                where shop_id = :s and order_type = 'confirmed' and item_id = :i and day <= :e
+                group by day""",
+                e=end,
+                i=item,
+            )
+        }
+        tr = {
+            r["day"]: r
+            for r in await self._q(
+                """select day, sum(views) views, sum(clicks) clicks, count(views) n from
+                source_metrics_daily
+                where shop_id = :s and item_id = :i and day <= :e group by day""",
+                e=end,
+                i=item,
+            )
+        }
+        out = []
+        for r in shop:
+            p_, t_ = pr.get(r["day"]), tr.get(r["day"])
+            out.append(
+                {
+                    "day": r["day"],
+                    "complete": r["complete"],
+                    "gmv": (p_ or {}).get("gmv") or 0,
+                    "orders": (p_ or {}).get("orders") or 0,
+                    "units": (p_ or {}).get("units") or 0,
+                    "views": t_["views"] if t_ and t_["n"] else None,
+                    "clicks": t_["clicks"] if t_ and t_["n"] else None,
+                    # decision #39: the product's own ad cost (NULL = no basis, never 0)
+                    "ads_spend": (p_ or {}).get("ads_spend") if (p_ or {}).get("n_ads") else None,
+                    "ads_gmv": None,
+                }
+            )
+        return out
+
+    async def source_daily(self, a: date, b: date, item: str | None = None) -> list[dict[str, Any]]:
+        if item:
+            return await self._q(
+                """select day, source, views, clicks, orders, gmv from source_metrics_daily
+                                     where shop_id = :s and item_id = :i and day between :a and
+                                     :b""",
+                a=a,
+                b=b,
+                i=item,
+            )
+        return await self._q(
+            """select day, source, views, clicks, orders, gmv from source_metrics_daily
+                                 where shop_id = :s and item_id is null and day between :a and
+                                 :b""",
+            a=a,
+            b=b,
+        )
 
     async def product_daily(self, a: date, b: date) -> list[dict[str, Any]]:
-        """One row per product over [a, b] from `query(group_by="item")` (the window's own totals,
-        dated at its first day)."""
-        res = await self.metrics(
-            ["gmv", "orders", "units"], a, b, scope="shop", group_by="item"
-        )  # fmt: skip
-        return [
-            {
-                "day": a,
-                "item_id": r["item"],
-                "gmv": r.get("gmv"),
-                "orders": r.get("orders"),
-                "units": r.get("units"),
-            }
-            for r in res.get("rows", [])
-        ]
+        return await self._q(
+            """select day, item_id, sum(gmv) gmv, sum(orders) orders, sum(units) units
+                 from product_metrics_daily
+                where shop_id = :s and order_type = 'confirmed' and day between :a and :b
+                  and item_id not like 'sku:%' and item_id <> '__residual__'
+                group by day, item_id""",
+            a=a,
+            b=b,
+        )
 
     async def _items(self) -> dict[str, tuple[str, str | None]]:
         """item_id -> (name, seller_sku), through the existing `PlatformItemsRepo` read. The
@@ -348,118 +344,236 @@ class ServiceData(EntitySql):
             before = await self.cost_lines(a0, b0, item)
         return now, before
 
+    # ------------------------------------------------------------------ entities (Track J)
+
+    #: The shop headline basis (registry / `shopee_analytics.engine`): a confirmed line has a
+    #: payment time and a quantity, and counts in đơn / GMV / AOV unless its status is a refund
+    #: status (`counts_in_sales`); the day is the line's order day. Entity rows use exactly this,
+    #: so they are a subset of the shop totals.
     @staticmethod
-    def _profit_row(v: dict[str, Any]) -> dict[str, Any]:
-        """A product's values keyed as the chains read them (registry ids -> the legacy keys)."""
+    def _sales_basis() -> str:
+        from juli_backend.services.shopee_profit.order_profit import REFUND_STATUSES
+
+        refunds = ", ".join(f"'{x.value}'" for x in sorted(REFUND_STATUSES, key=lambda x: x.value))
+        return f"paid_at is not null and qty > 0 and status not in ({refunds})"
+
+    async def entity_totals(
+        self, kind: str, a: date, b: date, item: str | None = None
+    ) -> dict[str, Any]:
+        """Orders, GMV (deal price x qty) and the entity's own cost over [a, b], from the
+        canonical `order_lines`: voucher = lines with a seller voucher share (cost = that share,
+        registry `offer_voucher`); affiliate = lines flagged affiliate (cost = the commission of
+        `affiliate_lines`). Optionally one product."""
+        cond = {
+            "voucher": "shop_voucher_share > 0",
+            "no_voucher": "shop_voucher_share = 0",
+            "affiliate": "affiliate",
+            "all": "1 = 1",  # the shop's own lines on the same basis: the partition's whole
+        }[kind]
+        row = (
+            await self._q(
+                f"""select count(distinct order_ref) as orders,
+                           coalesce(sum(deal_price * qty), 0) as gmv,
+                           coalesce(sum(shop_voucher_share), 0) as voucher_cost
+                      from order_lines
+                     where shop_id = :s and platform = 'shopee' and day between :a and :b
+                       and {self._sales_basis()} and {cond}
+                       and (cast(:i as text) is null or item_id = cast(:i as text))""",  # nosec B608 — fragments are fixed literals (closed dict, registry enum)
+                a=a,
+                b=b,
+                i=item,
+            )
+        )[0]
+        cost = row["voucher_cost"]
+        if kind == "affiliate":
+            comm = await self._q(
+                """select sum(commission) as c from affiliate_lines
+                    where shop_id = :s and platform = 'shopee' and day between :a and :b
+                      and coalesce(valid, true)
+                      and (cast(:i as text) is null or item_id = cast(:i as text))""",
+                a=a,
+                b=b,
+                i=item,
+            )
+            cost = comm[0]["c"]
+        return {"orders": row["orders"], "gmv": row["gmv"], "cost": cost}
+
+    async def voucher_income(self, a: date, b: date) -> dict[str, Any]:
+        """Voucher orders and the voucher part of Ưu đãi from the stored per-order income
+        (`order_settlements`, the table the fee / profit loaders read): orders with
+        `seller_voucher_borne > 0`, the sum of `seller_voucher_borne`, and the GMV of those
+        orders from `order_lines`. Only orders that HAVE an income row count (a day without
+        income is not 0); `income_to` is the last order day the income holds in the window."""
+        head = (
+            await self._q(
+                """select count(*) as rows,
+                          count(*) filter (where seller_voucher_borne > 0) as orders,
+                          sum(seller_voucher_borne) as cost,
+                          max(ordered_on) as income_to
+                     from order_settlements
+                    where shop_id = :s and platform = 'shopee' and ordered_on between :a and :b""",
+                a=a,
+                b=b,
+            )
+        )[0]
+        gmv = (
+            await self._q(
+                f"""select coalesce(sum(deal_price * qty), 0) as gmv
+                      from order_lines
+                     where shop_id = :s and platform = 'shopee' and day between :a and :b
+                       and {self._sales_basis()}
+                       and order_ref in (select order_ref from order_settlements
+                                          where shop_id = :s and platform = 'shopee'
+                                            and ordered_on between :a and :b
+                                            and seller_voucher_borne > 0)""",  # nosec B608 — fragments are fixed literals (registry enum)
+                a=a,
+                b=b,
+            )
+        )[0]["gmv"]
         return {
-            "profit": v.get("profit"),
-            "margin_pct": v.get("margin"),  # registry margin is in points (42.8)
-            "coverage_pct": None if v.get("cost_coverage") is None else 100 * v["cost_coverage"],
-            "gmv": v.get("gmv"),
-            "contribution": v.get("contribution"),
-            "margin_contribution_pct": v.get("margin_contribution"),
-            "ad_spend": v.get("cost_ads"),
-            "break_even_roas": v.get("roas_break_even"),
+            "rows": head["rows"],
+            "orders": head["orders"],
+            "gmv": gmv,
+            "cost": head["cost"],
+            "income_to": head["income_to"],
         }
 
-    async def product_profit(self, item: str, a: date, b: date) -> dict[str, Any] | None:
-        res = await self.metrics(
-            list(PRODUCT_PROFIT_IDS), a, b, scope="products", items=[item]
-        )  # fmt: skip
-        values = res.get("values") or {}
-        if not values or all(v is None for v in values.values()):
-            return None
-        return self._profit_row(values)
-
-    async def product_profit_rows(self, a: date, b: date) -> list[dict[str, Any]]:
-        """Every product's profit after ads, contribution before ads and ROAS hoà vốn: one
-        `query(group_by="item")`, the same figures the cards and Phân tích read."""
-        res = await self.metrics(
-            list(PRODUCT_PROFIT_IDS), a, b, scope="shop", group_by="item"
-        )  # fmt: skip
-        rows = [{"item_id": r["item"], **self._profit_row(r)} for r in res.get("rows", [])]
-        names = await self.item_names([str(r["item_id"]) for r in rows])
-        return [{**r, "name": names.get(str(r["item_id"]))} for r in rows]
-
-    async def campaign_rows(self, a: date, b: date) -> list[dict[str, Any]]:
-        """Per ad campaign from `query(group_by="campaign")` (stored `campaign_metrics_daily`):
-        spend, GMV, ROAS and ROAS hoà vốn are the registry's. A campaign with no spend has no
-        row."""
-        res = await self.metrics(
-            ["cost_ads", "ads_gmv_direct", "roas_direct", "roas_break_even", "contribution"],
-            a,
-            b,
-            scope="shop",
-            group_by="campaign",
+    async def voucher_rows(self, a: date, b: date) -> list[dict[str, Any]]:
+        """One row per voucher code: orders, GMV, the voucher's cost."""
+        return await self._q(
+            f"""select voucher_code as code, count(distinct order_ref) as orders,
+                       coalesce(sum(deal_price * qty), 0) as gmv,
+                       coalesce(sum(shop_voucher_share), 0) as cost
+                  from order_lines
+                 where shop_id = :s and platform = 'shopee' and day between :a and :b
+                   and {self._sales_basis()} and shop_voucher_share > 0
+                   and voucher_code is not null
+                 group by voucher_code order by sum(deal_price * qty) desc""",  # nosec B608 — fragments are fixed literals (registry enum)
+            a=a,
+            b=b,
         )
-        shop_be = (res.get("values") or {}).get("roas_break_even")
-        products = await self.campaign_products(a, b)
-        out = []
-        for r in res.get("rows", []):
-            spend = r.get("cost_ads")
-            if spend is None or spend <= 0:
-                continue
-            contrib = r.get("contribution")
-            out.append(
-                {
-                    "key": r["campaign"],
-                    "name": r.get("campaign_name") or r["campaign"],
-                    "spend": spend,
-                    "gmv": r.get("ads_gmv_direct"),
-                    "roas": r.get("roas_direct"),
-                    "break_even": r.get("roas_break_even") or shop_be,
-                    "break_even_scope": None if r.get("roas_break_even") else SHOP_SCOPE_VI,
-                    "profit_after_ads": None if contrib is None else contrib - spend,
-                    "items": products.get(str(r["campaign"]), []),
-                }
-            )
-        return out
 
-    async def campaign_products(self, a: date, b: date) -> dict[str, list[str]]:
-        """{campaign id: [item id]} (QUERY's `campaign_products`, a dimension read from the ads
-        by product rows, not a fact)."""
-        q = importlib.import_module(QUERY_MODULE)
+    async def _reco_env(self, s: AsyncSession, a: date, b: date) -> Any:
+        from dataclasses import replace
+
+        from juli_backend.services.shopee_analytics import loaders, service
+        from juli_backend.services.shopee_recommendations.env import RecoEnv
+
+        window = await service.resolve(s, self.shop, period="custom", start=a, end=b)
+        if window is None:
+            return None
+        ctx = await loaders.load_context(s, self.shop)
+        ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
+        view = await service.load_view(s, self.shop, ctx, window, funnel=True, rows="soft")
+        return RecoEnv(ctx=ctx, view=view, as_of=b)
+
+    async def product_profit(self, item: str, a: date, b: date) -> dict[str, Any] | None:
         async with self._f() as s:
             try:
-                got = await q.campaign_products(s, self.shop, (a, b))
+                env = await self._reco_env(s, a, b)
+                p = None if env is None else env.product(item)
+                if p is None:
+                    return None
+                return {
+                    "profit": p.profit,
+                    "margin_pct": p.margin_pct,
+                    "coverage_pct": p.cost_coverage_pct,
+                    "gmv": p.gmv,
+                    **_product_break_even(p),
+                }
             finally:
                 await s.rollback()
-        return {str(k): [str(i) for i in v] for k, v in dict(got).items()}
+
+    async def product_profit_rows(self, a: date, b: date) -> list[dict[str, Any]]:
+        """Every product's profit after ads, contribution before ads and ROAS hoà vốn: the
+        shared `ProductProfit` rows the cards and Phân tích read (`RecoEnv.product`)."""
+        async with self._f() as s:
+            try:
+                env = await self._reco_env(s, a, b)
+                if env is None:
+                    return []
+                return [
+                    {
+                        "item_id": item,
+                        "name": env.name(item),
+                        "profit": p.profit,
+                        "ad_spend": p.ad_spend,
+                        "margin_pct": p.margin_pct,
+                        "gmv": p.gmv,
+                        **_product_break_even(p),
+                    }
+                    for item, p in env.view.profit.products.items()
+                ]
+            finally:
+                await s.rollback()
+
+    async def campaign_rows(self, a: date, b: date) -> list[dict[str, Any]]:
+        """Per ad campaign from the ads report (the analytics view): spend, direct GMV, profit
+        before ads read by `shopee_recommendations.evaluate.campaign_profile`; ROAS and ROAS hoà
+        vốn come from the metric registry. One row per campaign (`merge_campaigns`)."""
+        from decimal import Decimal
+
+        from juli_backend.services.shopee_analytics.fmt import ratio
+        from juli_backend.services.shopee_recommendations.evaluate import campaign_profile
+
+        raw: list[dict[str, Any]] = []
+        async with self._f() as s:
+            try:
+                env = await self._reco_env(s, a, b)
+                if env is None:
+                    return []
+                days = Decimal(env.window_days)
+                for c in env.view.ads.campaigns:
+                    prof = campaign_profile(env, c.key)
+                    if prof is None:
+                        continue
+                    raw.append(
+                        {
+                            "key": c.key,
+                            "name": c.name or c.key,
+                            "items": dict(c.products or {}),
+                            "spend": c.spend,
+                            "gmv": prof["direct_per_day"] * days,
+                            # NULL is not 0: no rate = unknown, but a segment with no direct GMV
+                            # contributes 0 before ads (it only spent)
+                            "before_ads": prof["profit_before_ads_per_day"] * days
+                            if prof["rate"] is not None
+                            else (Decimal(0) if prof["direct_per_day"] <= 0 else None),
+                        }
+                    )
+                shop_be = ratio(env.view.profit.break_even_roas, 2)
+            finally:
+                await s.rollback()
+        return apply_shop_break_even(merge_campaigns(raw), shop_be)
 
     async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]:
-        """Per day: the shop's ad spend, its ad orders and its daily budget (None when no
-        campaign has a limit that day): `query(scope=campaigns, group_by="day")` over the shop's
-        campaigns, using the stored `daily_budget` column."""
-        camps = list(await self.campaign_products(a, b))
-        if not camps:
-            return []
-        res = await self.metrics(
-            ["cost_ads", "daily_budget", "ads_orders"],
-            a,
-            b,
-            scope="campaigns",
-            campaigns=camps,
-            group_by="day",
-        )
-        return [
-            {
-                "day": r["day"],
-                "spend": r.get("cost_ads"),
-                "budget": r.get("daily_budget"),
-                "ad_orders": r.get("ads_orders"),
-            }
-            for r in res.get("rows", [])
-        ]
+        """Per day: the shop's ad spend, its ad orders and its summed daily budget (None when a
+        campaign has no budget limit that day). The ads report rows `ads_campaign_daily`, read
+        through the existing `PlatformDailyMetricsRepo`."""
+        from decimal import Decimal
 
+        from juli_backend.repositories import PlatformDailyMetricsRepo
+        from juli_backend.services.shopee_recommendations.loader import ADS_DAILY
 
-def _opp_dict(obj: Any) -> Any:
-    """An OPP result (dataclass, list or dict) as plain data."""
-    import dataclasses
-
-    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        return {f.name: _opp_dict(getattr(obj, f.name)) for f in dataclasses.fields(obj)}
-    if isinstance(obj, list | tuple):
-        return [_opp_dict(x) for x in obj]
-    if isinstance(obj, dict):
-        return {k: _opp_dict(v) for k, v in obj.items()}
-    return _num(obj)
+        async with self._f() as s:
+            try:
+                rows = await PlatformDailyMetricsRepo(s).window(
+                    self.shop, datasets=[ADS_DAILY], start=a, end=b, any_item=True
+                )
+                plain = [(r.day, r.segment, dict(r.extra or {}), r.orders) for r in rows]
+            finally:
+                await s.rollback()
+        per: dict[date, dict[str, Any]] = {}
+        for day, seg, extra, orders in plain:
+            if seg == "all":
+                continue
+            d = per.setdefault(
+                day, {"day": day, "spend": Decimal(0), "budget": Decimal(0), "ad_orders": 0.0}
+            )
+            d["ad_orders"] += float(orders or 0)
+            d["spend"] += Decimal(str(extra.get("cost") or 0))
+            bud = extra.get("daily_budget")
+            d["budget"] = (
+                None if bud is None or d["budget"] is None else d["budget"] + Decimal(str(bud))
+            )
+        return [per[k] for k in sorted(per)]

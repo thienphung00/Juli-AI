@@ -171,13 +171,6 @@ def stale_of(env: RecoEnv, cand: Candidate) -> dict[str, str] | None:
     )
 
 
-def refusal_of(env: RecoEnv, cand: Candidate) -> str:
-    """The short code why ``build_card`` gives no card for this candidate."""
-    if cand.kind in ("affiliate_sample", "affiliate_invite"):
-        return "kol_refused"
-    return evaluate(env, cand).refusal or "engine_refused"
-
-
 def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any] | None:
     if cand.kind in ("affiliate_sample", "affiliate_invite"):  # P91 D-9: own model
         from juli_backend.services.shopee_recommendations.kol_cards import build_kol_card

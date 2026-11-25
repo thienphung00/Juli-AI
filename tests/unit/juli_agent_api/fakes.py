@@ -110,7 +110,6 @@ class FakeEngine:
         llm: Any,
         jev: Any,
         sink: Any,
-        write_session_factory: Any = None,
     ) -> FakeResult:
         self.requests.append(dict(request))
         self.read_factories.append(read_session_factory)

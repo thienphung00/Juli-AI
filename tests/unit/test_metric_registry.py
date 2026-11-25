@@ -28,7 +28,6 @@ from juli_backend.services.metrics import (
     shop_lines,
 )
 from juli_backend.services.metrics.components import (
-    KNOWN_FALLBACK,
     component_available,
     gate_source,
     resolve_components,
@@ -133,10 +132,7 @@ def _divisions(expr: Any) -> list[Any]:
 
 
 def ones(**overrides: Decimal | None) -> dict[str, Decimal | None]:
-    # A2: the "known" ads / AFF parts are left to fall back on the plain costs the tests set
-    comps: dict[str, Decimal | None] = {
-        cid: D(1) for cid in COMPONENTS if cid not in KNOWN_FALLBACK
-    }
+    comps: dict[str, Decimal | None] = {cid: D(1) for cid in COMPONENTS}
     comps["gmv"] = D(10)  # room for three non-empty channels
     comps.update(overrides)
     return comps
@@ -155,7 +151,7 @@ def test_comparisons_are_an_enum_not_metrics() -> None:
 
 
 def test_derivation_version_is_dated() -> None:
-    assert DERIVATION_VERSION == "2026-11-25.1"
+    assert DERIVATION_VERSION == "2026-11-24.2"
 
 
 @pytest.mark.parametrize("metric_id", sorted(METRICS))

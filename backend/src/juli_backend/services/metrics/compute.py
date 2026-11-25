@@ -14,7 +14,7 @@ from datetime import date, timedelta
 from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from enum import StrEnum
 
-from juli_backend.services.metrics.components import COMPONENTS, KNOWN_FALLBACK, Components
+from juli_backend.services.metrics.components import COMPONENTS, Components
 from juli_backend.services.metrics.registry import (
     DERIVATION_VERSION,
     METRICS,
@@ -23,7 +23,6 @@ from juli_backend.services.metrics.registry import (
     Expr,
     Rounding,
 )
-from juli_backend.services.metrics.registry import metric_id as registry_metric_id
 from juli_backend.services.shopee_profit.money import ONE, ZERO, pct_points, safe_div, to_dong
 
 Value = Decimal | date | None
@@ -51,10 +50,6 @@ class _Context:
 
     def ref(self, id: str) -> Value:
         if id in COMPONENTS:
-            if id not in self.components and id in KNOWN_FALLBACK:
-                # A2: a caller whose components are already the covered orders' (a window
-                # ladder) passes only the plain cost; the stored rows pass the known part
-                return self.components.get(KNOWN_FALLBACK[id])
             return self.components.get(id)
         if id in self.memo:
             return self.memo[id]
@@ -139,9 +134,7 @@ def evaluate(
     as_of: date | None = None,
     params: Mapping[str, Decimal] | None = None,
 ) -> MetricValue:
-    """One metric over one scope's components, rounded by its registry rule. ``metric_id`` may
-    be an alias (``registry.METRIC_ALIASES``, e.g. ``margin_before_marketing``)."""
-    metric_id = registry_metric_id(metric_id)
+    """One metric over one scope's components, rounded by its registry rule."""
     metric = METRICS[metric_id]
     ctx = _Context(components, as_of, params or {})
     raw = ctx.ref(metric_id)

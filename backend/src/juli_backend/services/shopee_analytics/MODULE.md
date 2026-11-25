@@ -83,24 +83,6 @@ carries the same facts for the KOL cards. Entry points `queries.kol_table` / `qu
 - `windows.choose_anchor` / `loaders.load_anchor` -- the one window end: the last day every live daily
   dataset posted (or the last complete materialized day); the payload names it.
 
-## Stored daily facts (data layer, migration 140, decisions #62-#66)
-
-- `day_facts.py` (pure) builds, and `materialize.rebuild_days` upserts: the registry components on
-  the shop and product rows (F1; `scope_components` = the ladder's own code), the product report
-  over the order lines (A5, `item_report_splits`), the de-overlapped ads-by-product GMV (A6,
-  `ads_gmv_by_item` -> `metrics.allocation.deoverlap_periods`), `product_channel_metrics_daily`
-  (F2 / A7 / A9: Organic / Quảng cáo / TTLK x with / without a shop discount, `unknown` for GMV no
-  line explains; TTLK first, Quảng cáo capped, `capped_gmv` records a cap) and
-  `campaign_metrics_daily` (F3, Connector `ads_campaign_daily`, only days with spend or GMV).
-- Every row carries `derivation_version` = registry version / `ROWS_VERSION` / fee-schedule digest
-  (`materialize.stamp_of`); `rebuild_outdated` (the daily background job in
-  `shopee_reco_learning_daily`, real Shopee shops, never the reviewer sample shop) rebuilds stale
-  days. Writes skip unchanged rows (`IS DISTINCT FROM` on the upsert); sparse tables delete the
-  cells a rebuild no longer produces (`_replace_day`).
-- `affiliate_check.py` -- A7: the order-line affiliate flag (the registry's TTLK source) must see
-  at least the traffic report's TTLK đơn per day and the partner report's đơn per period; lists the
-  days / periods where it does not (logs and reports, never corrects).
-
 ## Missing days and unknown costs (P100-A, B.17)
 
 - A day whose order data never arrived (`shop_overview` without đơn, or all-zero with no visitor

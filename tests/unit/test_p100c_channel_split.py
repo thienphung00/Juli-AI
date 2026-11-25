@@ -264,10 +264,9 @@ async def test_the_ops_route_mirrors_the_seller_route(session, monkeypatch):
 
 
 async def test_picker_margin_is_the_builders_one_scope_margin(session):
-    """Step 1's product card shows the product level's margin: Biên đóng góp (L1, #66 / #67),
-    before ads and affiliate, ÷ the covered doanh thu thực."""
+    """Step 1's product card shows the margin the builder result calls "hôm nay"."""
     from juli_backend.services.shopee_analytics import channel_split as cs
-    from juli_backend.services.shopee_analytics import levels
+    from juli_backend.services.shopee_profit.shop_profit import scope_margin_pct
 
     seeded = await seed_shopee_shop(session, rules=True)
     await session.commit()
@@ -277,7 +276,7 @@ async def test_picker_margin_is_the_builders_one_scope_margin(session):
     )
     assert out["products"]
     for p in out["products"]:
-        one = levels.product_contribution(view, (p["product_id"],)).margin_pct
+        one = scope_margin_pct(view.profit, (p["product_id"],))
         assert p["margin"] == (None if one is None else float(one))
 
 

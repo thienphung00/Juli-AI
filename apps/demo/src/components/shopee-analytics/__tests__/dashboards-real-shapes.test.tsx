@@ -80,10 +80,7 @@ describe("the seller's Demo pages parse the real answers", () => {
     const struck = within(screen.getByTestId(`price-${second.item_id}`)).getByText(/60\.000/);
     expect(struck.tagName).toBe("S");
     expect(within(row).getByTestId(`margin-${first.item_id}`)).toHaveTextContent(first.margin_basis);
-    // the committed answer's own margin (Biên đóng góp since the data-layer batch, L1), in the seller's format
-    expect(within(row).getByTestId(`margin-${first.item_id}`)).toHaveTextContent(
-      `${first.margin_pct!.toFixed(1).replace(".", ",")}%`,
-    );
+    expect(within(row).getByTestId(`margin-${first.item_id}`)).toHaveTextContent("42,5%");
     expect(screen.getAllByText("GMV theo luồng").length).toBeGreaterThan(0);
     expect(screen.queryByRole("alert")).toBeNull();
   });

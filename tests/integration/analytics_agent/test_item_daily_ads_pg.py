@@ -1,6 +1,5 @@
-"""Decision #39, M3: Chat's product day rows return the stored product ad cost and None when
-every day has no basis. The rows are `query(group_by="day", scope=products)` over the stored
-`product_metrics_daily` (the registry rounds money to whole dong). Postgres."""
+"""Decision #39, M3: Chat's product day rows return the stored product ad cost (no more
+hard-coded None) and None when every day has no basis. Postgres (the views)."""
 
 from __future__ import annotations
 
@@ -37,15 +36,10 @@ async def test_item_daily_returns_the_stored_product_ad_cost(world: Any) -> None
     got = {r["day"]: r["ads_spend"] for r in rows}
     assert any(v is not None for v in stored.values())  # the seed has a basis for the product
     for day, value in got.items():
-        want = stored.get(day)
-        if want is None:
-            assert value is None  # no basis is not 0
-        else:
-            assert value is not None and abs(value - float(want)) < 1  # whole dong
+        assert value == stored.get(day)  # the stored cost, or None where there is none
 
 
 async def test_item_daily_is_none_on_every_day_when_the_product_has_no_basis(world: Any) -> None:
     sid, f = world
     rows = await ServiceData(f, sid).shop_daily(AS_OF, "no-such-item")
     assert rows and all(r["ads_spend"] is None for r in rows)
-    assert all(r["gmv"] is None and not r["complete"] for r in rows)  # missing, never 0

@@ -361,12 +361,12 @@ async def _trang_shop_case(days_with_views: int) -> chains.ChainResult:
     return await chains.run_chain(FakeData(shop, srcs), "orders_change", "orders", PRESET, AS_OF)
 
 
-async def test_a_source_with_no_views_in_the_current_window_is_missing() -> None:
-    low = await _trang_shop_case(0)  # no views in the current window: missing
+async def test_source_coverage_40pct_is_missing_60pct_is_present() -> None:
+    low = await _trang_shop_case(3)  # 3 of 7 current days = 43 % (< 50 %)
     assert any(
         f.node == "trang_shop" and "no_data_in_current_window" in f.flags for f in low.findings
     )
-    high = await _trang_shop_case(4)  # views reported in the current window: present
+    high = await _trang_shop_case(4)  # 4 of 7 = 57 % (>= 50 %)
     assert not any(
         "no_data_in_current_window" in f.flags for f in high.findings if f.node == "trang_shop"
     )

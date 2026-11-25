@@ -51,7 +51,6 @@ class Engine(Protocol):
         llm: Any,
         jev: Any,
         sink: Any,
-        write_session_factory: Callable[[], Any] | None = None,
     ) -> Any: ...
 
 
@@ -136,14 +135,12 @@ class AnalyticsAgentEngine:
         llm: Any,
         jev: Any,
         sink: Any,
-        write_session_factory: Callable[[], Any] | None = None,
     ) -> Any:
         module = _analytics_agent()
         req = module.AskRequest(**dict(request))
         return await module.run(
             req,
             read_session_factory=read_session_factory,
-            write_session_factory=write_session_factory,
             llm=llm,
             jev=jev,
             sink=sink,

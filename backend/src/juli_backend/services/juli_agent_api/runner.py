@@ -219,8 +219,6 @@ async def execute(
             result = await engine.run(
                 request,
                 read_session_factory=read_only_session_factory(read_factory, shop_id),
-                # the primary, for OPP's on-demand opportunity rows (generate_for_stored)
-                write_session_factory=write_factory,
                 llm=ports.llm,
                 jev=ports.jev,
                 sink=sink,

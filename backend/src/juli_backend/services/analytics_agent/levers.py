@@ -40,7 +40,7 @@ FINDINGS: tuple[Finding, ...] = (
     _f(
         "camp_below_break_even",
         "Chiến dịch ROAS dưới ROAS hoà vốn (lỗ sau quảng cáo)",
-        "rank",
+        "campaigns",
         "ads_roas_target",
         "ads_budget",
         "ads_pause",
@@ -48,14 +48,14 @@ FINDINGS: tuple[Finding, ...] = (
     _f(
         "camp_thin",
         "Chiến dịch lãi nhưng ROAS sát ROAS hoà vốn",
-        "rank",
+        "campaigns",
         "ads_roas_target",
         "ads_budget",
     ),
     _f(
         "camp_clear_profit",
         "Chiến dịch lãi rõ, ROAS cao hơn hoà vốn nhiều",
-        "rank",
+        "campaigns",
         "ads_budget",
         "ads_roas_target",
         "ads_purpose",
@@ -63,42 +63,44 @@ FINDINGS: tuple[Finding, ...] = (
     _f(
         "product_loss_after_ads",
         "Sản phẩm lỗ sau quảng cáo",
-        "rank, metrics",
+        "product_profit, product_margins",
         "ads_remove_product",
         "ads_pause",
     ),
     _f(
         "product_ads_no_contribution",
-        "Sản phẩm còn chi quảng cáo nhưng lợi nhuận đóng góp bằng không hoặc deal đã hết hạn",
-        "rank, metrics",
+        "Sản phẩm còn chi quảng cáo nhưng đóng góp trước quảng cáo bằng không hoặc deal đã hết hạn",
+        "product_profit, product_margins",
         "ads_remove_product",
         "title",
     ),
     _f(
-        "rank",
+        "idle_budget_days",
         "Ngày chi dưới ngân sách và không có đơn quảng cáo",
-        "rank",
+        "idle_budget_days",
         "ads_budget",
         "ads_roas_target",
     ),
     _f(
         "budget_far_from_spend",
         "Ngân sách ngày đặt xa chi thực tế (không nên tăng)",
-        "rank",
+        "campaigns, idle_budget_days",
         "ads_budget",
     ),
-    _f("title_names_ended_deal", "Tên sản phẩm còn ghi deal đã hết hạn", "rank", "title"),
+    _f(
+        "title_names_ended_deal", "Tên sản phẩm còn ghi deal đã hết hạn", "product_margins", "title"
+    ),
     _f(
         "ended_deal_price_running",
         "Giá deal hoặc giảm giá đã qua ngày sale vẫn còn chạy",
-        "rank, metrics",
+        "product_margins, product_profit",
         "price",
         "product_discount",
     ),
     _f(
         "big_product_margin_drop",
         "Sản phẩm chiếm tỉ trọng GMV lớn và biên giảm mạnh",
-        "rank",
+        "product_margins",
         "price",
         "product_discount",
         "bundle_deal",
@@ -106,13 +108,13 @@ FINDINGS: tuple[Finding, ...] = (
     _f(
         "cogs_gap",
         "Thiếu giá vốn đáng kể so với GMV (lợi nhuận không đáng tin)",
-        "rank",
+        "cogs_gaps",
         "nhap_gia_von",
     ),
     _f(
         "organic_drop",
         "Lượt xem hoặc GMV Organic giảm",
-        "rank, metrics",
+        "traffic_sources",
         "title",
         "keyword",
         "cover_image",
@@ -120,14 +122,14 @@ FINDINGS: tuple[Finding, ...] = (
     _f(
         "product_card_channel_grows",
         "Thẻ sản phẩm là kênh lớn và đang tăng",
-        "rank, metrics",
+        "traffic_sources",
         "ads_new_campaign",
         "ads_add_product",
     ),
     _f(
         "affiliate_low",
         "Tiếp thị liên kết thấp so với Thẻ sản phẩm",
-        "rank, metrics",
+        "traffic_sources",
         "affiliate_commission",
         "affiliate_target_campaign",
         "affiliate_invite",
@@ -136,14 +138,14 @@ FINDINGS: tuple[Finding, ...] = (
     _f(
         "affiliate_pending_on_loss",
         "Hoa hồng liên kết đang chờ trên sản phẩm lỗ hoặc deal hết hạn",
-        "open_cards, rank, metrics",
+        "open_cards, product_profit",
         "affiliate_commission",
     ),
-    _f("ads_channel_no_baseline", "Kênh Quảng cáo không có số so sánh", "rank, metrics"),
+    _f("ads_channel_no_baseline", "Kênh Quảng cáo không có số so sánh", "traffic_sources"),
     _f(
         "low_aov",
         "Giá trị đơn thấp hoặc đơn một món",
-        "metrics",
+        "metric_view",
         "min_spend_voucher",
         "bundle_deal",
         "add_on",
@@ -152,7 +154,7 @@ FINDINGS: tuple[Finding, ...] = (
     _f(
         "low_ctor",
         "Nhiều lượt xem, ít chốt đơn (CTOR thấp)",
-        "metrics",
+        "metric_view",
         "review_voucher",
         "product_discount",
         "description_first_line",
@@ -161,7 +163,7 @@ FINDINGS: tuple[Finding, ...] = (
     _f(
         "low_ctr",
         "CTR thấp (ảnh bìa, giá hiển thị, tên)",
-        "metrics",
+        "metric_view",
         "cover_image",
         "price_display",
         "title",
@@ -169,7 +171,7 @@ FINDINGS: tuple[Finding, ...] = (
     _f(
         "sale_day_ahead",
         "Sắp tới ngày sale trong lịch hoặc mega sale",
-        "calendar, metrics",
+        "week_summary",
         "flash_sale",
         "program_registration",
         "mega_sale",
@@ -178,13 +180,13 @@ FINDINGS: tuple[Finding, ...] = (
     _f(
         "sale_day_in_window",
         "Kỳ này có ngày sale kéo GMV (không dùng làm nền so sánh)",
-        "calendar, metrics",
+        "week_summary",
     ),
-    _f("gmv_concentration", "GMV tập trung vào một sản phẩm (rủi ro phụ thuộc)", "rank"),
+    _f("gmv_concentration", "GMV tập trung vào một sản phẩm (rủi ro phụ thuộc)", "product_margins"),
     _f(
         "combo_opportunity",
         "Cơ hội combo: sản phẩm hay mua cùng nhau",
-        "metrics, open_cards",
+        "metric_view, open_cards",
         "bundle_deal",
         "combo_multi",
         "add_on",
@@ -193,7 +195,7 @@ FINDINGS: tuple[Finding, ...] = (
     _f(
         "data_too_thin",
         "Dữ liệu thiếu hoặc không đủ căn cứ (chi quảng cáo rất nhỏ, chưa có hoà vốn)",
-        "rank, metrics",
+        "campaigns, product_profit",
     ),
 )
 FINDING_BY_KEY: dict[str, Finding] = {f.key: f for f in FINDINGS}
@@ -202,7 +204,7 @@ FINDING_BY_KEY: dict[str, Finding] = {f.key: f for f in FINDINGS}
 #: A lever that needs its finding to be in this run's tool results: lever -> (tool, result key).
 #: The lever is the answer to one finding only (missing giá vốn); without that finding it is not
 #: offered, however the question is worded. Data, checked by `advisor.check_plan`.
-EVIDENCE: dict[str, tuple[str, str]] = {"nhap_gia_von": ("rank", "thiếu_giá_vốn")}
+EVIDENCE: dict[str, tuple[str, str]] = {"nhap_gia_von": ("cogs_gaps", "thiếu_giá_vốn")}
 
 
 def lever_enum(available: Iterable[str] | None = None) -> list[str]:

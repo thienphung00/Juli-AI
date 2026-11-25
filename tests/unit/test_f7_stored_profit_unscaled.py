@@ -53,12 +53,7 @@ async def test_rows_built_by_an_older_rule_are_rebuilt_automatically(session):
     good = await _window_sum(session, sid)
     t = ShopeeShopMetricsDaily
     old = (await session.execute(select(t.detail).where(t.shop_id == sid).limit(1))).scalar_one()
-    # an older rule's rows: migration 140 stamps the rule in ``derivation_version``
-    await session.execute(
-        update(t)
-        .where(t.shop_id == sid)
-        .values(profit=D(1), detail={}, derivation_version="2026-11-24.2/r4/f00000000")
-    )
+    await session.execute(update(t).where(t.shop_id == sid).values(profit=D(1), detail={}))
     await session.flush()
     session.expunge_all()
     assert len(await materialize.outdated_days(session, sid)) > 0

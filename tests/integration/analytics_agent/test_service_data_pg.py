@@ -1,9 +1,7 @@
 """The analytics agent's real adapters on real Postgres, from the synthetic Shopee shop.
 
-`ServiceData`'s metric reads are `metrics.query.query` over the stored fact tables (seeded and
-materialized from the synthetic raw rows) and are checked against the stored rows; the named
-SELECTs that remain (stock, open cards, vouchers) run on the real schema and return the shape the
-chains expect; `open_cards` honours the 28-day cutoff for executed cards (G4); the analytics-service
+Every named SELECT of `ServiceData` runs on the real schema and returns the shape the chains
+expect; `open_cards` honours the 28-day cutoff for executed cards (G4); the analytics-service
 reads (overview, metric-view, critical, channel split) and the recommendation engine adapter
 answer in the shapes the engine reads; nothing is written. No client data: the synthetic shop of
 `tests/support/shopee_analytics.py` plus rows seeded here.
@@ -21,7 +19,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest_asyncio
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from juli_backend.core.config.runtime import async_database_url
@@ -136,80 +134,35 @@ async def test_shop_daily_shape_and_order(world: Any) -> None:
     assert all(isinstance(r["day"], date) for r in rows)
 
 
-async def test_item_daily_has_shop_rows_shape_and_missing_days_are_none(world: Any) -> None:
+async def test_item_daily_has_shop_rows_shape_and_zero_sales_days(world: Any) -> None:
     sid, f = world
     d = ServiceData(f, sid)
     shop, item = await d.shop_daily(AS_OF), await d.shop_daily(AS_OF, "1001")
     assert [r["day"] for r in item] == [r["day"] for r in shop] and all(
         DAY_KEYS <= set(r) for r in item
     )
-    sold = [r for r in item if r["complete"]]
-    assert sold and all(r["orders"] is not None and r["gmv"] is not None for r in sold)
-    # a day with no stored product row is missing (None, not complete), never 0
-    gaps = [r for r in item if not r["complete"]]
-    assert gaps and all(r["gmv"] is None and r["orders"] is None for r in gaps)
-    # decision #39: the product's own ad cost (the stored product row), NULL = no basis
+    assert all(
+        r["orders"] is not None and r["gmv"] is not None for r in item
+    )  # no row = 0 sales, not NULL
+    # decision #39: the product's own ad cost (the ads report by product), NULL = no basis
     spend = [r["ads_spend"] for r in item if r["ads_spend"] is not None]
     assert spend and all(v >= 0 for v in spend)
     assert any(r["ads_spend"] is None for r in item)  # a day with no basis is not 0
 
 
-async def test_shop_daily_equals_the_stored_shop_rows(world: Any) -> None:
-    """The series is the stored `shop_metrics_daily` (confirmed basis): the same day set and the
-    same GMV / orders on every day the shop has a row."""
-    sid, f = world
-    rows = await ServiceData(f, sid).shop_daily(AS_OF)
-    async with f() as s:
-        stored = {
-            r.day: (r.gmv, r.orders)
-            for r in (
-                await s.execute(
-                    text(
-                        "select day, gmv, orders from shop_metrics_daily "
-                        "where shop_id = :s and order_type = 'confirmed' and day <= :e"
-                    ),
-                    {"s": sid, "e": AS_OF},
-                )
-            ).all()
-        }
-    got = {r["day"]: r for r in rows if r["complete"]}
-    assert got and set(got) <= set(stored)
-    for day, r in got.items():
-        gmv, orders = stored[day]
-        assert abs(r["gmv"] - float(gmv)) < 1 and r["orders"] == float(orders)
-
-
-async def test_source_totals_and_product_totals(world: Any) -> None:
+async def test_source_and_product_rows(world: Any) -> None:
     sid, f = world
     d = ServiceData(f, sid)
     a, b = AS_OF - timedelta(days=13), AS_OF
-    src = await d.source_totals(a, b)
-    assert src and all({"source", "views", "clicks", "orders", "gmv"} <= set(r) for r in src)
-    assert len({r["source"] for r in src}) == len(src)  # one row per source, window totals
+    src = await d.source_daily(a, b)
+    assert src and all({"day", "source", "views", "clicks", "orders", "gmv"} <= set(r) for r in src)
+    assert all(a <= r["day"] <= b for r in src)
     prods = await d.product_daily(a, b)
     assert prods and {r["item_id"] for r in prods} <= set(ITEMS)
-    assert len({r["item_id"] for r in prods}) == len(prods)  # one total row per product
     assert all({"day", "item_id", "gmv", "orders", "units"} <= set(r) for r in prods)
     assert not any(r["item_id"].startswith("sku:") or r["item_id"] == "__residual__" for r in prods)
-    # the totals are the stored product rows summed by the database, not by Chat
-    async with f() as s:
-        stored = {
-            r.item_id: r.gmv
-            for r in (
-                await s.execute(
-                    text(
-                        "select item_id, sum(gmv) gmv from product_metrics_daily "
-                        "where shop_id = :s and order_type = 'confirmed' "
-                        "and day between :a and :b group by item_id"
-                    ),
-                    {"s": sid, "a": a, "b": b},
-                )
-            ).all()
-        }
-    for r in prods:
-        assert abs(r["gmv"] - float(stored[r["item_id"]])) < 1
-    item_src = await d.source_totals(a, b, "1001")
-    assert all({"source", "views"} <= set(r) for r in item_src)
+    item_src = await d.source_daily(a, b, "1001")
+    assert all({"day", "source", "views"} <= set(r) for r in item_src)
 
 
 async def test_names_and_catalog_search_use_the_repository_read(world: Any) -> None:
@@ -260,11 +213,7 @@ async def test_open_cards_honour_the_28_day_cutoff_for_executed_cards(world: Any
 async def test_other_shops_cards_never_appear(world: Any) -> None:
     sid, f = world
     assert await ServiceData(f, uuid.uuid4()).open_cards() == []
-    other = ServiceData(f, uuid.uuid4())
-    rows = await other.shop_daily(AS_OF)  # another shop: every day missing, nothing of ours
-    assert all(r["gmv"] is None and not r["complete"] for r in rows)
-    assert await other.product_daily(AS_OF - timedelta(days=6), AS_OF) == []
-    assert await other.source_totals(AS_OF - timedelta(days=6), AS_OF) == []
+    assert await ServiceData(f, uuid.uuid4()).shop_daily(AS_OF) == []
 
 
 async def test_analytics_service_reads_have_the_shape_the_chains_expect(world: Any) -> None:
@@ -348,30 +297,11 @@ async def test_entity_readers_run_on_the_real_schema_and_return_their_shapes(wor
         assert {"orders", "gmv", "cost"} <= set(tot)
         assert {"orders", "gmv", "cost"} <= set(await d.entity_totals(kind, a, b, "1001"))
     assert isinstance(await d.voucher_rows(a, b), list)
-    for day in await d.budget_days(a, b):
-        assert {"day", "spend", "budget", "ad_orders"} <= set(day)
+    assert isinstance(await d.budget_days(a, b), list)
     for c in await d.campaign_rows(a, b):
         assert {"key", "name", "spend", "gmv", "roas", "break_even", "profit_after_ads"} <= set(c)
     p = await d.product_profit("1001", a, b)
-    assert p is None or {"profit", "margin_pct", "coverage_pct", "gmv", "contribution"} <= set(p)
-
-
-async def test_product_profit_is_the_query_row_of_the_same_product(world: Any) -> None:
-    """`product_profit` / `product_profit_rows` and a direct `query()` agree (one function)."""
-    from juli_backend.services.metrics.query import Scope, query
-
-    sid, f = world
-    d = ServiceData(f, sid)
-    a, b = AS_OF - timedelta(days=6), AS_OF
-    one = await d.product_profit("1001", a, b)
-    rows = {r["item_id"]: r for r in await d.product_profit_rows(a, b)}
-    assert one is not None and "1001" in rows
-    assert one["profit"] == rows["1001"]["profit"] and one["gmv"] == rows["1001"]["gmv"]
-    async with f() as s:
-        res = await query(s, sid, ["profit", "gmv"], scope=Scope.products(["1001"]), window=(a, b))
-    assert abs(one["profit"] - float(res.values["profit"])) < 1
-    assert abs(one["gmv"] - float(res.values["gmv"])) < 1
-    assert rows["1001"]["name"] == ITEMS["1001"][0]
+    assert p is None or {"profit", "margin_pct", "coverage_pct", "gmv"} <= set(p)
 
 
 async def test_voucher_income_counts_only_income_rows_in_the_window(world: Any) -> None:

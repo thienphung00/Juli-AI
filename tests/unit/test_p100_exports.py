@@ -64,7 +64,7 @@ def test_overview_cells_and_formulas():
     assert ws["A1"].value == (
         "TỔNG QUAN — Dữ liệu mẫu (Shopee) · 12/10/2026–10/11/2026 · so với 12/09/2026–11/10/2026"
     )
-    assert [c.value for c in ws[3]][:3] == ["Chỉ số", "Kỳ này", "% doanh thu thực"]
+    assert [c.value for c in ws[3]][:3] == ["Chỉ số", "Kỳ này", "% doanh thu"]
     assert ws.max_column == 7 and ws["A8"].value == "Chi phí quảng cáo (Báo cáo DVHT) (đ)"
     assert ws["B4"].value == 5_500_000
     assert ws["B6"].value == '=IFERROR(B4/B5,"—")'
@@ -532,16 +532,3 @@ def test_the_overview_sheet_carries_the_ladder_rows_export_only():
     assert ws.cell(ov["margin_contribution"], 4).value == pytest.approx(
         1_000_000 / prev.net_revenue_known
     )
-
-
-def test_a2_each_period_shows_its_cost_coverage():
-    from dataclasses import replace
-
-    d = _data()
-    d.now = replace(d.now, coverage=0.7)
-    d.prev = replace(d.prev, coverage=1.0)
-    ws = tq.build(d)[tq.SHEET_OVERVIEW]
-    r = tq.OV["coverage"]
-    assert ws.cell(r, 1).value == f"{METRICS['cost_coverage'].label_vi} (% GMV)"
-    assert (ws.cell(r, 2).value, ws.cell(r, 4).value) == (0.7, 1.0)
-    assert ws.cell(r, 2).number_format == "0.0%"

@@ -13,7 +13,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from juli_backend.services.shopee_analytics import funnel, levels
+from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.catalog import ItemInfo
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fee_table import fold
@@ -226,10 +226,6 @@ def sku_waterfall(
         voucher = sum((pb.voucher for _, pb in carrying), ZERO)
         combo = sum((pb.bundle for _, pb in carrying), ZERO)
         contribution = sum((pb.contribution or ZERO for _, pb in carrying), ZERO)
-        # L1 / L3 / L4: the product level stops at Lợi nhuận đóng góp (before ads AND
-        # affiliate), its margin ÷ the covered doanh thu thực (registry ladder)
-        level = levels.contribution_of(carrying)
-        shipping_total = sum((pb.income_costs_total or ZERO for _, pb in carrying), ZERO)
         ad_cost = (spend * paid / product_paid) if product_paid > 0 else ZERO
         ad_rate = safe_div(ad_cost, paid) if paid > 0 else None
         stated = assumed_costs or real  # False = no giá vốn on this page: "chưa tính"
@@ -288,9 +284,6 @@ def sku_waterfall(
                     "cogs": per_unit(cogs_total) if stated else None,
                     "packaging": per_unit(pack_total),
                     "commission": per_unit(commission_shown),
-                    "shipping": per_unit(shipping_total),
-                    "contribution": per_unit(level.contribution) if stated else None,
-                    "margin_contribution_pct": pct(level.margin_pct) if stated else None,
                     "contribution_before_ads": per_unit(contribution) if stated else None,
                     "ads": per_unit(ad_cost),
                     "profit": per_unit(contribution - ad_cost) if stated else None,

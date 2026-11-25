@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { metricLabel } from "../../lib/metrics";
 import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { useShopee } from "../../lib/shopee-analytics/context";
 import { DASH, chipFromChange, fmt, pc, pp, sv, vnd } from "../../lib/shopee-analytics/format";
@@ -28,7 +27,7 @@ export function PerformanceTab({ page, periodHref }: { readonly page: ProductPag
     ["CTOR", pc(k.ctor), null],
     ["AOV", vnd(k.aov), null],
     ["GMV", vnd(k.gmv.value), <ChipView chip={chipFromChange(k.gmv.change_pct)} key="g" />],
-    [metricLabel("margin_contribution"), pp(k.profit?.margin_pct, 1), null],
+    ["Biên lợi nhuận", pp(k.profit?.margin_pct, 1), null],
   ];
   return (
     <Section testId="sa-tab-hs" title="Hiệu suất">
@@ -288,8 +287,10 @@ function wfRows(sku: SkuCost) {
     ["− Phí sàn", w.platform_fees, "neg"],
     ["− Giá vốn", w.cogs, "neg"],
     ["− Đóng gói", w.packaging, "neg"],
-    ["− Vận chuyển", w.shipping ?? null, "neg"],
-    [`= ${metricLabel("contribution")}`, w.contribution ?? null, "total"],
+    ["− Hoa hồng liên kết", w.commission, "neg"],
+    ["= Đóng góp trước quảng cáo", w.contribution_before_ads, "total"],
+    ["− DVHT", w.ads, "neg"],
+    ["= Lợi nhuận", w.profit, "total"],
   ];
   return rows;
 }
@@ -353,8 +354,8 @@ export function CostTab({ page, sel, onPick }: { readonly page: ProductPage; rea
               </div>
             ))}
             <div className="sa-wf__row sa-wf__row--total">
-              <span>{metricLabel("margin_contribution")}</span>
-              <b>{pp(sel.waterfall_per_unit.margin_contribution_pct ?? null, 1)}</b>
+              <span>Biên lợi nhuận</span>
+              <b>{pp(sel.waterfall_per_unit.margin_pct, 1)}</b>
             </div>
           </div>
           <p className="sa-hint">

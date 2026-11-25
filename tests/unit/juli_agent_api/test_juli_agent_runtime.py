@@ -133,7 +133,7 @@ async def _run(answer, fake, **kw) -> AgentMessage:
 class _EngineThatFailsLikeT1(FakeEngine):
     """T1 emits ``error`` + ``done`` and re-raises an unexpected exception."""
 
-    async def run(self, request, *, read_session_factory, llm, jev, sink, **_kw):
+    async def run(self, request, *, read_session_factory, llm, jev, sink):
         await sink.emit({"type": "status", "payload": {"key": "thinking", "text_vi": "x"}})
         await sink.emit({"type": "error", "payload": {"code": "failed"}})
         await sink.emit({"type": "done", "payload": {"stop_reasons": []}})
