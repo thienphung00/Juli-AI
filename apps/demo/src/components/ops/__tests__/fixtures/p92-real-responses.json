@@ -396,8 +396,8 @@
      "profit": 250822
     },
     "gmv": 1549000,
-    "gmv_share_pct": 40.2,
-    "label": "trên 18 đơn có chi phí, 40,2 % GMV",
+    "gmv_share_pct": 40.1,
+    "label": "trên 18 đơn có chi phí, 40,1 % GMV",
     "margin_pct": 16.3,
     "net_revenue": 1539000,
     "orders": 18,
@@ -956,8 +956,8 @@
      "profit": 276889
     },
     "gmv": 1102000,
-    "gmv_share_pct": 57.2,
-    "label": "trên 12 đơn có chi phí, 57,2 % GMV",
+    "gmv_share_pct": 57.0,
+    "label": "trên 12 đơn có chi phí, 57,0 % GMV",
     "margin_pct": 25.4,
     "net_revenue": 1092000,
     "orders": 12,

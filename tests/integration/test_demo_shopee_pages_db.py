@@ -18,6 +18,7 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from juli_backend.core.config.runtime import async_database_url
 from juli_backend.models.market import MarketKeywordMetric
 from juli_backend.models.shop_keywords import ShopKeywordSeed
+from juli_backend.services.shopee_profit import shop_profit
 from tests.support.api import authenticate, build_app, client_for
 from tests.support.postgres import requires_postgres
 from tests.support.shopee_analytics import CUR_END, NOW, seed_shopee_shop
@@ -129,7 +131,9 @@ async def _answers(session: AsyncSession, seeded) -> dict[str, object]:
     return out
 
 
-async def test_the_four_pages_answer_with_the_committed_real_shapes():
+async def test_the_four_pages_answer_with_the_committed_real_shapes(monkeypatch):
+    # the shapes the screens are tested with carry a profit: the gate (70 % known) is lifted here
+    monkeypatch.setattr(shop_profit, "MIN_KNOWN_GMV_SHARE_PCT", Decimal(0))
     async with pg_session() as session:
         seeded = await seed_shopee_shop(session, rules=True)
         session.add_all(_seed_keywords(seeded.shop_id))

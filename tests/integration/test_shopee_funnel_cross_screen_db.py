@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
+from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from juli_backend.core.config.runtime import async_database_url
 from juli_backend.services.shopee_analytics import materialize
+from juli_backend.services.shopee_profit import shop_profit
 from juli_backend.services.shopee_recommendations import config
 from tests.support.postgres import requires_postgres
 from tests.support.shopee_analytics import CUR_END, seed_shopee_shop
@@ -43,6 +45,9 @@ async def pg_session():
 
 
 async def test_every_screen_shows_the_same_funnel_numbers_on_postgres(monkeypatch):
+    # one number across the screens: the profit gate is lifted (the synthetic shop knows 23-57 %
+    # of its GMV); the gate itself is the next test
+    monkeypatch.setattr(shop_profit, "MIN_KNOWN_GMV_SHARE_PCT", Decimal(0))
     monkeypatch.setattr(config, "HISTORY_DAYS", 7)  # the plan base reads the window the others show
     async with pg_session() as session:
         seeded = await seed_shopee_shop(session)
@@ -55,3 +60,16 @@ async def test_every_screen_shows_the_same_funnel_numbers_on_postgres(monkeypatc
             assert {"tong_quan", "ke_hoach", "builder_before"} <= set(
                 agreed(surfaces, field, tol=0)
             ), field
+
+
+async def test_below_the_known_share_no_screen_shows_a_profit_on_postgres(monkeypatch):
+    """R1: under 70 % known, every screen shows "—" for the profit, none of them a figure."""
+    monkeypatch.setattr(config, "HISTORY_DAYS", 7)
+    async with pg_session() as session:
+        seeded = await seed_shopee_shop(session)
+        await materialize.backfill_shop(session, seeded.shop_id)
+        surfaces, _ = await collect_shop(session, seeded.shop_id, CUR_END, days=7)
+        assert {
+            s.name: s.values["profit"] for s in surfaces if s.values["profit"] is not None
+        } == {}
+        assert agreed(surfaces, "gmv", tol=0), "GMV stays"
