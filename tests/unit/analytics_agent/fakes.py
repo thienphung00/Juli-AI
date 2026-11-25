@@ -577,12 +577,18 @@ class ScriptedQuery:
 
     def __new__(cls, script: Callable[..., dict[str, Any]]) -> Any:
         import uuid
+        from contextlib import AbstractAsyncContextManager
+
+        from sqlalchemy.ext.asyncio import AsyncSession
 
         from juli_backend.services.analytics_agent.data_service import ServiceData
 
+        def no_session() -> AbstractAsyncContextManager[AsyncSession]:
+            raise AssertionError("ScriptedQuery opens no database session")
+
         class _Svc(ServiceData):
             def __init__(self) -> None:
-                super().__init__(lambda: None, uuid.uuid4())  # type: ignore[arg-type,return-value]
+                super().__init__(no_session, uuid.uuid4())
                 self.asked: list[dict[str, Any]] = []
 
             async def metrics(self, ids: list[str], a: date, b: date, **kw: Any) -> dict[str, Any]:
