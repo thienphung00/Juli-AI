@@ -26,6 +26,7 @@ from juli_backend.services.shopee_builder import service as builder
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.engine.wire import round_count
 from juli_backend.services.shopee_builder.engine_families import integrate
+from juli_backend.services.shopee_builder.outcome import scope_contribution_margin_pct
 from juli_backend.services.shopee_profit import shop_profit
 from juli_backend.services.shopee_recommendations import manual, plans, store
 from juli_backend.services.shopee_recommendations import plan_aggregate as pa
@@ -343,18 +344,19 @@ async def test_one_margin_on_luong_tu_tao_so_sanh_and_ke_hoach(session, shop):
     listed = await builder.products(session, seeded.shop_id, as_of=AS_OF)
     row = next(r for r in listed["products"] if r["item_id"] == ITEM)
     assert row["margin_pct"] == pytest.approx(luong_level, abs=0.05)  # Tự tạo list
-    # So sánh / Kế hoạch "hôm nay" are Track OPP's (outcome.py, plan_aggregate); until OPP moves
-    # them to Đóng góp they still read the one scope margin
+    # So sánh "hôm nay" and the version's own "hôm nay" are product level = Biên đóng góp (L1);
+    # Kế hoạch stays Ròng (the one scope margin after ads and AFF)
+    dong_gop = float(scope_contribution_margin_pct(env.view.profit, [ITEM]) or 0)
     luong = float(shop_profit.scope_margin_pct(env.view.profit, [ITEM]) or 0)
     out = await builder.evaluate_versions(session, seeded.shop_id, [COMBO], as_of=AS_OF, now=NOW)
-    assert out["today"]["margin_pct"] == pytest.approx(luong, abs=0.05)  # So sánh "Hôm nay"
+    assert out["today"]["margin_pct"] == pytest.approx(dong_gop, abs=0.05)  # So sánh "Hôm nay"
     v = out["versions"][0]
     if v["margin_before_pct"] is not None:  # the version's own "hôm nay"
-        assert v["margin_before_pct"] == pytest.approx(luong, abs=0.05)
+        assert v["margin_before_pct"] == pytest.approx(dong_gop, abs=0.05)
     aff = await builder.evaluate_versions(
         session, seeded.shop_id, [AFFILIATE], as_of=AS_OF, now=NOW
     )
-    assert aff["today"]["margin_pct"] == pytest.approx(luong, abs=0.05)  # affiliate "hôm nay"
+    assert aff["today"]["margin_pct"] == pytest.approx(dong_gop, abs=0.05)  # affiliate "hôm nay"
     _, planned = await _save_and_plan(session, seeded, COMBO)
     block = next(p for p in planned["_aggregate"]["products"] if p["product_id"] == ITEM)
     assert block["today"]["margin_pct"] == pytest.approx(luong, abs=0.05)  # Kế hoạch
