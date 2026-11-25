@@ -67,6 +67,7 @@ from juli_backend.services.shopee_recommendations import (
     freshness,
     job_view,
     manual,
+    margin_split,
     opportunities,
     plan_codes,
     product_queue,
@@ -388,8 +389,10 @@ async def generate_cards(
     if persist:
         await codes.backfill_codes(session, shop_id, now)  # cards that predate migration 116
     queued: set[str] = set()
+    splits = margin_split.SplitCache(session, shop_id, (env.view.window.start, env.view.window.end))
     for r in kept_all:
         _, card = cards_by_id[r.id]
+        card["margin_split"] = await splits.of(card["scope"]["product_ids"])  # L1 / A9
         card["rank"] = {
             "position": r.position,
             "score": r.score,
