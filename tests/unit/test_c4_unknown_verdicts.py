@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 from juli_backend.services.analytics_agent import writer
 from juli_backend.services.analytics_agent.data_service import _no_costed_line, _product_break_even
@@ -119,7 +119,7 @@ def _warn(current: str | None, new: float) -> list[str]:
     )
     ctx = SimpleNamespace(env=SimpleNamespace(setting_for=lambda _k: setting))
     spec = SimpleNamespace(lever="roas", roas_target=new, campaign_key="c1")
-    return [w["code"] for w in _ads_warnings(spec, ctx)]  # type: ignore[arg-type]
+    return [w["code"] for w in _ads_warnings(cast(Any, spec), cast(Any, ctx))]
 
 
 def test_target_hint_warning_hidden_when_current_target_is_already_above() -> None:
