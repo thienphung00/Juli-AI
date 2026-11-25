@@ -306,6 +306,34 @@ def engine_card() -> dict[str, Any]:
     }
 
 
+def opp(
+    oid: str, kind: str, item: str | None = "p1", profit: float | None = 100.0, **kw: Any
+) -> dict[str, Any]:
+    """A stored opportunity row (synthetic): published unless `outcome` says otherwise."""
+    return {
+        "id": oid,
+        "kind": kind,
+        "scope": "product" if item else "shop",
+        "item_ids": [item] if item else [],
+        "delta_gmv": 1000.0,
+        "delta_profit": profit,
+        "cost": 50.0,
+        "inputs": {},
+        "outcome": "published",
+        "reason": None,
+        "card_code": None,
+        **kw,
+    }
+
+
+OPPORTUNITIES = [
+    opp("o-roas", "ads_roas_target"),
+    opp("o-title", "title", profit=80.0),
+    opp("o-remove", "ads_remove_product", profit=60.0),
+    opp("o-nope", "cover_image", outcome="below_band", reason="not_estimable", profit=None),
+]
+
+
 class FakeEntityData(FakeData):
     """FakeData plus the entity readers: synthetic voucher / affiliate / campaign / product rows."""
 
@@ -350,6 +378,91 @@ class FakeEntityData(FakeData):
     async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]:
         return [r for r in self.entity.get("budget_days", []) if a <= r["day"] <= b]
 
+    # ---- the `metrics.query` / OPP seams (C1): scripted rows, no calculation here
+
+    async def metrics(
+        self,
+        ids: list[str],
+        a: date,
+        b: date,
+        *,
+        scope: str = "shop",
+        items: list[str] | None = None,
+        channel: str | None = None,
+        campaigns: list[str] | None = None,
+        group_by: str | None = None,
+        compare: bool = False,
+    ) -> dict[str, Any]:
+        self.calls.append(f"metrics:{group_by}:{','.join(ids)}")
+        if group_by == "campaign":
+            rows = [
+                {
+                    "campaign": c["key"],
+                    "campaign_name": c["name"],
+                    "cost_ads": c["spend"],
+                    "ads_gmv_direct": c["gmv"],
+                    "roas_direct": c["roas"],
+                    "roas_break_even": c["break_even"],
+                    "items": c.get("items") or [],
+                }
+                for c in self.entity.get("campaigns", [])
+            ]
+            return {"values": {}, "rows": rows, "coverage": {}, "partial": False, "previous": None}
+        if group_by == "item":
+            rows = []
+            for r in self.entity.get("product_rows", []):
+                cov = (self.entity.get("coverage") or {}).get(r["item_id"], 1.0)
+                rows.append(
+                    {
+                        "item": r["item_id"],
+                        "gmv": r["gmv"],
+                        "profit": r["profit"],
+                        "cost_ads": r["ad_spend"],
+                        "contribution": r["contribution_before_ads"],
+                        "roas_break_even": r["break_even_roas"],
+                        "margin": r["margin_pct"],
+                        "cost_coverage": cov,
+                    }
+                )
+            return {"values": {}, "rows": rows, "coverage": {}, "partial": False, "previous": None}
+        vals = self.entity.get("values", {})
+        now = {i: vals.get(i, (None, None))[0] for i in ids}
+        before = {i: vals.get(i, (None, None))[1] for i in ids}
+        return {
+            "values": now,
+            "rows": [],
+            "coverage": {},
+            "partial": False,
+            "previous": {"values": before, "rows": [], "coverage": {}, "partial": False}
+            if compare
+            else None,
+        }
+
+    async def opportunities(
+        self, *, kind: str | None = None, item: str | None = None
+    ) -> list[dict[str, Any]]:
+        self.calls.append(f"opportunities:{kind}")
+        rows = [dict(o) for o in self.entity.get("opportunities", OPPORTUNITIES)]
+        return [
+            o
+            for o in rows
+            if (kind is None or o["kind"] == kind) and (item is None or item in o["item_ids"])
+        ]
+
+    async def draft_opportunity(self, opportunity_id: str) -> dict[str, Any]:
+        self.calls.append(f"draft:{opportunity_id}")
+        opp = next(
+            o for o in self.entity.get("opportunities", OPPORTUNITIES) if o["id"] == opportunity_id
+        )
+        card = (self.entity.get("draft_cards") or {}).get(opp["kind"])
+        return {"ok": True, "card": card if card is not None else engine_card()}
+
+    async def compare_options(
+        self, kind: str, *, item: str | None = None, points: list[Any] | None = None
+    ) -> dict[str, Any]:
+        self.calls.append(f"compare:{kind}")
+        return {"kind": kind, "options": self.entity.get("compare", {}).get(kind, [])}
+
 
 def tool_use(name: str, tid: str, **args: Any) -> dict[str, Any]:
     return {"type": "tool_use", "id": tid, "name": name, "input": args}
@@ -357,3 +470,43 @@ def tool_use(name: str, tid: str, **args: Any) -> dict[str, Any]:
 
 def plan_turn(*items: dict[str, Any]) -> list[dict[str, Any]]:
     return [tool_use("emit_plan", "p1", items=list(items))]
+
+
+class ScriptedQuery:
+    """`ServiceData` with its one metrics read replaced by scripted `query()` output: what the
+    delegation (shape, scope, group_by, ids) does is tested, no database."""
+
+    def __new__(cls, script: Callable[..., dict[str, Any]]) -> Any:
+        import uuid
+
+        from juli_backend.services.analytics_agent.data_service import ServiceData
+
+        class _Svc(ServiceData):
+            def __init__(self) -> None:
+                super().__init__(lambda: None, uuid.uuid4())  # type: ignore[arg-type,return-value]
+                self.asked: list[dict[str, Any]] = []
+
+            async def metrics(self, ids: list[str], a: date, b: date, **kw: Any) -> dict[str, Any]:
+                self.asked.append({"ids": list(ids), "window": (a, b), **kw})
+                return script(ids, a, b, **kw)
+
+            async def item_names(self, ids: list[str]) -> dict[str, str]:
+                return {i: f"Sản phẩm {i}" for i in ids}
+
+        return _Svc()
+
+
+def camp(key: str, name: str, spend: float, gmv: float, be: float | None) -> dict[str, Any]:
+    """A campaign row in the shape `ServiceData.campaign_rows` returns (synthetic)."""
+    from juli_backend.services.analytics_agent.registry_reads import roas_direct
+
+    return {
+        "key": key,
+        "name": name,
+        "spend": spend,
+        "gmv": gmv,
+        "roas": roas_direct(gmv, spend),
+        "break_even": be,
+        "profit_after_ads": None if be is None else gmv / be - spend,
+        "items": [],
+    }
