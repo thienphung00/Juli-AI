@@ -5,7 +5,7 @@ import { useState } from "react";
 import { metricLabel } from "../../../lib/metrics";
 import { sourceFunnelName } from "../../../lib/platform-labels";
 import { DASH, fmt, pp, vnCount, vnd } from "../../../lib/shopee-analytics/format";
-import type { VersionDates } from "../../../lib/shopee-decisions/builder-api";
+import type { MarginSplit, VersionDates } from "../../../lib/shopee-decisions/builder-api";
 import { roiLabel, type AdsEditFacts, type FunnelColumn, type OptionResult } from "../../../lib/shopee-decisions/option-result";
 import { forecastOfResult } from "../../../lib/shopee-decisions/forecast-display";
 import { TextChip } from "../../shopee-analytics/ui";
@@ -69,6 +69,16 @@ function marginText(r: OptionResult): string | null {
   return `${pp(m.before_pct, 1)} → ${pp(m.after_pct, 1)} (${sign}${s} điểm)`;
 }
 
+/** L1 / A9: "Có giảm giá 12,3 % · Không giảm giá 21,0 %" ("—" for a side with no purchases); "Chưa rõ: N đơn" only when non-zero. */
+export function marginSplitText(s: MarginSplit | null | undefined): string | null {
+  if (!s) return null;
+  const side = (x: MarginSplit["with"]): string => (x && x.margin_pct !== null ? `${fmt(x.margin_pct, 1)} %` : DASH);
+  const parts = [`Có giảm giá ${side(s.with)}`, `Không giảm giá ${side(s.without)}`];
+  const n = s.unknown?.orders;
+  if (n !== null && n !== undefined && n !== 0) parts.push(`Chưa rõ: ${vnCount(n)} đơn`);
+  return parts.join(" · ");
+}
+
 const arrow = (now: string, after: string | null): string => (after === null || after === now ? now : `${now} → ${after}`);
 const money = (n: number | null): string => (n === null ? NOT_ESTIMABLE : vnd(n));
 
@@ -101,13 +111,14 @@ function AdsBlock({ ads: a }: { readonly ads: AdsEditFacts }) {
   );
 }
 
-export function OptionCard({ result: r, title, testId = "option-card", dates, profitReason }: { readonly result: OptionResult; readonly title?: string; readonly testId?: string; readonly dates?: VersionDates | null; /** G5: the profit_unknown warning's text, for a blank profit. */ readonly profitReason?: string }) {
+export function OptionCard({ result: r, title, testId = "option-card", dates, profitReason, marginSplit }: { readonly result: OptionResult; readonly title?: string; readonly testId?: string; readonly dates?: VersionDates | null; /** G5: the profit_unknown warning's text, for a blank profit. */ readonly profitReason?: string; /** L1 / A9: the with / without-discount margins of the version. */ readonly marginSplit?: MarginSplit | null }) {
   const profit = profitText(r);
   const orders = r.delta.orders;
   const forecast = forecastOfResult(r);
   const beLine = breakEvenLine(r);
   const funnel = funnelText(r);
   const margin = marginText(r);
+  const split = marginSplitText(marginSplit);
   const roiValue = r.roi?.value;
   const roi = roiValue === null || roiValue === undefined ? null : fmt(roiValue, 1);
   const days = resultDays(r);
@@ -147,7 +158,10 @@ export function OptionCard({ result: r, title, testId = "option-card", dates, pr
         {margin ? (
           <div>
             <dt>{metricLabel(r.margin?.metric_id === "margin" ? "margin" : "margin_contribution")}</dt>
-            <dd data-testid="oc-margin">{margin}</dd>
+            <dd data-testid="oc-margin">
+              {margin}
+              {split ? <span className="sa-hint" data-testid="oc-margin-split">{split}</span> : null}
+            </dd>
           </div>
         ) : null}
         {roi ? (

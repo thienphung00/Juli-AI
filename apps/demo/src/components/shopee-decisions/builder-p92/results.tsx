@@ -94,7 +94,7 @@ export function OutcomeBody({ outcome: o, costLink, onUntick }: { readonly outco
   if (o.result) {
     return (
       <div className="p2-result__body">
-        <OptionCard dates={o.dates} profitReason={profitUnknownText(o)} result={o.result} />
+        <OptionCard dates={o.dates} marginSplit={o.margin_split} profitReason={profitUnknownText(o)} result={o.result} />
         <WarningLines outcome={o} />
       </div>
     );

@@ -11,6 +11,20 @@ import type { PlanResponse } from "./plan-types";
  * Same paths for the seller (`/v1/demo/shopee`) and Juli Ops (`/v1/ops/shops/{id}/shopee`).
  */
 
+/** One side of the discount split: its Biên đóng góp (%), GMV and đơn (đơn null over several products). */
+export interface MarginSplitSide {
+  readonly margin_pct: number | null;
+  readonly gmv: number | null;
+  readonly orders: number | null;
+}
+
+/** Purchases with / without a shop discount; `unknown` is a count only, present only when non-zero. */
+export interface MarginSplit {
+  readonly with: MarginSplitSide | null;
+  readonly without: MarginSplitSide | null;
+  readonly unknown: { readonly orders: number | null; readonly gmv: number | null } | null;
+}
+
 export const DEMO_BUILDER_BASE = "/v1/demo/shopee" as const;
 
 export function opsBuilderBase(shopId: string): string {
@@ -306,6 +320,8 @@ export interface BuilderOutcome {
   readonly same_as_first_notes?: readonly string[];
   readonly margin_before_pct?: N;
   readonly margin_after_pct?: N;
+  /** L1 / A9: Biên đóng góp of the purchases with / without a shop discount (null side = no purchases). */
+  readonly margin_split?: MarginSplit | null;
   readonly profit_status?: "ok" | "chua_tinh" | string;
   readonly cost_known?: boolean;
   readonly cost?: {

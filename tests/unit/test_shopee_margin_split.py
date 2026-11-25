@@ -87,3 +87,42 @@ async def test_the_cache_asks_once_per_scope(fake_query):
     await cache.of(["b", "a"])
     await cache.of(["a", "b"])
     assert len(calls) == 1
+
+
+async def test_split_against_the_real_query_on_stored_discounted_rows():
+    """No mock: ``margin_split`` -> ``query()`` -> the registry, over stored cell rows."""
+    day = date(2026, 3, 1)
+
+    def cell(item, discounted, gmv, orders, net, cogs):
+        return {
+            "shop_id": SHOP, "day": day, "item_id": item, "channel": "organic",
+            "discounted": discounted, "gmv": D(gmv), "orders": orders, "units": orders,
+            "net_revenue": D(net), "net_revenue_known": D(net), "cogs": D(cogs),
+            "cogs_known_gmv": D(gmv), "packaging": D(0), "fees": D(0), "shipping_net": D(0),
+            "offer_promo": D(0), "offer_voucher": D(0), "offer_combo": D(0),
+            "affiliate_commission": D(0), "affiliate_gmv": D(0),
+        }  # fmt: skip
+
+    src = q.MemoryRowSource(
+        {
+            "shop_metrics_daily": [
+                {
+                    "shop_id": SHOP,
+                    "day": day,
+                    "order_type": "confirmed",
+                    "gmv": D(1000),
+                    "orders": 10,
+                }
+            ],
+            "product_channel_metrics_daily": [
+                cell("p1", "with", 400, 4, 360, 252),  # 30 % of doanh thu thực
+                cell("p1", "without", 600, 6, 600, 360),  # 40 %
+                cell("p1", "unknown", 100, 2, 100, 80),
+                cell("p2", "with", 999, 9, 900, 0),  # another product: not in the scope
+            ],
+        }
+    )
+    out = await margin_split.margin_split(None, SHOP, ["p1"], (day, day), source=src)
+    assert out["with"] == {"margin_pct": 30.0, "gmv": 400.0, "orders": 4.0}
+    assert out["without"] == {"margin_pct": 40.0, "gmv": 600.0, "orders": 6.0}
+    assert out["unknown"] == {"orders": 2.0, "gmv": 100.0}
