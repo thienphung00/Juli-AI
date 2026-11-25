@@ -404,12 +404,12 @@ async def test_a_locked_or_out_of_stock_product_gets_no_new_card(session):
     seeded = await seed_reco_shop(session, stock=0)
     await session.commit()
     env = await load_env(session, seeded.shop_id, as_of=AS_OF)
-    assert (
-        gen.generate(
-            env, {"items": [{**CRIT, "product_id": "1001", "change_kinds": ["product_discount"]}]}
-        )
-        == []
+    # OPP O3: a shop-scope candidate (min_spend_voucher) may still come out; none names 1001
+    out0 = gen.generate(
+        env, {"items": [{**CRIT, "product_id": "1001", "change_kinds": ["product_discount"]}]}
     )
+    assert all("1001" not in c.items for c in out0)
+    assert all(not c.items for c in out0)
     seeded2 = await seed_reco_shop(session)
     await session.commit()
     env2 = await load_env(session, seeded2.shop_id, as_of=AS_OF)
