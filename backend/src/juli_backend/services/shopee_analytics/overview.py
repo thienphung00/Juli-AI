@@ -421,7 +421,7 @@ def _affiliate_block(view: PeriodView) -> dict[str, Any]:
         "order_lines": {
             "orders": len({ln.order_id for ln, _ in lines}),
             "gmv": num(sum((ln.order_value for ln, _ in lines), ZERO)),
-            "commission": num(affiliate_cost(lines) or ZERO),
+            "commission": num(affiliate_cost(lines, basis=view.pairs) or ZERO),
         },
     }
 

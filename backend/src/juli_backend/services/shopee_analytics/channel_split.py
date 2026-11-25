@@ -727,7 +727,9 @@ def _zero_row() -> dict[str, Decimal]:
     return dict.fromkeys(SPLIT_COLUMNS, ZERO_D)
 
 
-def _sums(pairs: Sequence[tuple[Any, Any]]) -> dict[str, Decimal]:
+def _sums(
+    pairs: Sequence[tuple[Any, Any]], basis: Sequence[tuple[Any, Any]] | None = None
+) -> dict[str, Decimal]:
     """GMV and đơn of the sale lines; doanh thu thực and Lợi nhuận đóng góp of the covered lines
     (every cost known); Ưu đãi (the combined seller cost, ``ProfitBreakdown.offer_cost``) of all
     lines; the affiliate commission of the covered lines."""
@@ -739,12 +741,16 @@ def _sums(pairs: Sequence[tuple[Any, Any]]) -> dict[str, Decimal]:
         "net_revenue": sum((pb.revenue for pb in known), ZERO_D),
         "cost_offers": sum((pb.offer_cost for _, pb in pairs), ZERO_D),
         "contribution": sum((pb.organic_contribution or ZERO_D for pb in known), ZERO_D),
-        "cost_affiliate": affiliate_cost(pairs) or ZERO_D,
+        "cost_affiliate": affiliate_cost(pairs, basis=basis) or ZERO_D,
     }
 
 
 def split_scope(
-    pairs: Sequence[tuple[Any, Any]], *, ads_gmv: Decimal | None, ads_spend: Decimal | None
+    pairs: Sequence[tuple[Any, Any]],
+    *,
+    ads_gmv: Decimal | None,
+    ads_spend: Decimal | None,
+    basis: Sequence[tuple[Any, Any]] | None = None,
 ) -> dict[str, dict[str, Decimal]]:
     """One scope (a product, or lines no product owns) split into Organic / Quảng cáo / TTLK
     (owner decision #49):
@@ -756,8 +762,8 @@ def split_scope(
       plus the scope's ads spend; Organic = N − Quảng cáo. No ads report row: s = 0.
     - Lợi nhuận ròng of a channel = its đóng góp − its QC − its AFF.
     Every column adds up to the scope's total exactly."""
-    aff = _sums([(ln, pb) for ln, pb in pairs if ln.affiliate])
-    rest = _sums([(ln, pb) for ln, pb in pairs if not ln.affiliate])
+    aff = _sums([(ln, pb) for ln, pb in pairs if ln.affiliate], basis or pairs)
+    rest = _sums([(ln, pb) for ln, pb in pairs if not ln.affiliate], basis or pairs)
     s = ZERO_D
     if ads_gmv is not None and ads_gmv > 0 and rest["gmv"] > 0:
         s = min(Decimal(1), ads_gmv / rest["gmv"])
@@ -849,7 +855,7 @@ def profit_split(
         pp = view.profit.products.get(pid)
         spend = None if pp is None else pp.ad_spend
         claimed += spend or ZERO_D
-        for ch, row in split_scope(pairs, ads_gmv=gmv, ads_spend=spend).items():
+        for ch, row in split_scope(pairs, ads_gmv=gmv, ads_spend=spend, basis=view.pairs).items():
             rows[ch] = _add_rows(rows[ch], row)
     if kpi_gmv is not None or kpi_orders is not None:
         scope = [p for p in view.pairs if product_id is None or p[0].product_id == product_id]
@@ -944,7 +950,7 @@ def _kpis(
         base.total("orders"),
         profit,
         ads_cost,
-        affiliate_cost(pairs),
+        affiliate_cost(pairs, basis=view.pairs),
         _offers_cost(view, product_id),
         ladder,
     )

@@ -688,7 +688,14 @@ def _ads_warnings(spec: sp.AdsSpec, ctx: BuilderContext) -> list[dict[str, Any]]
     out: list[dict[str, Any]] = []
     if spec.lever != "roas":
         return out
-    if spec.roas_target is not None and spec.roas_target > sp.ADS_ROAS_HINT:
+    setting = ctx.env.setting_for(spec.campaign_key) if spec.campaign_key else None
+    # a campaign already above the hint is not told to go "≤ 3,5": the caution is for a raise
+    already_above = (
+        setting is not None
+        and setting.roas_target is not None
+        and float(setting.roas_target) > sp.ADS_ROAS_HINT
+    )
+    if spec.roas_target is not None and spec.roas_target > sp.ADS_ROAS_HINT and not already_above:
         out.append(
             {
                 "type": "ads_roas_above_hint",
@@ -698,7 +705,6 @@ def _ads_warnings(spec: sp.AdsSpec, ctx: BuilderContext) -> list[dict[str, Any]]
                 "tiêu càng cao, quảng cáo càng ít được hiển thị.",
             }
         )
-    setting = ctx.env.setting_for(spec.campaign_key) if spec.campaign_key else None
     if setting is not None and setting.roas_changes_7d >= 1:
         out.append(
             {

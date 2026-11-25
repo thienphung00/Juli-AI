@@ -70,12 +70,17 @@ def campaign_row(c: dict[str, Any], prefix: str = "") -> dict[str, Any]:
     be = fmt.value("roas", _f(c["break_even"])) if c.get("break_even") is not None else "chưa có"
     if c.get("break_even") is not None and c.get("break_even_scope"):
         be += f" ({c['break_even_scope']})"
+    # unknown money is left out, never 0 and never a figure that is not there
+    money = [
+        f"{label} {fmt.value(metric, _f(c.get(key)))}"
+        for label, metric, key in (("chi", "ads_spend", "spend"), ("GMV", "gmv", "gmv"))
+        if c.get(key) is not None
+    ]
+    roas = fmt.value("roas", _f(c["roas"])) if c.get("roas") is not None else "chưa tính"
     return {
         "label_vi": str(c["name"]),
-        "value_vi": f"{campaign_verdict(c)} · ROAS {fmt.value('roas', _f(c['roas']))}"
-        f" · hoà vốn {be}",
-        "detail_vi": prefix
-        + f"chi {fmt.value('ads_spend', _f(c['spend']))} · GMV {fmt.value('gmv', _f(c['gmv']))}",
+        "value_vi": f"{campaign_verdict(c)} · ROAS {roas} · hoà vốn {be}",
+        "detail_vi": prefix + " · ".join(money),
     }
 
 
@@ -84,13 +89,17 @@ def product_loss_row(r: dict[str, Any]) -> dict[str, Any]:
     ROAS hoà vốn (the shared `ProductProfit` figures)."""
     be = r.get("break_even_roas")
     contrib = r.get("contribution_before_ads")
+    ads = r.get("ad_spend")
+    profit = r.get("profit")
     return {
         "label_vi": str(r.get("name") or r["item_id"]),
-        "value_vi": "Lỗ " + fmt.value("profit", abs(float(r["profit"]))),
+        "value_vi": "Lỗ " + fmt.value("profit", abs(float(profit)))
+        if profit is not None
+        else "Chưa tính",
         "detail_vi": "đóng góp trước quảng cáo "
-        + (fmt.value("profit", _f(contrib)) if contrib is not None else "chưa có")
-        + f" · chi quảng cáo {fmt.value('ads_spend', _f(r.get('ad_spend')))}"
-        + f" · hoà vốn {fmt.value('roas', _f(be)) if be is not None else 'chưa có'}",
+        + (fmt.value("profit", _f(contrib)) if contrib is not None else "chưa tính")
+        + (f" · chi quảng cáo {fmt.value('ads_spend', _f(ads))}" if ads is not None else "")
+        + f" · hoà vốn {fmt.value('roas', _f(be)) if be is not None else 'chưa tính'}",
         "link": {"kind": "product", "item_id": r["item_id"]},
     }
 
@@ -227,13 +236,20 @@ async def run_entity(
             return []
         loss_only = bool(_LOSS.search(blob))
         losing = [c for c in camps if campaign_verdict(c) == "Lỗ"]
-        pick = losing if loss_only and losing else camps
+        unclear = [c for c in camps if campaign_verdict(c) == "Chưa rõ"]
+        # a verdict sentence about the set only when every member has a verdict; else the known
+        # ones are stated and the rest are named "chưa rõ"
+        pick = (losing + unclear) if loss_only and (losing or unclear) else camps
         pick = sorted(pick, key=campaign_order)
-        title = (
-            "Chiến dịch đang lỗ (dưới ROAS hoà vốn)"
-            if loss_only and losing
-            else ("Chưa có chiến dịch nào lỗ" if loss_only else "Hiệu quả từng chiến dịch")
-        )
+        rest = f"{len(unclear)} chiến dịch chưa rõ"
+        if not loss_only:
+            title = "Hiệu quả từng chiến dịch"
+        elif losing:
+            title = "Chiến dịch đang lỗ (dưới ROAS hoà vốn)" + (f" · còn {rest}" if unclear else "")
+        elif unclear:
+            title = f"Chưa thấy chiến dịch nào lỗ trong số đã rõ · {rest}"
+        else:
+            title = "Chưa có chiến dịch nào lỗ"
         return [
             _answer(
                 "top_products",
@@ -250,17 +266,23 @@ async def run_entity(
             (r for r in rows if r.get("profit") is not None and float(r["profit"]) < 0),
             key=lambda r: float(r["profit"]),
         )
+        unclear = [r for r in rows if r.get("profit") is None]
         if not rows:
             return []
+        rest = f"{len(unclear)} sản phẩm chưa tính được lợi nhuận"
+        if losing:
+            title = "Sản phẩm đang lỗ sau quảng cáo" + (f" · còn {rest}" if unclear else "")
+        elif unclear:
+            title = f"Chưa thấy sản phẩm nào lỗ trong số đã tính · {rest}"
+        else:
+            title = "Chưa có sản phẩm nào lỗ sau quảng cáo"
         return [
             _answer(
                 "top_products",
-                "Sản phẩm đang lỗ sau quảng cáo"
-                if losing
-                else "Chưa có sản phẩm nào lỗ sau quảng cáo",
+                title,
                 w,
                 latest,
-                rows=[product_loss_row(r) for r in losing[:TOP_ROWS]],
+                rows=[product_loss_row(r) for r in (losing + unclear)[:TOP_ROWS]],
                 stop="data_answer",
             )
         ]

@@ -179,7 +179,7 @@ def test_product_page_shows_the_one_cost_and_keeps_the_floor_input_on_the_old_ba
     import juli_backend.services.shopee_analytics.product as product_page
 
     src = Path(product_page.__file__).read_text(encoding="utf-8")
-    assert "commission_shown = affiliate_cost(carrying)" in src
+    assert "commission_shown = affiliate_cost(carrying, basis=view.pairs)" in src
     assert '"commission": per_unit(commission_shown)' in src
     assert "affiliate_rate=safe_div(commission, paid)" in src
     assert "affiliate_cost_basis=True" in src

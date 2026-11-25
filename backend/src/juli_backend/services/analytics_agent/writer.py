@@ -16,6 +16,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from juli_backend.services.analytics_agent import facts, fmt
+from juli_backend.services.analytics_agent.labels import KINDS_VI, METRICS_VI
 from juli_backend.services.analytics_agent.types import LabelTable
 
 LEVER_VI: dict[str, list[str]] = {
@@ -150,6 +151,13 @@ _ALLOWED_ENGLISH = {
 }
 
 
+def _label_internal_keys(text: str) -> str:
+    """A metric or card-kind key the model copied from a tool result ("roas_break_even") is the
+    seller's own word for it ("ROAS hoà vốn"), never the key."""
+    table = {**KINDS_VI, **METRICS_VI}
+    return re.sub(r"\b[a-z]+(?:_[a-z0-9]+)+\b", lambda m: table.get(m.group(0), m.group(0)), text)
+
+
 def sanitise(
     text: str, id_names: dict[str, str] | None = None, allowed_names: list[str] | None = None
 ) -> tuple[str, list[str]]:
@@ -159,6 +167,7 @@ def sanitise(
     out = text
     for i, n in names.items():
         out = out.replace(i, n)
+    out = _label_internal_keys(out)
     issues: list[str] = []
     probe = out
     name_words: set[str] = set()

@@ -51,12 +51,25 @@ def covered(pb: Any) -> bool:
     return pb.excluded_reason is None and pb.organic_contribution is not None
 
 
-def affiliate_cost(pairs: Sequence[tuple[Any, Any]]) -> Decimal | None:
+def unknown_orders(pairs: Sequence[tuple[Any, Any]]) -> set[Any]:
+    """The orders with a counted line whose costs are not all known: ``known_cost_profit`` leaves
+    the whole order out of Lợi nhuận ròng."""
+    return {
+        ln.order_id for ln, pb in pairs if pb.excluded_reason is None and pb.contribution is None
+    }
+
+
+def affiliate_cost(
+    pairs: Sequence[tuple[Any, Any]], *, basis: Sequence[tuple[Any, Any]] | None = None
+) -> Decimal | None:
     """THE affiliate cost (registry ``cost_affiliate``, decision #55 Q2): the commission of the
-    affiliate lines in the profit basis (delivered / settled, every cost known: the lines Lợi
-    nhuận ròng uses). KPI, channel split, exports and Chat all read this one sum. ``None`` when
-    no affiliate line is in the basis."""
-    lines = [pb for ln, pb in pairs if ln.affiliate and covered(pb)]
+    affiliate lines of the ORDERS in the profit basis (delivered / settled, every counted line of
+    the order has its costs: the orders ``known_cost_profit`` / Lợi nhuận ròng uses). KPI, channel
+    split, exports and Chat all read this one sum. ``basis`` = the full pairs when ``pairs`` is a
+    slice (affiliate lines, one product, one day): an order is known by all its lines, not by the
+    slice. ``None`` when no affiliate line is in the basis."""
+    unknown = unknown_orders(pairs if basis is None else basis)
+    lines = [pb for ln, pb in pairs if ln.affiliate and covered(pb) and ln.order_id not in unknown]
     return sum((pb.commission or ZERO for pb in lines), ZERO) if lines else None
 
 
@@ -126,6 +139,7 @@ __all__ = [
     "LADDER_METRICS",
     "Ladder",
     "affiliate_cost",
+    "unknown_orders",
     "components_of",
     "covered",
     "ladder_of",

@@ -73,7 +73,10 @@ def _rates(view: PeriodView, product_id: str, sku: str | None) -> Rates | None:
     One math with the builder (``shopee_analytics.margins``, ADR-122 d.12)."""
     pairs = list(_lines_of(view, product_id))
     product_rates, by_sku = measured_rates(
-        pairs, view.ads.product_spend.get(product_id, ZERO), affiliate_cost_basis=True
+        pairs,
+        view.ads.product_spend.get(product_id, ZERO),
+        affiliate_cost_basis=True,
+        order_basis=view.pairs,
     )
     return product_rates if sku is None else by_sku.get(sku)
 
@@ -212,7 +215,9 @@ def sku_waterfall(
         formula = view.fees.schedule(product_id).formula_on(view.window.end)
         paid = sum((pb.revenue for _, pb in carrying), ZERO)
         commission = sum((pb.commission or ZERO for _, pb in carrying), ZERO)  # the floor's input
-        commission_shown = affiliate_cost(carrying) or ZERO  # the waterfall's displayed line
+        commission_shown = (
+            affiliate_cost(carrying, basis=view.pairs) or ZERO
+        )  # the waterfall's displayed line
         unit = Decimal(units) if units else None
 
         def per_unit(total: Decimal | None, unit: Decimal | None = unit) -> int | float | None:

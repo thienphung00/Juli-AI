@@ -105,9 +105,15 @@ def _product_break_even(p: Any) -> dict[str, Any]:
     from juli_backend.services.shopee_analytics.fmt import ratio
 
     return {
-        "contribution_before_ads": p.contribution,
+        "contribution_before_ads": None if _no_costed_line(p) else p.contribution,
         "break_even_roas": ratio(p.break_even_roas, 2),
     }
+
+
+def _no_costed_line(p: Any) -> bool:
+    """Sales but not one costed line: the 0 the profit service sums is "nothing known", not a
+    contribution of 0đ, so the contribution and the profit after ads are unknown (None)."""
+    return bool(p.buyer_paid > 0 and p.buyer_paid_covered <= 0)
 
 
 class ServiceData:
@@ -475,7 +481,7 @@ class ServiceData:
                 if p is None:
                     return None
                 return {
-                    "profit": p.profit,
+                    "profit": None if _no_costed_line(p) else p.profit,
                     "margin_pct": p.margin_pct,
                     "coverage_pct": p.cost_coverage_pct,
                     "gmv": p.gmv,
@@ -496,7 +502,7 @@ class ServiceData:
                     {
                         "item_id": item,
                         "name": env.name(item),
-                        "profit": p.profit,
+                        "profit": None if _no_costed_line(p) else p.profit,
                         "ad_spend": p.ad_spend,
                         "margin_pct": p.margin_pct,
                         "gmv": p.gmv,

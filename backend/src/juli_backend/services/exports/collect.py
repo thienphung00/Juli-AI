@@ -113,7 +113,8 @@ def _aff_cost_day(view: PeriodView, day: date, product: str | None = None) -> fl
             (ln, pb)
             for ln, pb in view.pairs
             if ln.order_date == day and (product is None or ln.product_id == product)
-        ]
+        ],
+        basis=view.pairs,
     )
     return None if cost is None else float(cost)
 
