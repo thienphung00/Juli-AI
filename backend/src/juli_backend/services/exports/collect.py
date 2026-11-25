@@ -17,6 +17,7 @@ import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,6 +43,7 @@ from juli_backend.services.shopee_analytics import (
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_analytics.windows import Window
+from juli_backend.services.shopee_profit.ladder import offers_cost, unknown_orders
 from juli_backend.services.shopee_profit.shop_profit import stored_day_profit_trusted
 from juli_backend.services.shopee_recommendations import (
     change_sets,
@@ -90,21 +92,18 @@ async def _view(
     return view, rows
 
 
-def _line_offer(pair: tuple[Any, Any]) -> float:
-    """Ưu đãi of one line (``ProfitBreakdown.offer_cost``, the seller-borne basis): as Tổng quan
-    (``channel_split._offers_cost``): khuyến mãi + voucher + combo, so the days add up to it."""
-    _ln, bd = pair
-    return float(bd.offer_cost)
-
-
-def _offer_cost(view: PeriodView, product: str | None = None, day: date | None = None) -> float:
-    """Chi phí ưu đãi = Chương Trình Của Shop + voucher + combo discount of the lines."""
-    total = 0.0
-    for pair in view.pairs:
-        ln = pair[0]
-        if (product is None or ln.product_id == product) and (day is None or ln.order_date == day):
-            total += _line_offer(pair)
-    return total
+def _offer_cost(
+    view: PeriodView, product: str | None = None, day: date | None = None
+) -> float | None:
+    """Chi phí ưu đãi = Chương Trình Của Shop + voucher + combo discount of the known orders'
+    lines: the one rule of ``channel_split._offers_cost`` (days and products add up to it)."""
+    pairs = [
+        (ln, pb)
+        for ln, pb in view.pairs
+        if (product is None or ln.product_id == product) and (day is None or ln.order_date == day)
+    ]
+    cost = offers_cost(pairs, basis=view.pairs)
+    return None if cost is None else float(cost)
 
 
 def _aff_cost_day(view: PeriodView, day: date, product: str | None = None) -> float | None:
@@ -114,7 +113,8 @@ def _aff_cost_day(view: PeriodView, day: date, product: str | None = None) -> fl
             (ln, pb)
             for ln, pb in view.pairs
             if ln.order_date == day and (product is None or ln.product_id == product)
-        ]
+        ],
+        basis=view.pairs,
     )
     return None if cost is None else float(cost)
 
@@ -188,8 +188,17 @@ def _net_revenue_known(view: PeriodView, product_id: str | None) -> float | None
     paid of the orders whose costs are known, the base of the screen's margin."""
     if product_id is None:
         return _f(shop_profit_of(view).buyer_paid)
-    product = view.profit.products.get(product_id)
-    return None if product is None else _f(product.buyer_paid_covered)
+    unknown = unknown_orders(view.pairs)  # whole known orders, the rule of the shop figure
+    lines = [
+        pb for ln, pb in view.pairs
+        if ln.product_id == product_id and pb.excluded_reason is None
+        and pb.contribution is not None and ln.order_id not in unknown
+    ]  # fmt: skip
+    return (
+        None
+        if product_id not in view.profit.products
+        else _f(sum((pb.revenue for pb in lines), Decimal(0)))
+    )
 
 
 def _stored_day_profit(

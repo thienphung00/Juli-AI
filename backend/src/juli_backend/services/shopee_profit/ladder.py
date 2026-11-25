@@ -22,6 +22,7 @@ from typing import Any
 from juli_backend.services.metrics.compute import _Context
 from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_profit.order_profit import OrderLine, ProfitBreakdown
+from juli_backend.services.shopee_profit.shop_profit import unknown_orders
 
 #: the registry ids a ladder answers (``Ladder.get``)
 LADDER_METRICS = (
@@ -51,12 +52,34 @@ def covered(pb: Any) -> bool:
     return pb.excluded_reason is None and pb.organic_contribution is not None
 
 
-def affiliate_cost(pairs: Sequence[tuple[Any, Any]]) -> Decimal | None:
+def offers_cost(
+    pairs: Sequence[tuple[Any, Any]], *, basis: Sequence[tuple[Any, Any]] | None = None
+) -> Decimal | None:
+    """Ưu đãi as a COST (khuyến mãi + combo + the voucher the seller bore) of the known orders:
+    the same whole-order rule as the ladder's offers, so Tổng chi phí is the sum of the rows
+    beside it. ``None`` when there are orders and not one is known (missing is not 0); 0 only
+    when there is no order at all. Not for "what was given away" screens (campaigns, vouchers)."""
+    unknown = unknown_orders(pairs if basis is None else basis)
+    counted = [(ln, pb) for ln, pb in pairs if pb.excluded_reason is None]
+    known = [
+        pb.offer_cost
+        for ln, pb in counted
+        if pb.contribution is not None and ln.order_id not in unknown
+    ]
+    return None if counted and not known else sum(known, ZERO)
+
+
+def affiliate_cost(
+    pairs: Sequence[tuple[Any, Any]], *, basis: Sequence[tuple[Any, Any]] | None = None
+) -> Decimal | None:
     """THE affiliate cost (registry ``cost_affiliate``, decision #55 Q2): the commission of the
-    affiliate lines in the profit basis (delivered / settled, every cost known: the lines Lợi
-    nhuận ròng uses). KPI, channel split, exports and Chat all read this one sum. ``None`` when
-    no affiliate line is in the basis."""
-    lines = [pb for ln, pb in pairs if ln.affiliate and covered(pb)]
+    affiliate lines of the ORDERS in the profit basis (delivered / settled, every counted line of
+    the order has its costs: the orders ``known_cost_profit`` / Lợi nhuận ròng uses). KPI, channel
+    split, exports and Chat all read this one sum. ``basis`` = the full pairs when ``pairs`` is a
+    slice (affiliate lines, one product, one day): an order is known by all its lines, not by the
+    slice. ``None`` when no affiliate line is in the basis."""
+    unknown = unknown_orders(pairs if basis is None else basis)
+    lines = [pb for ln, pb in pairs if ln.affiliate and covered(pb) and ln.order_id not in unknown]
     return sum((pb.commission or ZERO for pb in lines), ZERO) if lines else None
 
 
@@ -69,8 +92,16 @@ class Ladder:
         return self.values.get(metric_id)
 
 
-def components_of(pairs: Iterable[tuple[OrderLine, ProfitBreakdown]]) -> dict[str, Decimal]:
-    """The covered lines' ladder components (whole-window sums)."""
+def components_of(
+    pairs: Iterable[tuple[OrderLine, ProfitBreakdown]],
+    *,
+    basis: Sequence[tuple[Any, Any]] | None = None,
+) -> dict[str, Decimal]:
+    """The known orders' ladder components (whole-window sums): an order with any counted unknown
+    line is out whole, the rule of ``known_cost_profit``. ``basis`` = the full pairs when
+    ``pairs`` is a slice (a product, a day): an order is known by all its lines."""
+    pairs = list(pairs)
+    unknown = unknown_orders(pairs if basis is None else basis)
     c = dict.fromkeys(
         (
             "net_revenue_known",
@@ -85,8 +116,8 @@ def components_of(pairs: Iterable[tuple[OrderLine, ProfitBreakdown]]) -> dict[st
         ),
         ZERO,
     )
-    for _, pb in pairs:
-        if pb.excluded_reason is not None or pb.contribution is None:
+    for ln, pb in pairs:
+        if pb.excluded_reason is not None or pb.contribution is None or ln.order_id in unknown:
             continue
         c["net_revenue_known"] += pb.revenue
         c["cogs"] += (pb.cogs or ZERO) - pb.vat_input_credit
@@ -106,10 +137,11 @@ def ladder_of(
     ads_spend: Decimal | None,
     other_marketing: Decimal | None = ZERO,
     profit: Decimal | None = None,
+    basis: Sequence[tuple[Any, Any]] | None = None,
 ) -> Ladder:
     """The scope's ladder. ``profit`` (the shown Lợi nhuận ròng) wins over the registry's own
     difference when given, so the ROI and the margin end on the screen's figure."""
-    comps: dict[str, Decimal | None] = dict(components_of(pairs))
+    comps: dict[str, Decimal | None] = dict(components_of(pairs, basis=basis))
     comps["ads_spend"] = ads_spend
     comps["other_marketing"] = other_marketing
     ctx = _Context(comps, None, {})
@@ -126,6 +158,8 @@ __all__ = [
     "LADDER_METRICS",
     "Ladder",
     "affiliate_cost",
+    "offers_cost",
+    "unknown_orders",
     "components_of",
     "covered",
     "ladder_of",
