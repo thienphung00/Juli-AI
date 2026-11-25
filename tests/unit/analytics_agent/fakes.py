@@ -512,7 +512,7 @@ class FakeEntityData(FakeData):
                         "gmv": r["gmv"],
                         "profit": r["profit"],
                         "cost_ads": r["ad_spend"],
-                        "contribution": r["contribution_before_ads"],
+                        "contribution": r["contribution"],
                         "roas_break_even": r["break_even_roas"],
                         "margin": r["margin_pct"],
                         "cost_coverage": cov,

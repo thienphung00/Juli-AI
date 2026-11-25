@@ -84,7 +84,7 @@ def product_loss_row(r: dict[str, Any]) -> dict[str, Any]:
     """One product losing after ads: profit after ads, contribution before ads, ads spend and
     ROAS hoà vốn (the shared `ProductProfit` figures)."""
     be = r.get("break_even_roas")
-    contrib = r.get("contribution_before_ads")
+    contrib = r.get("contribution")
     return {
         "label_vi": str(r.get("name") or r["item_id"]),
         "value_vi": "Lỗ " + fmt.value("profit", abs(float(r["profit"]))),
@@ -275,11 +275,9 @@ async def run_entity(
         now_v = _f(p.get("break_even_roas"))
         old_v = None if before is None else _f(before.get("break_even_roas"))
         extra: dict[str, Any] = {}
-        if p.get("contribution_before_ads") is not None:
+        if p.get("contribution") is not None:
             extra["contribution_vi"] = (
-                METRICS_VI["contribution"]
-                + " "
-                + fmt.value("profit", _f(p["contribution_before_ads"]))
+                METRICS_VI["contribution"] + " " + fmt.value("profit", _f(p["contribution"]))
             )
         return [
             _answer(

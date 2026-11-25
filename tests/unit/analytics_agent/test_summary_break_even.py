@@ -251,7 +251,7 @@ async def test_product_value_is_the_query_rows_contribution_and_break_even() -> 
     got = await svc.product_profit("p1", YDAY, YDAY)
     assert svc.asked[0]["scope"] == "products" and svc.asked[0]["items"] == ["p1"]
     assert got is not None
-    assert got["contribution_before_ads"] == 250.0 and got["break_even_roas"] == 4.0
+    assert got["contribution"] == 250.0 and got["break_even_roas"] == 4.0
     empty = await ScriptedQuery(lambda *a, **k: {"values": {"profit": None}}).product_profit(
         "p1", YDAY, YDAY
     )
@@ -261,7 +261,7 @@ async def test_product_value_is_the_query_rows_contribution_and_break_even() -> 
 class _ProductData(FakeEntityData):
     async def product_profit(self, item: str, a: Any, b: Any) -> dict[str, Any] | None:
         return {"profit": 100.0, "margin_pct": 10.0, "break_even_roas": 3.5,
-                "contribution_before_ads": 300.0}  # fmt: skip
+                "contribution": 300.0}  # fmt: skip
 
 
 async def test_product_question_answers_from_the_products_own_value() -> None:
@@ -276,9 +276,9 @@ async def test_product_question_answers_from_the_products_own_value() -> None:
 async def test_which_products_lose_after_ads_lists_the_losing_ones_with_their_figures() -> None:
     rows = [
         {"item_id": "p1", "name": "Sản phẩm A", "profit": -500.0, "ad_spend": 900.0,
-         "contribution_before_ads": 400.0, "break_even_roas": 4.5},
+         "contribution": 400.0, "break_even_roas": 4.5},
         {"item_id": "p2", "name": "Sản phẩm B", "profit": 800.0, "ad_spend": 100.0,
-         "contribution_before_ads": 900.0, "break_even_roas": 2.0},
+         "contribution": 900.0, "break_even_roas": 2.0},
     ]  # fmt: skip
     it = intent(raw_text="sản phẩm nào lỗ sau quảng cáo", metric_phrase="lỗ sau quảng cáo")
     assert routing.entity_kind(it) == "product_loss"

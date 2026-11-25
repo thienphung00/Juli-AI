@@ -346,7 +346,7 @@ class ServiceData(EntitySql):
             "margin_pct": v.get("margin"),  # registry margin is in points (42.8)
             "coverage_pct": None if v.get("cost_coverage") is None else 100 * v["cost_coverage"],
             "gmv": v.get("gmv"),
-            "contribution_before_ads": v.get("contribution"),
+            "contribution": v.get("contribution"),
             "margin_contribution_pct": v.get("margin_contribution"),
             "ad_spend": v.get("cost_ads"),
             "break_even_roas": v.get("roas_break_even"),

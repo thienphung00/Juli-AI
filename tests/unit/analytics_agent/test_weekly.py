@@ -106,7 +106,7 @@ def _data() -> FakeEntityData:
                     "margin_pct": 5.0,
                     "gmv": 100.0,
                     "break_even_roas": 3.0,
-                    "contribution_before_ads": 80.0,
+                    "contribution": 80.0,
                 }
                 for k, n, pr in (("p1", "Găng tay sale 11.11", -20.0), ("p2", "Túi đay", 30.0))
             ],
