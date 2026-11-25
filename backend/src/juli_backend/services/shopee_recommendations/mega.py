@@ -186,7 +186,10 @@ def evaluate_mega(
     # like for like (as the voucher what-if recomputes both sides): the vouchers and combos the
     # history happened to carry are taken off both the baseline and the scenario, so the
     # children below are the only vouchers / combos in the window
-    base_lines = [replace(ln, shop_voucher_share=ZERO, bundle_discount=ZERO) for ln in raw_lines]
+    base_lines = [
+        replace(ln, shop_voucher_share=ZERO, bundle_discount=ZERO, voucher_unknown=False)
+        for ln in raw_lines
+    ]
     # 1) price levers: new deal price per SKU
     price_by_sku: dict[str, Decimal] = {}
     for c in price_children:
