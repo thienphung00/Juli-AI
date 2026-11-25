@@ -92,6 +92,7 @@ from juli_backend.services.shopee_profit.ladder import (
     ladder_of,
 )
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
+from juli_backend.services.shopee_profit.shop_profit import product_profit_reliable
 
 LOG = logging.getLogger(__name__)
 SHOP_PLUS_KIND = "ads_shop"
@@ -920,6 +921,13 @@ def kpis_of(
     return out
 
 
+#: R1: every profit level of a KPI block that is "—" outside the 70-100 % known share
+WITHHELD_KPIS = (
+    "profit", "gross_profit", "contribution", "margin_gross_pct", "margin_contribution_pct",
+    "margin_pct", "roi",
+)  # fmt: skip
+
+
 def _kpis(
     view: PeriodView, base: FunnelBase, product_id: str | None, platform: str = "shopee"
 ) -> dict[str, Any]:
@@ -933,6 +941,7 @@ def _kpis(
     else:
         pp = view.profit.products.get(product_id)
         profit = None if pp is None else pp.profit
+        withheld = pp is not None and not product_profit_reliable(pp)  # R1: its own known share
         ads_cost = None if pp is None else pp.ad_spend
         other = ZERO_D
     pairs = [(ln, pb) for ln, pb in view.pairs if product_id is None or ln.product_id == product_id]
@@ -951,7 +960,7 @@ def _kpis(
         ladder,
     )
     if withheld:  # R1: the ladder would recompute its own net profit, margin and ROI
-        out.update({"profit": None, "margin_pct": None, "roi": None})
+        out.update(dict.fromkeys(WITHHELD_KPIS))
     return out
 
 
@@ -1063,8 +1072,11 @@ def _split_of(
     split = profit_split(
         view, product_id, kpi_gmv=dec(kpis.get("gmv")), kpi_orders=dec(kpis.get("orders"))
     )
-    if product_id is None and shop_profit_of(view).withheld:
-        # R1: the channels' profits add up to the shop's: withheld with it
+    pp = None if product_id is None else view.profit.products.get(product_id)
+    if (product_id is None and shop_profit_of(view).withheld) or (
+        pp is not None and not product_profit_reliable(pp)
+    ):
+        # R1: the channels' profits add up to the scope's: withheld with it
         for row in (*split["rows"].values(), split[UNATTRIBUTED], split["total"]):
             if row is not None:
                 row["profit"] = None

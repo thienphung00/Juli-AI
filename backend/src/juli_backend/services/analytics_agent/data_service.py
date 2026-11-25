@@ -103,10 +103,14 @@ def _product_break_even(p: Any) -> dict[str, Any]:
     """The product's contribution before ads and ROAS hoà vốn, as the cards show them
     (`ProductProfit.contribution` / `.break_even_roas`)."""
     from juli_backend.services.shopee_analytics.fmt import ratio
+    from juli_backend.services.shopee_profit.shop_profit import (
+        product_break_even_roas_shown,
+        product_contribution_shown,
+    )
 
-    return {
-        "contribution_before_ads": p.contribution,
-        "break_even_roas": ratio(p.break_even_roas, 2),
+    return {  # R1: "—" (None) outside the product's 70-100 % known share
+        "contribution_before_ads": product_contribution_shown(p),
+        "break_even_roas": ratio(product_break_even_roas_shown(p), 2),
     }
 
 
@@ -468,6 +472,11 @@ class ServiceData:
         return RecoEnv(ctx=ctx, view=view, as_of=b)
 
     async def product_profit(self, item: str, a: date, b: date) -> dict[str, Any] | None:
+        from juli_backend.services.shopee_profit.shop_profit import (
+            product_margin_pct_shown,
+            product_profit_shown,
+        )
+
         async with self._f() as s:
             try:
                 env = await self._reco_env(s, a, b)
@@ -475,8 +484,8 @@ class ServiceData:
                 if p is None:
                     return None
                 return {
-                    "profit": p.profit,
-                    "margin_pct": p.margin_pct,
+                    "profit": product_profit_shown(p),
+                    "margin_pct": product_margin_pct_shown(p),
                     "coverage_pct": p.cost_coverage_pct,
                     "gmv": p.gmv,
                     **_product_break_even(p),
@@ -487,6 +496,11 @@ class ServiceData:
     async def product_profit_rows(self, a: date, b: date) -> list[dict[str, Any]]:
         """Every product's profit after ads, contribution before ads and ROAS hoà vốn: the
         shared `ProductProfit` rows the cards and Phân tích read (`RecoEnv.product`)."""
+        from juli_backend.services.shopee_profit.shop_profit import (
+            product_margin_pct_shown,
+            product_profit_shown,
+        )
+
         async with self._f() as s:
             try:
                 env = await self._reco_env(s, a, b)
@@ -496,9 +510,9 @@ class ServiceData:
                     {
                         "item_id": item,
                         "name": env.name(item),
-                        "profit": p.profit,
+                        "profit": product_profit_shown(p),
                         "ad_spend": p.ad_spend,
-                        "margin_pct": p.margin_pct,
+                        "margin_pct": product_margin_pct_shown(p),
                         "gmv": p.gmv,
                         **_product_break_even(p),
                     }

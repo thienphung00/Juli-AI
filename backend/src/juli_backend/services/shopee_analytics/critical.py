@@ -45,6 +45,10 @@ from juli_backend.services.shopee_analytics.rankings import build_ranking
 from juli_backend.services.shopee_kpi import flow_glm
 from juli_backend.services.shopee_profit.flows import FLOW_LABELS
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
+from juli_backend.services.shopee_profit.shop_profit import (
+    product_margin_pct_shown,
+    product_profit_reliable,
+)
 
 DAYS_PER_MONTH = Decimal(30)
 MIN_PRODUCT_CLICKS = 100
@@ -218,6 +222,8 @@ def _margin_items(view: PeriodView, ctx: ShopContext) -> list[dict[str, Any]]:
     for pid, pp in view.profit.products.items():
         if pp.margin_rate is None or pp.buyer_paid_covered <= 0:
             continue
+        if not product_profit_reliable(pp):  # R1: an unreliable product gets no verdict
+            continue
         shortfall = target / 100 - pp.margin_rate
         if shortfall <= 0:
             continue
@@ -285,7 +291,14 @@ def _roas_items(view: PeriodView) -> list[dict[str, Any]]:
     days = Decimal(view.window.days)
     for pid, pp in view.profit.products.items():
         be, direct, fig = pp.break_even_roas, pp.roas_direct, pp.ads
-        if be is None or direct is None or fig is None or fig.spend <= 0 or direct >= be:
+        if (
+            not product_profit_reliable(pp)
+            or be is None
+            or direct is None
+            or fig is None
+            or fig.spend <= 0
+            or direct >= be
+        ):
             continue
         loss = fig.spend - (fig.direct_gmv or ZERO) / be
         out.append(
@@ -593,7 +606,7 @@ def build_critical(
             it.update(price_block(now, pid))
             it["margin_basis"] = margin_basis(now, pid, now.profit.products.get(pid))
             pp = now.profit.products.get(pid)
-            it["margin_pct"] = pct(pp.margin_pct) if pp else None
+            it["margin_pct"] = pct(product_margin_pct_shown(pp)) if pp else None
     for rank, it in enumerate(items, 1):
         it["rank"] = rank
     if ctx.rules.target("margin_pct") is None:

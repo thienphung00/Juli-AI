@@ -82,6 +82,7 @@ class ProfitBridge:
     other_marketing: float
     profit: float | None  # the dashboard's profit (known_cost_profit)
     margin_pct: float | None
+    withheld: bool = False  # R1: share outside 70-100 %: gộp, đóng góp and ròng are "—"
 
 
 def _f(value: Decimal | None) -> float | None:
@@ -159,4 +160,5 @@ def profit_bridge(view: Any) -> ProfitBridge:
         other_marketing=float(kp.other_marketing_charged),
         profit=_f(shown.profit),
         margin_pct=_f(shown.margin_pct),
+        withheld=shown.withheld,
     )

@@ -267,6 +267,8 @@ def _product(contribution: str, covered: str) -> ProductProfit:
         ad_spend=Decimal(0),
         profit=Decimal(contribution),
         line_ads_display=Decimal(0),
+        gmv_net=Decimal(covered),  # fully known: inside the 70-100 % gate
+        gmv_known_net=Decimal(covered),
     )
 
 

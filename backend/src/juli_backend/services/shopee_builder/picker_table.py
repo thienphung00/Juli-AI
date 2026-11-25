@@ -38,7 +38,9 @@ def _margin_by_item(view: PeriodView) -> dict[str, float]:
     (covered contribution - the product's ad spend from the ads report) ÷ covered buyer_paid,
     over the same window -- never the display-only line ad split."""
     out: dict[str, float] = {}
-    for item in view.profit.products:
+    for item, pp in view.profit.products.items():
+        if not shop_profit.product_profit_reliable(pp):  # R1: "—" outside 70-100 %
+            continue
         m = shop_profit.scope_margin_pct(view.profit, (item,))
         if m is not None:
             out[item] = float(m)

@@ -50,6 +50,10 @@ from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_profit.flows import Flow, FlowSource
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
+from juli_backend.services.shopee_profit.shop_profit import (
+    product_margin_pct_shown,
+    product_profit_shown,
+)
 from juli_backend.services.shopee_profit.sources import CellStats
 
 KINDS = ("products", "campaigns", "kols", "vouchers", "keywords")
@@ -256,7 +260,7 @@ def _product_m(view: PeriodView, pid: str, source: str, sub: str | None) -> M | 
     return M(
         gmv,
         orders,
-        pp.profit if pp and pp.buyer_paid_covered > 0 else None,
+        product_profit_shown(pp) if pp and pp.buyer_paid_covered > 0 else None,
         pp.buyer_paid_covered if pp else ZERO,
         discount,
         sum((pb.list_value for _, pb in pairs), ZERO),
@@ -282,7 +286,7 @@ def _products(view: PeriodView, source: str, sub: str | None) -> Rows:
                 "product_id": pid,
                 **price_block(view, pid),
                 "margin_basis": margin_basis(view, pid, pp),
-                "margin_pct": pct(pp.margin_pct) if pp else None,
+                "margin_pct": pct(product_margin_pct_shown(pp)) if pp else None,
             }
             out[pid] = (view.names.get(pid) or pid, m, extra)
     return out
