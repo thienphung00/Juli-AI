@@ -70,7 +70,7 @@ export function VoucherPanel({ form, set, ctx }: P<"voucher">) {
         <TextIn label="Kết thúc" onChange={(end) => set({ end })} type="date" value={form.end} />
       </div>
       <div className="p2-field">
-        <span className="sd-field__label">Gợi ý từ AOV của shop{aov ? ` (${vnd(aov)})` : ""}</span>
+        <span className="sd-field__label">Gợi ý từ AOV{aov ? ` của ${form.scope === "product" ? "sản phẩm" : "shop"} (${vnd(aov)})` : ""}</span>
         <div className="sb-chips">
           {chips.map((c) => (
             <button className="sb-pill" key={c.label} onClick={() => set({ dtype: "amount", value: String(c.value), min: String(c.min) })} type="button">
