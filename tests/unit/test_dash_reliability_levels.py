@@ -139,3 +139,26 @@ def test_pack_variations_sharing_one_sku_cost_3x_5x_10x():
     by_pack = {sl.pack_count: costs.by_key[sl.cost_key].cogs for sl in lines}
     assert by_pack == {3: D(30_000), 5: D(50_000), 10: D(100_000)}
     assert datetime and date  # imports used by the fixtures above
+
+
+def test_a_products_share_counts_orders_on_the_way_and_never_cancelled_ones():
+    """Shopee's confirmed GMV has the orders on the way, no cancelled one; so has the share."""
+    from juli_backend.services.shopee_profit.order_profit import OrderStatus
+    from juli_backend.services.shopee_profit.shop_profit import (
+        product_known_share_pct,
+        shop_profit,
+        stored_day_profit_trusted,
+    )
+    from tests.unit.test_c1_in_transit_ads import _pair
+
+    known = _pair("o1", 100_000, 4, 40_000)
+    gone = _pair("c1", 100_000, 4, status=OrderStatus.CANCELLED)
+    moving = _pair("t1", 100_000, 4, status=OrderStatus.IN_TRANSIT)
+
+    def share(pairs):
+        pp = shop_profit(pairs, campaigns=[], product_ad_spend={}).products["A"]
+        return product_known_share_pct(pp)
+
+    assert share([known, gone]) == 100
+    assert share([known, moving]) == 50
+    assert stored_day_profit_trusted([known, gone], known[0].order_date)

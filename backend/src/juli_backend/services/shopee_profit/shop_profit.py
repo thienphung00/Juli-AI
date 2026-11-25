@@ -332,7 +332,16 @@ def product_profits(
             excluded_orders=len({ln.order_id for ln, pb in all_items if pb.excluded_reason}),
             ads=(product_ads or {}).get(product),
             affiliate_commission=sum((pb.commission or ZERO for _, pb in covered), ZERO),
-            gmv_net=sum((_net_value(ln) for ln, _ in all_items if counts_in_sales(ln)), ZERO),
+            gmv_net=sum(
+                (
+                    _net_value(ln)
+                    for ln, _ in all_items
+                    # Shopee's confirmed GMV: the orders on the way in, the cancelled ones out
+                    if counts_in_sales(ln)
+                    and getattr(ln, "status", None) is not OrderStatus.CANCELLED
+                ),
+                ZERO,
+            ),
             gmv_known_net=sum((_net_value(ln) for ln, _ in covered if counts_in_sales(ln)), ZERO),
         )
     return out
