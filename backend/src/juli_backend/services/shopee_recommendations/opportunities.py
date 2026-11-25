@@ -184,7 +184,7 @@ class Ledger:
             item_key=item_key_of(items),
             variant_key=variant_key_of(cand.campaign_key),
             item_ids=sorted(items),
-            inputs=_json(dict(cand.inputs)),
+            inputs=_json({"inputs": dict(cand.inputs), "extra": dict(cand.extra)}),
             outcome=outcome,
             delta_gmv=gmv,
             delta_profit=profit,
@@ -307,9 +307,20 @@ class Opportunity:
     score: Decimal | None = None
     source: str = DAILY
     variant_key: str = ""
+    #: what the candidate carries beyond its inputs (kol creator, title proposal, add-on item)
+    extra: dict[str, Any] = field(default_factory=dict)
+
+
+def split_inputs(stored: Mapping[str, Any] | None) -> tuple[dict[str, Any], dict[str, Any]]:
+    """``(inputs, extra)`` of a row's ``inputs`` jsonb: ``{"inputs": ..., "extra": ...}``."""
+    stored = dict(stored or {})
+    if set(stored) <= {"inputs", "extra"} and "inputs" in stored:
+        return dict(stored["inputs"] or {}), dict(stored.get("extra") or {})
+    return stored, {}  # a row written before the wrapper
 
 
 def _opp(r: ShopeeOpportunity) -> Opportunity:
+    inputs, extra = split_inputs(r.inputs)
     return Opportunity(
         id=r.id,
         kind=r.kind,
@@ -318,7 +329,8 @@ def _opp(r: ShopeeOpportunity) -> Opportunity:
         delta_gmv=r.delta_gmv,
         delta_profit=r.delta_profit,
         cost=r.cost,
-        inputs=dict(r.inputs or {}),
+        inputs=inputs,
+        extra=extra,
         outcome=r.outcome,
         reason=r.reason,
         card_code=r.card_code,
@@ -393,6 +405,26 @@ async def generate_for(
     wanted = {str(p) for p in products}
     out = await list_opportunities(session, shop_id, run_date=day)
     return [o for o in out if (wanted & set(o.item_ids)) or (not wanted and o.scope == "shop")]
+
+
+async def generate_for_stored(
+    factory: Any,
+    shop_id: uuid.UUID,
+    products: Sequence[str],
+    *,
+    now: datetime | None = None,
+    as_of: date | None = None,
+) -> list[Opportunity]:
+    """``generate_for`` in its own session from the PRIMARY (write) factory, in the shop's tenant
+    scope, committed: the opportunity rows persist. Read paths (Chat's lookups) stay on the read
+    engine; only this write goes to the primary."""
+    from juli_backend.database.tenant_context import with_shop_scope
+
+    async with factory() as session:
+        async with with_shop_scope(session, shop_id):
+            rows = await generate_for(session, shop_id, products, now=now, as_of=as_of)
+            await session.commit()
+    return rows
 
 
 # --------------------------------------------------------------------------- compare
@@ -605,11 +637,15 @@ async def draft_card(
         ),
         None,
     )
-    if cand is None:  # the run's own cards now lock their products: rebuild from the row
+    if (
+        cand is None
+    ):  # the run's own cards now lock their products: rebuild from the row, extra included
+        stored_inputs, stored_extra = split_inputs(row.inputs)
         cand = Candidate(
             kind=row.kind,
             items=tuple(row.item_ids or ()),
-            inputs=dict(row.inputs or {}),
+            inputs=stored_inputs,
+            extra=stored_extra,
             campaign_key=campaign_of(row.variant_key),
         )
     card = build_card(env, cand, now=moment)
@@ -640,6 +676,7 @@ __all__ = [
     "compare",
     "draft_card",
     "generate_for",
+    "generate_for_stored",
     "item_key_of",
     "list_opportunities",
     "run_day",

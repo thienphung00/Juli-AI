@@ -138,7 +138,7 @@ async def test_on_demand_for_a_product_equals_the_daily_row_on_identical_candida
         d = daily_rows.get((o.kind, ",".join(o.item_ids), o.variant_key))
         if d is not None:
             assert o.delta_profit == d.delta_profit and o.delta_gmv == d.delta_gmv
-            assert o.inputs == d.inputs
+            assert (o.inputs, o.extra) == opp.split_inputs(d.inputs)
 
 
 @pytest.mark.parametrize(
@@ -291,3 +291,127 @@ def test_card_margin_scope_is_contribution_before_ads_and_aff():
     assert scope_contribution_margin_pct(profit, ["a", "b"]) == Decimal("18.0")
     assert scope_contribution_margin_pct(profit, []) == Decimal("18.0")
     assert scope_contribution_margin_pct(profit, ["zzz"]) is None
+
+
+def test_stored_inputs_keep_the_candidate_extra():
+    inputs, extra = opp.split_inputs({"inputs": {"a": 1}, "extra": {"kol": {"key": "k"}}})
+    assert (inputs, extra) == ({"a": 1}, {"kol": {"key": "k"}})
+    assert opp.split_inputs({"a": 1}) == ({"a": 1}, {})  # a row from before the wrapper
+
+
+@pytest.mark.timeout(180)
+async def test_kol_and_title_cards_draft_from_a_stored_row_after_the_daily_run(session):
+    """The run's own cards lock their products, so the engine no longer yields the candidate:
+    the stored row (inputs + extra) is what drafts it."""
+    seeded = await _seed_and_run(session)
+    rows = [
+        r
+        for r in await _rows(session, seeded.shop_id)
+        if r.outcome == "published" and split(r)[1] and r.kind.startswith(("affiliate_", "title"))
+    ]
+    assert rows, "the fixture publishes a kol card with extra"
+    for r in rows[:2]:
+        out = await opp.draft_card(session, seeded.shop_id, r.id, now=NOW)
+        assert out["ok"], out
+        assert out["card"]["change_kind"] == r.kind
+
+
+def split(row):
+    return opp.split_inputs(row.inputs)
+
+
+@pytest.mark.timeout(180)
+async def test_on_demand_rows_persist_through_the_write_factory(session):
+    from contextlib import asynccontextmanager
+
+    from juli_backend.services.analytics_agent.cards_service import ServiceCardEngine
+
+    seeded = await seed_reco_shop(session)
+    await session.commit()
+
+    @asynccontextmanager
+    async def factory():
+        yield session
+
+    eng = ServiceCardEngine(factory, seeded.shop_id, write_factory=factory)
+    await eng.engine_card("min_spend_voucher", None, opp.run_day(NOW))
+    rows = await _rows(session, seeded.shop_id)
+    assert rows and all(r.source == "on_demand" for r in rows)
+    session.expire_all()  # a rollback after the answer must not lose them
+    assert await _rows(session, seeded.shop_id)
+
+
+def test_ke_hoach_goal_minus_baseline_is_the_sum_of_net_deltas(monkeypatch):
+    """L2: baseline = the known-cost profit (Ròng: after ads and AFF); every card's Δ is Δ đóng góp
+    minus its OWN cost (an ads card's spend, an affiliate card's commission + samples, a price
+    card's offer), so goal - baseline = Σ net Δ for an ads + a price + an AFF card."""
+    from datetime import date as d_
+    from types import SimpleNamespace as NS
+
+    from juli_backend.services.shopee_builder.engine.contract import (
+        AddedTraffic,
+        DriverEffect,
+        OptionInput,
+    )
+    from juli_backend.services.shopee_recommendations import month_plan, plan_aggregate
+    from tests.unit.test_p_card_basis import AOV, RATE, D, _run, point
+
+    ppo = RATE * AOV
+    added = AddedTraffic(point(1000), D("0.1"), D("0.05"), AOV, point(1), ppo)  # 5 orders
+    ads = OptionInput(
+        "ads_new_campaign",
+        "ads",
+        (DriverEffect("views", ("the_san_pham_khac",), "measured", added=added),),
+        30,
+        fixed_cost=D(100000),
+    )
+    aff = OptionInput(
+        "affiliate_sample",
+        "aff",
+        (DriverEffect("views", ("the_san_pham_khac",), "measured", added=added),),
+        30,
+        fixed_cost=D(40000),  # commission x GMV + samples
+    )
+    price = OptionInput(
+        "bundle_deal",
+        "price",
+        (DriverEffect("aov", ("the_san_pham_khac",), "measured", lift=point("0.10")),),
+        30,
+    )
+    nets = []
+    for opt in (ads, aff, price):
+        r = _run(opt)
+        nets.append(float(r.likely.profit - r.before.profit))
+    assert nets[0] == pytest.approx(5 * float(ppo) - 100000, abs=1.0)
+    assert nets[1] == pytest.approx(5 * float(ppo) - 40000, abs=1.0)
+    cards = [
+        {
+            "card_id": f"c{i}",
+            "result": {
+                "own": {
+                    "dates": {"from": "2026-10-01", "to": "2026-10-30"},
+                    "days": 30,
+                    "delta": {"p50": {"dgmv": 0.0, "dprofit": n}},
+                }
+            },
+        }
+        for i, n in enumerate(nets)
+    ]
+    _gmv, uplift, counted = month_plan.uplift_in_month(cards, d_(2026, 10, 1), d_(2026, 10, 31))
+    baseline = 1_000_000.0
+    assert counted == 3
+    assert (baseline + uplift) - baseline == pytest.approx(sum(nets))
+    # the baseline is the one known-cost profit figure
+    monkeypatch.setattr(
+        plan_aggregate,
+        "shop_profit_of",
+        lambda view: NS(json=lambda: {"profit": baseline, "margin_pct": 5.0}),
+    )
+    env = NS(
+        as_of=d_(2026, 10, 30),
+        shop_gmv_30d=1.0,
+        shop_orders_30d=1,
+        metrics=NS(aov=None, views=None, clicks=None, ctr=None, ctor=None),
+        view=None,
+    )
+    assert plan_aggregate._today(env)["profit_30d"] == baseline

@@ -19,8 +19,16 @@ from juli_backend.services.analytics_agent.data_service import SessionFactory
 
 
 class ServiceCardEngine:
-    def __init__(self, factory: SessionFactory, shop_id: uuid.UUID) -> None:
+    def __init__(
+        self,
+        factory: SessionFactory,
+        shop_id: uuid.UUID,
+        write_factory: SessionFactory | None = None,
+    ) -> None:
+        """``factory`` is the read session factory; ``write_factory`` is the primary one, used
+        only to store the on-demand opportunity rows (defaults to ``factory``)."""
         self._f, self.shop = factory, shop_id
+        self._wf = write_factory or factory
 
     def allowed_kinds(self, metric: str) -> tuple[str, ...]:
         from juli_backend.services.shopee_recommendations.kinds import allowed_for_metric
@@ -45,21 +53,24 @@ class ServiceCardEngine:
                 rows = await opp.list_opportunities(
                     s, self.shop, kind=kind, item_id=item, run_date=opp.run_day(now)
                 )
-                if item is None:
-                    rows = [r for r in rows if r.scope == "shop"]
-                if not rows:
-                    rows = [
-                        r
-                        for r in await opp.generate_for(
-                            s, self.shop, [item] if item else [], now=now
-                        )
-                        if r.kind == kind
-                    ]
-                if not rows:
-                    return {"ok": False, "reason": opp.REASON_NO_OPPORTUNITY}
-                row = rows[0]
-                if row.outcome == opp.REFUSED:
-                    return {"ok": False, "reason": row.reason or "engine_refused"}
+                rows = [r for r in rows if item is not None or r.scope == "shop"]
+            finally:
+                await s.rollback()
+        if not rows:  # on demand: the daily pipeline for this product, rows stored on the primary
+            rows = [
+                r
+                for r in await opp.generate_for_stored(
+                    self._wf, self.shop, [item] if item else [], now=now
+                )
+                if r.kind == kind
+            ]
+        if not rows:
+            return {"ok": False, "reason": opp.REASON_NO_OPPORTUNITY}
+        row = rows[0]
+        if row.outcome == opp.REFUSED:
+            return {"ok": False, "reason": row.reason or "engine_refused"}
+        async with self._f() as s:
+            try:
                 out = await opp.draft_card(s, self.shop, row.id, now=now)
             finally:
                 await s.rollback()
