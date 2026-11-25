@@ -39,7 +39,7 @@
 .juli-pair { display: flex; flex-direction: column; gap: 12px; }
 .juli-me {
   align-self: flex-end; max-width: 70%; padding: 10px 16px; background: var(--juli-foreground); color: var(--juli-surface);
-  border-radius: 16px 16px 4px 16px; font-size: 15px; line-height: 22px;
+  border-radius: 16px 16px 4px 16px; font-size: 15px; line-height: 22px; white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .juli-answer {
   display: flex; flex-direction: column; gap: 14px; padding: 20px; background: var(--juli-surface);
@@ -143,9 +143,9 @@
 .juli-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .juli-chip { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--juli-border); background: var(--juli-surface); font: 500 13px var(--juli-font-sans); color: var(--juli-foreground); white-space: nowrap; cursor: pointer; }
 .juli-chip:disabled { opacity: 0.5; cursor: not-allowed; }
-.juli-input { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 18px; background: var(--juli-surface); border: 1px solid var(--juli-border); border-radius: 16px; }
+.juli-input { display: flex; align-items: flex-end; gap: 12px; padding: 8px 8px 8px 18px; background: var(--juli-surface); border: 1px solid var(--juli-border); border-radius: 16px; }
 .juli-input--off { background: var(--juli-primary-soft); }
-.juli-input__field { flex: 1; min-width: 0; min-height: 44px; border: 0; outline: 0; background: transparent; font: 15px var(--juli-font-sans); color: var(--juli-foreground); }
+.juli-input__field { flex: 1; min-width: 0; box-sizing: border-box; min-height: 44px; max-height: 160px; margin: 0; padding: 11px 0; resize: none; overflow-y: auto; border: 0; outline: 0; background: transparent; font: 15px/22px var(--juli-font-sans); color: var(--juli-foreground); }
 .juli-input:focus-within { outline: var(--juli-focus-width) solid var(--juli-focus-ring); outline-offset: 2px; }
 .juli-send { width: 44px; height: 44px; border-radius: 10px; border: 0; background: var(--juli-foreground); color: var(--juli-surface); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .juli-send:disabled { background: var(--juli-border); cursor: not-allowed; }

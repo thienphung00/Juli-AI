@@ -62,7 +62,7 @@ export function JuliChat({
 }: JuliChatProps) {
   const chat = useJuliChat({ client, templates: fixedTemplates, platform });
   const [historyOpen, setHistoryOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const restoredRef = useRef(false);
