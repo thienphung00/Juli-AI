@@ -1,7 +1,7 @@
 """Data layer: stored daily components, campaign days, every card candidate (decisions #62-#66)
 
 Revision ID: 140_data_layer_facts_opps
-Revises: 138_juli_agent_spend
+Revises: 139_hot_path_indexes
 Create Date: 2026-11-25
 
 Every number a Shopee screen, the Excel export or Chat reads is stored once per day as additive
@@ -34,8 +34,8 @@ Read paths: each natural UNIQUE key leads with (shop_id, day | run_date) and dou
 window read index; ``product_channel_metrics_daily`` also has (shop_id, item_id, day) for the
 product page. Every fact table states its grain in ``COMMENT ON TABLE``.
 
-Independent of 136 (T5 compat views); chained on ``138_juli_agent_spend`` and re-pointed at
-integration if 136 lands first.
+Independent of 136 (T5 compat views); chained on ``139_hot_path_indexes`` (re-pointed from 138 at
+integration, batch-1124-c-data).
 
 EXPAND-ONLY AND REVERSIBLE: new nullable columns and two new tables with their indexes, RLS
 policies and grants. No row is moved; the triggered rebuild fills the columns.
@@ -50,7 +50,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "140_data_layer_facts_opps"
-down_revision: str | None = "138_juli_agent_spend"
+down_revision: str | None = "139_hot_path_indexes"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

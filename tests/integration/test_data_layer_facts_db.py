@@ -255,7 +255,7 @@ def test_zz_downgrade_drops_and_upgrade_restores(owner_engine):
             return tables, bool(column)
 
     assert state() == (True, True)
-    command.downgrade(cfg, "138_juli_agent_spend")
+    command.downgrade(cfg, "139_hot_path_indexes")
     try:
         assert state() == (False, False)
     finally:
