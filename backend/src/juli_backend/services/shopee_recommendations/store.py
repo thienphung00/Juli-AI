@@ -121,7 +121,10 @@ async def find_open_duplicate(
     for p, meta in sorted(rows, key=lambda r: r[0].created_at):
         if _change_key(p.change_after) != want:
             continue
-        if skip_origins and json.loads(meta or "{}").get("origin") in skip_origins:
+        card_meta_json = json.loads(meta or "{}")
+        if card_meta_json.get("reverted"):  # E145: an undone card (also by hand) is not open
+            continue
+        if skip_origins and card_meta_json.get("origin") in skip_origins:
             continue
         return p
     return None

@@ -344,7 +344,7 @@ function Builder({ from, narrow, productId, products }: { readonly from: string 
                 </span>
                 <span className={t.over ? "sv-title__over" : "sa-hint"}>{t.over ? `Quá ${t.n - MAX_TITLE_CHARS} ký tự: không lưu được.` : `Còn ${MAX_TITLE_CHARS - t.n} ký tự.`}</span>
               </div>
-              {narrow ? null : <span className="sa-hint">Tiêu đề so sánh theo phiên bản trong thẻ tiêu đề; ở đây chỉ nhập và kiểm giới hạn. Trên 100 ký tự: không lưu được.</span>}
+              {narrow ? null : <span className="sa-hint">Tiêu đề so sánh theo phiên bản trong thẻ tiêu đề; ở đây chỉ nhập và kiểm giới hạn. Trên {MAX_TITLE_CHARS} ký tự: không lưu được.</span>}
             </div>
           ) : null}
         </section>

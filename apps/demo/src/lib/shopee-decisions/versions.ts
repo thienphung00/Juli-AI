@@ -389,13 +389,13 @@ export function versionTable(card: Card, versions: readonly CardVersion[]): Tabl
       rows.push(
         rowFrom(
           "limit",
-          "Giới hạn 100 ký tự",
+          `Giới hạn ${MAX_TITLE_CHARS} ký tự`,
           "mọi tiêu đề",
           null,
           cellOf((p) => {
             const n = titleOf(p.v.inputs).length;
             const over = n > MAX_TITLE_CHARS;
-            return { v: over ? `✕ ${n}/100 ký tự: quá giới hạn` : `✓ ${n}/100 ký tự · không tốn chi phí`, d: "", tone: over ? "down" : "plain", bad: over };
+            return { v: over ? `✕ ${n}/${MAX_TITLE_CHARS} ký tự: quá giới hạn` : `✓ ${n}/${MAX_TITLE_CHARS} ký tự · không tốn chi phí`, d: "", tone: over ? "down" : "plain", bad: over };
           }),
         ),
       );
