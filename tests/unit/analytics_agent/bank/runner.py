@@ -80,6 +80,7 @@ INTENT_DEFAULT: dict[str, Any] = {
     "needs_advice": False,
     "goal": "none",
     "card": dict(routing.CARD_SLOT_EMPTY),
+    "card_kind": "none",
 }
 
 

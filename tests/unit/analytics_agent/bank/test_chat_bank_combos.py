@@ -7,10 +7,10 @@
 - `-m bank_full` (nightly, before a tag): the full cross product.
 
 A combination passes, or fails with problems a known gap rule explains (xfail naming the
-rules), or FAILS (a problem no rule explains: a regression or a new gap). A mismatch case is
-pinned to its current outcome bucket. After the run, every rule's footprint and every bucket
-must equal `combo_record.json` (`combo_eval`), so a fix inside a rule forces the record (and
-the rule) to move, and no regression hides inside a rule."""
+rules), or FAILS (a problem no rule explains: a regression or a new gap). A mismatch case (owner
+#115) must be a correct refusal, read from `metrics.capabilities`. After the run, every rule's
+footprint and every bucket must equal `combo_record.json` (`combo_eval`), so a fix inside a rule
+forces the record (and the rule) to move, and no regression hides inside a rule."""
 
 from __future__ import annotations
 
@@ -59,11 +59,10 @@ async def test_combo(combo_id: str, combo_shop: tuple[Path, Any], request: Any) 
         out, problems = await combo_eval.run_one(factory, shop_id, case)
     v = combo_eval.judge(case, out, problems)
     SEEN[combo_id] = v
-    if v.status == "mismatch":
-        want = _record(_full(request.config))["mismatch"].get(combo_id)
-        assert v.bucket == want, (
-            f"{combo_id}: outcome {v.bucket!r}, recorded {want!r}. {combos.MISMATCH_RULE}. "
-            "Record the new outcome with combo_eval."
+    if v.status == "mismatch":  # owner #115: every mismatch is a correct refusal
+        assert v.bucket == combos.EXPECTED_BUCKET, (
+            f"{combo_id}: outcome {v.bucket!r}. {combos.MISMATCH_RULE}.\n  - "
+            + "\n  - ".join(v.problems)
         )
         return
     assert v.status != "fail", f"{combo_id}: unexplained (no gap rule):\n  - " + "\n  - ".join(

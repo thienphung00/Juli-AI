@@ -3,7 +3,7 @@ the records the bank pins (`combo_record.json`):
 
 - per gap rule, the combinations it explains (count + hash): a fix or a regression inside a
   rule's footprint changes the hash, so the record must be updated in the same change;
-- per mismatch case, its CURRENT outcome bucket (owner 26/11: pinned, not xfail-by-default).
+- per mismatch case, its outcome bucket (owner #115: every one a correct refusal).
 
 Record after a change (one process, ~2 min for the gate, ~35 min for the full product):
 

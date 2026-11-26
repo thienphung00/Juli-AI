@@ -31,7 +31,7 @@ export interface JuliPathStep {
   readonly link: JuliLink;
 }
 
-export type JuliStopReason = "within_noise" | "unexplained" | "data_stale" | "data_missing" | "explained";
+export type JuliStopReason = "within_noise" | "unexplained" | "data_stale" | "data_missing" | "explained" | "not_applicable";
 
 export interface JuliCardVersion {
   readonly label_vi: string;

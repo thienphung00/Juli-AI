@@ -153,14 +153,7 @@ PERIODS: tuple[Period, ...] = (
         ("2026-09-24", "2026-09-24"),
         sale=True,
     ),
-    Period(
-        "none",
-        "no time slot: WINDOWS[last_30d_vs_prev_30d] ('no period named')",
-        {},
-        "last_30d_vs_prev_30d",
-        ("2026-09-08", "2026-10-07"),
-        ("2026-08-09", "2026-09-07"),
-    ),
+    Period("none", "no time slot: Chat asks which period (owner #113)", {}, None, None, None),
 )
 EXPLICIT = {"explicit_range", "single_date", "sale_day"}
 
