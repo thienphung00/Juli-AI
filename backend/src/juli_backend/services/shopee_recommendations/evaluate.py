@@ -1069,6 +1069,7 @@ def _bundle_line(line: OrderLine, qty: int, pct_off: Decimal) -> OrderLine:
         bundle_discount=to_dong(gross * pct_off / 100),
         combo_in_price=False,
         shop_voucher_share=ZERO,
+        voucher_proven=None,
         order_id=f"bundle:{line.sku}:{qty}",
         promo_kind=PromoKind.NONE,
     )
@@ -1298,6 +1299,7 @@ def eval_add_on(
             qty=1,
             deal_price=price_after,
             shop_voucher_share=ZERO,
+            voucher_proven=None,
             bundle_discount=ZERO,
             order_id=f"addon:{sku}",
             promo_kind=PromoKind.NONE,

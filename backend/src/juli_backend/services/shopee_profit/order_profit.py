@@ -179,6 +179,10 @@ class OrderLine:
     #: decision #50: the part of ``shop_voucher_share`` the platform funded, not the seller
     #: (settlement ``seller_voucher_borne`` below the buyer-side share); 0 without a settlement
     voucher_funded: Decimal = ZERO
+    #: decision #100 (7a): the seller voucher the settlement proves, this line's share; it wins
+    #: over ``shop_voucher_share`` / ``voucher_funded``. ``None`` = no proof (the line rule).
+    #: A what-if that rewrites ``shop_voucher_share`` must reset it.
+    voucher_proven: Decimal | None = None
     #: C9 (E151): the settlement does not show who bore the shop voucher. It is not charged, and
     #: a sale with it is not costed (missing ``seller_voucher``: a missing cost is never 0)
     voucher_unknown: bool = False
@@ -197,7 +201,11 @@ class OrderLine:
 
     @property
     def seller_voucher(self) -> Decimal:
-        """The shop voucher the seller bore on this line (decision #50)."""
+        """The shop voucher the seller bore on this line. Settlement-proven (decision #100 7a,
+        :func:`decide_seller_voucher`): this line's share of the proven amount, whatever the
+        lines show; otherwise the buyer-side share less what the platform funded (#50)."""
+        if self.voucher_proven is not None:
+            return self.voucher_proven
         return max(ZERO, self.shop_voucher_share - self.voucher_funded)
 
     @property

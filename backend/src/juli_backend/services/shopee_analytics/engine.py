@@ -298,7 +298,11 @@ def attach_income(lines: list[ShopLine], income: Mapping[str, IncomeOrder]) -> l
             by_order[sl.line.order_id].append(i)
     out = list(lines)
     for order_id, idxs in by_order.items():
-        shares = split_income(income[order_id], [lines[i].line.buyer_paid for i in idxs])
+        shares = split_income(
+            income[order_id],
+            [lines[i].line.buyer_paid for i in idxs],
+            [lines[i].line.order_value for i in idxs],
+        )
         for i, share in zip(idxs, shares, strict=True):
             ln = lines[i].line
             # C9 (E151): who bore it is unknown (the settlement's arithmetic does not close): the
@@ -311,7 +315,13 @@ def attach_income(lines: list[ShopLine], income: Mapping[str, IncomeOrder]) -> l
                 if share.seller_voucher_known
                 else (ln.shop_voucher_share if unknown else ZERO)
             )
-            line = replace(ln, income=share, voucher_funded=funded, voucher_unknown=unknown)
+            line = replace(
+                ln,
+                income=share,
+                voucher_funded=funded,
+                voucher_unknown=unknown,
+                voucher_proven=share.seller_voucher if share.seller_voucher_known else None,
+            )
             out[i] = replace(lines[i], line=line)
     return out
 
