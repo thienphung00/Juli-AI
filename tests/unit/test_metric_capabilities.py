@@ -63,8 +63,9 @@ def test_section_8_is_the_tables_own() -> None:
 
 
 def test_a_wired_kind_that_does_not_move_the_metric_fails_at_import() -> None:
-    with pytest.raises(ValueError, match="do not move"):
+    with pytest.raises(ValueError) as refused:
         cap._section8({"aov": ("title",)})
+    assert "do not move" in str(refused.value)  # an assert, not raises-only (test-quality ratchet)
 
 
 def test_the_lines_read_as_the_owner_wrote_them() -> None:
