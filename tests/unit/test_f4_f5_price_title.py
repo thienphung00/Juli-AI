@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal as D
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
@@ -180,7 +181,7 @@ COVER = sp.CoverSpec(kind="cover_image", item_id="1", overlay=sp.CoverOverlay(la
 
 @pytest.mark.parametrize(("spec", "metrics"), [(TITLE, ["views", "ctr"]), (COVER, ["ctr"])])
 def test_title_and_cover_show_no_uplift_until_measured(spec, metrics):
-    option = option_for(spec, _NoEvidence())  # type: ignore[arg-type]
+    option = option_for(spec, cast(Any, _NoEvidence()))
     assert [d.metric for d in option.drivers] == metrics
     assert all(d.basis == "not_estimable" and d.lift is None for d in option.drivers)
     assert all(d.sources == CARD_SOURCES for d in option.drivers)
@@ -192,7 +193,8 @@ def test_title_and_cover_show_no_uplift_until_measured(spec, metrics):
     assert r.cost_total == 0
     wire = r.json()
     assert _leaves(wire["delta"]) == [None] * len(_leaves(wire["delta"]))
-    assert all(d["pct"] is None for d in wire["drivers_pct"])  # type: ignore[index]
+    drivers_pct = cast(list[dict[str, Any]], wire["drivers_pct"])
+    assert all(d["pct"] is None for d in drivers_pct)
 
 
 def _leaves(node: object) -> list[object]:
