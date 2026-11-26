@@ -16,6 +16,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.repositories import PlatformItemSnapshotsRepo
+from juli_backend.services.ingest import read_days
 from juli_backend.services.shopee_analytics import ads_gate, kol, loaders, service, stored
 from juli_backend.services.shopee_analytics import kol_compare as kol_compare_mod
 from juli_backend.services.shopee_analytics.compute import PeriodView
@@ -142,6 +143,11 @@ async def overview(
     body["freshness"] = freshness_json(
         await loaders.load_freshness(session, shop_id), now.window.end
     )
+    if platform == "shopee":
+        # 7b: completed orders still unpaid over 2 days later (Tổng quan flags it)
+        body["freshness"]["unsettled_orders"] = await read_days.unsettled_status(
+            session, shop_id, platform
+        )
     return body
 
 

@@ -507,6 +507,30 @@ export function completedOrders(responses: ReaderResponse[]): { id: string; sn?:
   return out;
 }
 
+/**
+ * 7b: the orders of an answer the server named as completed without a payment (`refs`, the keyed
+ * hashes of their order numbers; `refOf` hashes one), the order page's income to read. An order with
+ * no completion time that shows as delivered counts too (its completion is taken as `now`).
+ * Cancelled orders never. Oldest completion first.
+ */
+export async function unsettledOrders(
+  responses: ReaderResponse[],
+  refs: ReadonlySet<string>,
+  refOf: (orderNumber: string) => Promise<string>,
+  now: number,
+): Promise<{ id: string; sn?: string; completedAt: number }[]> {
+  const out: { id: string; sn?: string; completedAt: number }[] = [];
+  for (const [key, order] of collectOrders(responses)) {
+    const status = statusOfOrder(order);
+    if (status !== "delivered") continue;
+    if (!refs.has(await refOf(key))) continue;
+    const t = num(order.complete_time ?? order.completed_time ?? order.order_complete_time);
+    const id = order.__api ?? key;
+    out.push({ id, ...(key !== id ? { sn: key } : {}), completedAt: t !== undefined && t > 0 ? (t > 1e12 ? Math.floor(t / 1000) : t) * 1000 : now });
+  }
+  return out.sort((a, b) => a.completedAt - b.completedAt);
+}
+
 // -- why a run mapped 0 rows (0.3.26) -----------------------------------------------------------
 
 /** The order-list / order-detail endpoints and the income endpoint, per job. */

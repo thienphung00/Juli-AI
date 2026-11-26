@@ -424,6 +424,23 @@ export class Connector {
   }
 
   /**
+   * 7b: hashes an order number with the shop's key, for matching the orders Juli listed as unpaid
+   * (the refs it names are the same keyed hash). Undefined without a pairing or a key.
+   */
+  async orderRefHasher(): Promise<((orderNumber: string) => Promise<string>) | undefined> {
+    const state = await this.state();
+    if (!state.token || state.consentBlocked) return undefined;
+    try {
+      const answer = (await this.deps.client.orderRefKey(state.token.token)) as { order_ref_key?: unknown };
+      if (typeof answer?.order_ref_key !== "string") return undefined;
+      const key = await importOrderRefKey(answer.order_ref_key);
+      return (orderNumber) => orderRef(orderNumber, key);
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
    * 0.3.29 (F4.2): reopen days of the per-day backfill for the mydata item datasets the hole list names:
    * yesterday first, then oldest first; a reopened day asks only for the datasets that were missing.
    */
