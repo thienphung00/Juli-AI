@@ -995,17 +995,20 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             assert after["gmv"] == pytest.approx(after["orders"] * after["aov"], rel=1e-9)
             assert before["gmv"] == pytest.approx(before["orders"] * before["aov"], rel=1e-9)
             assert cd["gmv"] == pytest.approx(after["gmv"] - before["gmv"], rel=1e-9)
-            assert cd["profit"] == pytest.approx(-918_479, rel=0.01)
+            # tag 2 merge (4c #102 + 5a): the combo's tier discount is in the price, so its cost
+            # moved -918_479 -> -903_626; the 5a figures below were re-derived on the merged code
+            assert cd["profit"] == pytest.approx(-903_626, rel=0.01)
             option = common.floor_prior_drivers(
                 option_for(combo, ctx, integrate.extras_for(combo_done.base))
             )
             seeds = [engine_run(combo_done.base, option, seed=k) for k in range(15)]
             gmvs = [float(r.likely.gmv - r.before.gmv) for r in seeds if r.likely is not None]
             # 5a (owner #99): the middle column is the MEAN of the scenarios ranked 45-55 % by Δ
-            # profit, so the shown ΔGMV is stable: 419_334 on 2,63 orders at seed 0, 404k .. 449k
-            # over 15 seeds (was one draw: 254k .. 970k); the seed median 417_370 (was 351_471)
-            assert cd["gmv"] == pytest.approx(419_334, rel=0.02)
-            assert median(gmvs) == pytest.approx(417_370, rel=0.05)
+            # profit, so the shown ΔGMV is stable: 433_551 on 2,65 orders at seed 0, 410k .. 452k
+            # over 15 seeds (was one draw: 254k .. 970k); the seed median 422_914 (was 351_471).
+            # With 4c (#102) merged: 419_334 -> 433_551, median 417_370 -> 422_914
+            assert cd["gmv"] == pytest.approx(433_551, rel=0.02)
+            assert median(gmvs) == pytest.approx(422_914, rel=0.05)
             assert max(gmvs) - min(gmvs) <= 0.15 * median(gmvs)
             # never a GMV with almost no orders (445.900đ on 0,31 đơn): reach is 0 at P50, so over
             # the seeds the typical gain is its extra orders at today's AOV
