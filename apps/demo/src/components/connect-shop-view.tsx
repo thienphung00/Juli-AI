@@ -8,6 +8,8 @@ import { storeActiveShop } from "../lib/shop-session";
 import { ACTIONS_DESTINATION_LABEL } from "../lib/destination-copy";
 import { decodeJwtPayload } from "../lib/supabase-auth";
 import { ShopsFetchError, fetchShops, type Shop } from "../lib/shops-client";
+import { useShopReportOptional } from "../lib/shop-report/shop-report-context";
+import { ConnectShopeeShop, type CreatePairingCode, type CreateShopeeShop } from "./connect-shopee-shop";
 import {
   STAFF_ACCESS_NOTICE,
   startTikTokConnect,
@@ -32,6 +34,10 @@ interface ConnectShopViewProps {
    * TikTok URL itself, it only goes where the server-signed one points.
    */
   navigate?: (url: string) => void;
+  /** Injectable for tests; defaults to `POST /v1/shops/shopee` (owner #105). */
+  createShopeeShop?: CreateShopeeShop;
+  /** Injectable for tests; defaults to `POST /v1/ingest/pairing-codes`. */
+  createPairingCode?: CreatePairingCode;
 }
 
 type LoadState =
@@ -54,9 +60,13 @@ export function ConnectShopView({
   loadShops = fetchShops,
   startConnect = startTikTokConnect,
   navigate = (url) => window.location.assign(url),
+  createShopeeShop,
+  createPairingCode,
 }: ConnectShopViewProps) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
+  // Owner #104: the shell resolved "no shop" before this shop existed; it re-reads once one is created.
+  const shell = useShopReportOptional();
 
   // Issue #1909: the selection made here is what every signed-in surface
   // sends as `X-Shop-Id` — persist it (default first shop, then whatever
@@ -122,14 +132,27 @@ export function ConnectShopView({
       )}
 
       {state.status === "ready" && (
-        <ConnectShopReady
-          accessToken={session.accessToken}
-          navigate={navigate}
-          onSelectShop={selectShop}
-          selectedShopId={selectedShopId}
-          shops={state.shops}
-          startConnect={startConnect}
-        />
+        <>
+          <ConnectShopReady
+            accessToken={session.accessToken}
+            navigate={navigate}
+            onSelectShop={selectShop}
+            selectedShopId={selectedShopId}
+            shops={state.shops}
+            startConnect={startConnect}
+          />
+          <ConnectShopeeShop
+            accessToken={session.accessToken}
+            createCode={createPairingCode}
+            createShop={createShopeeShop}
+            onCreated={(made) => {
+              const shop: Shop = { id: made.id, shop_name: made.shop_name, tiktok_shop_id: null, is_active: true };
+              setState((s) => (s.status === "ready" ? { status: "ready", shops: [...s.shops, shop] } : s));
+              setSelectedShopId(made.id);
+              shell?.reload();
+            }}
+          />
+        </>
       )}
     </section>
   );
