@@ -33,7 +33,7 @@ from juli_backend.services.shopee_profit.order_profit import (
     counts_in_sales,
 )
 from juli_backend.services.shopee_profit.shop_profit import ProductProfit
-from juli_backend.services.shopee_recommendations import config
+from juli_backend.services.shopee_recommendations import config, current
 from juli_backend.services.shopee_recommendations.listing import Listing
 from juli_backend.services.shopee_recommendations.model import DiscountResponse
 
@@ -119,6 +119,7 @@ class RecoEnv:
     # service rate are the view's own now (``fee_table``), so neither is read
     _schedule_cache: dict[str, FeeSchedule] = field(default_factory=dict, repr=False)
     _service_rate: Decimal | None = field(default=None, repr=False)
+    _current_cache: dict[Any, Any] = field(default_factory=dict, init=False, repr=False)
     #: not an init field, so ``dataclasses.replace`` (a copy with other pairs) starts it afresh
     _sales_pairs: list[tuple[OrderLine, ProfitBreakdown]] | None = field(
         default=None, init=False, repr=False
@@ -334,11 +335,14 @@ class RecoEnv:
 
     @property
     def shop_gmv_30d(self) -> Decimal:
-        return self.metrics.gmv or ZERO
+        """F1: hiện tại of the shop (``current.current_30d``); the window's metrics without rows."""
+        now = current.gmv_30d(self)
+        return (self.metrics.gmv or ZERO) if now is None else now
 
     @property
     def shop_orders_30d(self) -> int:
-        return int(self.metrics.orders or 0)
+        now = current.orders_30d(self)
+        return int(self.metrics.orders or 0) if now is None else int(now)
 
     def shop_chi_per_day(self) -> Decimal:
         """Marketing spend per day in the window: ads + voucher + khuyen mai + combo + commission

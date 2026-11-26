@@ -505,10 +505,15 @@ async def test_the_plan_carries_a_tiers_combo_as_its_own_layer(session, shop):
     # tier, so the card takes the typical-result prior of its kind (was: not estimable, P100-C);
     # the plan sums that result like any other card's, the same ΔGMV the builder showed
     assert saved["outcome"]["result"]["basis"] == "prior"
-    assert per30["gmv"] is not None and per30["gmv"] > 0
-    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(per30["gmv"])
+    # F1 (2026-11-25): on the real 30 days the ΔGMV is inside the normal swing, so the wire value
+    # is null (F5); Kế hoạch keeps the result's own figure
+    assert per30["gmv"] is None and "gmv" in saved["outcome"]["result"]["within_noise"]
+    detail = saved["outcome"]["result"]["detail"]
+    dgmv = detail["likely"]["gmv"] - detail["before"]["gmv"]
+    assert dgmv > 0
+    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(dgmv)
     # a 5 % / 8 % tier: a modest AOV lift, never more than the shop's own 30-day GMV
-    assert per30["gmv"] < agg["today"]["gmv_30d"]
+    assert dgmv < agg["today"]["gmv_30d"]
     low, mid, high = (agg["dprofit_month"]["total"][k] for k in ("p10", "p50", "p90"))
     assert low <= mid <= high
     assert agg["totals_estimable"] is True

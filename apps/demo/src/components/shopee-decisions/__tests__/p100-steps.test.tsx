@@ -5,6 +5,7 @@ import type { BuilderApi, BuilderOutcome, PickerProduct } from "../../../lib/sho
 import { initialForms } from "../../../lib/shopee-decisions/builder-p92";
 import type { FunnelColumn, OptionResult } from "../../../lib/shopee-decisions/option-result";
 import type { Entry } from "../builder-p92/compare";
+import { VoucherPanel } from "../builder-p92/panels-offers";
 import { StepPhuongAn } from "../builder-p92/step-phuong-an";
 import { StepSoSanh } from "../builder-p92/step-so-sanh";
 
@@ -71,7 +72,7 @@ function renderStep3(r: OptionResult, extra: Record<string, unknown> = {}) {
     productName: "Găng tay",
     forms,
     setForm: vi.fn(),
-    ctx: { api: stepApi(), product, variations: [], products: [product], aov: null, outcome: outcome(0, r), narrow: false, costLink: "/c", market: null },
+    ctx: { api: stepApi(), product, variations: [], products: [product], shopAov: null, productAov: null, outcome: outcome(0, r), narrow: false, costLink: "/c", market: null },
     state: { status: "ready" as const, outcome: outcome(0, r) },
     costLink: "/c",
     index: 0,
@@ -260,5 +261,21 @@ describe("P100 step ④ So sánh & lưu", () => {
     fireEvent.click(screen.getByTestId("p4-save"));
     await waitFor(() => expect(api.choose).toHaveBeenCalled());
     expect(api.choose.mock.calls[0]![0]).toMatchObject({ chosen: 2, primary: false });
+  });
+});
+
+describe("voucher AOV suggestion (owner #87)", () => {
+  const ctx = { api: stepApi(), product, variations: [], products: [product], shopAov: 198_000, productAov: 246_000, outcome: null, narrow: false, costLink: "/c", market: null };
+
+  it("a product voucher reads the product AOV, a shop voucher the shop's; no AOV, no figure", () => {
+    const form = initialForms().voucher;
+    const { rerender } = render(<VoucherPanel ctx={ctx} form={{ ...form, scope: "product" }} set={vi.fn()} />);
+    const panel = () => screen.getByTestId("p2-panel-voucher");
+    expect(panel()).toHaveTextContent("246.000");
+    expect(panel()).not.toHaveTextContent("198.000");
+    rerender(<VoucherPanel ctx={ctx} form={{ ...form, scope: "shop" }} set={vi.fn()} />);
+    expect(panel()).toHaveTextContent("198.000");
+    rerender(<VoucherPanel ctx={{ ...ctx, productAov: null }} form={{ ...form, scope: "product" }} set={vi.fn()} />);
+    expect(panel()).not.toHaveTextContent("198.000");
   });
 });

@@ -150,6 +150,8 @@ def _roi(r: OptionResult, d_gmv: Decimal | None) -> dict[str, Any]:
 
 
 def result_json(r: OptionResult) -> dict[str, Any]:
+    from juli_backend.services.shopee_recommendations.forecast import forecast_of
+
     d_profit, b_profit = _delta(r, "profit")
     d_gmv, b_gmv = _delta(r, "gmv")
     d_orders, b_orders = _delta(r, "orders")
@@ -274,6 +276,8 @@ def result_json(r: OptionResult) -> dict[str, Any]:
         },
         "notes": list(r.notes) if r.estimable else [NOT_ESTIMABLE_NOTE],
         "ads": ads_json(r.ads),
+        # F2: the one forecast (the same block the stored card carries)
+        "forecast": forecast_of(r, reason=None, data_through=r.data_through),
     }
 
 

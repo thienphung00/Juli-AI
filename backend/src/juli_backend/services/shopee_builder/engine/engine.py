@@ -40,6 +40,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
     OptionInput,
     OptionResult,
     Scenario,
+    base_scale,
 )
 from juli_backend.services.shopee_builder.engine.vn import (
     DRIVER_LABELS,
@@ -92,6 +93,8 @@ class _Src:
     aov: float | None
     ppo: float | None
     po: float = 0.0  # the orders the profit stands on (P99: the days with costs)
+    ctr: float | None = None  # today's rates the 100 % caps use (F1: the adaptive window's)
+    ctor: float | None = None
 
 
 @dataclass
@@ -152,9 +155,24 @@ def _prepare(base: FunnelBase, scale: float) -> list[_Src]:
                 g / o if o > 0 else None,
                 p / po if (p is not None and po > 0) else None,
                 po,
+                _rate(s.ctr_rate, k, v),
+                _rate(s.ctor_rate, o, k),
             )
         )
     return out
+
+
+def _rate(measured: Decimal | None, num: float | None, den: float | None) -> float | None:
+    """The measured rate of the adaptive window, else this base's own ratio."""
+    if measured is not None:
+        return float(measured)
+    return None if num is None or not den or den <= 0 else num / den
+
+
+def _cap(m: float, rate: float | None) -> float:
+    """A lift may not push a rate over 100 %; it never turns into a loss when the 30 days' own
+    ratio is already over it (traffic known on fewer days than the orders)."""
+    return m if not rate or rate <= 0 else min(m, max(1.0, 1.0 / rate))
 
 
 def _carriers(srcs: list[_Src], driver: DriverEffect) -> list[int]:
@@ -201,9 +219,9 @@ def _scenario(
         v, k, o = s.v, s.k, s.o
         if s.capable and v is not None and k is not None:
             if mc != 1.0:
-                mc = min(mc, v / k)  # CTR <= 100 %
+                mc = _cap(mc, s.ctr)  # CTR <= 100 %
             if mt != 1.0 and s.o > 0:
-                mt = min(mt, k / s.o)  # CTOR <= 100 %
+                mt = _cap(mt, s.ctor)  # CTOR <= 100 %
             if mv != 1.0:
                 v, k, o = v * mv, k * mv, o * mv
             if mc != 1.0:
@@ -417,7 +435,7 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
     horizon: Literal["duration", "first_30_days"] = (
         "duration" if option.duration_days else "first_30_days"
     )
-    scale = days / max(1, base.window_days)
+    scale = base_scale(days, base.days, base.window_days)
     srcs = _prepare(base, scale)
     keys = [s.key for s in srcs]
     cr = None if base.contribution_rate is None else float(base.contribution_rate)
@@ -515,6 +533,9 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
             ads=option.ads,
             stale=base.stale,
             margin_basis=base.margin_basis,
+            data_through=base.window_end,
+            days_with_data=base.days,
+            window_days=base.window_days,
         )
 
     rng = random.Random(seed)
@@ -559,6 +580,9 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         else likely.profit - before_draw.profit
     )
     flagged = _within_noise(base, option, before_draw, d90, days)
+    if (d_profit is not None and d_profit < 0) or (likely.profit is not None and likely.profit < 0):
+        # F2 (E133): a negative mid profit is a loss and reads as one, never as "trong dao động"
+        flagged = tuple(m for m in flagged if m != "profit")
     build_up = (
         ()
         if d_profit is None
@@ -593,6 +617,9 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         ads=option.ads,
         within_noise=flagged,
         margin_basis=base.margin_basis,
+        data_through=base.window_end,
+        days_with_data=base.days,
+        window_days=base.window_days,
     )
 
 

@@ -54,7 +54,7 @@ from juli_backend.services.shopee_profit.whatif import (
     price_change_whatif,
     voucher_whatif,
 )
-from juli_backend.services.shopee_recommendations import config
+from juli_backend.services.shopee_recommendations import config, current
 from juli_backend.services.shopee_recommendations.ads_cost import budget_raise_extra_per_day
 from juli_backend.services.shopee_recommendations.env import RecoEnv, voucher_takeup
 from juli_backend.services.shopee_recommendations.kinds import spec
@@ -107,12 +107,24 @@ def _item_gmv(lines: Sequence[OrderLine], item: str) -> Decimal:
 
 
 def _scope_gmv_per_day(env: RecoEnv, items: Sequence[str] | None) -> Decimal:
+    now = current.current_30d(env, items)
+    if now is not None and now.total("orders"):  # F1; a listing with no sale keeps its reference
+        return (now.total("gmv") or ZERO) / current.known_days(now)
     wanted = None if not items else set(items)
     gmv = sum(
         (ln.order_value for ln, _ in env.sales_pairs if wanted is None or ln.product_id in wanted),
         ZERO,
     )
     return gmv / Decimal(env.window_days)
+
+
+def _scope_orders_per_day(env: RecoEnv, items: Sequence[str] | None) -> Decimal:
+    """Đơn per day beside ``_scope_gmv_per_day`` (F1); ``_scope_orders`` stays the order lines'
+    count, the denominator of figures summed over those lines."""
+    now = current.current_30d(env, items)
+    if now is not None and now.total("orders"):
+        return (now.total("orders") or ZERO) / current.known_days(now)
+    return Decimal(_scope_orders(env, items)) / Decimal(env.window_days)
 
 
 def _scope_orders(env: RecoEnv, items: Sequence[str] | None) -> int:
@@ -282,7 +294,7 @@ def eval_voucher(
     profit = ProfitModel(
         effect_days=days,
         base_gmv_per_day=_scope_gmv_per_day(env, items),
-        base_orders_per_day=Decimal(_scope_orders(env, items)) / env.window_days,
+        base_orders_per_day=_scope_orders_per_day(env, items),
         aov=aov,
         profit_per_gmv=safe_div(cpo, aov) if cpo is not None and aov else None,
         extra_cost_per_day=dchi,
@@ -295,6 +307,9 @@ def eval_voucher(
         max_discount_binding(lines, rule) if rule.max_discount is not None else (0, 0)
     )
     used_per_order_cost = safe_div(c.voucher_cost_scenario, c.used_scenario)
+    shown_qualifying, shown_total = current.of_orders(
+        env, items, c.qualifying_orders, c.total_orders
+    )
     voucher_detail = {
         "days": days,
         "usage": {
@@ -320,16 +335,16 @@ def eval_voucher(
         },
         "min_spend": {
             "value": num(rule.min_spend),
-            "qualifying_orders": c.qualifying_orders,
-            "total_orders": c.total_orders,
+            "qualifying_orders": shown_qualifying,
+            "total_orders": shown_total,
         },
         "cost_per_used_order": num(used_per_order_cost),
         "profit_per_order_after": num(cpo),
     }
     certain = {
         "kind": "voucher",
-        "qualifying_orders": c.qualifying_orders,
-        "total_orders": c.total_orders,
+        "qualifying_orders": shown_qualifying,
+        "total_orders": shown_total,
         "discount_pct_of_qualifying": pct(c.discount_pct_of_qualifying),
         "days": c.days,
         "window_days": c.window_days,
@@ -610,14 +625,14 @@ def eval_price(
     # P96: a flash slot sells for its hours only, and at most its units: the share of the slot
     # days' orders it reaches scales the cost, the certain layer and the predicted gain alike
     slot = (
-        _slot_share(inputs, Decimal(orders_item) / window, effect_days)
+        _slot_share(inputs, _scope_orders_per_day(env, [item]), effect_days)
         if cand.kind == "flash_sale"
         else ONE
     )
     profit = ProfitModel(
         effect_days=effect_days,
         base_gmv_per_day=_scope_gmv_per_day(env, [item]),
-        base_orders_per_day=Decimal(orders_item) / window,
+        base_orders_per_day=_scope_orders_per_day(env, [item]),
         aov=aov,
         profit_per_gmv=safe_div(pi, aov) if pi is not None and aov else None,
         extra_cost_per_day=((-delta / window) if delta_known else ZERO) * slot,
@@ -1163,7 +1178,7 @@ def eval_bundle(
     profit = ProfitModel(
         effect_days=config.DAYS_PER_MONTH,
         base_gmv_per_day=_scope_gmv_per_day(env, [item]),
-        base_orders_per_day=Decimal(orders_item) / window,
+        base_orders_per_day=_scope_orders_per_day(env, [item]),
         aov=aov,
         profit_per_gmv=ppg,
         extra_cost_per_day=extra_cost / window,
@@ -1538,7 +1553,7 @@ def eval_gift(
     profit = ProfitModel(
         effect_days=config.DAYS_PER_MONTH,
         base_gmv_per_day=_scope_gmv_per_day(env, [main] if main else None),
-        base_orders_per_day=Decimal(n_orders) / window,
+        base_orders_per_day=_scope_orders_per_day(env, [main] if main else None),
         aov=gmv_per_order,
         profit_per_gmv=safe_div(cpo, gmv_per_order) if cpo is not None and gmv_per_order else None,
         extra_cost_per_day=total_cost / window,

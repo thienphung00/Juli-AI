@@ -62,7 +62,7 @@ from juli_backend.services.shopee_builder.variations import (
     variation_rows,
     with_orders,
 )
-from juli_backend.services.shopee_recommendations import loader, manual
+from juli_backend.services.shopee_recommendations import current, loader, manual
 from juli_backend.services.shopee_recommendations import targets as multi_targets
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.voucher_notes import same_result_notes
@@ -716,7 +716,10 @@ async def evaluate_versions(
             if notes:
                 res["same_as_first_notes"] = notes
     return {
-        "today": compare_today(ctx.env, results),
+        "today": {
+            **compare_today(ctx.env, results),
+            **voucher_aovs(ctx.env, specs),
+        },
         "versions": results,
         "table": table_of(results),
         "best_profit_p50": best_index(results),
@@ -725,6 +728,21 @@ async def evaluate_versions(
         "sort_basis": dict(SORT_BASIS),
         "saved": False,
     }
+
+
+def voucher_aovs(env: RecoEnv, specs: Sequence[sp.VersionSpec]) -> dict[str, float | None]:
+    """Owner #87: the two AOVs a voucher suggestion may stand on, both on hiện tại (F1, the real
+    last 30 days), whatever scope was evaluated: the shop's, and that of the evaluated products
+    (``None`` without a product or without an order)."""
+
+    def aov(items: Sequence[str]) -> float | None:
+        base = current.current_30d(env, items)
+        gmv, orders = (None, None) if base is None else (base.total("gmv"), base.total("orders"))
+        return float(gmv / orders) if gmv is not None and orders else None
+
+    items = list(dict.fromkeys(i for spec in specs for i in integrate.scope_items(spec)))
+    shop = aov(()) if current.current_30d(env) is not None else manual.today_of(env)["aov"]
+    return {"shop_aov": shop, "product_aov": aov(items) if items else None}
 
 
 def compare_today(env: RecoEnv, results: Sequence[dict[str, Any]]) -> dict[str, Any]:

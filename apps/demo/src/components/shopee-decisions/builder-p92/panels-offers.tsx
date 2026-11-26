@@ -46,7 +46,8 @@ export function VoucherPanel({ form, set, ctx }: P<"voucher">) {
   const d = details(ctx);
   const q = dn(d, "qualifying_orders");
   const t = dn(d, "total_orders");
-  const chips = voucherChips(ctx.aov);
+  const aov = form.scope === "product" ? ctx.productAov : ctx.shopAov;
+  const chips = voucherChips(aov);
   return (
     <div className="p2-panel" data-testid="p2-panel-voucher">
       <Pills label="Loại voucher" onChange={(scope) => set({ scope })} options={SCOPES} value={form.scope} />
@@ -69,7 +70,7 @@ export function VoucherPanel({ form, set, ctx }: P<"voucher">) {
         <TextIn label="Kết thúc" onChange={(end) => set({ end })} type="date" value={form.end} />
       </div>
       <div className="p2-field">
-        <span className="sd-field__label">Gợi ý từ AOV của shop{ctx.aov ? ` (${vnd(ctx.aov)})` : ""}</span>
+        <span className="sd-field__label">Gợi ý từ AOV của shop{aov ? ` (${vnd(aov)})` : ""}</span>
         <div className="sb-chips">
           {chips.map((c) => (
             <button className="sb-pill" key={c.label} onClick={() => set({ dtype: "amount", value: String(c.value), min: String(c.min) })} type="button">

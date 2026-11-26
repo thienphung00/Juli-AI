@@ -1038,7 +1038,9 @@ async def _figures(
     if rows is None:
         rows = await funnel.load_rows(session, shop_id, window)
     ids = (product_id,) if product_id else ()
-    base = funnel.base_from_rows(rows, str(shop_id), item_ids=ids)
+    base = funnel.base_from_rows(
+        rows, str(shop_id), item_ids=ids, day_totals=platform == Platform.shopee
+    )
     shop_card = _by_source(funnel.base_from_rows(rows, str(shop_id))).get(CARD)
     ads_known = shop_card is not None and shop_card.ads is not None
     ad_types = view.data.ads_daily.by_type
@@ -1197,7 +1199,11 @@ async def channel_split_products(
     # C4: order lines matching no listing are not a product: no row, no selection (reported below)
     unmatched_ids = sorted(i for i in seen if Catalog.is_unmatched(i))
     item_ids = sorted(seen - set(unmatched_ids))
-    bases = {i: funnel.base_from_rows(rows, str(shop_id), item_ids=(i,)) for i in item_ids}
+    shopee = platform == Platform.shopee
+    bases = {
+        i: funnel.base_from_rows(rows, str(shop_id), item_ids=(i,), day_totals=shopee)
+        for i in item_ids
+    }
     values: dict[str, dict[str, float | None]] = {}
     for item, b in bases.items():
         views, clicks = funnel.known_total(b, "views"), funnel.known_total(b, "clicks")

@@ -255,7 +255,7 @@ async def _product_figures(
     rows = view.data.funnel
     if rows is None:
         rows = await funnel.load_rows(session, shop_id, window)
-    base = funnel.base_from_rows(rows, str(shop_id), item_ids=(product_id,))
+    base = funnel.base_from_rows(rows, str(shop_id), item_ids=(product_id,), day_totals=True)
     pp = view.profit.products.get(product_id)
     shown = None if pp is None else product_profit_shown(pp)
     return base.total("gmv"), shown

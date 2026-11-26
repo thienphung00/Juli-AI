@@ -53,10 +53,12 @@ def test_a_thin_shop_widens_the_window_then_falls_back_to_60_days():
 
 
 def test_days_after_the_last_data_day_are_missing_not_zero():
-    # data stops 3 days before the window end: the daily rate must still be 5 orders a day
+    # data stops 3 days before the window end: F1: 27 real days, said as 27/30, never filled in
     rows = _rows(60, 5, last_day=END - timedelta(days=3))
     base = adaptive_base(rows, "s")
-    assert base.total("orders") == Decimal(150)
+    assert base.total("orders") == Decimal(135)
+    assert (base.days, base.window_days) == (27, 30)
+    assert set(dict(base.daily)["orders"]) == {5.0}  # no zero day in the rates' history
     assert last_days(rows).orders == END - timedelta(days=3)
 
 

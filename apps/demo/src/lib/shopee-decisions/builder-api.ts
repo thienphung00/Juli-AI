@@ -371,6 +371,9 @@ export interface BuilderToday {
   readonly gmv_30d: N;
   readonly orders_30d: N;
   readonly aov: N;
+  /** Owner #87: the shop's AOV and the evaluated products' AOV (null without one), whatever the scope. */
+  readonly shop_aov?: N;
+  readonly product_aov?: N;
   readonly margin_pct: N;
   readonly profit_30d?: N;
   readonly views_30d?: N;

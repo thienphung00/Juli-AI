@@ -74,6 +74,10 @@ class SourceFunnel:
     #: P99: the đơn of the days whose profit is known (``profit`` sums those days only), so
     #: profit per order = profit ÷ profit_orders
     profit_orders: Decimal = Decimal(0)
+    #: F1 (2026-11-25): the CTR / CTOR measured on the adaptive 14 / 30 / 60-day window (numerator
+    #: and denominator on the same days); a rate only, the volumes above are the real 30 days
+    ctr_rate: Decimal | None = None
+    ctor_rate: Decimal | None = None
 
     @property
     def ctr(self) -> Decimal | None:
@@ -144,6 +148,8 @@ class FunnelBase:
     daily: tuple[tuple[str, tuple[float | None, ...]], ...] = ()
     #: T1: the dashboard's margin inputs for this scope (None = unknown: the card shows no margin)
     margin_basis: MarginBasis | None = None
+    #: F1: the scope's AOV on its adaptive window (a rate): used only where the 30 days have none
+    aov_rate: Decimal | None = None
 
     @property
     def window_days(self) -> int:
@@ -320,6 +326,20 @@ class BuildUpPart:
     text: str
 
 
+def base_scale(days: int, known_days: int, window_days: int) -> float:
+    """What the base's sums are multiplied by for a card of ``days`` days. Every day of the window
+    known: ``days / window``. Some missing (``known_days`` of ``window_days``): the mean per KNOWN
+    day x ``days`` up to the known days; a longer card inside the window keeps the real sum (the
+    days that never arrived are not made up, F1: said as coverage); beyond the window it grows
+    with the days. A base that does not count its days (0) is taken as complete."""
+    window = max(1, window_days)
+    if not 0 < known_days < window:
+        return days / window
+    if days <= known_days:
+        return days / known_days
+    return max(1.0, days / window)
+
+
 @dataclass(frozen=True)
 class OptionResult:
     """Everything the card and the comparison table show (ADR-122 d.5). ``before`` is the base
@@ -350,6 +370,10 @@ class OptionResult:
     within_noise: tuple[str, ...] = ()
     #: T1: the dashboard's margin inputs (see :class:`MarginBasis`); None = no card margin
     margin_basis: MarginBasis | None = None
+    #: F1 / F2: the base's last day and its "N/30 ngày có dữ liệu" (0 = the base does not say)
+    data_through: date | None = None
+    days_with_data: int = 0
+    window_days: int = 0
 
     def json(self) -> dict[str, object]:
         """The wire shape, mirrored exactly by ``apps/demo/.../option-result.ts``. Implemented in
@@ -393,6 +417,7 @@ WIRE_KEYS = {
     "detail": "{before, low, likely, high: "
     "{views, ctr, ctor, orders, aov, gmv, profit, by_source}}",
     "notes": "list[str]",
+    "forecast": "the F2 block (shopee_recommendations.forecast.forecast_of): the one forecast",
     "ads": "{lever, campaign, days, spend_basis, spend_text, spend: {now, after}, orders: {now, "
     "after}, cpa: {now, after}, break_even_cpa, verdict: {now, after}  # 'co_lai' | 'lo' | None, "
     "verdict_text: {now, after}, profit_after_ads: {now, after}, roas_shopee: {now, after}, "

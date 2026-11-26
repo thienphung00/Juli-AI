@@ -36,7 +36,7 @@ from juli_backend.services.shopee_profit.order_profit import (
     counts_in_sales,
     profit_lines,
 )
-from juli_backend.services.shopee_recommendations import config
+from juli_backend.services.shopee_recommendations import config, current
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.evaluate import (
     D,
@@ -46,6 +46,7 @@ from juli_backend.services.shopee_recommendations.evaluate import (
     _scope_ad_spend,
     _scope_gmv_per_day,
     _scope_orders,
+    _scope_orders_per_day,
     _spend_check,
     _unknown_floors,
     scope_snapshot,
@@ -234,6 +235,9 @@ def eval_bundle_tiers(
             cut = to_dong(ln.order_value * covered * eff[tier.qty] / 100)
             discount_of[(oid, id(ln))] = cut
             extra_cost += cut
+    shown_qualifying, shown_total = current.of_orders(
+        env, items, qualifying, _scope_orders(env, items)
+    )
     window = Decimal(env.window_days)
     orders_scope = _scope_orders(env, items)
     gmv_scope = sum((ln.order_value for ln in listed), ZERO)
@@ -242,7 +246,7 @@ def eval_bundle_tiers(
     profit = ProfitModel(
         effect_days=config.DAYS_PER_MONTH,
         base_gmv_per_day=_scope_gmv_per_day(env, items),
-        base_orders_per_day=Decimal(orders_scope) / window,
+        base_orders_per_day=_scope_orders_per_day(env, items),
         aov=aov,
         profit_per_gmv=ppg,
         extra_cost_per_day=extra_cost / window,
@@ -293,8 +297,8 @@ def eval_bundle_tiers(
         "products": len(items),
         "tiers": tier_rows,
         "avg_unit_price": num(avg_price),
-        "qualifying_orders": qualifying,
-        "total_orders": orders_scope,
+        "qualifying_orders": shown_qualifying,
+        "total_orders": shown_total,
         "extra_cost_on_existing_orders": num(extra_cost),
         "aov_now": num(aov),
         "break_even_extra_orders": be,

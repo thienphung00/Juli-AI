@@ -2,6 +2,8 @@
 // backend/src/juli_backend/services/shopee_builder/engine/contract.py WIRE_KEYS exactly.
 // Money and counts are numbers (VND / count); pct are percent numbers (3.5 = +3,5 %); null = unknown.
 
+import type { ForecastBlock } from "./forecast-display";
+
 export type Driver = "views" | "ctr" | "ctor" | "aov";
 /** Forecast grill F2: the shop's data stops at `through` (no numbers then). */
 export interface DataStale {
@@ -76,6 +78,8 @@ export interface OptionResult {
   readonly stale?: DataStale | null;
   /** Forecast grill F3: metrics whose change is inside the noise band (their delta is null, shown "—"). */
   readonly within_noise?: readonly ("gmv" | "orders" | "profit")[];
+  /** F2 (forecast/2): the one forecast; absent on a result stored before it. */
+  readonly forecast?: ForecastBlock | null;
   readonly basis: Basis;
   readonly basis_weak: boolean;
   readonly delta: {

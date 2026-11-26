@@ -141,7 +141,10 @@ async def test_min_spend_voucher_matches_the_voucher_what_if_exactly(env):
     ).certain
     c = card["certain"]
     assert c["extra_cost"] == pytest.approx(float(direct.extra_cost))
-    assert c["qualifying_orders"] == direct.qualifying_orders
+    # F1: the shown "q / t đơn" is the lines' share of hiện tại's đơn (the picker's figure)
+    now = int(env.metrics.split("1001").orders)
+    assert c["total_orders"] == now
+    assert c["qualifying_orders"] == round(direct.qualifying_orders / direct.total_orders * now)
     assert c["break_even_extra_orders"] == direct.break_even_extra_orders
     assert c["usage_rate_source"] in ("input", "default_1") and c["per_user_limit_status"] is None
 

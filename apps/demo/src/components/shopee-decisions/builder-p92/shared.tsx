@@ -95,7 +95,8 @@ export interface PanelCtx {
   readonly catalogVariations?: readonly VariationRow[];
   /** Every active listing (for combo partners, add-ons, gifts). */
   readonly products: readonly PickerProduct[];
-  readonly aov: number | null;
+  readonly shopAov: number | null;
+  readonly productAov: number | null;
   readonly outcome: BuilderOutcome | null;
   readonly narrow: boolean;
   readonly costLink: string;

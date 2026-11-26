@@ -52,8 +52,9 @@ TEN = frozenset(_day(i) for i in range(10))
 def test_a1_ten_unavailable_days_leave_the_order_rate_denominator():
     rows = _rows(unavailable={"A": TEN}, zero_on=TEN)
     base = adaptive_base(rows, "s", item_ids=("A",))
-    # 20 available days x 3 orders = 60 -> 3 a day -> 90 over the 30-day base (not 60)
-    assert base.total("orders") == Decimal(90)
+    # F1 (2026-11-25): hiện tại is what was sold; the rates' history keeps the 20 available days
+    assert base.total("orders") == Decimal(60)
+    assert dict(base.daily)["orders"] == (3.0,) * 20
     assert dict(base.windows)["aov"] == 30
 
 
@@ -65,7 +66,7 @@ def test_a2_unlisted_days_are_excluded_the_same_way():
     unavailable = ud.unavailable_by_item(reads)
     assert unavailable == {"A": TEN}
     base = adaptive_base(_rows(unavailable=unavailable, zero_on=TEN), "s", item_ids=("A",))
-    assert base.total("orders") == Decimal(90)
+    assert dict(base.daily)["orders"] == (3.0,) * 20
 
 
 def test_a3_no_read_day_and_a_positive_read_are_not_unavailable():
@@ -90,9 +91,9 @@ def test_a3_no_read_day_and_a_positive_read_are_not_unavailable():
     base = adaptive_base(
         _rows(unavailable=unavailable, per_day=1, orders_ago=big), "s", item_ids=("A",)
     )
-    # 14-day window: 11 x 1 + 3 x 20 = 71 orders -> 71 / 14 a day -> x 30; dropping any of the
-    # three days would give a different number
-    assert float(base.total("orders")) == pytest.approx(71 / 14 * 30)
+    # 14-day window: 11 x 1 + 3 x 20 = 71 orders; dropping any of the three days would give a
+    # different number
+    assert sum(dict(base.daily)["orders"]) == pytest.approx(71)
     assert len(dict(base.daily)["orders"]) == 14
 
 
@@ -105,10 +106,12 @@ def test_a4_a_day_is_dropped_when_any_product_of_the_scope_is_unavailable():
     assert ud.scope_unavailable(un, ()) == frozenset()
     rows = _rows(items=("A", "B"), unavailable=un, zero_on=a_days | b_days)
     base = adaptive_base(rows, "s", item_ids=("A", "B"))
-    # 8 days dropped, 22 left, 6 orders a day (3 + 3) -> 6 x 30
-    assert base.total("orders") == Decimal(180)
-    # one product alone only loses its own 5 days
-    assert adaptive_base(rows, "s", item_ids=("A",)).total("orders") == Decimal(90)
+    # 8 days dropped, the history keeps 6 orders a day (3 + 3); the volume is the real one (F1)
+    assert set(dict(base.daily)["orders"]) == {6.0}
+    assert base.total("orders") == Decimal(22 * 6)
+    # one product alone only loses its own 5 days (it sold nothing on 3 of B's)
+    one = dict(adaptive_base(rows, "s", item_ids=("A",)).daily)["orders"]
+    assert one.count(0.0) == 3
 
 
 def test_a5_shop_scope_is_identical_with_and_without_unavailable_data():
@@ -123,12 +126,13 @@ def test_a6_windows_count_only_available_days_and_all_unavailable_is_low_data():
     rows = _rows(per_day=1, unavailable={"A": recent}, zero_on=recent)
     base = adaptive_base(rows, "s", item_ids=("A",))
     assert dict(base.windows)["aov"] == 60  # only 10 available days: no window reaches 30 events
-    assert base.total("orders") == Decimal(30)  # 10 orders over 10 days -> 1 a day
+    assert base.total("orders") == Decimal(10)  # F1: what was sold
+    assert dict(base.daily)["orders"] == (1.0,) * 10  # 1 a day on the available days
     # every day unavailable but with real orders on record: no available event -> ít dữ liệu
     everything = frozenset(_day(i) for i in range(DAYS))
     gone = adaptive_base(_rows(unavailable={"A": everything}), "s", item_ids=("A",))
     assert {"ctr", "ctor", "aov"} <= set(gone.low_data)
-    assert not gone.total("orders")
+    assert gone.total("orders") == Decimal(90)  # F1: the picker's figure, not estimable
     # the same rows with no unavailable data are plain data
     assert adaptive_base(_rows(), "s", item_ids=("A",)).low_data == ()
 
@@ -177,12 +181,11 @@ def test_per_source_views_ctr_ctor_use_only_available_days():
     rows = FunnelRows(window, tuple(src), tuple(shop), tuple(product), unavailable={"A": TEN})
     base = adaptive_base(rows, "s", item_ids=("A",))
     only = {x.source: x for x in base.sources}["the_san_pham_khac"]
-    # 20 available days: 100 views a day, CTR 10 / 100, CTOR 3 / 10 -> x 30 days
-    assert float(only.views) == pytest.approx(3000)
-    assert float(only.clicks) == pytest.approx(300)
-    assert float(only.orders) == pytest.approx(90)
+    # the rates are the 20 available days': CTR 10 / 100, CTOR 3 / 10; the volumes are real (F1)
+    assert float(only.ctr_rate) == pytest.approx(0.1)
+    assert float(only.ctor_rate) == pytest.approx(0.3)
+    assert float(only.views) == 10 * 1000 + 20 * 100
     # the same rows without the unavailable data are skewed by the 10 distorted days
     skewed = adaptive_base(replace(rows, unavailable={}), "s", item_ids=("A",))
-    assert float({x.source: x for x in skewed.sources}["the_san_pham_khac"].views) != pytest.approx(
-        3000
-    )
+    other = {x.source: x for x in skewed.sources}["the_san_pham_khac"]
+    assert float(other.ctr_rate) != pytest.approx(0.1)
