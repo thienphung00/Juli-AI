@@ -219,8 +219,14 @@ def split_amount(total: Decimal, weights: Sequence[Decimal]) -> list[Decimal]:
     return [Decimal(sign * piece) * CENT for piece in pieces]
 
 
-def split_income(income: IncomeOrder, weights: Sequence[Decimal]) -> list[LineIncome]:
-    """Every line's share of the order's actuals, by ``weights`` (the lines' value)."""
+def split_income(
+    income: IncomeOrder,
+    weights: Sequence[Decimal],
+    voucher_weights: Sequence[Decimal] | None = None,
+) -> list[LineIncome]:
+    """Every line's share of the order's actuals, by ``weights`` (the lines' value). The seller
+    voucher the settlement proves is cut by ``voucher_weights`` (the lines' goods value) when
+    given, else by ``weights``."""
     count = len(weights)
 
     def cut(amount: Decimal | None) -> list[Decimal]:
@@ -236,7 +242,7 @@ def split_income(income: IncomeOrder, weights: Sequence[Decimal]) -> list[LineIn
     coin = cut(income.seller_coin_borne)
     trade_in = cut(income.trade_in_bonus_seller)
     borne, voucher_unknown = decide_seller_voucher(income)
-    voucher = cut(borne)
+    voucher = split_amount(borne or ZERO, voucher_weights or weights) if count else []
     payout = split_amount(income.payout, weights) if income.payout is not None and count else None
     return [
         LineIncome(

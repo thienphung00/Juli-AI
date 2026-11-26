@@ -793,18 +793,25 @@ def campaign_profile(env: RecoEnv, campaign_key: str) -> dict[str, Any] | None:
     figs = env.view.ads.product_figures
     weighted = ZERO
     weight = ZERO
+    by_spend = ZERO  # the same rates weighted by the campaign's spend split (decision #39)
+    spend_weight = ZERO
     for item, spend in alloc.products.items():
         fig = figs.get(item)
         pp = env.product(item)
-        if fig is None or fig.direct_gmv is None or pp is None:
+        if pp is None:
             continue
-        share = safe_div(spend, env.view.ads.product_spend.get(item, spend)) or ONE
         rate = (
             safe_div(pp.contribution, pp.buyer_paid_covered) if pp.buyer_paid_covered > 0 else None
         )
+        r = rate if rate is not None and rate > 0 else ZERO
+        spend_weight += spend
+        by_spend += spend * r
+        if fig is None or fig.direct_gmv is None:
+            continue
+        share = safe_div(spend, env.view.ads.product_spend.get(item, spend)) or ONE
         d = fig.direct_gmv * min(share, ONE)
         weight += d
-        weighted += d * (rate if rate is not None and rate > 0 else ZERO)
+        weighted += d * r
     # C2: ROAS is read from the campaign's own figures and a measured 0 stays 0; the products only
     # weight the contribution rate. The products' direct revenue stands in when the campaign's is
     # not known (a Connector day without the count, a report that gives it per product only).
@@ -813,7 +820,12 @@ def campaign_profile(env: RecoEnv, campaign_key: str) -> dict[str, Any] | None:
         direct = weight if weight > 0 else direct
     known = direct is not None
     direct = direct or ZERO
-    rate = weighted / weight if weight > 0 else None
+    # owner #99 1a: a product's report direct GMV is None off the report's own period, so the
+    # products' spend split (the campaign's Connector days, C2) weights the rate instead
+    if weight > 0:
+        rate: Decimal | None = weighted / weight
+    else:
+        rate = by_spend / spend_weight if spend_weight > 0 else None
     before_ads = direct * rate if rate is not None else ZERO
     return {
         "alloc": alloc,
@@ -1084,6 +1096,7 @@ def _bundle_line(line: OrderLine, qty: int, pct_off: Decimal) -> OrderLine:
         bundle_discount=to_dong(gross * pct_off / 100),
         combo_in_price=False,
         shop_voucher_share=ZERO,
+        voucher_proven=None,
         order_id=f"bundle:{line.sku}:{qty}",
         promo_kind=PromoKind.NONE,
     )
@@ -1313,6 +1326,7 @@ def eval_add_on(
             qty=1,
             deal_price=price_after,
             shop_voucher_share=ZERO,
+            voucher_proven=None,
             bundle_discount=ZERO,
             order_id=f"addon:{sku}",
             promo_kind=PromoKind.NONE,

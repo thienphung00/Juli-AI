@@ -9,6 +9,7 @@ import uuid
 
 import pytest
 
+from juli_backend.services.shopee_profit import shop_profit as shop_profit_mod
 from juli_backend.services.shopee_recommendations import plan_steps as ps
 from juli_backend.services.shopee_recommendations import plans
 from tests.unit import test_shopee_reco_plan as _plan
@@ -114,7 +115,12 @@ async def test_reordering_and_removing_re_evaluate_the_steps(session, shop):
     assert only["total"]["dprofit_p50"] == only["items"][0]["dprofit_total_p50"]
 
 
-async def test_cards_of_different_products_stay_independent_with_shop_totals(session, shop):
+async def test_cards_of_different_products_stay_independent_with_shop_totals(
+    session, shop, monkeypatch
+):
+    # Owner #96 (70-100 % gate): the synthetic shop's known-cost share is ~45 % of the GMV, so
+    # the shop margin would read None; this test is about the step totals, so open the gate.
+    monkeypatch.setattr(shop_profit_mod, "MIN_KNOWN_GMV_SHARE_PCT", 0)
     seeded, env = shop
     a = uuid.UUID((await _manual(session, seeded, env, _discount(15)))["id"])
     other = {"change_kind": "product_discount", "items": ["1002"], "inputs": {"discount_pct": 15}}
