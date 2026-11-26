@@ -65,9 +65,9 @@ async def test_a_voucher_moves_aov_and_ctor_and_leaves_views_ctr_unchanged(sessi
     assert_funnel_holds(v)
 
 
-async def test_a_title_moves_views_only(session, shop):
-    # 4f64e2e5: a title lift is scored against the product's keyword volumes -- seed the market
-    # keywords and give the title the keywords they rank, so the version is estimable
+async def test_a_title_shows_no_uplift_until_measured(session, shop):
+    # #93 (owner, F5): a title shows no uplift (views, CTR, GMV, profit) until it is measured,
+    # whatever keywords it holds (was 4f64e2e5: a keyword-scored lift on views + CTR)
     from tests.unit.test_shopee_builder_drafts import _market
 
     await _market(session, shop.shop_id)
@@ -80,18 +80,11 @@ async def test_a_title_moves_views_only(session, shop):
         title="Găng tay tự hủy sinh học STAHAUS, găng tay dùng một lần, găng tay nitrile y tế",
         keywords=["găng tay"],
     )
-    assert v["result"]["estimable"] is True
-    ba, rows = rows_of(v)
-    assert ba["scope"] == "product"
-    views = rows["views"]
-    if views["before"] is not None:
-        assert views["unchanged"] is False and views["after"]["high"] > views["after"]["low"]
-    # ADR-122 d.10: a title drives Lượt xem + CTR on Thẻ sản phẩm; CTOR / AOV stay
-    assert rows["ctr"]["unchanged"] is False
-    for key in ("ctor", "aov"):
-        assert rows[key]["unchanged"] is True and rows[key]["reason"], key
-    assert_flat_when_unchanged(rows)
-    assert_funnel_holds(v)
+    assert v["ok"] is True and v["result"]["estimable"] is False
+    _, rows = rows_of(v)
+    for key, r in rows.items():
+        after = r["after"]
+        assert after is None or after["low"] == after["p50"] == after["high"], key
 
 
 async def test_a_price_cut_moves_orders_and_ctor_but_not_views_or_ctr(session, shop):
