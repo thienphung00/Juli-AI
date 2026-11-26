@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
@@ -110,25 +111,42 @@ def this_period_empty(preset: str, as_of: date) -> bool:
     return preset == "mtd_vs_same_days_last_month" and (as_of + timedelta(days=1)).day == 1
 
 
-# One phrase -> one window (J2): the model never decides what "last week" means.
+def _strip_accents(text: str) -> str:
+    nfd = unicodedata.normalize("NFD", text.replace("đ", "d").replace("Đ", "D"))
+    return unicodedata.normalize("NFC", "".join(c for c in nfd if unicodedata.category(c) != "Mn"))
+
+
+def fold(text: str) -> str:
+    """Lower case without Vietnamese accents ("Tuần này" -> "tuan nay"): sellers type both."""
+    return _strip_accents(text).lower()
+
+
+def folded(rx: str) -> re.Pattern[str]:
+    """A word pattern that matches accented and unaccented text alike (match it on `fold(text)`).
+    Only the accents of the pattern go (its escapes such as `\\S` keep their case)."""
+    return re.compile(_strip_accents(rx), re.I)
+
+
+# One phrase -> one window (J2): the model never decides what "last week" means. "This week
+# (compared with last week)" is this week: the current period is listed before the previous one.
 _PHRASES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (folded(r"tuần\s+này|this\s+week"), "this_week_vs_same_days_last_week"),
     (
-        re.compile(r"tuần\s+(trước|vừa rồi|qua)|last\s+(full\s+)?week|previous\s+week", re.I),
+        folded(r"tuần\s+(trước|vừa rồi|qua)|last\s+(full\s+)?week|previous\s+week"),
         "last_full_week_vs_week_before",
     ),
-    (re.compile(r"tuần\s+này|this\s+week", re.I), "this_week_vs_same_days_last_week"),
-    (re.compile(r"hôm\s+qua|yesterday", re.I), "yesterday_vs_same_weekday"),
+    (folded(r"hôm\s+qua|yesterday"), "yesterday_vs_same_weekday"),
+    (folded(r"tháng\s+này|this\s+month"), "mtd_vs_same_days_last_month"),
     (
-        re.compile(r"tháng\s+trước|last\s+month|previous\s+month", re.I),
+        folded(r"tháng\s+trước|last\s+month|previous\s+month"),
         "last_month_vs_month_before",
     ),
-    (re.compile(r"tháng\s+này|this\s+month", re.I), "mtd_vs_same_days_last_month"),
     (
-        re.compile(r"30\s*ngày\s*(qua|gần nhất|vừa rồi)|(last|past)\s+30\s+days", re.I),
+        folded(r"30\s*ngày\s*(qua|gần nhất|vừa rồi)|(last|past)\s+30\s+days"),
         "last_30d_vs_prev_30d",
     ),
     (
-        re.compile(r"7\s*ngày\s*(qua|gần nhất|vừa rồi)|(last|past)\s+7\s+days", re.I),
+        folded(r"7\s*ngày\s*(qua|gần nhất|vừa rồi)|(last|past)\s+7\s+days"),
         "last_7d_vs_prev_7d",
     ),
 )
@@ -137,7 +155,7 @@ _PHRASES: tuple[tuple[re.Pattern[str], str], ...] = (
 def window_from_phrase(phrase: str | None) -> str | None:
     """The preset a time phrase names, or None when it names none."""
     for rx, preset in _PHRASES:
-        if phrase and rx.search(phrase):
+        if phrase and rx.search(fold(phrase)):
             return preset
     return None
 

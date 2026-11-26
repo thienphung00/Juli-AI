@@ -110,7 +110,8 @@ def jev_answers(spec: dict[str, Any] | None, it: dict[str, Any]) -> dict[str, di
     otherwise."""
     s = dict(spec or {})
     metric = s.pop("metric", None) or routing.named_metric_of(it) or "gmv"
-    chain = s.pop("chain", None) or routing.METRIC_CHAIN.get(metric, "gmv_change")
+    top = max(metric, key=lambda kv: kv[1])[0] if isinstance(metric, list) else metric
+    chain = s.pop("chain", None) or routing.METRIC_CHAIN.get(top, "gmv_change")
     out = {
         "fits": nl(float(s.pop("fits", 0.95))),
         "mode": _choice(s.pop("mode", "lookup")),

@@ -615,9 +615,7 @@
       "to": "2026-10-07"
      }
     ]
-   },
-   "status": "xfail",
-   "reason": "window_from_phrase matches 'last week' before 'this week': 'this week compared with last week' runs last week (28/09–04/10)"
+   }
   },
   {
    "id": "gmv-no-period-asks",
@@ -2092,9 +2090,7 @@
       "to": "2026-10-07"
      }
     ]
-   },
-   "status": "xfail",
-   "reason": "entity words are not accent-folded: 'ma giam gia' is no voucher, so the SHOP's orders answer under no voucher label"
+   }
   },
   {
    "id": "voucher-analyse",
@@ -2447,9 +2443,7 @@
     "require": [
      "Juli chưa có số liệu này"
     ]
-   },
-   "status": "xfail",
-   "reason": "entity words are not accent-folded: 'combo khuyen mai' is no programme, so the SHOP's GMV answers a combo question"
+   }
   },
   {
    "id": "aff-orders-7d",
@@ -3067,9 +3061,7 @@
       ]
      }
     ]
-   },
-   "status": "xfail",
-   "reason": "campaign words are not accent-folded: 'chien dich quang cao' is no campaign"
+   }
   },
   {
    "id": "ads-livestream",
@@ -3206,9 +3198,7 @@
       ]
      }
     ]
-   },
-   "status": "xfail",
-   "reason": "Session A #6 (modelled parse): in a multi-intent message raw_text is set only when there is ONE intent, so the 3rd intent ('which campaigns are losing', no 'ad' word, no entity_phrase) finds no campaign entity; fits 0.55 < 0.7 with no named metric -> decide() asks 'chain' (needs_choice) after two answers"
+   }
   },
   {
    "id": "sa07-ads-this-vs-last-week",
@@ -3291,9 +3281,7 @@
       ]
      }
     ]
-   },
-   "status": "xfail",
-   "reason": "Session A #7 (modelled parse): as #6 (no raw_text for the campaign intent -> needs_choice 'chain'), and 'this week compared with last week' resolves to last week (window_from_phrase order)"
+   }
   },
   {
    "id": "top-products-7d",
@@ -3731,9 +3719,7 @@
       "window": "05/10–07/10"
      }
     ]
-   },
-   "status": "xfail",
-   "reason": "Session A #9 (modelled parse, ranking slot left 'none'): the lookup Choice is split (0.55 < 0.6) so it falls to metric_total, and metric_named 0.2 <= 0.3 makes decide() ask 'metric' (needs_choice); the decline words are checked only against raw_text, which a 2-intent message does not carry"
+   }
   },
   {
    "id": "stock-running-out",
@@ -4317,9 +4303,7 @@
     ],
     "more_items": 2,
     "more_vietnamese": true
-   },
-   "status": "xfail",
-   "reason": "the 'more' offer labels are the parser's English metric_phrase ('ad spend', 'ROAS'), not Vietnamese"
+   }
   },
   {
    "id": "multi-four-asks-noaccent",

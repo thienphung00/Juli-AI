@@ -229,7 +229,7 @@ async def _unsupported(
     await out.emit(ev)
     result.stop_reasons.append("unsupported")
     digest = hashlib.sha256((text or "").encode()).hexdigest()[:16]
-    parsed = {k: v for k, v in (intent or {}).items() if k != "raw_text"}
+    parsed = {k: v for k, v in (intent or {}).items() if k not in ("raw_text", "msg_text")}
     result.routing.append(
         {"step": "unmet_request", "text_hash": digest, "restated": restated, "parsed": parsed}
     )
@@ -296,6 +296,9 @@ async def _run(
         intents = parsed["intents"][: max_intents or routing.MAX_INTENTS]
         if len(parsed["intents"]) == 1:  # the seller's own words, for entity / decline words
             intents[0]["raw_text"] = req.text or ""
+        else:  # several intents: the whole message is context only (routing.entity_kind)
+            for i in intents:
+                i["msg_text"] = req.text or ""
         more = parsed["more"] + parsed["intents"][max_intents or routing.MAX_INTENTS :]
         # one Jev routing request per intent, in parallel
         replies = await asyncio.gather(*(routing.route(jev, i) for i in intents))
@@ -436,15 +439,31 @@ async def _run(
         await out.emit(
             {
                 "type": "more",
-                "items": [
-                    {
-                        "label_vi": i.get("metric_phrase") or "Câu hỏi tiếp",
-                        "text": i.get("metric_phrase") or "",
-                    }
-                    for i in more
-                ],
+                "items": [_more_item(i, labels) for i in more],
             }
         )
+
+
+#: the period words of a "more" button (the parser's phrases are English)
+PERIOD_VI = {
+    "yesterday_vs_same_weekday": "hôm qua",
+    "this_week_vs_same_days_last_week": "tuần này",
+    "last_full_week_vs_week_before": "tuần trước",
+    "last_7d_vs_prev_7d": "7 ngày qua",
+    "last_30d_vs_prev_30d": "30 ngày qua",
+    "mtd_vs_same_days_last_month": "tháng này",
+    "last_month_vs_month_before": "tháng trước",
+}
+
+
+def _more_item(intent: dict[str, Any], labels: LabelTable) -> dict[str, str]:
+    """One "more" button in Vietnamese: the metric's own label and the period the seller named;
+    the text is what the tap asks (never the parser's English phrase)."""
+    metric = routing.named_metric_of(intent)
+    label = labels.metric(metric) if metric else "Câu hỏi tiếp"
+    period = PERIOD_VI.get(windows.window_from_phrase(intent.get("time_phrase")) or "")
+    text = f"{label} {period}" if metric and period else (label if metric else "")
+    return {"label_vi": label, "text": text}
 
 
 async def _answer(
