@@ -16,6 +16,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.repositories import PlatformItemSnapshotsRepo
+from juli_backend.services.capabilities import Route, can
 from juli_backend.services.ingest import read_days
 from juli_backend.services.shopee_analytics import (
     ads_gate,
@@ -69,8 +70,9 @@ async def unsettled_freshness(
 ) -> dict[str, Any] | None:
     """7b: ``freshness.unsettled_orders`` -- completed orders still unpaid over 2 days later
     (``{count, oldest_completed_on}``), Shopee shops only. The one computation behind the
-    overview and the channel split (Tổng quan reads the latter); TikTok gets ``None``."""
-    if platform != "shopee":
+    overview and the channel split (Tổng quan reads the latter); a platform without the
+    ``unsettled_orders`` capability (TikTok) gets ``None``."""
+    if can(platform, "unsettled_orders").route is Route.none:
         return None
     return await read_days.unsettled_status(session, shop_id, platform)
 
