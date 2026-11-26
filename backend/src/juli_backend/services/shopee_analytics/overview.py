@@ -516,7 +516,9 @@ def build_overview(
         },
         "flows": _flows_block(now, before, platform),
         "levers": _levers_block(now),
-        "five_numbers": five_json(five, comparable=comparable),
+        "five_numbers": five_json(
+            five, comparable=comparable, ads_known=now.ads.known_spend is not None
+        ),
         "profit": _profit_block(now),
         "ads": _ads_block(now, platform),
         "vouchers": _vouchers_block(now, ctx),

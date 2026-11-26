@@ -29,7 +29,10 @@ from tests.support.shopee_analytics import seed_shopee_shop
 #: confirmation lines, so product 1002 now has gmv / orders / units / line_gmv / line_orders = 0 and
 #: its 275.000 GMV sits in that day's ``__residual__`` row (the shop row is unchanged). Nothing else
 #: moved (dump diff against the base, all three tables).
-BASE_DIGEST = "9a7f496d2e2c553bc9740697563e788c444cdcfe0b9a5ee29adac7505bbe2207"
+#: Re-pinned again (owners #99 / #103, 10a + 4a): ROWS_VERSION 4 -> 5 (every shop row's
+#: ``detail.rows_v``) and the day 2026-10-05 gains ``detail.cancelled_gmv`` = 275000 /
+#: ``cancelled_orders`` = 1. Dump diff against the previous pin: only those ``detail`` values.
+BASE_DIGEST = "4ffcffa5dfb8b2c99a2e39b4804daca07da443509db4b5cde0dd23e98539f7c7"
 _SKIP = {"id", "shop_id", "built_at"}
 #: the columns migration 140 added, which nothing writes since #2367 was taken out: they must be
 #: empty, and the digest of every other column is the one from before it

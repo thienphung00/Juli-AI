@@ -87,7 +87,11 @@ def short_five(now: PeriodView, before: PeriodView, product_id: str) -> dict[str
     """The matrix's per-product numbers (1) % giảm giá and (2) thu thêm / chi thêm against the
     previous period; withheld, not zero, when the previous period has no order lines."""
     comparable = before.comparable_as_previous
-    full = five_json(five_for(now, before, None, product_id), comparable=comparable)
+    full = five_json(
+        five_for(now, before, None, product_id),
+        comparable=comparable,
+        ads_known=now.ads.known_spend is not None,
+    )
     return {
         "discount": full["discount"],
         "extra_revenue_per_extra_spend": full["extra_revenue_per_extra_spend"],

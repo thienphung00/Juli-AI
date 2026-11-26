@@ -157,3 +157,42 @@ def test_the_product_profit_is_none_without_ad_data():
     assert product_profit_shown(pp) is None and product_margin_pct_shown(pp) is None
     _, sp_ok, _ = _known_profit(True)
     assert product_profit_shown(sp_ok.products["A"]) is not None
+
+
+def test_the_cancelled_share_is_its_own_row_only_when_non_zero():
+    from juli_backend.services.shopee_analytics.metrics import (
+        CANCELLED_LABEL,
+        cancelled_row,
+        cancelled_share,
+    )
+
+    pairs = [
+        (_line("o1", "A", 100_000), None),
+        (_line("o2", "B", 100_000, OrderStatus.CANCELLED), None),
+        (_line("o2", "C", 50_000, OrderStatus.CANCELLED), None),
+    ]
+    gmv, orders = cancelled_share(pairs, D(1))
+    assert (gmv, orders) == (D(150_000), 1)
+    assert cancelled_share(pairs, D("0.5"))[0] == D(75_000)  # scaled like the products
+    assert cancelled_row(D(0), 0) is None
+    assert cancelled_row(gmv, orders) == {
+        "label": "Đơn hủy sau xác nhận",
+        "gmv": 150000,
+        "orders": 1,
+    }
+    assert CANCELLED_LABEL == "Đơn hủy sau xác nhận"
+
+
+def test_the_five_numbers_show_no_profit_without_ad_data():
+    from juli_backend.services.shopee_analytics.shared import five_json
+    from juli_backend.services.shopee_profit.five_numbers import five_numbers, snapshot_from
+
+    pairs = [_pair("o1", 100_000, 4, 40_000)]
+    snap = snapshot_from(pairs, D(0), days=D(1))
+    five = five_numbers(snap, snap)
+    shown = five_json(five)["margin"]
+    assert shown["profit_before"] is not None
+    gated = five_json(five, ads_known=False)["margin"]
+    assert all(
+        gated[k] is None for k in ("profit_before", "profit_after", "pct_before", "pct_after")
+    )

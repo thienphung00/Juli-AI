@@ -77,9 +77,11 @@ logger = logging.getLogger(__name__)
 #: version of the rule the stored rows are built with (``shop row detail.rows_v``). 2 (F7.10): the
 #: stored profit is the unscaled known-cost profit (P100 B.5); 3 (decision #39): a product's
 #: ad cost is the ads report by product (:mod:`product_ads`), ad-only days get a row; 4 (decision
-#: #50): doanh thu thực subtracts only the shop voucher the seller bore (settlement). Bump it to
+#: #50): doanh thu thực subtracts only the shop voucher the seller bore (settlement); 5 (owners
+#: #99 / #103): a product leaves out its cancelled lines, whose share is the shop row's
+#: ``detail.cancelled_gmv`` / ``cancelled_orders``. Bump it to
 #: rebuild every shop's stored days automatically (:func:`rebuild_outdated`).
-ROWS_VERSION = 4
+ROWS_VERSION = 5
 ROWS_VERSION_KEY = "rows_v"
 
 #: ingest datasets that cannot change a day's shop or product numbers
@@ -364,6 +366,11 @@ def day_rows(
             "aov_sc_net_gmv": None if not m.line_orders else str(net_gmv),
             "profit_partial": bool(m.profit_is_partial),
             ROWS_VERSION_KEY: ROWS_VERSION,
+            **(
+                {"cancelled_gmv": str(m.cancelled_gmv), "cancelled_orders": m.cancelled_orders}
+                if m.cancelled_gmv or m.cancelled_orders
+                else {}
+            ),
         },
         "complete": complete,
     }

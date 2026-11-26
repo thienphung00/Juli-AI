@@ -369,7 +369,11 @@ def kpi_block(
     comparable = before.comparable_as_previous
     if not comparable:  # P100-A (A.3): never a previous figure the period cannot be compared to
         prev = {**prev, "gmv": None, "orders": None}
-    five = five_json(five_for(now, before, None, product_id), comparable=comparable)
+    five = five_json(
+        five_for(now, before, None, product_id),
+        comparable=comparable,
+        ads_known=now.ads.known_spend is not None,
+    )
     return {
         "gmv": {
             "value": gmv,
