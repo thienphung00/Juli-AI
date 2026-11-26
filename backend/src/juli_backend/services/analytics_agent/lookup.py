@@ -195,7 +195,8 @@ async def _total(
         return _break_even(o1), (_break_even(o0) if w.prev else None)
     if metric == COST_METRIC:  # Tổng chi phí / doanh thu thực: the cost chain's own figure
         a0, b0 = w.prev if w.prev else w.cur
-        l1, l0 = await data.cost_lines_pair(*w.cur, a0, b0)
+        a1, b1 = w.cur
+        l1, l0 = await data.cost_lines_pair(a1, b1, a0, b0)
 
         def ratio(lines: dict[str, Any]) -> float | None:
             cost, net = _cost(lines), lines.get("net_revenue")

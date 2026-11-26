@@ -153,6 +153,16 @@ _CAMPAIGN = folded(r"campaign|chiến dịch")
 _PRODUCT_LOSS = folded(
     r"(sản phẩm|products?).{0,40}(lỗ|losing|loss|lose)|(lỗ|losing|loss).{0,40}(sản phẩm|products?)"
 )
+#: one ads line of Tổng quan's Quảng cáo split (channel_split's ad rows), named beside an ad word
+AD_LINE_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (folded(rx), k)
+    for rx, k in (
+        (r"dvht\s*shop|dịch vụ hiển thị shop|shop\s*\+|shop plus", "ads_shop"),
+        (r"dvht\s*(sản phẩm|sp\b)|dịch vụ hiển thị sản phẩm|product ads", "ads_product"),
+        (r"livestream|\blive\b", "ads_livestream"),
+        (r"\bkhác\b|\bother\b", "ads_other"),
+    )
+)
 #: affiliate commission named without the channel ("tốn bao nhiêu hoa hồng"); "phí hoa hồng" is
 #: a Shopee fee, never the affiliate's
 _COMMISSION = folded(r"(?<!phí )hoa hồng|(?<!fee )commission(?! fee)")
@@ -210,6 +220,8 @@ def entity_kind(intent: dict[str, Any]) -> str | None:
     for rx, k in ENTITY_WORDS:
         if rx.search(blob):
             return k
+    if ad_line_of(intent):
+        return "ad_line"
     if _CAMPAIGN.search(blob) and _AD_WORDS.search(context):  # a campaign means an ad campaign
         return "campaign"
     if _PRODUCT_LOSS.search(blob) and _AD_WORDS.search(context):  # "sản phẩm nào lỗ sau quảng cáo"
@@ -217,6 +229,20 @@ def entity_kind(intent: dict[str, Any]) -> str | None:
     if _COMMISSION.search(blob) and _AFFILIATE.search(context):
         return "affiliate"
     return None
+
+
+def ad_line_of(intent: dict[str, Any]) -> str | None:
+    """ads_product | ads_shop | ads_livestream | ads_other when the intent's own words name one
+    ads line together with an ad word ("Quảng cáo Livestream", "DVHT Shop+")."""
+    blob = fold(
+        " ".join(
+            str(intent.get(k) or "")
+            for k in ("entity_phrase", "metric_phrase", "source_phrase", "raw_text")
+        )
+    )
+    if not _AD_WORDS.search(blob):
+        return None
+    return next((k for rx, k in AD_LINE_WORDS if rx.search(blob)), None)
 
 
 def ranking_of(intent: dict[str, Any]) -> str:

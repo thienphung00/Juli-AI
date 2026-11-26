@@ -1,7 +1,7 @@
 {
  "bank": {
   "count": 192,
-  "passing": 153,
+  "passing": 157,
   "cases": {
    "gmv-yesterday": "f5ea1d11780cc28e",
    "gmv-yesterday-noaccent": "0edab8310a0aa3e5",
@@ -84,13 +84,13 @@
    "ads-spend-slang": "20df28b3a9aba4ce",
    "roas-7d": "397ed2192887c4da",
    "roas-last-week-mixed": "53a4eec8349f6cb3",
-   "dvht-san-pham-spend": "182c86a6dc37e216",
-   "dvht-shop-plus-spend": "68d5cf99701d946e",
+   "dvht-san-pham-spend": "7921e141cea5914e",
+   "dvht-shop-plus-spend": "ebaa7e724a12682f",
    "campaigns-7d": "c7f5c4c81d3368dd",
    "campaign-losing": "26bc8112e50c5b69",
    "campaign-losing-noaccent": "06026b5ca9e62e12",
-   "ads-livestream": "4a38584f913f2af6",
-   "ads-khac": "c067ac0c067e67cf",
+   "ads-livestream": "4e4056765a291687",
+   "ads-khac": "d92ff3ac65f056b6",
    "sa06-ads-week-three-asks": "27cf5a0efb5e3b61",
    "sa07-ads-this-vs-last-week": "5fd5da2a07cb08a6",
    "top-products-7d": "4804ea2b281f17cb",

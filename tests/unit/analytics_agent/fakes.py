@@ -158,6 +158,9 @@ class FakeData:
     async def default_window(self, as_of: date) -> tuple[date, date] | None:
         return self.default_span
 
+    async def ad_lines(self, a: date, b: date) -> dict[str, dict[str, Any]] | None:
+        return None
+
 
 class FakeJev:
     """Answers from a script: `answers` maps a question id to its answer, or is a callable."""

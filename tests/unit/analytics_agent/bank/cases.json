@@ -2923,9 +2923,7 @@
       "title_has": "Sản phẩm"
      }
     ]
-   },
-   "status": "xfail",
-   "reason": "no DVHT Sản phẩm / DVHT Shop+ split in Chat: the shop's whole ad spend answers under a DVHT question"
+   }
   },
   {
    "id": "dvht-shop-plus-spend",
@@ -2951,9 +2949,7 @@
       "title_has": "Shop+"
      }
     ]
-   },
-   "status": "xfail",
-   "reason": "no DVHT Sản phẩm / DVHT Shop+ split in Chat: the shop's whole ad spend answers under a DVHT question"
+   }
   },
   {
    "id": "campaigns-7d",
@@ -3078,9 +3074,7 @@
       "title_has": "Livestream"
      }
     ]
-   },
-   "status": "pending",
-   "reason": "tag 2 adds Livestream ads"
+   }
   },
   {
    "id": "ads-khac",
@@ -3106,9 +3100,7 @@
       "title_has": "Khác"
      }
     ]
-   },
-   "status": "pending",
-   "reason": "tag 2 adds the 'Khác' ads line"
+   }
   },
   {
    "id": "sa06-ads-week-three-asks",

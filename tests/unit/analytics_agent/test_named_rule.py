@@ -157,3 +157,21 @@ def test_the_more_buttons_are_vietnamese() -> None:
         "text": f"{labels.metric('ads_spend')} tuần trước",
     }
     assert _more_item({"metric_phrase": "something"}, labels)["label_vi"] == "Câu hỏi tiếp"
+
+
+@pytest.mark.parametrize(
+    ("words", "line"),
+    [
+        ("Quảng cáo Livestream 7 ngày qua chi bao nhiêu", "ads_livestream"),
+        ("quang cao khac tuan truoc", "ads_other"),
+        ("DVHT Shop+ tuần trước tốn bao nhiêu", "ads_shop"),
+        ("Dịch vụ hiển thị Sản phẩm 7 ngày qua", "ads_product"),
+    ],
+)
+def test_an_ads_line_is_its_own_entity(words: str, line: str) -> None:
+    it = status(metric_phrase="ad spend", raw_text=words)
+    assert routing.entity_kind(it) == "ad_line" and routing.ad_line_of(it) == line
+
+
+def test_live_without_an_ad_word_is_no_ads_line() -> None:
+    assert routing.ad_line_of(status(metric_phrase="orders", source_phrase="LIVE")) is None
