@@ -39,7 +39,7 @@ from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
 from juli_backend.services.shopee_profit.order_profit import (
     OrderLine,
     ProfitBreakdown,
-    counts_in_sales,
+    counts_in_product_sales,
     profit_lines,
 )
 
@@ -204,8 +204,8 @@ def sku_waterfall(
     )
     for sku, items in sorted(by_sku.items()):
         carrying = [(ln, pb) for ln, pb in items if pb.excluded_reason is None]
-        units = sum(ln.qty for ln, _ in carrying if counts_in_sales(ln))
-        orders = len({ln.order_id for ln, _ in carrying if counts_in_sales(ln)})
+        units = sum(ln.qty for ln, _ in carrying if counts_in_product_sales(ln))
+        orders = len({ln.order_id for ln, _ in carrying if counts_in_product_sales(ln)})
         list_price = view.costs.list_price.get(sku)
         cost = view.costs.by_key.get(sku)
         real = view.costs.cogs_is_real(sku)
@@ -614,8 +614,8 @@ def daily_block(view: PeriodView, product_id: str, rows: list[Any], source: str)
         acc: dict[date, list[Decimal]] = defaultdict(lambda: [ZERO, ZERO])
         seen: dict[date, set[str]] = defaultdict(set)
         for ln, _ in _lines_of(view, product_id):
-            if not counts_in_sales(ln):
-                continue  # a returned order is no sale (T5 D2)
+            if not counts_in_product_sales(ln):
+                continue  # a returned order is no sale (T5 D2); a cancelled one is no product's
             acc[ln.order_date][0] += ln.order_value
             if ln.order_id not in seen[ln.order_date]:
                 seen[ln.order_date].add(ln.order_id)

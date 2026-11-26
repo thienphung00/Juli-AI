@@ -348,13 +348,17 @@ def _ads_block(view: PeriodView, platform: str = "shopee") -> dict[str, Any]:
         "basis": ADS_BASIS,
         "note": ads_basis_note(platform),
         "in_which": "trong đó (overlay, không phải một dòng của tổng)",
-        "spend": num(ads.total_spend),
+        "spend": num(ads.known_spend),
         "gmv_placed": num(
             daily.gmv if daily.days_covered else known_sum([c.gmv for c in ads.campaigns])
         ),
         "orders_placed": num(daily.orders if daily.days_covered else None),
         "roas": ratio(safe_div(daily.gmv, daily.spend), 2) if daily.spend else None,
-        "spend_per_day": num(safe_div(ads.total_spend, Decimal(view.window.days))),
+        "spend_per_day": num(
+            None
+            if ads.known_spend is None
+            else safe_div(ads.known_spend, Decimal(view.window.days))
+        ),
         "days_covered": daily.days_covered,  # days with no source are "chưa có dữ liệu", not 0
         "window_days": daily.window_days,
         "day_sources": _day_sources(daily.source_by_day),

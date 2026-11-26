@@ -42,6 +42,7 @@ def shop_profit_raw(view: PeriodView) -> KnownCostProfit:
         view.metrics.gmv,
         view.data.ads_daily.spend_by_day,
         order_data_days(view),
+        ads_known=view.ads.known_spend is not None,
     )
 
 

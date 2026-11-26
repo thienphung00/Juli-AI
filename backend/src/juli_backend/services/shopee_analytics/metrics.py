@@ -42,7 +42,10 @@ from juli_backend.services.shopee_analytics.loaders import product_totals_for
 from juli_backend.services.shopee_analytics.stored import StoredWindow
 from juli_backend.services.shopee_analytics.windows import Anchor, Window
 from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
-from juli_backend.services.shopee_profit.order_profit import counts_in_sales
+from juli_backend.services.shopee_profit.order_profit import (
+    counts_in_product_sales,
+    counts_in_sales,
+)
 
 if TYPE_CHECKING:
     from juli_backend.services.shopee_analytics.period_spread import SpreadDay
@@ -100,7 +103,7 @@ class ShopMetrics:
     gmv_basis: str
     views: int | None
     clicks: int | None
-    ad_spend: Decimal
+    ad_spend: Decimal | None  # None = no ad-cost data for the window (owner #99)
     ads_roas_placed: Decimal | None
     profit: Decimal | None
     profit_is_partial: bool
@@ -229,13 +232,13 @@ def _splits(
     units: dict[str, int] = defaultdict(int)
     order_ids: dict[str, set[str]] = defaultdict(set)
     for ln, _ in view.pairs:
-        if not counts_in_sales(ln):
-            continue  # a returned order is no sale (T5 D2)
+        if not counts_in_product_sales(ln):
+            continue  # a returned order is no sale (T5 D2); a cancelled one is not a product's
         line_gmv[ln.product_id] += ln.order_value
         units[ln.product_id] += ln.qty
         order_ids[ln.product_id].add(ln.order_id)
     total_line_gmv = sum(line_gmv.values(), ZERO)
-    total_line_orders = view.line_orders
+    total_line_orders = len(set().union(*order_ids.values())) if order_ids else 0
     if total_line_gmv > 0:
         scale = (gmv / total_line_gmv) if gmv is not None else None
         o_scale = (
@@ -343,7 +346,7 @@ def shop_metrics(
         gmv_basis=BASIS_SHOP_TOTALS if totals_ok else BASIS_ORDER_LINES,
         views=views,
         clicks=clicks,
-        ad_spend=view.ads.total_spend,
+        ad_spend=view.ads.known_spend,
         ads_roas_placed=safe_div(daily.gmv, daily.spend) if daily.spend else None,
         profit=profit,
         profit_is_partial=p.margin_is_partial or p.profit is None,
@@ -406,7 +409,7 @@ def from_stored(view: PeriodView, stored: StoredWindow) -> ShopMetrics:
         gmv_basis=BASIS_SHOP_TOTALS,
         views=stored.views,
         clicks=stored.clicks,
-        ad_spend=stored.ads_spend or ZERO,
+        ad_spend=stored.ads_spend,
         ads_roas_placed=safe_div(stored.ads_gmv, stored.ads_spend)
         if stored.ads_gmv is not None and stored.ads_spend
         else None,

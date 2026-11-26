@@ -359,10 +359,14 @@ class ServiceData:
     #: status (`counts_in_sales`); the day is the line's order day. Entity rows use exactly this,
     #: so they are a subset of the shop totals.
     @staticmethod
-    def _sales_basis() -> str:
+    def _sales_basis(product: bool = False) -> str:
         from juli_backend.services.shopee_profit.order_profit import REFUND_STATUSES
 
         refunds = ", ".join(f"'{x.value}'" for x in sorted(REFUND_STATUSES, key=lambda x: x.value))
+        # owner #99: a PRODUCT's sales leave out cancelled lines; the shop-level line basis keeps
+        # them, as the headline does
+        if product:
+            refunds += ", 'cancelled'"
         return f"paid_at is not null and qty > 0 and status not in ({refunds})"
 
     async def entity_totals(
@@ -385,7 +389,7 @@ class ServiceData:
                            coalesce(sum(shop_voucher_share), 0) as voucher_cost
                       from order_lines
                      where shop_id = :s and platform = 'shopee' and day between :a and :b
-                       and {self._sales_basis()} and {cond}
+                       and {self._sales_basis(item is not None)} and {cond}
                        and (cast(:i as text) is null or item_id = cast(:i as text))""",  # nosec B608 — fragments are fixed literals (closed dict, registry enum)
                 a=a,
                 b=b,
@@ -515,7 +519,7 @@ class ServiceData:
                         "item_id": item,
                         "name": env.name(item),
                         "profit": product_profit_shown(p),
-                        "ad_spend": p.ad_spend,
+                        "ad_spend": p.ad_spend if env.view.ads.known_spend is not None else None,
                         "margin_pct": product_margin_pct_shown(p),
                         "gmv": p.gmv,
                         **_product_break_even(p),

@@ -140,6 +140,13 @@ def counts_in_sales(line: object) -> bool:
     return status is None or status not in REFUND_STATUSES
 
 
+def counts_in_product_sales(line: object) -> bool:
+    """``line`` counts in a PRODUCT's đơn / GMV / AOV (owner #99, 26/11): a sale line that is not
+    cancelled. Shopee's shop day rows leave cancelled orders out, so a product built from order
+    lines must too, or the products add up to more than the shop."""
+    return counts_in_sales(line) and getattr(line, "status", None) is not OrderStatus.CANCELLED
+
+
 class PromoKind(StrEnum):
     NONE = "none"
     PROMOTION = "promotion"

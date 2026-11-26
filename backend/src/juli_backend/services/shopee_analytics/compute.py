@@ -166,6 +166,12 @@ class AdsAllocation:
     remainder: Decimal = ZERO
     remainder_gmv: Decimal | None = None
 
+    @property
+    def known_spend(self) -> Decimal | None:
+        """The window's ad cost; ``None`` when there is no ad-cost data for it (no daily rows, no
+        report): missing is never 0 (owner #99). A read day that spent 0 is 0."""
+        return None if self.basis == "none" else self.total_spend
+
     def ad_campaigns(self) -> list[AdCampaign]:
         out = [AdCampaign(c.key, c.spend, c.gmv, c.name, c.direct_gmv) for c in self.campaigns]
         if self.remainder != 0:
@@ -342,6 +348,8 @@ def allocate_ads(
         daily_total = daily.spend
     elif resolved is not None and resolved.total > 0:
         daily_total = resolved.total
+    elif daily.days_covered > 0 and daily.days_covered >= daily.window_days:
+        daily_total = ZERO  # the days were read and nothing was spent: 0 is data
     else:
         daily_total = None
     camps, raw_total = _campaign_allocs(window, rows, product_ads or ProductAdsInput())
@@ -403,14 +411,18 @@ def _product_figures(
 ) -> tuple[dict[str, Decimal], dict[str, AdsFigures]]:
     """Each product's ad cost (decision #39) and the report's GMV at the same ratio."""
     product_spend: dict[str, Decimal] = defaultdict(lambda: ZERO)
-    product_gmv: dict[str, Decimal] = defaultdict(lambda: ZERO)
-    product_direct: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    # owner #99: a product's ads GMV (and ROAS) only from a report whose period IS the window;
+    # a report of another period gives no GMV (None, never 0 and never prorated)
+    own = (window.start, window.end)
+    product_gmv: dict[str, Decimal] = {}
+    product_direct: dict[str, Decimal] = {}
     for r in rows:
         if r.item_id:
             f = _row_factor(window, r.period, frozenset())
             product_spend[r.item_id] += r.spend * f
-            product_gmv[r.item_id] += r.gmv * f
-            product_direct[r.item_id] += r.direct_gmv * f
+            if r.period == own:
+                product_gmv[r.item_id] = product_gmv.get(r.item_id, ZERO) + r.gmv
+                product_direct[r.item_id] = product_direct.get(r.item_id, ZERO) + r.direct_gmv
     wanted_by_item: dict[str, Decimal] | None = None
     if product_ads is not None:
         # decision #39: one ad cost per product = the Connector's campaign days x the product's
@@ -421,15 +433,12 @@ def _product_figures(
         wanted_by_item = resolved.products
     if wanted_by_item is not None:
         for item, wanted in wanted_by_item.items():
-            have = product_spend.get(item, ZERO)
-            ratio = wanted / have if have > 0 else ZERO
-            product_gmv[item] = product_gmv.get(item, ZERO) * ratio
-            product_direct[item] = product_direct.get(item, ZERO) * ratio
             product_spend[item] = wanted
         for item in [i for i in product_spend if i not in wanted_by_item]:
             del product_spend[item]
     figures = {
-        i: AdsFigures(product_spend[i], product_gmv[i], product_direct[i]) for i in product_spend
+        i: AdsFigures(product_spend[i], product_gmv.get(i), product_direct.get(i))
+        for i in product_spend
     }
     return dict(product_spend), figures
 

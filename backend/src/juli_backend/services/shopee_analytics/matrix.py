@@ -197,7 +197,7 @@ def product_row(view: PeriodView, product_id: str, platform: str = "shopee") -> 
             "margin_pct": pct(product_margin_pct_shown(pp)),
             "contribution": num(product_contribution_shown(pp)),
             "net_revenue": num(pp.buyer_paid),
-            "ad_spend": num(pp.ad_spend),
+            "ad_spend": num(pp.ad_spend) if view.ads.known_spend is not None else None,
             "break_even_roas": ratio(product_break_even_roas_shown(pp), 2),
             "cost_coverage_pct": pct(pp.cost_coverage_pct),
             "assumed_cost": any(
