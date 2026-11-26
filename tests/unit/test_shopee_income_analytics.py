@@ -15,6 +15,7 @@ from juli_backend.models.run_changes import ShopRule
 from juli_backend.models.shopee_profit import ShopeeOrderIncome
 from juli_backend.services.shopee_analytics import loaders, materialize, queries
 from juli_backend.services.shopee_analytics.windows import Window
+from juli_backend.services.shopee_profit import shop_profit as shop_profit_mod
 from tests.support.shopee_analytics import CUR_END, CUR_START, Seeded, seed_shopee_shop
 
 CUR = Window(CUR_START, CUR_END)
@@ -61,7 +62,12 @@ async def test_the_overview_without_income_says_no_order_has_it(session):
     assert body["profit"]["vat"]["basis"] == "before_vat"
 
 
-async def test_income_rows_win_over_the_order_exports_fees_and_show_in_the_coverage(session):
+async def test_income_rows_win_over_the_order_exports_fees_and_show_in_the_coverage(
+    session, monkeypatch
+):
+    # Owner #96 (70-100 % gate): the synthetic shop's known-cost share is ~57 %, so the profit
+    # would read None; this test is about the income / VAT effect on it, so open the gate.
+    monkeypatch.setattr(shop_profit_mod, "MIN_KNOWN_GMV_SHARE_PCT", 0)
     seeded = await seed_shopee_shop(session)
     before = await _overview(session, seeded)
     refs = _delivered_refs(seeded, 3)
@@ -113,7 +119,12 @@ async def _flag(session, seeded: Seeded, key: str, value, scope: str = ""):
     await session.flush()
 
 
-async def test_a_vat_inclusive_shop_with_a_rate_per_sku_reports_profit_after_vat(session):
+async def test_a_vat_inclusive_shop_with_a_rate_per_sku_reports_profit_after_vat(
+    session, monkeypatch
+):
+    # Owner #96 (70-100 % gate): the synthetic shop's known-cost share is ~57 %, so the profit
+    # would read None; this test is about the income / VAT effect on it, so open the gate.
+    monkeypatch.setattr(shop_profit_mod, "MIN_KNOWN_GMV_SHARE_PCT", 0)
     seeded = await seed_shopee_shop(session)
     plain = await _overview(session, seeded)
     await _flag(session, seeded, "prices_include_vat", True)

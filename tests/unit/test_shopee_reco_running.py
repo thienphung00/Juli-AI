@@ -131,6 +131,8 @@ async def _seed_rows(session, sid, first: date, last: date, *, item_profit=10_00
             ShopeeShopMetricsDaily(
                 shop_id=sid, day=d, order_type="confirmed", gmv=D(500_000), orders=10,
                 profit=D(50_000), ads_spend=D(0), complete=True,
+                # R1 (#96/#98 gate): a day with orders but no costed order has no profit
+                buyer_paid_known=D(450_000), line_gmv=D(500_000),
             )
         )  # fmt: skip
         after = d >= START

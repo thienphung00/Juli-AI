@@ -353,14 +353,21 @@ def test_a_variation_without_history_takes_its_product_rates():
         def __init__(self, revenue, voucher, commission):
             self.revenue, self.voucher, self.commission = D(revenue), D(voucher), D(commission)
             self.excluded_reason = None
+            # the affiliate cost basis (8f5237e35) asks for a costed line
+            self.organic_contribution = D(1)
+            self.contribution = D(1)
 
     class _Ln:
         def __init__(self, sku):
             self.product_id, self.sku = "P", sku
+            self.order_id = "o1"
             self.affiliate = False  # a normal line (OrderLine.affiliate defaults to False)
 
     class _Ads:
         product_spend = {"P": D(1_000)}
+        known_spend = D(
+            1_000
+        )  # #99/#103: product.py reads ads_unknown from the window's known spend
 
     class _View:
         pairs = [(_Ln("A"), _Pb(10_000, 500, 1_000))]
