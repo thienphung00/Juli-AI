@@ -567,6 +567,7 @@ def compute_view(ctx: ShopContext, data: PeriodData) -> PeriodView:
         product_ad_spend=ads.product_spend,
         export_gmv=data.totals.gmv if data.totals.complete else None,
         product_ads=ads.product_figures,
+        ads_known=ads.known_spend is not None,
     )
     matrix = build_source_matrix(pairs)
 

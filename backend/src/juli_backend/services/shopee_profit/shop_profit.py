@@ -121,6 +121,8 @@ class ProductProfit:
     #: of them and those of the known-cost (whole) orders: the product's known share
     gmv_net: Decimal = ZERO
     gmv_known_net: Decimal = ZERO
+    #: owner #103 11a: ``False`` = the window has no ad data at all (not "0 spent"): no profit
+    ads_known: bool = True
 
     @property
     def organic_contribution(self) -> Decimal:
@@ -362,7 +364,8 @@ def product_profit_reliable(pp: ProductProfit) -> bool:
     product that only has ads) or no known order: not reliable."""
     share = product_known_share_pct(pp)
     return (
-        share is not None
+        pp.ads_known
+        and share is not None
         and pp.buyer_paid_covered > 0
         and MIN_KNOWN_GMV_SHARE_PCT <= share <= MAX_KNOWN_GMV_SHARE_PCT
     )
@@ -393,8 +396,12 @@ def shop_profit(
     other_marketing_costs: Decimal = ZERO,
     export_gmv: Decimal | None = None,
     product_ads: Mapping[str, AdsFigures] | None = None,
+    ads_known: bool = True,
 ) -> ShopProfit:
-    products = product_profits(pairs, product_ad_spend, product_ads)
+    products = {
+        k: replace(p, ads_known=ads_known)
+        for k, p in product_profits(pairs, product_ad_spend, product_ads).items()
+    }
     total_ads = sum((c.spend for c in campaigns), ZERO)
     by_product = sum(product_ad_spend.values(), ZERO)
     unattributed = total_ads - by_product
@@ -512,6 +519,8 @@ class KnownCostProfit:
     #: line of the bridge reads ``None`` ("—"), never 0. Profit itself is gated by
     #: :func:`profit_is_reliable`, which does not look at ads (reported to the owner).
     ads_known: bool = True
+    #: why the gate withheld the profit when it is not the known-cost share (internal, not shown)
+    withheld_reason: str | None = None
 
     @property
     def label(self) -> str:
@@ -562,10 +571,14 @@ class KnownCostProfit:
         }
 
 
+#: owner #103 11a: the internal reason when the window has no ad data (never shown on a screen)
+NO_ADS_DATA_REASON = "chưa có dữ liệu quảng cáo"
+
+
 def profit_is_reliable(kp: KnownCostProfit) -> bool:
     """THE reliability rule. Share known: ``70 <= share <= 100``. Share unknown (no shop GMV):
     reliable only when there are known-cost orders (today's behaviour, reported to the owner)."""
-    if kp.profit is None:
+    if kp.profit is None or not kp.ads_known:
         return False
     if kp.gmv_share_pct is None:
         return kp.orders > 0
@@ -577,7 +590,14 @@ def gate_profit(kp: KnownCostProfit) -> KnownCostProfit:
     :func:`profit_is_reliable` says no; the coverage, GMV, ads and costs stay."""
     if kp.profit is None or profit_is_reliable(kp):
         return kp
-    return replace(kp, profit=None, margin_pct=None, product_profit=None, withheld=True)
+    return replace(
+        kp,
+        profit=None,
+        margin_pct=None,
+        product_profit=None,
+        withheld=True,
+        withheld_reason=None if kp.ads_known else NO_ADS_DATA_REASON,
+    )
 
 
 def stored_day_profit_trusted(

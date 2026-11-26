@@ -119,3 +119,41 @@ def test_a_product_with_an_unknown_ads_gmv_is_not_ranked_as_zero():
         pairs=[],
     )
     assert _product_m(view, "1", "ads", None) is None
+
+
+def _known_profit(ads_known: bool):
+    from juli_backend.services.shopee_profit.shop_profit import known_cost_profit
+
+    pairs = [_pair("o1", 100_000, 4, 40_000)]
+    sp = shop_profit(pairs, campaigns=[], product_ad_spend={}, ads_known=ads_known)
+    return pairs, sp, known_cost_profit(sp, pairs, D(100_000), {}, None, ads_known=ads_known)
+
+
+def test_no_ad_data_at_all_withholds_the_shop_profit_in_the_one_gate():
+    from juli_backend.services.shopee_profit.shop_profit import gate_profit
+
+    _, _, kp = _known_profit(False)
+    assert kp.profit is not None  # the raw figure exists ...
+    gated = gate_profit(kp)
+    assert gated.profit is None and gated.margin_pct is None and gated.withheld
+    assert gated.withheld_reason == "chưa có dữ liệu quảng cáo"
+
+
+def test_a_window_whose_data_says_zero_spent_keeps_its_profit():
+    from juli_backend.services.shopee_profit.shop_profit import gate_profit
+
+    _, _, kp = _known_profit(True)
+    assert gate_profit(kp).profit == kp.profit and kp.profit is not None
+
+
+def test_the_product_profit_is_none_without_ad_data():
+    from juli_backend.services.shopee_profit.shop_profit import (
+        product_margin_pct_shown,
+        product_profit_shown,
+    )
+
+    _, sp, _ = _known_profit(False)
+    pp = sp.products["A"]
+    assert product_profit_shown(pp) is None and product_margin_pct_shown(pp) is None
+    _, sp_ok, _ = _known_profit(True)
+    assert product_profit_shown(sp_ok.products["A"]) is not None
