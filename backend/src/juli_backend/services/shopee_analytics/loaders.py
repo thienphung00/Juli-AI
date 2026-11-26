@@ -335,32 +335,35 @@ async def load_income(
     if not refs:
         return {}
     rows = await ShopeeOrderIncomeRepo(session).for_refs(shop_id, refs)
-    return {
-        r.order_ref: IncomeOrder(
-            order_ref=r.order_ref,
-            fee_fixed=r.fee_fixed,
-            fee_service=r.fee_service,
-            fee_payment=r.fee_payment,
-            fee_piship=r.fee_piship,
-            fee_nttd=r.fee_nttd,
-            affiliate_commission=r.affiliate_commission,
-            net_shipping_cost=r.net_shipping_cost,
-            return_ship_refund=r.return_ship_refund,
-            return_ship_failed=r.return_ship_failed,
-            refund_amount=r.refund_amount,
-            lost_compensation=r.lost_compensation,
-            # vat_withheld / pit_withheld stay stored, never passed to profit (no tax calculation,
-            # owner 2026-11-15); their sum is a term of C9's settlement arithmetic only
-            withheld_from_payout=(r.vat_withheld or ZERO) + (r.pit_withheld or ZERO),
-            seller_coin_borne=r.seller_coin_borne,
-            trade_in_bonus_seller=r.trade_in_bonus_seller,
-            payout=r.payout,
-            seller_voucher_borne=r.seller_voucher_borne,
-            product_price=r.product_price,
-            fee_other=r.fee_other,
-        )
-        for r in rows
-    }
+    return {r.order_ref: income_order(r) for r in rows}
+
+
+def income_order(r: Any) -> IncomeOrder:
+    """One stored income row (any object with the ``order_settlements`` columns) as the pure
+    :class:`IncomeOrder`."""
+    return IncomeOrder(
+        order_ref=r.order_ref,
+        fee_fixed=r.fee_fixed,
+        fee_service=r.fee_service,
+        fee_payment=r.fee_payment,
+        fee_piship=r.fee_piship,
+        fee_nttd=r.fee_nttd,
+        affiliate_commission=r.affiliate_commission,
+        net_shipping_cost=r.net_shipping_cost,
+        return_ship_refund=r.return_ship_refund,
+        return_ship_failed=r.return_ship_failed,
+        refund_amount=r.refund_amount,
+        lost_compensation=r.lost_compensation,
+        # vat_withheld / pit_withheld stay stored, never passed to profit (no tax calculation,
+        # owner 2026-11-15); their sum is a term of C9's settlement arithmetic only
+        withheld_from_payout=(r.vat_withheld or ZERO) + (r.pit_withheld or ZERO),
+        seller_coin_borne=r.seller_coin_borne,
+        trade_in_bonus_seller=r.trade_in_bonus_seller,
+        payout=r.payout,
+        seller_voucher_borne=r.seller_voucher_borne,
+        product_price=r.product_price,
+        fee_other=r.fee_other,
+    )
 
 
 # ---------------------------------------------------------------------------------------

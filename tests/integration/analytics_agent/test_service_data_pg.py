@@ -310,12 +310,16 @@ async def test_voucher_income_counts_only_income_rows_in_the_window(world: Any) 
     with an income row; a window with no income row is "no rows", never 0."""
     sid, f = world
 
-    def row(ref: str, day: date, borne: str | None) -> ShopeeOrderIncome:
+    def row(ref: str, day: date, borne: str | None, paid: str | None = None) -> ShopeeOrderIncome:
+        # decision #100 (7a): a stated voucher counts only when the payout arithmetic closes with
+        # it (price 100000, no fee: payout = price - borne)
         return ShopeeOrderIncome(
             shop_id=sid,
             platform="shopee",
             order_ref=ref,
             ordered_on=day,
+            product_price=None if paid is None else Decimal(100_000),
+            payout=None if paid is None else Decimal(paid),
             seller_voucher_borne=None if borne is None else Decimal(borne),
             source="file",
             source_rank=3,
@@ -325,8 +329,9 @@ async def test_voucher_income_counts_only_income_rows_in_the_window(world: Any) 
     async with f() as s:
         s.add_all(
             [
-                row("SYN-INC-1", date(2026, 10, 2), "5000"),
-                row("SYN-INC-2", date(2026, 10, 3), "3000"),
+                row("SYN-INC-1", date(2026, 10, 2), "5000", "95000"),
+                row("SYN-INC-2", date(2026, 10, 3), "3000", "97000"),
+                row("SYN-INC-6", date(2026, 10, 5), "4000"),  # stated, never proven: not counted
                 row("SYN-INC-3", date(2026, 10, 4), "0"),  # an income row with no voucher
                 row("SYN-INC-4", date(2026, 10, 6), None),  # the export did not state it
                 row("SYN-INC-5", date(2026, 10, 20), "9000"),  # outside the window
@@ -335,7 +340,7 @@ async def test_voucher_income_counts_only_income_rows_in_the_window(world: Any) 
         await s.commit()
     d = ServiceData(f, sid)
     got = await d.voucher_income(CUR_END - timedelta(days=6), CUR_END)
-    assert got["rows"] == 4  # the 20/10 row is outside
+    assert got["rows"] == 5  # the 20/10 row is outside
     assert got["orders"] == 2  # only seller_voucher_borne > 0
     assert got["cost"] == Decimal("8000")  # NULL adds nothing, the outside row is not in
     assert got["income_to"] == date(2026, 10, 6)

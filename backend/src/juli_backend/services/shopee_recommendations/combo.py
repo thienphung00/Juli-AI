@@ -161,7 +161,12 @@ def apply_offer(
     v_shares = _spread(v_disc, [ln.order_value - s for ln, s in zip(lines, shares, strict=True)])
     out = [
         replace(
-            ln, bundle_discount=s, shop_voucher_share=v, voucher_funded=ZERO, voucher_unknown=False
+            ln,
+            bundle_discount=s,
+            shop_voucher_share=v,
+            voucher_funded=ZERO,
+            voucher_unknown=False,
+            voucher_proven=None,
         )
         for ln, s, v in zip(lines, shares, v_shares, strict=True)
     ]
@@ -328,6 +333,7 @@ def combo_lines(env: RecoEnv, spec_lines: Sequence[Mapping[str, Any]]) -> list[O
                 ref,
                 qty=int(entry.get("qty", 1)),
                 shop_voucher_share=ZERO,
+                voucher_proven=None,
                 bundle_discount=ZERO,
                 promo_kind=PromoKind.NONE,
                 ad_attributed=False,

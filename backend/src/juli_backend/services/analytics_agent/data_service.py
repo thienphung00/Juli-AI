@@ -408,42 +408,60 @@ class ServiceData:
 
     async def voucher_income(self, a: date, b: date) -> dict[str, Any]:
         """Voucher orders and the voucher part of Ưu đãi from the stored per-order income
-        (`order_settlements`, the table the fee / profit loaders read): orders with
-        `seller_voucher_borne > 0`, the sum of `seller_voucher_borne`, and the GMV of those
-        orders from `order_lines`. Only orders that HAVE an income row count (a day without
-        income is not 0); `income_to` is the last order day the income holds in the window."""
-        head = (
-            await self._q(
-                """select count(*) as rows,
-                          count(*) filter (where seller_voucher_borne > 0) as orders,
-                          sum(seller_voucher_borne) as cost,
-                          max(ordered_on) as income_to
-                     from order_settlements
-                    where shop_id = :s and platform = 'shopee' and ordered_on between :a and :b""",
-                a=a,
-                b=b,
-            )
-        )[0]
-        gmv = (
-            await self._q(
-                f"""select coalesce(sum(deal_price * qty), 0) as gmv
-                      from order_lines
-                     where shop_id = :s and platform = 'shopee' and day between :a and :b
-                       and {self._sales_basis()}
-                       and order_ref in (select order_ref from order_settlements
-                                          where shop_id = :s and platform = 'shopee'
-                                            and ordered_on between :a and :b
-                                            and seller_voucher_borne > 0)""",  # nosec B608 — fragments are fixed literals (registry enum)
-                a=a,
-                b=b,
-            )
-        )[0]["gmv"]
+        (`order_settlements`, the table the fee / profit loaders read). Decision #100 (7a): the
+        seller-borne amount of an order is the ONE figure profit uses
+        (`income.decide_seller_voucher`: the settlement's arithmetic decides, the stated column
+        can be the buyer-side voucher); an order counts when that amount is > 0. Only orders that
+        HAVE an income row count (a day without income is not 0); `income_to` is the last order
+        day the income holds in the window."""
+        from decimal import Decimal
+        from types import SimpleNamespace
+
+        from juli_backend.services.shopee_analytics.loaders import income_order
+        from juli_backend.services.shopee_profit.income import decide_seller_voucher
+
+        rows = await self._q(
+            """select order_ref, ordered_on, payout, product_price, refund_amount, fee_fixed,
+                      fee_service, fee_payment, fee_piship, fee_nttd, fee_other,
+                      affiliate_commission, net_shipping_cost, return_ship_refund,
+                      return_ship_failed, lost_compensation, vat_withheld, pit_withheld,
+                      seller_voucher_borne, seller_coin_borne, trade_in_bonus_seller
+                 from order_settlements
+                where shop_id = :s and platform = 'shopee' and ordered_on between :a and :b""",
+            a=a,
+            b=b,
+        )
+        cost = Decimal(0)
+        refs: list[str] = []
+        income_to: date | None = None
+        for r in rows:
+            day = r["ordered_on"]
+            if day is not None and (income_to is None or day > income_to):
+                income_to = day
+            borne, _unknown = decide_seller_voucher(income_order(SimpleNamespace(**r)))
+            if borne is not None and borne > 0:
+                cost += borne
+                refs.append(r["order_ref"])
+        gmv = Decimal(0)
+        if refs:
+            gmv = (
+                await self._q(
+                    f"""select coalesce(sum(deal_price * qty), 0) as gmv
+                          from order_lines
+                         where shop_id = :s and platform = 'shopee' and day between :a and :b
+                           and {self._sales_basis()}
+                           and order_ref = any(:refs)""",  # nosec B608 — fragments are fixed literals (registry enum)
+                    a=a,
+                    b=b,
+                    refs=refs,
+                )
+            )[0]["gmv"]
         return {
-            "rows": head["rows"],
-            "orders": head["orders"],
+            "rows": len(rows),
+            "orders": len(refs),
             "gmv": gmv,
-            "cost": head["cost"],
-            "income_to": head["income_to"],
+            "cost": cost if rows else None,
+            "income_to": income_to,
         }
 
     async def voucher_rows(self, a: date, b: date) -> list[dict[str, Any]]:

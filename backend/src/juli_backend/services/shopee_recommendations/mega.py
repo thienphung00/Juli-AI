@@ -153,7 +153,15 @@ def _apply_best_voucher(
                 else (to_dong(discount * ln.order_value / subtotal) if discount > 0 else ZERO)
             )
             left -= share
-            out.append(replace(ln, shop_voucher_share=ln.shop_voucher_share + share))
+            out.append(
+                replace(
+                    ln,
+                    shop_voucher_share=ln.shop_voucher_share + share,
+                    voucher_proven=(
+                        None if ln.voucher_proven is None else ln.voucher_proven + share
+                    ),
+                )
+            )
     return out, qual, total
 
 
@@ -187,7 +195,13 @@ def evaluate_mega(
     # history happened to carry are taken off both the baseline and the scenario, so the
     # children below are the only vouchers / combos in the window
     base_lines = [
-        replace(ln, shop_voucher_share=ZERO, bundle_discount=ZERO, voucher_unknown=False)
+        replace(
+            ln,
+            shop_voucher_share=ZERO,
+            bundle_discount=ZERO,
+            voucher_unknown=False,
+            voucher_proven=None,
+        )
         for ln in raw_lines
     ]
     # 1) price levers: new deal price per SKU
