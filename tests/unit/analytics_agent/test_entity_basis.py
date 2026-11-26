@@ -102,14 +102,6 @@ async def test_a_products_totals_leave_out_cancelled_lines(data: SqliteData) -> 
     assert whole["orders"] == 3 and float(whole["gmv"]) == 600.0
 
 
-async def test_per_voucher_rows_partition_the_voucher_total(data: SqliteData) -> None:
-    rows = await data.voucher_rows(A, B)
-    v = await data.entity_totals("voucher", A, B)
-    assert {r["code"] for r in rows} == {"VC-A", "VC-B"}  # the returned VC-A line is not counted
-    assert sum(r["orders"] for r in rows) == v["orders"]
-    assert sum(float(r["gmv"]) for r in rows) == float(v["gmv"])
-
-
 async def test_one_product_is_a_subset_of_the_whole(data: SqliteData) -> None:
     whole = await data.entity_totals("all", A, B)
     one = await data.entity_totals("all", A, B, "p1")

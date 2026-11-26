@@ -324,19 +324,21 @@ class FakeEntityData(FakeData):
             "cost": sum(r["cost"] for r in sel) if sel or kind == "voucher" else None,
         }
 
-    async def voucher_income(self, a: date, b: date) -> dict[str, Any]:
-        """Synthetic `order_settlements` rows: only days that have an income row count."""
+    async def voucher_figures(self, a: date, b: date) -> dict[str, Any] | None:
+        """Synthetic `voucher_figures_of` output: per-day voucher rows (orders, GMV, cost of the
+        known orders) and the voucher settings as given."""
         rows = [r for r in self.entity.get("voucher", []) if a <= r["day"] <= b]
+        known = [r for r in rows if r.get("known", True)]
+        gmv = sum(r["gmv"] for r in rows)
         return {
-            "rows": len(rows),
+            "lines": len(rows) or self.entity.get("voucher_lines", 0),
             "orders": sum(r["orders"] for r in rows),
-            "gmv": sum(r["gmv"] for r in rows),
-            "cost": sum(r["cost"] for r in rows) if rows else None,
-            "income_to": max((r["day"] for r in rows), default=None),
+            "gmv": gmv,
+            "cost": sum(r["cost"] for r in known) if known or not rows else None,
+            "known_orders": sum(r["orders"] for r in known),
+            "known_gmv_share_pct": sum(r["gmv"] for r in known) * 100 / gmv if gmv else None,
+            "settings": self.entity.get("voucher_settings", []),
         }
-
-    async def voucher_rows(self, a: date, b: date) -> list[dict[str, Any]]:
-        return self.entity.get("voucher_codes", [])
 
     async def campaign_rows(self, a: date, b: date) -> list[dict[str, Any]]:
         return self.entity.get("campaigns", [])
