@@ -302,6 +302,50 @@ async def _window(
     return clip_to_freshness(w, latest), latest
 
 
+#: an ads line's Vietnamese name (Tổng quan's Quảng cáo rows)
+AD_LINE_VI = {
+    "ads_product": "Dịch vụ hiển thị Sản phẩm",
+    "ads_shop": "Dịch vụ hiển thị Shop+",
+    "ads_livestream": "Livestream",
+    "ads_other": "Khác",
+}
+
+
+async def _ad_line_answers(
+    data: DataPort, intent: dict[str, Any], metric: str | None, w: Any, latest: date
+) -> list[dict[str, Any]]:
+    """One ads line's spend (or GMV / đơn) from Tổng quan's own Quảng cáo split; [] when the
+    shop has no ads figure (never the whole ads spend under the line's name)."""
+    from juli_backend.services.analytics_agent.routing import ad_line_of
+
+    key = ad_line_of(intent)
+    if key is None:
+        return []
+    now = (await data.ad_lines(*w.cur) or {}).get(key)
+    if now is None:
+        return []
+    before = (await data.ad_lines(*w.prev) or {}).get(key) if w.prev else None
+    want, mkey, title = {
+        "gmv": ("gmv", "gmv", "GMV từ quảng cáo"),
+        "orders": ("orders", "orders", "Đơn từ quảng cáo"),
+    }.get(metric or "", ("spend", "ads_spend", "Chi phí quảng cáo"))
+    n = _f(now.get(want))  # None: the line is listed without a figure -> "—"
+    b0 = _f((before or {}).get(want)) if before is not None else None
+    return [
+        _answer(
+            "metric_total",
+            f"{title} {AD_LINE_VI[key]}",
+            w,
+            latest,
+            value=fmt.value(mkey, n),
+            value_raw=n,
+            before=b0,
+            before_vi=fmt.value(mkey, b0) if w.prev else None,
+            delta=fmt.delta(mkey, n, b0) if w.prev else None,
+        )
+    ]
+
+
 async def run_entity(
     kind: str | None,
     data: DataPort,
@@ -322,6 +366,8 @@ async def run_entity(
         return []
     w, latest = got
     blob = _intent_blob(intent)
+    if kind == "ad_line":
+        return await _ad_line_answers(data, intent, metric, w, latest)
     if kind == "voucher":
         return await _voucher_answers(data, intent, metric, w, latest, item_id)
     if kind == "affiliate":

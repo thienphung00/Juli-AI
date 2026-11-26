@@ -6,7 +6,8 @@ this module adds 2-4 Vietnamese sentences generated from those events. One write
 (no rewrite), through the same guards as the chain writer: `writer.sanitise`, `writer.alignment`
 (the summary names each card it mentions and recommends no other action) and a numbers check
 (every number in the text traces to a value in the structured result). The text must name the
-window and the freshness day ("Số liệu đến hết dd/mm"). Any failure, or an unavailable LLM, falls
+window and the freshness day ONCE, in the answer's top line (`meta`, owner #110), so the text
+names neither and asks no question back. Any failure, or an unavailable LLM, falls
 back to `template_text`, which only restates the result.
 """
 
@@ -23,8 +24,10 @@ from juli_backend.services.analytics_agent.types import LLMPort
 SUMMARY_SYSTEM = (
     "Bạn là Juli, viết phần tóm tắt 2-4 câu bằng tiếng Việt cho người bán hàng Shopee, xưng 'bạn'. "
     "Chỉ dùng dữ liệu trong KẾT QUẢ: mọi con số lấy nguyên văn (đã định dạng sẵn), không tự tính, "
-    "không thêm số nào khác. Câu đầu nêu kỳ (KỲ) và ngày số liệu (SỐ_LIỆU_ĐẾN, viết đúng như đã "
-    "cho, ví dụ 'Số liệu đến hết 22/11'). Không đưa lời khuyên ngoài kết quả; chỉ nhắc tới các thẻ "
+    "không thêm số nào khác. Không nhắc lại kỳ, ngày số liệu hay ngày sale: chúng đã hiện một "
+    "lần ở dòng trên cùng, và câu trả lời chính đã nêu con số đầu tiên. Không kết thúc bằng câu "
+    "hỏi. "
+    "Không đưa lời khuyên ngoài kết quả; chỉ nhắc tới các thẻ "
     "trong THẺ (gọi đúng loại thẻ và sản phẩm), không viết giá trị hay dự báo của thẻ. Với kế "
     "hoạch tuần: điều gì đã xảy ra, việc nên làm trước, và thẻ nào cần mở. Gọi đúng đối tượng "
     "(số của một sản phẩm không gọi là của shop). Tên sản phẩm chép nguyên văn, đầy đủ, đúng như "
@@ -120,19 +123,15 @@ def check(text: str, dg: dict[str, Any], f: facts.Facts) -> list[str]:
         masked = masked.replace(n, " ")
     # numbers_check skips a first line (the chain's restated question): give it one to skip
     issues += [f"number:{x}" for x in facts.numbers_check("-\n" + masked, f, card_figures=[])]
-    issues += [f"missing:{d}" for d in required_mentions(dg) if d not in clean]
     return issues
 
 
 def template_text(dg: dict[str, Any]) -> str:
-    """The code-rendered fallback: window and freshness first, then each answer's own figures, then
-    the cards to open. Only values from the result."""
+    """The code-rendered fallback: the figures of each answer after the first (the first is the
+    answer's lead sentence; the period is the top line, #110), then the card to open. Only values
+    from the result; empty when the lead says it all."""
     parts: list[str] = []
-    first = dg["answers"][0] if dg["answers"] else {}
-    head = " · ".join(str(first[k]) for k in ("kỳ", "số_liệu_đến") if first.get(k))
-    if head:
-        parts.append(head + ".")
-    for a in dg["answers"][:3]:
+    for a in dg["answers"][1:3]:
         bits = [str(a[k]) for k in ("giá_trị", "thay_đổi", "đóng_góp") if a.get(k)]
         rows = [
             f"{r['label_vi']} ({r['value_vi']})"
@@ -173,7 +172,6 @@ async def write_summary(
     payload = {
         "KẾT QUẢ": dg["answers"],
         "THẺ": [{"loại": c["kind_vi"], "sản_phẩm": c["item_name"]} for c in dg["cards"]],
-        "NHẮC": required_mentions(dg),
     }
     streamed: list[str] = []
     try:

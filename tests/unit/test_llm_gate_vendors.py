@@ -950,3 +950,60 @@ async def test_an_exception_in_the_callers_block_writes_exactly_one_error_row():
             raise ValueError("caller bug")
     assert str(excinfo.value) == "caller bug"
     assert [e.status for e in log.entries] == ["error"]
+
+
+# -- #112(1c): the provider's error text, short and redacted ---------------------------------
+
+
+async def test_a_typesafe_400_keeps_a_short_redacted_error_text(caplog):
+    gate, log = _gate()
+    secret = "sk-live-abcdef123456"
+    message = (
+        f"questions.kind.criteria: value 'Áo thun {PLATFORM_ID}' exceeds 150 chars; "
+        f"shop {SHOP} key {secret} " + "x" * 400
+    )
+    rec = Recorder(
+        httpx.Response(
+            400,
+            json={"error": {"type": "invalid_request", "message": message}},
+            headers={"x-typesafe-request-id": "req_400"},
+        )
+    )
+    with caplog.at_level("WARNING"), pytest.raises(GateCallFailed) as excinfo:
+        await typesafe_system_one(
+            gate,
+            purpose=PURPOSE_AGENT_CHAT_ROUTE,
+            model="jev-latest",
+            state={"intent": {"question_type": "status"}},
+            questions=QUESTIONS,
+            timeout=5,
+            transport=rec.transport,
+        )
+    text = excinfo.value.error_text
+    assert text is not None and len(text) <= 300
+    assert text.startswith("invalid_request questions.kind.criteria: value … exceeds # chars")
+    assert PLATFORM_ID not in text and str(SHOP) not in text and secret not in text
+    assert "Áo thun" not in text  # a quoted value may echo shop data: never kept
+    assert text in str(excinfo.value)
+    logged = [r for r in caplog.records if r.getMessage() == "llm_gate_call_failed"]
+    assert logged and logged[0].error_text == text and logged[0].status_code == 400
+    assert [(e.status, e.request_id) for e in log.entries] == [("error", "req_400")]
+
+
+async def test_a_transport_failure_has_no_error_text():
+    gate, _ = _gate()
+
+    def boom(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("down")
+
+    with pytest.raises(GateCallFailed) as excinfo:
+        await typesafe_system_one(
+            gate,
+            purpose=PURPOSE_AGENT_CHAT_ROUTE,
+            model="jev-latest",
+            state={"intent": {}},
+            questions=QUESTIONS,
+            timeout=5,
+            transport=httpx.MockTransport(boom),
+        )
+    assert excinfo.value.error_text is None

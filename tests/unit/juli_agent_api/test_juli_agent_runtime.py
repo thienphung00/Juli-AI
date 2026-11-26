@@ -460,3 +460,47 @@ async def test_a_finished_stream_releases_its_slot_once():
     chunks = [c async for c in response.body_iterator]
     await response.background()
     assert chunks == ["a", "b"] and gate.released == ["shop-1"]
+
+
+# -- #112(1c): a router 400 is tried once more; the provider's error text reaches the log --------
+
+
+async def test_a_router_400_is_retried_once_then_answers():
+    attempts: list[int] = []
+
+    async def system_one(gate, *, purpose, model, state, questions, timeout):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise _Failed(400)
+        return {"q": {"type": "noul", "noul": 0.9}}, None
+
+    v, sleeps = _vendors(system_one=system_one)
+    answers, _ = await GateJev(object(), v).ask({}, {"q": {"type": "noul", "instructions": "?"}})
+    assert answers == {"q": {"type": "noul", "noul": 0.9}} and len(attempts) == 2
+    assert len(sleeps) == 1
+
+
+async def test_a_router_400_twice_is_jev_unavailable_after_two_attempts():
+    attempts: list[int] = []
+
+    async def system_one(gate, *, purpose, model, state, questions, timeout):
+        attempts.append(1)
+        raise _Failed(400)
+
+    v, _ = _vendors(system_one=system_one)
+    with pytest.raises(JevUnavailable) as excinfo:
+        await GateJev(object(), v).ask({}, {"q": {"type": "noul", "instructions": "?"}})
+    assert len(attempts) == 2 and "http_status" in str(excinfo.value)
+
+
+async def test_a_writer_400_is_still_not_retried():
+    attempts: list[int] = []
+
+    async def messages(gate, *, purpose, body, timeout):
+        attempts.append(1)
+        raise _Failed(400)
+
+    v, _ = _vendors(messages=messages)
+    with pytest.raises(LLMUnavailable) as excinfo:
+        await GateLLM(object(), v).text("sys", "hi")
+    assert len(attempts) == 1 and "http_status" in str(excinfo.value)

@@ -385,7 +385,12 @@ async def test_product_profit_is_that_products_profit_or_refused() -> None:
             "gmv": 40000.0,
         },
     }
-    it = intent(question_type="status", metric_phrase="profit", product_phrase="Sản phẩm A")
+    it = intent(
+        question_type="status",
+        metric_phrase="profit",
+        product_phrase="Sản phẩm A",
+        time_phrase="last 7 days",
+    )
     jev = FakeJev(
         lambda s, q: full(
             mode=ch("lookup"),
@@ -425,12 +430,16 @@ async def test_product_profit_is_that_products_profit_or_refused() -> None:
 
 
 async def test_window_chosen_is_the_window_run_and_freshness_is_the_newest_complete_day() -> None:
-    # today is Monday 23/11; the data ends 21/11: the window stays 16-22, the freshness says 21/11
+    # today is Monday 23/11; the data ends 21/11: the window stays 16-22, the freshness says 21/11.
+    # "last week" is named (#112: a window is never asked); the clarifying question is the metric,
+    # and the anchor it pins still wins when the clock moves on
     shop = shop_rows(SAT - timedelta(days=60), SAT, gmv=1000.0, orders=3.0)
     llm = FakeLLM(
         {
-            "restated_vi": "Doanh thu bao nhiêu",
-            "intents": [intent(question_type="status", metric_phrase="revenue")],
+            "restated_vi": "Tuần trước thế nào",
+            "intents": [
+                intent(question_type="status", metric_phrase="that", time_phrase="last week")
+            ],
         }
     )
     jev = FakeJev(
@@ -438,20 +447,18 @@ async def test_window_chosen_is_the_window_run_and_freshness_is_the_newest_compl
             mode=ch("lookup"),
             lookup=ch("metric_total"),
             metric=ch("gmv"),
-            window=ch("last_full_week_vs_week_before", 0.55, "last_7d_vs_prev_7d"),
+            metric_named=nl(0.1),
         )
     )
     r = AskRequest(shop_id=SHOP, platform="shopee", as_of=YDAY, text="q")
     sink, _ = await go(r, llm=llm, jev=jev, data=FakeData(shop))
     nc = sink.of("needs_choice")[0]
-    assert nc["pending"]["anchor"] == YDAY.isoformat()
-    shown = nc["options"][0]["label_vi"]
-    assert shown == "16/11–22/11 so với 02/11–08/11"  # 9-15/11 holds 11.11 and 15/11
+    assert nc["item"] == "metric" and nc["pending"]["anchor"] == YDAY.isoformat()
     r2 = AskRequest(
         shop_id=SHOP,
         platform="shopee",
         as_of=YDAY + timedelta(days=1),  # the clock moved on; the pinned anchor wins
-        choice={"item": "window", "value": "last_full_week_vs_week_before"},
+        choice={"item": "metric", "value": "gmv"},
         pending=nc["pending"],
     )
     sink2, _ = await go(
@@ -574,7 +581,7 @@ async def test_every_intent_is_answered_even_after_a_clarifying_choice() -> None
     two = {
         "restated_vi": "hai câu",
         "intents": [
-            intent(question_type="status", metric_phrase="revenue", time_phrase="recently"),
+            intent(question_type="status", metric_phrase="how it is going", time_phrase="recently"),
             intent(question_type="status", metric_phrase="orders", time_phrase="last week"),
         ],
     }
@@ -583,7 +590,7 @@ async def test_every_intent_is_answered_even_after_a_clarifying_choice() -> None
             mode=ch("lookup"),
             lookup=ch("metric_total"),
             metric=ch("gmv"),
-            window=ch("last_7d_vs_prev_7d", 0.55, "last_30d_vs_prev_30d"),
+            metric_named=nl(0.1),
         )
     )
     r = AskRequest(shop_id=SHOP, platform="shopee", as_of=YDAY, text="q")
@@ -593,7 +600,7 @@ async def test_every_intent_is_answered_even_after_a_clarifying_choice() -> None
         shop_id=SHOP,
         platform="shopee",
         as_of=YDAY,
-        choice={"item": "window", "value": "last_7d_vs_prev_7d"},
+        choice={"item": "metric", "value": "gmv"},
         pending=nc["pending"],
     )
     sink2, _ = await go(r2, llm=FakeLLM(None), jev=FakeJev(lambda s, q: full()), data=data)

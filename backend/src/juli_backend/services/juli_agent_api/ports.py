@@ -5,7 +5,8 @@ T2 (``services.llm_gate``) owns the doors: allowlists, consent, minimisation, on
 
 - the request shapes (a forced tool call for ``parse``; plain / streamed text for the writer);
 - retries (jev-router grill J11): an attempt that failed with 408 / 409 / 429 / 5xx / 529, a
-  transport error or a broken stream is tried again, at most twice (three attempts), with a
+  transport error or a broken stream is tried again, at most twice (three attempts); a router
+  (Jev) 400 is tried once more (#112), with a
   short backoff that honours ``retry-after`` up to :data:`MAX_BACKOFF_S`. A stream is retried
   only before its first text; after that the failure is the run's.
 - the final failure: :class:`LLMUnavailable` (writer / parse; the run answers ``error``, "Juli
@@ -121,6 +122,11 @@ def _retryable(exc: BaseException) -> bool:
     if status is None:  # transport error, broken stream
         return getattr(exc, "reason", None) != "bad_response"
     return int(status) in RETRYABLE_STATUS
+
+
+def _status(exc: BaseException) -> int | None:
+    status = getattr(exc, "status_code", None)
+    return int(status) if status is not None else None
 
 
 def _busy(exc: BaseException) -> bool:
@@ -271,8 +277,18 @@ class GateJev:
             except self._v.refused as exc:
                 raise JevUnavailable(f"gate refused: {exc}") from exc
             except self._v.call_failed as exc:
-                if attempt == RETRIES or not _retryable(exc):
+                # #112: a router 400 is tried once more (TypeSafe answered 400 to a valid request)
+                again = _retryable(exc) or (_status(exc) == 400 and attempt == 0)
+                if attempt == RETRIES or not again:
                     raise JevUnavailable(str(exc)) from exc
+                logger.warning(
+                    "juli_agent_jev_retry",
+                    extra={
+                        "attempt": attempt + 1,
+                        "status_code": _status(exc),
+                        "error_text": getattr(exc, "error_text", None),
+                    },
+                )
                 await self._v.sleep(_backoff(exc, attempt))
         raise AssertionError("unreachable")  # pragma: no cover
 

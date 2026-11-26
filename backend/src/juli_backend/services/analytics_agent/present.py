@@ -40,6 +40,8 @@ def _window(chain: ChainResult) -> dict[str, str]:
 
 def path_steps(chain: ChainResult, labels: LabelTable, limit: int = 4) -> list[dict[str, Any]]:
     """shop -> channel -> product, each a link. Values pre-formatted; direction is data."""
+    if chain.stop_reason == "data_missing":  # no figure to trust: the label says it (#112)
+        return []
     metric = chain.metric
     w = _window(chain)
     steps: list[dict[str, Any]] = []

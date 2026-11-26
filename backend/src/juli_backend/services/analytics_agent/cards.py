@@ -284,13 +284,34 @@ def _dir(v: float | None) -> str:
     return "flat" if not v else ("up" if v > 0 else "down")
 
 
+def _best_version(est: list[dict[str, Any]]) -> str | None:
+    best = max(est, key=lambda v: _own(v).get("delta", {}).get("profit", {}).get("p50") or 0)
+    return best.get("label")
+
+
+def _code_item(chain: ChainResult, names: dict[str, str]) -> str | None:
+    """No router (a template): the named product whose finding explains the most of the change."""
+    ranked = sorted(
+        (f for f in chain.findings if f.contribution_pct is not None),
+        key=lambda f: -abs(f.contribution_pct or 0),
+    )
+    for f in ranked:
+        m = re.search(r"product:([^:\s]+)", f.evidence_ref or "")
+        if m and m.group(1) in names:
+            return m.group(1)
+    return next(iter(names), None)
+
+
 async def _version_pick(
-    jev: JevPort, engine_card: dict[str, Any]
+    jev: JevPort | None, engine_card: dict[str, Any]
 ) -> tuple[str | None, dict[str, Any], Usage]:
     vers = engine_card.get("versions") or []
     est = [v for v in vers if (v.get("result") or {}).get("estimable")]
     if not est:
         return None, {"note": "no estimable version"}, Usage()
+    if jev is None:  # no router (a template): the best profit among the estimable versions
+        info: dict[str, Any] = {"pick": None, "fallback": "best estimable", "router": False}
+        return _best_version(est), info, Usage()
     state = {
         "versions": [
             {
@@ -318,21 +339,21 @@ async def _version_pick(
     labels = {v.get("label") for v in est}
     if info["pick"] in labels:  # an unestimable version is never preselected (U6d)
         return info["pick"], info, u
-    best = max(est, key=lambda v: _own(v).get("delta", {}).get("profit", {}).get("p50") or 0)
-    return best.get("label"), {**info, "fallback": "best estimable"}, u
+    return _best_version(est), {**info, "fallback": "best estimable"}, u
 
 
 async def _engine_and_overlap(
     out: CardOutcome,
     data: DataPort,
     engine: CardEnginePort,
-    jev: JevPort,
+    jev: JevPort | None,
     kind: str,
     item: str | None,
     as_of: date,
     prior_drafts: list[dict[str, Any]] | None,
 ) -> tuple[dict[str, Any], tuple[str, str | None] | None]:
-    """G3 (engine values), then G4 (exact overlap in code, then a Jev overlap Noul).
+    """G3 (engine values), then G4 (exact overlap in code, then a Jev overlap Noul; with no
+    router -- a template -- the exact check in code is the whole of G4).
     Returns (engine card, None) when the kind passes, else ({}, (reason_vi, existing_card_code))."""
     eng = await engine.engine_card(kind, item, as_of)
     out.gates["G3"] = bool(eng.get("ok"))
@@ -359,7 +380,18 @@ async def _engine_and_overlap(
         out.gates["G4"] = False
         return {}, ("Đã có thẻ đang làm việc này.", exact[0].get("code"))
     others = [*open_cards, *(prior_drafts or [])]
-    if others:
+    if others and jev is None:
+        same = [
+            c
+            for c in others
+            if coarse(c.get("kind") or "") == coarse(kind)
+            and (c.get("item_id") or None) == (item or None)
+        ]
+        out.routing.append({"step": "overlap", "router": False, "exact": bool(same)})
+        out.gates["G4"] = not same
+        if same:
+            return {}, ("Đã có thẻ đang làm việc này.", None)
+    elif others and jev is not None:
         nm = await data.item_names(
             [c["item_id"] for c in others if c.get("item_id")] + ([item] if item else [])
         )
@@ -404,12 +436,15 @@ async def card_stage(
     chains: list[ChainResult],
     data: DataPort,
     engine: CardEnginePort,
-    jev: JevPort,
+    jev: JevPort | None,
     labels: LabelTable,
     as_of: date,
     template: Template | None = None,
     prior_drafts: list[dict[str, Any]] | None = None,
 ) -> CardOutcome:
+    """`jev=None` (a template button, #112): every pick is made in code -- the kinds in their
+    WIRING order, the product that explains the most, the best estimable version -- so a
+    template answers with the router down."""
     out = CardOutcome()
     chain = chains[0]
     window = (chain.windows.cur[0], chain.windows.cur[1])
@@ -464,24 +499,36 @@ async def card_stage(
             "instructions": "Which product should the change target, given `findings`?",
             "criteria": {k: v[:150] for k, v in names.items()},
         }
-    ans, u = await jev.ask(state, qs)
-    out.cost_usd += u.cost_usd
-    kok, kinfo = choice_ok(ans["kind"])
     item: str | None = next(iter(names)) if len(names) == 1 else None
-    if "product" in ans:
-        pok, pinfo = choice_ok(ans["product"])
-        out.routing.append({"step": "card_product", **pinfo})
-        item = pinfo["pick"] if pok else None
-    # A+C+D: G1 is the only eligibility gate; a clear kind is taken, an unsure one sends the top 2
-    # (by probability) through the gates and the engine in order; the first that passes is drafted
-    ranked = [
-        k
-        for k, _ in sorted((ans["kind"].get("probabilities") or {}).items(), key=lambda kv: -kv[1])
-    ]
-    ranked = ranked or [kinfo["pick"]]
-    if item is None:
-        ranked = [k for k in ranked if not engine.needs_item(k)]
-    candidates = [kinfo["pick"]] if kok and kinfo["pick"] in ranked else ranked[:2]
+    if jev is None:  # no router: code order, the top 2 through the gates
+        item = item or (critical_item or {}).get("product_id") or _code_item(chain, names)
+        if item not in names:
+            item = None
+        ranked = [k for k in kinds if item is not None or not engine.needs_item(k)]
+        kok = False
+        kinfo: dict[str, Any] = {"pick": ranked[0] if ranked else None, "router": False}
+        candidates = ranked[:2]
+    else:
+        ans, u = await jev.ask(state, qs)
+        out.cost_usd += u.cost_usd
+        kok, kinfo = choice_ok(ans["kind"])
+        if "product" in ans:
+            pok, pinfo = choice_ok(ans["product"])
+            out.routing.append({"step": "card_product", **pinfo})
+            item = pinfo["pick"] if pok else None
+        # A+C+D: G1 is the only eligibility gate; a clear kind is taken, an unsure one sends the
+        # top 2 (by probability) through the gates and the engine in order; the first that passes
+        # is drafted
+        ranked = [
+            k
+            for k, _ in sorted(
+                (ans["kind"].get("probabilities") or {}).items(), key=lambda kv: -kv[1]
+            )
+        ]
+        ranked = ranked or [kinfo["pick"]]
+        if item is None:
+            ranked = [k for k in ranked if not engine.needs_item(k)]
+        candidates = [kinfo["pick"]] if kok and kinfo["pick"] in ranked else ranked[:2]
     out.routing.append(
         {
             "step": "card_choice",
@@ -525,7 +572,7 @@ async def card_stage(
 async def draft_event(
     out: CardOutcome,
     data: DataPort,
-    jev: JevPort,
+    jev: JevPort | None,
     labels: LabelTable,
     kind: str,
     item: str | None,

@@ -41,7 +41,11 @@ only; System One exactly `{model, state, questions}`, questions `choice` / `noul
 `llm_processing` (`consent_llm_processing`), key `ANTHROPIC_API_KEY` / `TYPESAFE_API_KEY`
 (`unconfigured`). Minimisation as below, plus every image URL in text is stripped (images
 never go to these vendors). After sending, a failure (status, transport, stream error,
-no `answers`) is an `error` row and `GateCallFailed(reason, status_code, retry_after)`.
+no `answers`) is an `error` row and `GateCallFailed(reason, status_code, retry_after,
+error_text)`. On a non-2xx, `error_text` is the provider's own error (`error.type` / `message`),
+redacted (quoted values, key-like tokens, shop identifiers and 3+ digit runs masked) and cut to
+300 characters; it is logged (`llm_gate_call_failed`) and carried in the exception text. The
+`llm_call_log` row has no column for it (adding one needs a migration).
 
 ## Per call, before any HTTP (OpenAI)
 

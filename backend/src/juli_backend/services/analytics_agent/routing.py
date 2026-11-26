@@ -24,8 +24,11 @@ from juli_backend.services.analytics_agent.types import (
     Usage,
 )
 from juli_backend.services.analytics_agent.windows import (
+    DEFAULT_PRESET,
     anchor_for,
     build_windows,
+    fold,
+    folded,
     window_from_phrase,
 )
 
@@ -95,7 +98,7 @@ CHAIN_ALLOWED_METRICS = {
 
 # A named metric needs no picker (Q19): the words map to one metric, code decides, not the model.
 METRIC_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
-    (re.compile(rx, re.I), m)
+    (folded(rx), m)
     for rx, m in (
         (r"chi phí quảng cáo|ad(s|vertising)?\s*(spend|cost)|tiền quảng cáo", "ads_spend"),
         (r"roas hoà vốn|roas hòa vốn|break-?even roas", "roas_break_even"),
@@ -110,10 +113,14 @@ METRIC_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
         (r"lượt xem|\bviews?\b", "views"),
     )
 )
-DECLINE_WORDS = re.compile(
+DECLINE_WORDS = folded(
     r"biggest (decline|drop|fall)|fell (the )?most|declin|(dropped|fallen|falling) (the )?most|"
-    r"giảm (mạnh|nhiều) nhất|giảm mạnh|tụt (mạnh|nhiều)|tụt nhất|worst",
-    re.I,
+    r"giảm (mạnh|nhiều) nhất|giảm mạnh|tụt (mạnh|nhiều)|tụt nhất|worst"
+)
+#: a top list named in words (the parser's `ranking` slot left none): best sellers, top by a metric
+TOP_WORDS = folded(
+    r"best[- ]sell|sell(s|ing)? (the )?best|top (\d+ )?(products?|sellers?)|bán (chạy|tốt) nhất|"
+    r"bán chạy|sản phẩm (nào )?(tốt|cao) nhất"
 )
 LIST_LOOKUPS = ("top_products", "top_decliners")
 METRIC_CHAIN = {m: c for c, m in CHAIN_METRIC.items()}
@@ -128,7 +135,7 @@ METRIC_CHAIN.update(
 # An entity the seller names (Q17): the answer must be filtered to it or refused, never a shop
 # number under the entity's label.
 ENTITY_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
-    (re.compile(rx, re.I), k)
+    (folded(rx), k)
     for rx, k in (
         # a Shopee programme named as the seller sees it: no reader filters by it -> refusal
         (
@@ -141,15 +148,25 @@ ENTITY_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
         (r"affiliate|tiếp thị liên kết|\bttlk\b|\bkoc\b|\bkol\b|hoa hồng tiếp thị", "affiliate"),
     )
 )
-_AD_WORDS = re.compile(
-    r"quảng cáo|\bqc\b|dvht|dịch vụ hiển thị|\bads?\b|advertis",
-    re.I,
+_AD_WORDS = folded(r"quảng cáo|\bqc\b|dvht|dịch vụ hiển thị|\bads?\b|advertis")
+_CAMPAIGN = folded(r"campaign|chiến dịch")
+_PRODUCT_LOSS = folded(
+    r"(sản phẩm|products?).{0,40}(lỗ|losing|loss|lose)|(lỗ|losing|loss).{0,40}(sản phẩm|products?)"
 )
-_CAMPAIGN = re.compile(r"campaign|chiến dịch", re.I)
-_PRODUCT_LOSS = re.compile(
-    r"(sản phẩm|products?).{0,40}(lỗ|losing|loss|lose)|(lỗ|losing|loss).{0,40}(sản phẩm|products?)",
-    re.I,
+#: one ads line of Tổng quan's Quảng cáo split (channel_split's ad rows), named beside an ad word
+AD_LINE_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (folded(rx), k)
+    for rx, k in (
+        (r"dvht\s*shop|dịch vụ hiển thị shop|shop\s*\+|shop plus", "ads_shop"),
+        (r"dvht\s*(sản phẩm|sp\b)|dịch vụ hiển thị sản phẩm|product ads", "ads_product"),
+        (r"livestream|\blive\b", "ads_livestream"),
+        (r"\bkhác\b|\bother\b", "ads_other"),
+    )
 )
+#: affiliate commission named without the channel ("tốn bao nhiêu hoa hồng"); "phí hoa hồng" is
+#: a Shopee fee, never the affiliate's
+_COMMISSION = folded(r"(?<!phí )hoa hồng|(?<!fee )commission(?! fee)")
+_AFFILIATE = folded(r"affiliate|tiếp thị liên kết|\bttlk\b|\bkoc\b|\bkol\b")
 
 
 #: registry metric key -> the agent's own metric key (where they differ)
@@ -172,34 +189,90 @@ def named_metric_of(intent: dict[str, Any]) -> str | None:
 
 
 def metric_from_phrase(phrase: str | None) -> str | None:
+    text = fold(phrase or "")
     for rx, m in METRIC_WORDS:
-        if phrase and rx.search(phrase):
+        if text and rx.search(text):
             return m
     return None
 
 
 def entity_kind(intent: dict[str, Any]) -> str | None:
     """voucher | affiliate | campaign | program when the question names one (not a product: that
-    is `scope`). Scans the seller's own words (`raw_text`) as well as the parsed phrases."""
+    is `scope`). Scans the seller's own words (`raw_text`) as well as the parsed phrases, accented
+    or not. In a message split into several intents, the whole message (`msg_text`) is context
+    only: "chiến dịch nào lỗ" beside "Quảng cáo tuần trước: ..." is an ad campaign, "tốn bao nhiêu
+    hoa hồng" beside "Tiếp thị liên kết" is the affiliate's commission -- the intent's own words
+    still name the entity."""
     # the parser's own entity slot wins; the word lists are only a safety net
-    first = str(intent.get("entity_phrase") or "")
+    first = fold(str(intent.get("entity_phrase") or ""))
     for rx, k in ENTITY_WORDS:
         if first and rx.search(first):
             return k
     if first and _CAMPAIGN.search(first):
         return "campaign"
-    blob = " ".join(
-        str(intent.get(k) or "")
-        for k in ("entity_phrase", "metric_phrase", "source_phrase", "raw_text")
+    blob = fold(
+        " ".join(
+            str(intent.get(k) or "")
+            for k in ("entity_phrase", "metric_phrase", "source_phrase", "raw_text")
+        )
     )
+    context = blob + " " + fold(str(intent.get("msg_text") or ""))
     for rx, k in ENTITY_WORDS:
         if rx.search(blob):
             return k
-    if _CAMPAIGN.search(blob) and _AD_WORDS.search(blob):  # a campaign means an ad campaign
+    if ad_line_of(intent):
+        return "ad_line"
+    if _CAMPAIGN.search(blob) and _AD_WORDS.search(context):  # a campaign means an ad campaign
         return "campaign"
-    if _PRODUCT_LOSS.search(blob) and _AD_WORDS.search(blob):  # "sản phẩm nào lỗ sau quảng cáo"
+    if _PRODUCT_LOSS.search(blob) and _AD_WORDS.search(context):  # "sản phẩm nào lỗ sau quảng cáo"
         return "product_loss"
+    if _COMMISSION.search(blob) and _AFFILIATE.search(context):
+        return "affiliate"
     return None
+
+
+def ad_line_of(intent: dict[str, Any]) -> str | None:
+    """ads_product | ads_shop | ads_livestream | ads_other when the intent's own words name one
+    ads line together with an ad word ("Quảng cáo Livestream", "DVHT Shop+")."""
+    blob = fold(
+        " ".join(
+            str(intent.get(k) or "")
+            for k in ("entity_phrase", "metric_phrase", "source_phrase", "raw_text")
+        )
+    )
+    if not _AD_WORDS.search(blob):
+        return None
+    return next((k for rx, k in AD_LINE_WORDS if rx.search(blob)), None)
+
+
+def ranking_of(intent: dict[str, Any]) -> str:
+    """top | decline | none: the parser's typed slot, else the intent's own words (a best-seller
+    or biggest-drop list is answered as one, never by asking which number)."""
+    typed = str(intent.get("ranking") or "none")
+    if typed in ("top", "decline"):
+        return typed
+    said = fold(str(intent.get("metric_phrase") or ""))
+    if DECLINE_WORDS.search(said):
+        return "decline"
+    if TOP_WORDS.search(said):
+        return "top"
+    return "none"
+
+
+def window_of(intent: dict[str, Any]) -> str:
+    """The window an intent runs on: the one the seller named, else the tabs' default period
+    (#112(3), `DEFAULT_PRESET`, resolved to dates by the engine); a named period is never moved.
+    Explicit dates run as given (`custom`, the engine reads them)."""
+    return named_period(intent) or DEFAULT_PRESET
+
+
+def named_period(intent: dict[str, Any]) -> str | None:
+    """The window the seller named in words or dates ("custom" for explicit dates), else None."""
+    if intent.get("explicit_from") and intent.get("explicit_to"):
+        return "custom"
+    if intent.get("named_month"):
+        return "named_month_vs_previous"
+    return window_from_phrase(intent.get("time_phrase"))
 
 
 #: the empty value of each create-card slot (the strict schema allows no optional / union fields)
@@ -508,6 +581,8 @@ async def classify(text: str, today: date, llm: LLMPort, jev: JevPort) -> dict[s
     for intent in parsed["intents"]:
         if single:
             intent["raw_text"] = text
+        else:
+            intent["msg_text"] = text
         answers, _ = await route(jev, intent)
         dec = (
             decide(intent, answers)
@@ -516,7 +591,7 @@ async def classify(text: str, today: date, llm: LLMPort, jev: JevPort) -> dict[s
         )
         out.append(
             {
-                "intent": {k: v for k, v in intent.items() if k != "raw_text"},
+                "intent": {k: v for k, v in intent.items() if k not in ("raw_text", "msg_text")},
                 "outcome": dec.get("outcome"),
                 "mode": dec.get("mode"),
                 "goal": dec.get("goal"),
@@ -632,6 +707,13 @@ def wants_advice(intent: dict[str, Any]) -> bool:
     return intent.get("question_type") == "plan" or intent.get("needs_advice") is True
 
 
+def _mode_of(intent: dict[str, Any]) -> str:
+    """The mode the parser's slots imply when the router is split: why only for a why question."""
+    if intent.get("question_type") == "why_changed" or intent.get("asks_why"):
+        return "why"
+    return "lookup" if intent.get("question_type") in ("status", "compare") else "why"
+
+
 def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Thresholds (J7) + cross-checks (J6b) + lookup rules. `outcome` = go | needs_choice |
     unsupported."""
@@ -658,15 +740,14 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     if fits <= FITS_NO:
         dec["outcome"] = "unsupported"
         return dec
-    if intent.get("ranking") in ("top", "decline"):  # the parser's typed slot decides, no picker
+    rank = ranking_of(intent)
+    if rank in ("top", "decline"):  # the typed slot (or the intent's own words) decides, no picker
         dec.update(
             outcome="go",
             mode="lookup",
-            lookup="top_decliners" if intent["ranking"] == "decline" else "top_products",
+            lookup="top_decliners" if rank == "decline" else "top_products",
         )
-        dec["window"] = window_from_phrase(intent.get("time_phrase")) or (
-            choice_ok(answers["window"])[1]["pick"] if "window" in answers else None
-        )
+        dec["window"] = window_of(intent)
         dec["metric"] = named_metric_of(intent) or "gmv"
         return dec
     ranking = False  # a ranking question needs no metric: it defaults to GMV decline
@@ -677,9 +758,7 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     ent = entity_kind(intent)
     if ent and fits > FITS_NO:  # an entity is answered from its own rows by code (Q17): no picker
         dec.update(outcome="go", mode="lookup", lookup="metric_total")
-        dec["window"] = window_from_phrase(intent.get("time_phrase")) or (
-            choice_ok(answers["window"])[1]["pick"] if "window" in answers else None
-        )
+        dec["window"] = window_of(intent)
         named = named_metric_of(intent)
         dec["metric"] = named or (
             choice_ok(answers["metric"])[1]["pick"] if "metric" in answers else None
@@ -695,14 +774,15 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     if "mode" in answers:
         ok, info = choice_ok(answers["mode"])
         dec["checks"]["mode"] = info
-        dec["mode"] = info["pick"] if ok else "why"
+        # unclear: the parser's question type decides (a status / compare question is a lookup)
+        dec["mode"] = info["pick"] if ok else _mode_of(intent)
         if "lookup" in answers:
             okl, infol = choice_ok(answers["lookup"])
             dec["checks"]["lookup"] = infol
             dec["lookup"] = infol["pick"] if okl else "metric_total"
             if dec["lookup"] in ("top_products", "metric_total", "top_decliners") and (
                 DECLINE_WORDS.search(
-                    f"{intent.get('metric_phrase') or ''} {intent.get('raw_text') or ''}"
+                    fold(f"{intent.get('metric_phrase') or ''} {intent.get('raw_text') or ''}")
                 )
             ):
                 dec["lookup"] = "top_decliners"  # "giảm mạnh nhất" is a decline, not top by GMV
@@ -714,11 +794,14 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
         dec[k] = info["pick"]
         if not ok:
             unclear.append((k, info["top2"]))
-    preset = window_from_phrase(intent.get("time_phrase"))
-    if preset:  # one phrase, one window; never asked
-        dec["window"] = preset
-        dec["checks"]["window"] = {"pick": preset, "rule": "phrase"}
-        unclear = [x for x in unclear if x[0] != "window"]
+    preset = window_of(intent)
+    # one phrase, one window; no period named: the tabs' default (#112(3)); never asked
+    dec["window"] = preset
+    dec["checks"]["window"] = {
+        "pick": preset,
+        "rule": "phrase" if preset != DEFAULT_PRESET else "default_period",
+    }
+    unclear = [x for x in unclear if x[0] != "window"]
     named = named_metric_of(intent)
     if named and dec.get("mode") != "lookup":  # a named metric is never asked about (Q19)
         dec["metric"] = named
@@ -772,6 +855,17 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
         drop = {"chain", "scope"} | ({"metric"} if dec.get("lookup") in LIST_LOOKUPS else set())
         unclear = [x for x in unclear if x[0] not in drop]
         dec["checks"].pop("chain_metric_conflict", None)
+    period = named_period(intent)
+    if unclear and named and period:
+        # #112: a named metric with a named period is answered, never asked about; the router's
+        # split votes only fill what the seller did not say (scope: the product named, else shop)
+        for k, _ in unclear:
+            if k == "scope":
+                dec["scope"] = "product" if intent.get("product_phrase") else "shop"
+            elif k == "window" and period != "custom":
+                dec["window"] = period
+        dec["checks"]["named_rule"] = {"metric": named, "period": period, "dropped": unclear}
+        unclear = []
     order = ["chain", "metric", "window", "scope"]
     unclear.sort(key=lambda u: order.index(u[0]))
     if unclear:
@@ -789,7 +883,10 @@ QUESTION_VI = {
     "metric": "Bạn muốn xem chỉ số nào?",
     "window": "Bạn muốn so sánh khoảng thời gian nào?",
     "product": "Bạn muốn nói sản phẩm nào?",
+    # a split scope vote used to raise KeyError here (the item had no question)
+    "scope": "Bạn muốn xem cả shop hay một sản phẩm?",
 }
+SCOPE_VI = {"shop": "Cả shop", "product": "Một sản phẩm"}
 NO_FULL_DAY_VI = "Tuần này chưa có ngày nào đủ số liệu. Xem tuần trước?"
 NO_FULL_MONTH_DAY_VI = "Tháng này chưa có ngày nào đủ số liệu. Xem tháng trước?"
 CHAIN_VI = {
@@ -818,6 +915,8 @@ def options_vi(
             label = CHAIN_VI.get(v, v)
         elif item == "metric":
             label = labels.metric(v)
+        elif item == "scope":
+            label = SCOPE_VI.get(v, v)
         elif item == "window":
             label = build_windows(
                 v, anchor_for(v, as_of, latest), sale_aware=sale_aware

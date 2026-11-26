@@ -101,6 +101,8 @@ export type {
   JuliEventMap,
   JuliEventType,
   JuliLabelData,
+  JuliLeadData,
+  JuliMetaData,
   JuliNeedsChoiceData,
   JuliNoCardData,
   JuliLink,

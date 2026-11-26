@@ -78,6 +78,15 @@
 .juli-delta--chip { display: inline-flex; padding: 2px 10px; border-radius: 999px; font-size: 12px; line-height: 16px; background: color-mix(in srgb, currentColor 10%, transparent); }
 .juli-fresh { border-top: 1px solid var(--juli-border); padding-top: 10px; font-size: 13px; line-height: 18px; color: var(--juli-muted-foreground); }
 .juli-data { display: flex; flex-direction: column; gap: 12px; }
+/* owner rule 110: one period line on top, the lead sentence, up to three number tiles */
+.juli-meta { margin: 0; font-size: 13px; line-height: 18px; color: var(--juli-muted-foreground); }
+.juli-lead { color: var(--juli-foreground); font-weight: 600; }
+.juli-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.juli-tile { display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1px solid var(--juli-border); border-radius: 12px; min-width: 0; }
+.juli-tile__label { font-size: 13px; line-height: 18px; color: var(--juli-muted-foreground); }
+.juli-tile__compare { font-size: 13px; line-height: 18px; color: var(--juli-muted-foreground); }
+.juli-table__caption { caption-side: top; text-align: left; font-size: 13px; line-height: 18px; color: var(--juli-muted-foreground); padding-bottom: 4px; }
+.juli-table td .juli-top__detail { display: block; }
 .juli-top { list-style: none; margin: 0; padding: 0; }
 .juli-top__row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 44px; border-bottom: 1px solid var(--juli-border); font-size: 15px; }
 .juli-top__main { display: flex; flex-direction: column; min-width: 0; padding: 6px 0; }
