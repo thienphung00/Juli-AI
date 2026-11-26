@@ -262,6 +262,10 @@ def result_json(r: OptionResult) -> dict[str, Any]:
                         "binding_orders": o.max_discount.binding_orders,
                         "qualifying_orders": o.max_discount.qualifying_orders,
                     },
+                    # owner #116: the take-up the uses stand on (measured | prior)
+                    "takeup": None
+                    if o.takeup is None
+                    else {"rate": float(o.takeup.rate), "basis": o.takeup.basis},
                 }
                 for o in r.offers
             ],
