@@ -74,6 +74,7 @@ async def test_combo(combo_id: str, combo_shop: tuple[Path, Any], request: Any) 
         pytest.xfail(("pending: " if pending else "gap: ") + ", ".join(v.rules))
 
 
+@pytest.mark.bank_full  # selected by `-m bank_full` too (a mark never deselects by default)
 def test_rule_footprints_match_the_record(request: Any) -> None:
     """Strictness per rule: each rule explains exactly the recorded combinations; a rule that
     explains none must go. Runs after the combinations (definition order)."""
