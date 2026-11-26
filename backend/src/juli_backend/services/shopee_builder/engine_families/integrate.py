@@ -33,7 +33,7 @@ from juli_backend.services.shopee_analytics import forecast_base, funnel
 from juli_backend.services.shopee_analytics.compute import campaign_of
 from juli_backend.services.shopee_builder import multi
 from juli_backend.services.shopee_builder import specs as sp
-from juli_backend.services.shopee_builder.context import BuilderContext
+from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
 from juli_backend.services.shopee_builder.engine import engine
 from juli_backend.services.shopee_builder.engine.contract import (
     RESIDUAL,
@@ -369,6 +369,8 @@ def _one(
         option = option_for(spec, ctx, extras_for(base))
     except FamilyRefused as exc:
         return Evaluated(base, None, exc)
+    except SpecRefused as exc:  # F4: a target without a price (no_price) is refused, not raised
+        return Evaluated(base, None, FamilyRefused(exc.code))
     if few:
         option = replace(
             option, drivers=tuple(replace(d, basis=on_prior(d.basis)) for d in option.drivers)
