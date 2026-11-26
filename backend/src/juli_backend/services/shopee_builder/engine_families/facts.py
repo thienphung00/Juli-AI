@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
-from juli_backend.services.shopee_builder.engine.contract import Band, Basis, OfferCost
+from juli_backend.services.shopee_builder.engine.contract import Band, Basis, MaxDiscount, OfferCost
 from juli_backend.services.shopee_builder.engine_families.measure import (
     AdCampaignHist,
     AdDay,
@@ -42,6 +42,8 @@ class VoucherFacts:
     reach: Band | None = None
     reach_gap: Decimal = Decimal(0)  # mean (minimum - order value) of those orders
     near_share: Decimal = Decimal(0)  # share of ALL orders within 20 % below the minimum
+    #: a percent voucher's cap against the same order values (None: no cap / an amount voucher)
+    max_discount: MaxDiscount | None = None
 
 
 @dataclass(frozen=True)

@@ -221,6 +221,16 @@ class DriverEffect:
 
 
 @dataclass(frozen=True)
+class MaxDiscount:
+    """A percent voucher's "Mức giảm tối đa": how many of the qualifying orders (the base orders
+    the offer's uses are drawn on) would get more than ``cap`` and so hit it."""
+
+    cap: Decimal
+    binding_orders: int
+    qualifying_orders: int
+
+
+@dataclass(frozen=True)
 class OfferCost:
     """A per-use cost (voucher, combo tier discount, commission): ``per_use`` đ on each order that
     uses it; ``use_share`` = the share of ALL orders after the change that use it (existing buyers
@@ -233,6 +243,8 @@ class OfferCost:
     #: a discount the buyer gets (voucher, combo, add-on price) lowers doanh thu thực; a
     #: commission does not
     reduces_revenue: bool = True
+    #: a percent voucher with a cap (None otherwise): the card's max-discount row reads it
+    max_discount: MaxDiscount | None = None
 
 
 @dataclass(frozen=True)
@@ -349,6 +361,7 @@ class OfferLine:
     expected_uses: Decimal
     per_use: Decimal
     total: Decimal
+    max_discount: MaxDiscount | None = None
 
 
 @dataclass(frozen=True)
@@ -421,7 +434,8 @@ WIRE_KEYS = {
     "build_up": "list[{key, amount, text}]  # <= 3",
     "drivers_pct": "list[{metric, label, pct}]  # 'AOV +1,7%'",
     "cost": "{total, break_even_orders, break_even_aov, text, offers: list[{label, "
-    "expected_uses, per_use, total}], fixed}  # #78/#87: total = sum(offers.total) + fixed",
+    "expected_uses, per_use, total, max_discount: {cap, binding_orders, qualifying_orders} "
+    "| None}], fixed}  # #78/#87: total = sum(offers.total) + fixed",
     "after": "{days, label: 'Sau 14 ngày' | '30 ngày đầu', gmv_before, gmv_after, "
     "profit_before, profit_after}",
     "per_30d": "{profit, gmv, orders, secondary: True, label}  # P99b: secondary, labelled "

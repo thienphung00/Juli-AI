@@ -665,6 +665,12 @@ async def test_a_voucher_from_zero_a_percent_cap_limits_and_the_four_kinds(sessi
     )
     uncapped = await one(session, shop, kind="voucher", discount_type="pct", value=10, min_spend=0)
     assert capped["details"]["voucher_cost_scenario"] < uncapped["details"]["voucher_cost_scenario"]
+    # the card's max-discount row reads the engine's voucher offer (the same order values its uses
+    # come from): the 3.000đ cap binds on some qualifying orders; no cap / an amount -> None
+    md = capped["result"]["cost"]["offers"][0]["max_discount"]
+    assert md["cap"] == 3000 and 0 < md["binding_orders"] <= md["qualifying_orders"]
+    assert uncapped["result"]["cost"]["offers"][0]["max_discount"] is None
+    assert zero["result"]["cost"]["offers"][0]["max_discount"] is None
     limited = await one(
         session,
         shop,

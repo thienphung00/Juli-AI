@@ -5,13 +5,13 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import date
 from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.shopee_builder import specs as sp
-from juli_backend.services.shopee_builder.engine.contract import Band, Basis, OfferCost
+from juli_backend.services.shopee_builder.engine.contract import Band, Basis, MaxDiscount, OfferCost
 from juli_backend.services.shopee_builder.engine_families import common
 from juli_backend.services.shopee_builder.engine_families.common import FamilyRefused
 from juli_backend.services.shopee_builder.engine_families.facts import (
@@ -128,6 +128,23 @@ def qualifying_share(env: RecoEnv, minimum: Decimal) -> Decimal:
     return Decimal(sum(1 for v in values.values() if v >= minimum)) / len(values)
 
 
+def max_discount_of(
+    values: Iterable[Decimal],
+    minimum: Decimal,
+    discount_type: str,
+    value: Decimal,
+    cap: Decimal | None,
+) -> MaxDiscount | None:
+    """A percent voucher's "Mức giảm tối đa" on the order values its offer is drawn on: of the
+    orders at / over the minimum, how many would get more than ``cap`` (value x pct > cap).
+    None for an amount voucher or a percent one without a cap."""
+    if discount_type == "amount" or cap is None:
+        return None
+    qualifying = [v for v in values if v >= minimum]
+    binding = sum(1 for v in qualifying if v * value / 100 > cap)
+    return MaxDiscount(Decimal(cap), binding, len(qualifying))
+
+
 def voucher_facts(spec: sp.VoucherSpec, env: RecoEnv) -> VoucherFacts:
     lines = sales_lines(env, spec.item_ids or None)
     values = order_values(lines)
@@ -159,6 +176,13 @@ def voucher_facts(spec: sp.VoucherSpec, env: RecoEnv) -> VoucherFacts:
         reach=measured_reach(len(near), n, len(below)),
         reach_gap=sum((minimum - v for v in near), ZERO) / len(near) if near else ZERO,
         near_share=Decimal(len(near)) / n,
+        max_discount=max_discount_of(
+            values.values(),
+            minimum,
+            spec.discount_type,
+            Decimal(str(spec.value)),
+            None if spec.max_value is None else Decimal(spec.max_value),
+        ),
     )
 
 

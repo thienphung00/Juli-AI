@@ -97,7 +97,7 @@ export interface OptionResult {
     /** UI grill G8: a flash sale's money given to buyers ("Tiền giảm cho khách ~X đ"). */
     readonly discount_given?: { readonly amount: number | null; readonly text: string } | null;
     /** #78 / #87: the offers the total is made of (total = Σ offers.total + fixed). Optional for results stored before them. */
-    readonly offers?: readonly { readonly label: string; readonly expected_uses: number; readonly per_use: number; readonly total: number }[];
+    readonly offers?: readonly { readonly label: string; readonly expected_uses: number; readonly per_use: number; readonly total: number; readonly max_discount?: { readonly cap: number; readonly binding_orders: number; readonly qualifying_orders: number } | null }[];
     readonly fixed?: number;
   };
   readonly after: {

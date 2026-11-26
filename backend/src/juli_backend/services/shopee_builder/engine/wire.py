@@ -255,6 +255,13 @@ def result_json(r: OptionResult) -> dict[str, Any]:
                     "expected_uses": float(o.expected_uses),
                     "per_use": float(o.per_use),
                     "total": float(o.total),
+                    "max_discount": None
+                    if o.max_discount is None
+                    else {
+                        "cap": float(o.max_discount.cap),
+                        "binding_orders": o.max_discount.binding_orders,
+                        "qualifying_orders": o.max_discount.qualifying_orders,
+                    },
                 }
                 for o in r.offers
             ],

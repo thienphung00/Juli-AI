@@ -477,7 +477,7 @@ def _offer_lines(draw: _Draw, option: OptionInput) -> tuple[OfferLine, ...]:
     out = []
     for offer, uses in zip(option.offers, draw.offer_uses, strict=True):
         u = _d(uses)
-        out.append(OfferLine(offer.label, u, offer.per_use, u * offer.per_use))
+        out.append(OfferLine(offer.label, u, offer.per_use, u * offer.per_use, offer.max_discount))
     return tuple(out)
 
 

@@ -140,6 +140,13 @@ def core_of(r: OptionResult) -> dict[str, Any]:
                 "expected_uses": _s(o.expected_uses),
                 "per_use": _s(o.per_use),
                 "total": _s(o.total),
+                "max_discount": None
+                if o.max_discount is None
+                else {
+                    "cap": _s(o.max_discount.cap),
+                    "binding_orders": o.max_discount.binding_orders,
+                    "qualifying_orders": o.max_discount.qualifying_orders,
+                },
             }
             for o in r.offers
         ],
@@ -185,6 +192,18 @@ def _scenario_of(raw: Mapping[str, Any] | None) -> Scenario | None:
     )
 
 
+def _max_discount_of(raw: Mapping[str, Any] | None) -> Any:
+    from juli_backend.services.shopee_builder.engine.contract import MaxDiscount
+
+    if not raw or raw.get("cap") is None:
+        return None
+    return MaxDiscount(
+        cap=Decimal(str(raw["cap"])),
+        binding_orders=int(raw.get("binding_orders") or 0),
+        qualifying_orders=int(raw.get("qualifying_orders") or 0),
+    )
+
+
 def option_of(core: Mapping[str, Any]) -> OptionResult:
     """The ``OptionResult`` a stored ``core`` was taken from (scenarios, days, cost, basis)."""
     from juli_backend.services.shopee_builder.engine.contract import OfferLine, OptionResult
@@ -217,6 +236,7 @@ def option_of(core: Mapping[str, Any]) -> OptionResult:
                 expected_uses=_d(o.get("expected_uses")) or Decimal(0),
                 per_use=_d(o.get("per_use")) or Decimal(0),
                 total=_d(o.get("total")) or Decimal(0),
+                max_discount=_max_discount_of(o.get("max_discount")),
             )
             for o in core.get("offers") or ()
         ),

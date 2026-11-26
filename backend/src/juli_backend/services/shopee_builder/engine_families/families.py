@@ -146,6 +146,7 @@ def voucher_option(spec: sp.VoucherSpec, facts: VoucherFacts) -> OptionInput:
                 Band(use_lo, use_mid, use_hi),
                 None if spec.usage_limit is None else Decimal(spec.usage_limit),
                 "voucher",
+                max_discount=facts.max_discount,
             ),
         ),
         profit_per_order_after=ppo_after,
