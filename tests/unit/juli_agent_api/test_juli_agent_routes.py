@@ -226,22 +226,63 @@ async def test_the_event_stream_replays_after_last_event_id(app_for, world):
     assert [f["id"] for f in _frames(tail.text)] == ["5", "6"]
 
 
-async def test_the_stream_follows_a_running_answer_to_its_end(app_for, world):
+async def test_the_stream_follows_a_running_answer_to_its_end(app_for, world, monkeypatch):
+    """Waits on signals (the run reached its gate, the reader is following), never on timing."""
+    from juli_backend.services.juli_agent_api import events
+
     gate = asyncio.Event()
+    following = asyncio.Event()
+    reads = 0
+    real_read = events._read
+
+    async def counting_read(*args, **kwargs):
+        nonlocal reads
+        out = await real_read(*args, **kwargs)
+        reads += 1
+        if reads >= 2:  # a second poll: the reader has replayed and is now following
+            following.set()
+        return out
+
+    monkeypatch.setattr(events, "_read", counting_read)
     fake = FakeEngine(gate=gate)
     async with _client(app_for(world["owner"], world["shop"], fake)) as c:
         r = await _ask(c, text="GMV?")
         mid = r.json()["message_id"]
-        await asyncio.sleep(0.05)
         reader = asyncio.create_task(
             c.get(f"/v1/demo/juli/messages/{mid}/events", headers={"X-Shop-Id": "x"})
         )
-        await asyncio.sleep(0.05)
+        await asyncio.wait_for(following.wait(), timeout=60)  # hang guard, not a pacing delay
+        assert not reader.done()
         gate.set()
         await _wait_runs()
-        body = (await asyncio.wait_for(reader, timeout=5)).text
+        body = (await asyncio.wait_for(reader, timeout=60)).text
     assert [f["event"] for f in _frames(body)][0] == "status"
     assert [f["event"] for f in _frames(body)][-1] == "done"
+
+
+async def test_the_stream_closes_with_a_terminal_event_when_a_run_never_ends(
+    app_for, world, monkeypatch
+):
+    from types import SimpleNamespace
+
+    from juli_backend.services.juli_agent_api import events
+
+    monkeypatch.setattr(events, "config", SimpleNamespace(run_timeout_s=lambda: 0.0))
+    monkeypatch.setattr(events, "FOLLOW_GRACE_S", 0.3)
+    gate = asyncio.Event()  # never set while the reader follows
+    async with _client(app_for(world["owner"], world["shop"], FakeEngine(gate=gate))) as c:
+        r = await _ask(c, text="GMV?")
+        mid = r.json()["message_id"]
+        body = (
+            await asyncio.wait_for(
+                c.get(f"/v1/demo/juli/messages/{mid}/events", headers={"X-Shop-Id": "x"}),
+                timeout=60,
+            )
+        ).text
+        gate.set()
+        await _wait_runs()
+    frames = _frames(body)
+    assert frames[-1]["event"] == "error" and frames[-1]["data"] == '{"code":"busy"}'
 
 
 async def test_one_running_answer_per_conversation_else_409(app_for, world):
