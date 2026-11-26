@@ -133,6 +133,23 @@ def core_of(r: OptionResult) -> dict[str, Any]:
         "likely": _scenario_core(r.likely),
         "high": _scenario_core(r.high),
         "cost_total": _s(r.cost_total),
+        # #78 / #87: the offers the cost is made of (``option_of`` reads them back)
+        "offers": [
+            {
+                "label": o.label,
+                "expected_uses": _s(o.expected_uses),
+                "per_use": _s(o.per_use),
+                "total": _s(o.total),
+                "max_discount": None
+                if o.max_discount is None
+                else {
+                    "cap": _s(o.max_discount.cap),
+                    "binding_orders": o.max_discount.binding_orders,
+                    "qualifying_orders": o.max_discount.qualifying_orders,
+                },
+            }
+            for o in r.offers
+        ],
         "break_even_orders": _s(r.break_even_orders),
         "break_even_aov": _s(r.break_even_aov),
         "notes": list(r.notes),
@@ -175,9 +192,21 @@ def _scenario_of(raw: Mapping[str, Any] | None) -> Scenario | None:
     )
 
 
+def _max_discount_of(raw: Mapping[str, Any] | None) -> Any:
+    from juli_backend.services.shopee_builder.engine.contract import MaxDiscount
+
+    if not raw or raw.get("cap") is None:
+        return None
+    return MaxDiscount(
+        cap=Decimal(str(raw["cap"])),
+        binding_orders=int(raw.get("binding_orders") or 0),
+        qualifying_orders=int(raw.get("qualifying_orders") or 0),
+    )
+
+
 def option_of(core: Mapping[str, Any]) -> OptionResult:
     """The ``OptionResult`` a stored ``core`` was taken from (scenarios, days, cost, basis)."""
-    from juli_backend.services.shopee_builder.engine.contract import OptionResult
+    from juli_backend.services.shopee_builder.engine.contract import OfferLine, OptionResult
 
     before = _scenario_of(core["before"])
     assert before is not None
@@ -201,6 +230,16 @@ def option_of(core: Mapping[str, Any]) -> OptionResult:
         margin_basis=_basis_of(core.get("margin_basis")),
         days_with_data=int(core.get("days_with_data") or 0),
         window_days=int(core.get("window_days") or 0),
+        offers=tuple(
+            OfferLine(
+                label=str(o.get("label") or ""),
+                expected_uses=_d(o.get("expected_uses")) or Decimal(0),
+                per_use=_d(o.get("per_use")) or Decimal(0),
+                total=_d(o.get("total")) or Decimal(0),
+                max_discount=_max_discount_of(o.get("max_discount")),
+            )
+            for o in core.get("offers") or ()
+        ),
     )
 
 

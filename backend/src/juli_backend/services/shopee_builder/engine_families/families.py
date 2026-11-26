@@ -146,6 +146,7 @@ def voucher_option(spec: sp.VoucherSpec, facts: VoucherFacts) -> OptionInput:
                 Band(use_lo, use_mid, use_hi),
                 None if spec.usage_limit is None else Decimal(spec.usage_limit),
                 "voucher",
+                max_discount=facts.max_discount,
             ),
         ),
         profit_per_order_after=ppo_after,
@@ -325,6 +326,20 @@ def price_option(
         offers = (OfferCost(cost, point(facts.coverage), cap_orders, "giảm giá chương trình"),)
         if ppo_after is not None:
             ppo_after = ppo_after + cost * facts.coverage
+    cut = facts.flash_cut_per_order
+    if isinstance(spec, sp.FlashSaleSpec) and cut is not None and cut > 0:
+        # owner #98: cost = Σ variations (today's price − flash price) x the units expected in
+        # the slot: the engine's after-orders x the priced variations' share x the slot's hours
+        # share, never more than the slot's units (``cap_orders`` = units ÷ units per order).
+        # The gross cut moves out of the per-order profit into the offer (it counts once; the
+        # fees the lower price saves stay in the profit per order).
+        slot_days = _price_days(spec) or 1
+        hours_share = min(ONE, Decimal(spec.slot_hours) / Decimal(common.HOURS_PER_DAY * slot_days))
+        offers = (
+            OfferCost(cut, point(facts.coverage * hours_share), cap_orders, "giảm giá Flash Sale"),
+        )
+        if ppo_after is not None:
+            ppo_after = ppo_after + cut * facts.coverage * reach
     kind = {"price": "price", "product_discount": "product_discount", "flash_sale": "flash_sale"}[
         spec.kind
     ]

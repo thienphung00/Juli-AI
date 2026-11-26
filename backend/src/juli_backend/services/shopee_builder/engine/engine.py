@@ -17,7 +17,10 @@ Method (pure; the only randomness is a ``random.Random(seed)`` -- stdlib, no new
   (change in AOV x orders x contribution rate) - offers - fixed cost. Offers and the fixed cost are
   allocated to the sources by order share, so the sources add up to the total.
 * **Ranking.** All ``n`` scenarios are ranked by delta profit (by delta GMV when profit is unknown);
-  low / likely / high are whole scenarios at P10 / P50 / P90.
+  low / likely / high (5a, owner #99) are each the field-by-field MEAN of the scenarios ranked
+  within +-5 % of n around P10 / P50 / P90 (ranks 5-15 %, 45-55 %, 85-95 %): one drawn scenario
+  made the shown Δ GMV near-random when profit barely varies. Ratios come from the averaged sums
+  (AOV = mean GMV / mean orders). Build-up, cost, break-even and the noise check read these.
 """
 
 from __future__ import annotations
@@ -37,6 +40,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
     Driver,
     DriverEffect,
     FunnelBase,
+    OfferLine,
     OptionInput,
     OptionResult,
     Scenario,
@@ -52,6 +56,8 @@ from juli_backend.services.shopee_builder.engine.vn import (
 
 Z90 = 1.2815515655446004  # standard normal quantile at 0.90 (config.Z_P90)
 DEFAULT_DAYS = 30
+#: 5a (owner #99): a column is the mean of the scenarios ranked within +-WINDOW of its quantile
+WINDOW = 0.05
 _BASIS_ORDER: tuple[Basis, ...] = (
     "measured",
     "product_history",
@@ -296,6 +302,51 @@ def _scenario(
     )
 
 
+def _mean(xs: list[float]) -> float:
+    return sum(xs) / len(xs)
+
+
+def _mean_opt(xs: list[float | None]) -> float | None:
+    return None if any(x is None for x in xs) else _mean([x for x in xs if x is not None])
+
+
+def _mean_draw(window: list[_Draw]) -> _Draw:
+    """5a: one column = the field-by-field mean of ``window``'s scenarios. Every additive field
+    (per source views, clicks, orders, GMV, profit; offer uses and costs; the build-up terms) is
+    averaged; ratios are never averaged -- ``_to_scenario`` derives CTR, CTOR and AOV from the
+    averaged sums (AOV = mean GMV / mean orders), so the funnel and Orders x AOV = GMV still hold
+    exactly and the sources still add up to the total."""
+    if len(window) == 1:
+        return window[0]
+    n_src = len(window[0].rows)
+    rows = []
+    for i in range(n_src):
+        col = [w.rows[i] for w in window]
+        rows.append(
+            (
+                _mean_opt([r[0] for r in col]),
+                _mean_opt([r[1] for r in col]),
+                _mean([r[2] for r in col]),
+                _mean([r[3] for r in col]),
+                _mean_opt([r[4] for r in col]),
+            )
+        )
+    n_off = len(window[0].offer_uses)
+    return _Draw(
+        rows,
+        _mean([w.orders for w in window]),
+        _mean([w.gmv for w in window]),
+        _mean_opt([w.profit for w in window]),
+        _mean([w.offer_cost for w in window]),
+        [_mean([w.offer_uses[j] for w in window]) for j in range(n_off)],
+        _mean([w.orders_term for w in window]),
+        _mean([w.price_term for w in window]),
+        _mean([w.aov_term for w in window]),
+        _mean([w.aov_orders for w in window]),
+        _mean([w.revenue_offer_cost for w in window]),
+    )
+
+
 # -- conversion ----------------------------------------------------------------------------------
 
 
@@ -421,6 +472,20 @@ def _build_up(
     return tuple(out)
 
 
+def _offer_lines(draw: _Draw, option: OptionInput) -> tuple[OfferLine, ...]:
+    """#78 / #87: each offer's expected uses (the column's, after its cap) x its cost per use."""
+    out = []
+    for offer, uses in zip(option.offers, draw.offer_uses, strict=True):
+        u = _d(uses)
+        out.append(OfferLine(offer.label, u, offer.per_use, u * offer.per_use, offer.max_discount))
+    return tuple(out)
+
+
+def _cost_of(lines: tuple[OfferLine, ...], option: OptionInput) -> Decimal:
+    """The option's cost = its offers' totals + its fixed cost (one computation, #78)."""
+    return sum((x.total for x in lines), Decimal(0)) + option.fixed_cost
+
+
 def _weakest(drivers: tuple[DriverEffect, ...]) -> Basis:
     rank = [_BASIS_ORDER.index(d.basis) for d in drivers]
     return _BASIS_ORDER[max(rank)] if rank else "measured"
@@ -501,7 +566,6 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         False,
     )
     before = _to_scenario(before_draw, keys)
-    fixed = float(option.fixed_cost)
     ppo_be = _break_even_ppo(option, added, before_draw, srcs)
 
     if base.stale is not None:  # F2: the newest data is too old: no forecast numbers
@@ -510,7 +574,9 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         mid = _neutral(len(srcs), len(option.offers))
         mid.use_shares = [float(o.use_share.p50) for o in option.offers]
         cost_draw = _scenario(srcs, mid, option, cr, profit_known, aov_idx, None, True)
-        cost = cost_draw.offer_cost + fixed
+        lines = _offer_lines(cost_draw, option)
+        cost_d = _cost_of(lines, option)
+        cost = float(cost_d)
         return OptionResult(
             kind=option.kind,
             label=option.label,
@@ -524,7 +590,8 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
             likely=None,
             high=None,
             build_up=(),
-            cost_total=_d(cost),
+            cost_total=cost_d,
+            offers=lines,
             break_even_orders=_be_orders(cost, ppo_be),
             break_even_aov=_be_aov(
                 cost, 0.0, 0.0, srcs, aov_idx, before_draw.aov_orders, cr, has_aov
@@ -569,11 +636,16 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
     ranked = sorted(range(n), key=lambda i: keyed[i])
 
     def pick(q: float) -> _Draw:
-        return draws[ranked[int(round(q * (n - 1)))]]
+        # 5a (owner #99): the mean of the scenarios ranked within +-5 % of n around ``q``
+        lo = max(0, int(round((q - WINDOW) * (n - 1))))
+        hi = min(n - 1, int(round((q + WINDOW) * (n - 1))))
+        return _mean_draw([draws[ranked[j]] for j in range(lo, hi + 1)])
 
     d10, d50, d90 = pick(0.10), pick(0.50), pick(0.90)
     likely = d50
-    cost = likely.offer_cost + fixed
+    lines = _offer_lines(likely, option)
+    cost_d = _cost_of(lines, option)
+    cost = float(cost_d)
     d_profit = (
         None
         if likely.profit is None or before_draw.profit is None
@@ -601,7 +673,8 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         likely=_to_scenario(d50, keys),
         high=_to_scenario(d90, keys),
         build_up=build_up,
-        cost_total=_d(cost),
+        cost_total=cost_d,
+        offers=lines,
         break_even_orders=_be_orders(cost, ppo_be),
         break_even_aov=_be_aov(
             cost,

@@ -637,7 +637,12 @@ async def test_two_vouchers_compare_side_by_side_with_typed_numbers(session, sho
     assert da["total_orders"] > da["qualifying_orders"]
     assert db["voucher_cost_scenario"] == 2 * da["voucher_cost_scenario"]
     # P99: a voucher without dates keeps its OptionResult's 30-day horizon ("30 ngày đầu")
-    assert b["cost"]["amount"] == 2 * a["cost"]["amount"] and a["cost"]["period_days"] == 30
+    # #78 / #87: the cost line is the engine's voucher offer (its middle column's expected uses x
+    # the discount), not the evaluator's usage formula: the two vouchers' middle columns average
+    # slightly different scenarios (each ranked by its own Δ profit), so twice the discount is
+    # about -- not exactly -- twice the cost
+    assert b["cost"]["amount"] == pytest.approx(2 * a["cost"]["amount"], rel=0.05)
+    assert a["cost"]["source"] == "result" and a["cost"]["period_days"] == 30
     assert a["result"]["days"] == 30 and a["result"]["horizon"] == "first_30_days"
     # the shop's stored profit is partial (order lines cover 7 of 30 days): "chưa tính", never a
     # second calculation from the order lines
@@ -660,6 +665,12 @@ async def test_a_voucher_from_zero_a_percent_cap_limits_and_the_four_kinds(sessi
     )
     uncapped = await one(session, shop, kind="voucher", discount_type="pct", value=10, min_spend=0)
     assert capped["details"]["voucher_cost_scenario"] < uncapped["details"]["voucher_cost_scenario"]
+    # the card's max-discount row reads the engine's voucher offer (the same order values its uses
+    # come from): the 3.000đ cap binds on some qualifying orders; no cap / an amount -> None
+    md = capped["result"]["cost"]["offers"][0]["max_discount"]
+    assert md["cap"] == 3000 and 0 < md["binding_orders"] <= md["qualifying_orders"]
+    assert uncapped["result"]["cost"]["offers"][0]["max_discount"] is None
+    assert zero["result"]["cost"]["offers"][0]["max_discount"] is None
     limited = await one(
         session,
         shop,

@@ -147,11 +147,21 @@ async def test_a_flash_slot_costs_its_hours_and_its_units(session, shop):
         )
 
     short, day = await flash(2, 1000), await flash(24, 1000)
-    assert day["cost"]["amount"] == pytest.approx(short["cost"]["amount"] * 12, rel=0.02)
+    # owner #98: cost = the cut x the ENGINE's after-orders in the slot (was 12x: today's orders
+    # x hours). The lift also runs for all 24 hours, so the day slot has more orders per hour:
+    # 39.248đ on 2,94 slot orders vs 2.673đ on 0,20 (14,7x)
+    assert day["cost"]["amount"] == pytest.approx(39_248, rel=0.02)
+    assert short["cost"]["amount"] == pytest.approx(2_673, rel=0.02)
+    assert day["cost"]["amount"] > short["cost"]["amount"] * 12
+    assert day["cost"]["source"] == "result"
     single = await flash(24, 1)
     per_unit = 90_000 - 80_000  # G1 sells at 90k; 20 % off the 100k list = 80k
-    assert 0 < single["cost"]["amount"] <= per_unit
-    assert p50(single) <= p50(day)
+    # one suất: never more than one unit's cut
+    assert 0 < single["cost"]["amount"] <= per_unit + 1e-6
+    # owner #98: the day slot's Δ profit now carries the cut on every slot order (its extra ones
+    # too), so its middle-profit scenarios are a slightly different set: 14.174đ vs 14.439đ for
+    # one suất (was day >= single). A one-unit slot still gains no more than ~the full day.
+    assert p50(single) <= p50(day) * 1.05
 
 
 # ==================== voucher

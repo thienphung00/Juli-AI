@@ -248,6 +248,24 @@ def result_json(r: OptionResult) -> dict[str, Any]:
             ),
             "break_even_aov": _f(r.break_even_aov),
             "text": " · ".join(parts),
+            # #78 / #87: the offers the total is made of (the voucher panel reads these)
+            "offers": [
+                {
+                    "label": o.label,
+                    "expected_uses": float(o.expected_uses),
+                    "per_use": float(o.per_use),
+                    "total": float(o.total),
+                    "max_discount": None
+                    if o.max_discount is None
+                    else {
+                        "cap": float(o.max_discount.cap),
+                        "binding_orders": o.max_discount.binding_orders,
+                        "qualifying_orders": o.max_discount.qualifying_orders,
+                    },
+                }
+                for o in r.offers
+            ],
+            "fixed": float(n_cost - sum((o.total for o in r.offers), Decimal(0))),
         },
         "after": {
             "days": r.days,

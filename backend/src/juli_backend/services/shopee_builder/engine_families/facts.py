@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
-from juli_backend.services.shopee_builder.engine.contract import Band, Basis, OfferCost
+from juli_backend.services.shopee_builder.engine.contract import Band, Basis, MaxDiscount, OfferCost
 from juli_backend.services.shopee_builder.engine_families.measure import (
     AdCampaignHist,
     AdDay,
@@ -42,6 +42,8 @@ class VoucherFacts:
     reach: Band | None = None
     reach_gap: Decimal = Decimal(0)  # mean (minimum - order value) of those orders
     near_share: Decimal = Decimal(0)  # share of ALL orders within 20 % below the minimum
+    #: a percent voucher's cap against the same order values (None: no cap / an amount voucher)
+    max_discount: MaxDiscount | None = None
 
 
 @dataclass(frozen=True)
@@ -134,6 +136,10 @@ class PriceFacts:
     #: orders response and the programme's uses are scaled by this share. ``units_per_order`` /
     #: ``orders_per_day`` are those orders' own.
     coverage: Decimal = Decimal(1)
+    #: owner #98: a Flash Sale's price cut on one order holding a flash-priced variation = Σ over
+    #: its lines (today's price − flash price) x units (``adapters.flash_cut_per_order``); the
+    #: slot's cost is this x the engine's slot orders, capped at the slot's units. None = unknown
+    flash_cut_per_order: Decimal | None = None
 
 
 @dataclass(frozen=True)
