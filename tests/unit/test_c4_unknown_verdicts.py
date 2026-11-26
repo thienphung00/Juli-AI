@@ -93,6 +93,7 @@ def test_service_marks_contribution_unknown_when_no_line_is_costed() -> None:
     none_costed = SimpleNamespace(
         buyer_paid=Decimal(500), buyer_paid_covered=Decimal(0), contribution=Decimal(0),
         profit=Decimal(-30), break_even_roas=None, gmv_net=Decimal(500), gmv_known_net=Decimal(0),
+        ads_known=True,  # b7791d17: the one gate also reads whether any ad data is known
     )  # fmt: skip
     got = _product_break_even(none_costed)
     assert got["contribution_before_ads"] is None
