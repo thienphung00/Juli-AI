@@ -353,6 +353,8 @@ def test_a_variation_without_history_takes_its_product_rates():
         def __init__(self, revenue, voucher, commission):
             self.revenue, self.voucher, self.commission = D(revenue), D(voucher), D(commission)
             self.excluded_reason = None
+            # a costed line: the tag 1 affiliate basis counts only lines with a known contribution
+            self.contribution = self.revenue - self.voucher - self.commission
 
     class _Ln:
         def __init__(self, sku):
@@ -361,6 +363,7 @@ def test_a_variation_without_history_takes_its_product_rates():
 
     class _Ads:
         product_spend = {"P": D(1_000)}
+        known_spend = D(1_000)  # tag 1: measured_rates also reads whether ad spend is known
 
     class _View:
         pairs = [(_Ln("A"), _Pb(10_000, 500, 1_000))]
