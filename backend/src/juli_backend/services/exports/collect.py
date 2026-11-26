@@ -149,6 +149,33 @@ def _figures(split: dict[str, Any]) -> tq.Figures:
     )  # fmt: skip
 
 
+def with_cancelled_row(
+    rest: tq.ProductRow,
+    now: tuple[float, float],
+    prev: tuple[float, float],
+) -> list[tq.ProductRow]:
+    """The "Cả shop" row without the cancelled-after-confirmation share, then (before it) that
+    share as its own row ("Đơn hủy sau xác nhận", owner #103 10a), only when non-zero: the sheet
+    still sums to the shop. ``now`` / ``prev`` = (GMV, đơn)."""
+    if not any((*now, *prev)):
+        return [rest]
+
+    def take(fig: tq.Figures, got: tuple[float, float]) -> tq.Figures:
+        return replace(
+            fig,
+            gmv=None if fig.gmv is None else fig.gmv - got[0],
+            orders=None if fig.orders is None else fig.orders - got[1],
+        )
+
+    def own(got: tuple[float, float]) -> tq.Figures:
+        return tq.Figures(gmv=got[0], orders=got[1])
+
+    return [  # "Cả shop" stays the last row
+        tq.ProductRow(tq.CANCELLED_ROW_ID, tq.CANCELLED_ROW_NAME, own(now), own(prev)),
+        tq.ProductRow(rest.product_id, rest.name, take(rest.now, now), take(rest.prev, prev)),
+    ]
+
+
 def _residual(shop: tq.Figures, parts: list[tq.Figures]) -> tq.Figures:
     """Shop minus the products, field by field (``None`` where the shop has none)."""
 
@@ -390,7 +417,15 @@ async def collect_tong_quan(
             tq.SHOP_ROW_LABEL, tq.SHOP_ROW_NAME, _residual(shop_now, [r.now for r in rows]),
             _residual(shop_prev, [r.prev for r in rows]),
         )  # fmt: skip
-        rows.append(rest)
+        rows.extend(
+            with_cancelled_row(
+                rest,
+                (float(view.metrics.cancelled_gmv), float(view.metrics.cancelled_orders)),
+                (float(pview.metrics.cancelled_gmv), float(pview.metrics.cancelled_orders))
+                if pview is not None
+                else (0.0, 0.0),
+            )
+        )
 
     shop_days = {d.day: d for d in frows.shop_days}
     prod_days = {d.day: d for d in frows.product_days if d.item_id == product_id}

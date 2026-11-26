@@ -53,6 +53,10 @@ SHOP_ROW_LABEL = "Cả shop"
 #: what the "Cả shop" row holds: the shop's figures minus the products' (ads and costs that no
 #: product owns, order lines without a product)
 SHOP_ROW_NAME = "Cả shop — quảng cáo và chi phí chưa gán sản phẩm"
+#: owner #103 10a: the orders cancelled after Shopee confirmed them: inside the shop total, in no
+#: product, their own row (only when non-zero)
+CANCELLED_ROW_ID = "Đơn hủy"
+CANCELLED_ROW_NAME = "Đơn hủy sau xác nhận"
 #: the labels of the metrics that have a registry entry come from the registry (owner 2026-11-20:
 #: the backend is the source of truth, the Excel follows it)
 ROI_LABEL = METRICS["roi"].label_vi
