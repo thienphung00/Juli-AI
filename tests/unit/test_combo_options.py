@@ -300,3 +300,24 @@ def naming_is_combo(name: str) -> bool:
     from juli_backend.services.shopee_builder.combo_options import naming
 
     return naming.is_combo_variation(name)
+
+
+def test_a_member_with_unknown_ad_cost_makes_the_combo_ad_cost_unknown() -> None:
+    """Owner #103 (11a): an unknown ad cost is never 0, so a combo of a product whose ad cost is
+    unknown has an unknown ad cost too; known members are weighted as before."""
+    from dataclasses import replace
+
+    from juli_backend.services.shopee_analytics.margins import Rates
+    from juli_backend.services.shopee_builder.combo_options.pricing import combo_rates
+
+    packs = Packs((), (BundleSpec((("100", 3), ("200", 1))),))
+    option = generate([GLOVE, BAG], ALL, packs, Rules(sold_only=False))[0]
+    known = {
+        "100": Rates(D("0.02"), D("0.01"), D("0.05")),
+        "200": Rates(D("0.02"), D("0.01"), D("0.05")),
+    }
+    both = combo_rates(option, replace(ECO, rates=known))
+    assert both is not None and both.ads == D("0.05")
+    one_unknown = {**known, "200": Rates(D("0.02"), D("0.01"), None)}
+    got = combo_rates(option, replace(ECO, rates=one_unknown))
+    assert got is not None and got.ads is None and got.voucher == D("0.02")
