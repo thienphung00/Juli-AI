@@ -189,7 +189,7 @@ export function ShopHeader({
                 {reviewer ? null : (
                   <li>
                     <Link className="shop-menu__item" href={CONNECT_SHOP_HREF} onClick={close}>
-                      {state.status === "no-shop" ? "Kết nối TikTok Shop" : "Đổi shop"}
+                      {state.status === "no-shop" ? "Kết nối shop" : "Đổi shop"}
                     </Link>
                   </li>
                 )}

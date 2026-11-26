@@ -99,9 +99,9 @@ export function ConnectShopView({
 
   return (
     <section aria-labelledby="connect-shop-title" className="connect-shop">
-      <p className="demo-kicker">Kết nối TikTok Shop</p>
+      <p className="demo-kicker">Kết nối shop</p>
       <h1 className="demo-title" id="connect-shop-title">
-        Kết nối TikTok Shop
+        Kết nối shop
       </h1>
       {email && (
         <p className="connect-shop__identity">
@@ -221,7 +221,7 @@ function ConnectShopReady({
   if (shops.length === 0) {
     return (
       <div className="connect-shop__empty">
-        <p>Bạn chưa kết nối shop TikTok nào.</p>
+        <p>Bạn chưa kết nối shop nào.</p>
         <ConnectTikTokShopButton
           accessToken={accessToken}
           navigate={navigate}

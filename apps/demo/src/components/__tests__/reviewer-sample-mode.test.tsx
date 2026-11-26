@@ -112,7 +112,7 @@ describe("the sample shop for a reviewer, in the real shell", () => {
     expect(banner).toHaveTextContent(REVIEWER_SAMPLE_BANNER_COPY);
     const cards = await screen.findAllByTestId("recommendation-card");
     expect(screen.queryByTestId("no-shop-sample-strip")).toBeNull();
-    expect(screen.queryByText("Kết nối TikTok Shop ›")).toBeNull();
+    expect(screen.queryByText("Kết nối shop ›")).toBeNull();
 
     const card = cards.find((element) => element.textContent?.includes(SAMPLE_MAIN_CARD.name)) ?? cards[0];
     // P32-E: nothing is read-only in the sample shop any more.

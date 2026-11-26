@@ -316,9 +316,9 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - Definition: The shop-avatar menu's sign-in item for a signed-out sample visitor. On the auth screen (P34-F) the same link reads "Tiếp tục với Google" (`auth.screen`). The landing's other entry — Supabase Auth (Google provider) to a real, distinct identity, then the connect-shop screen (ADR-094 decision 3).
 
 **`auth.connect_shop`**
-- EN: Connect TikTok Shop
-- VI: Kết nối TikTok Shop
-- Definition: The screen a signed-in seller reaches after Google sign-in, and the label of the control that starts the real handshake. Live from issue #1970: the button calls `GET /v1/auth/tiktok/start`, which mints a signed state naming the signed-in seller, and sends the browser to TikTok Partner Center's consent screen. Until #1970 it was a deliberately inert control beside an honest "chưa thực hiện thao tác nào" disclaimer; that disclaimer is retired with the wiring, because keeping it would now be the dishonest option.
+- EN: Connect a shop (screen, shop menu) · Connect TikTok Shop (the TikTok button)
+- VI: Kết nối shop · Kết nối TikTok Shop
+- Definition: The screen a signed-in seller reaches after Google sign-in ("Kết nối shop", owner #104: it offers TikTok Shop and Shopee; the shop menu reads "Kết nối shop" with no shop, "Đổi shop" with one), and "Kết nối TikTok Shop" is the label of the control that starts the real TikTok handshake. Live from issue #1970: the button calls `GET /v1/auth/tiktok/start`, which mints a signed state naming the signed-in seller, and sends the browser to TikTok Partner Center's consent screen. Until #1970 it was a deliberately inert control beside an honest "chưa thực hiện thao tác nào" disclaimer; that disclaimer is retired with the wiring, because keeping it would now be the dishonest option.
 
 **`auth.connect_shop.redirecting`**
 - EN: Taking you to TikTok…
@@ -347,7 +347,7 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - The only filled button: "Tiếp tục với Google" (EN: Continue with Google) — `auth.google` on this screen.
 - Divider "hoặc dùng email"; field label "Email", placeholder "ten@shopcuaban.vn"; outline button "Gửi mã đăng nhập" (EN: Send sign-in code); pending "Đang gửi mã…"; locked "Gửi mã sau {n} giây".
 - Under the column: "Xem thử với dữ liệu mẫu, không cần tài khoản →" (EN: Look around with sample data, no account needed →) enters the sample demo (`demo.try`); "Mới dùng Juli? Dùng thử miễn phí 3 tháng" switches to the trial variant.
-- OTP view: h1 "Nhập mã 6 chữ số"; "Juli đã gửi mã tới {masked email}. Nhập mã bên dưới, hoặc bấm nút đăng nhập trong email."; legend "Mã đăng nhập", boxes "Số 1"…"Số 6"; filled button "Xác nhận" (pending "Đang xác nhận…"); "Nhập đủ 6 chữ số trong email."; "← Đổi email"; "Gửi lại mã" / "Gửi lại mã sau {n} giây"; on a wrong/expired code the alert offers "Gửi mã mới"; success "Đăng nhập thành công. Đang chuyển tới Kết nối TikTok Shop…".
+- OTP view: h1 "Nhập mã 6 chữ số"; "Juli đã gửi mã tới {masked email}. Nhập mã bên dưới, hoặc bấm nút đăng nhập trong email."; legend "Mã đăng nhập", boxes "Số 1"…"Số 6"; filled button "Xác nhận" (pending "Đang xác nhận…"); "Nhập đủ 6 chữ số trong email."; "← Đổi email"; "Gửi lại mã" / "Gửi lại mã sau {n} giây"; on a wrong/expired code the alert offers "Gửi mã mới"; success "Đăng nhập thành công. Đang chuyển tới Kết nối shop…".
 - Partner view (the top pill or the footer link "Tài khoản đối tác"): eyebrow "Tài khoản đối tác", h1 "Đăng nhập bằng mật khẩu", sub "Dành cho đối tác và đơn vị thẩm định được Juli cấp tài khoản. Người bán đăng nhập bằng Google hoặc email.", back "← Quay lại đăng nhập cho người bán".
 - Right panel (desktop, label "Juli làm gì"): eyebrow "Sau khi kết nối TikTok Shop"; "Juli chỉ ra luồng và sản phẩm đang kéo GMV xuống, kèm một thay đổi cụ thể để bạn duyệt."; shot alt "Thẻ đề xuất của Juli: Mặt nạ đất sét 100g, CTOR 5,4 % lên 5,9 %", caption "Ví dụ thẻ đề xuất"; proof lines "Kết nối chính thức qua TikTok Shop Open API" · "Chỉ thực hiện khi bạn duyệt" · "Miễn phí 3 tháng".
 - Logo label "Juli AI, về trang chủ app-juli.com"; footer "Tài khoản đối tác" · "Điều khoản" · "Chính sách bảo mật" · "© 2026 Công ty TNHH Công Nghệ Juli AI".
@@ -1172,8 +1172,8 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - Definition: The signed-in Decisions surface's shop-identity line (issue #1909, #1319's surviving criterion) — reuses the connect-shop screen's exact phrasing so a seller with more than one shop can always tell which shop the `X-Shop-Id` on every request belongs to.
 
 **`decisions.signed_in.no_shop`**
-- EN: You have not chosen the shop you are acting on. Open Connect TikTok Shop to choose one.
-- VI: Bạn chưa chọn shop đang thao tác. Mở Kết nối TikTok Shop để chọn shop.
+- EN: You have not chosen the shop you are acting on. Open Connect a shop to choose one.
+- VI: Bạn chưa chọn shop đang thao tác. Mở Kết nối shop để chọn shop.
 - Definition: Signed-in Decisions state when a session exists but no acting shop is stored (issue #1909) — honest recovery pointing back at `auth.connect_shop`, never a silent default onto a shop the seller did not pick.
 
 **`error.decisions.load_failed`**

@@ -118,10 +118,10 @@ export function SignedInQuyetDinh({
       <section aria-labelledby="qd-title" className="qd-page">
         <AppPageHeader eyebrow="Quyết định" title="Việc cần bạn quyết định" titleId="qd-title" />
         <div className="qv-empty" role="status">
-          <p>Bạn chưa chọn shop đang thao tác. Mở Kết nối TikTok Shop để chọn shop.</p>
+          <p>Bạn chưa chọn shop đang thao tác. Mở Kết nối shop để chọn shop.</p>
           {reviewer ? null : (
             <Link className="qv-link" href="/auth/connect-shop">
-              Kết nối TikTok Shop
+              Kết nối shop
             </Link>
           )}
         </div>

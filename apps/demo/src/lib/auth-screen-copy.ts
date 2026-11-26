@@ -32,7 +32,7 @@ export const AUTH_OTP_CHANGE_EMAIL = "← Đổi email";
 export const AUTH_OTP_RESEND = "Gửi lại mã";
 export const authOtpResendCountdown = (seconds: number) => `Gửi lại mã sau ${seconds} giây`;
 export const AUTH_OTP_NEW_CODE = "Gửi mã mới";
-export const AUTH_OTP_SIGNED_IN = "Đăng nhập thành công. Đang chuyển tới Kết nối TikTok Shop…";
+export const AUTH_OTP_SIGNED_IN = "Đăng nhập thành công. Đang chuyển tới Kết nối shop…";
 export const authOtpDigitLabel = (index: number) => `Số ${index + 1}`;
 
 /** "Juli đã gửi mã tới {masked}. …" — the address is masked, the code never shown. */
