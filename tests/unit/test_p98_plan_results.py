@@ -335,9 +335,10 @@ async def test_a_chosen_version_keeps_its_spec_so_every_kind_gets_a_result(sessi
     ]
     agg = await _plan_of_saved(session, seeded, uuid.UUID(saved["id"]))
     card = agg["cards"][0]
-    assert card["result"]["counted"] is False
-    assert card["result"].get("reason")
-    assert len(agg["not_estimable_cards"]) == 1
+    # a gift card is estimable: F5 (#93) holds back only title / cover (a2e1640a flipped this
+    # assertion along with the title test below; it failed on that branch's own head)
+    assert card["result"]["counted"] is True, card["result"].get("reason")
+    assert agg["not_estimable_cards"] == []
     per30 = saved["outcome"]["result"]["per_30d"]
     assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(per30["gmv"], abs=1)
 
