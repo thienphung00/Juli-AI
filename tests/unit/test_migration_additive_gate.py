@@ -477,7 +477,9 @@ def test_additive_gate_accepts_the_real_repo_at_the_promoted_063_revision():
 #: (runbook per entry). deploy.sh passes prod's current revision as --from-revision, so once the
 #: window has run the revision is no longer pending and the gate accepts; before it, the gate
 #: refuses and the deploy aborts. The gate itself has no exception for them.
-MAINTENANCE_WINDOW = frozenset({"134_canonical_tables"})  # docs/runbooks/t5-maintenance-window.md
+MAINTENANCE_WINDOW = frozenset(
+    {"134_canonical_tables", "136_drop_t5_compat_views"}
+)  # docs/runbooks/t5-maintenance-window.md (one section per migration)
 
 
 def _refused_revisions(stdout: str) -> set[str]:
@@ -505,8 +507,9 @@ def test_the_deploy_gate_refuses_134_before_the_maintenance_window():
 
 
 def test_the_deploy_gate_no_longer_sees_134_after_the_maintenance_window():
-    """Prod at 134 (the owner applied it in the window): 134 is not pending, the gate never
-    inspects it, and with nothing else non-additive on top the deploy passes."""
+    """Prod at 134 (the owner applied it in the window): 134 is not pending and the gate never
+    inspects it. The only non-additive revision on top is 136's own window, so the gate either
+    accepts or refuses for 136 alone."""
     result = _run_gate(
         "--alembic-ini",
         str(REPO_ROOT / "alembic.ini"),
@@ -518,5 +521,46 @@ def test_the_deploy_gate_no_longer_sees_134_after_the_maintenance_window():
         ln for ln in result.stdout.splitlines() if "pending revisions inspected:" in ln
     )
     assert "134_canonical_tables" not in inspected
-    assert "134_canonical_tables" not in _refused_revisions(result.stdout)
-    assert result.returncode == GATE_EXIT_ACCEPTED, result.stdout
+    assert _refused_revisions(result.stdout) <= {"136_drop_t5_compat_views"}, result.stdout
+
+
+def _findings(stdout: str) -> list[str]:
+    return [ln.strip() for ln in stdout.splitlines() if ln.strip().startswith("[")]
+
+
+def test_the_deploy_gate_refuses_136_before_its_window_for_the_seven_view_drops_only():
+    """Prod at 138 (136's window not run yet): 136 is pending, and the gate refuses it for
+    exactly the seven ``DROP VIEW`` statements -- nothing else in 136 is non-additive."""
+    result = _run_gate(
+        "--alembic-ini",
+        str(REPO_ROOT / "alembic.ini"),
+        "--from-revision",
+        "138_juli_agent_spend",
+    )
+    assert result.returncode == GATE_EXIT_REFUSED, result.stdout + result.stderr
+    assert _refused_revisions(result.stdout) == {"136_drop_t5_compat_views"}, result.stdout
+    findings = _findings(result.stdout)
+    views = (
+        "shopee_order_lines",
+        "shopee_order_income",
+        "shopee_affiliate_lines",
+        "shopee_shop_metrics_daily",
+        "shopee_product_metrics_daily",
+        "shopee_source_metrics_daily",
+        "shopee_stock_history",
+    )
+    assert len(findings) == 7, findings
+    assert all("execute(DROP)" in f for f in findings), findings
+    assert sorted(f.rsplit("public.", 1)[1].split()[0] for f in findings) == sorted(views)
+
+
+def test_the_deploy_gate_accepts_after_the_136_window():
+    """Prod at 136 (the owner applied it): nothing non-additive is pending, the deploy passes."""
+    result = _run_gate(
+        "--alembic-ini",
+        str(REPO_ROOT / "alembic.ini"),
+        "--from-revision",
+        "136_drop_t5_compat_views",
+    )
+    assert result.returncode == GATE_EXIT_ACCEPTED, result.stdout + result.stderr
+    assert "ADDITIVE-ONLY: ACCEPTED" in result.stdout

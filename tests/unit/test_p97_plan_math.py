@@ -382,7 +382,7 @@ def test_migration_125_is_additive_and_reversible():
         for column in model.__table__.columns.keys():
             assert f'"{column}"' in src, f"{model.__tablename__}.{column}"
     tail = versions_dir.parent / "deferred/101_write_mode_backfill.py"
-    assert 'down_revision: str | None = "140_data_layer_facts_opps"' in tail.read_text("utf-8")
+    assert 'down_revision: str | None = "136_drop_t5_compat_views"' in tail.read_text("utf-8")
 
 
 def _ev(card_id, product, dgmv):
