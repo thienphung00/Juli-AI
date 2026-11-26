@@ -15,6 +15,7 @@ import { resultDays, signedCount } from "../option-card/format";
 import { hasCost, profitVerdict, reasonLine, strategyOfResult } from "../../../lib/shopee-decisions/card-rows";
 import { roiLabel, staleText, type OptionResult } from "../../../lib/shopee-decisions/option-result";
 import { TargetRows } from "./targets";
+import { VoucherNumbers, isVoucherResult } from "./voucher-numbers";
 
 /**
  * The result block of a version (artboard `TuTaoPhuongAnKinds`): Δ GMV, Δ đơn, Δ lợi nhuận with the low-high
@@ -343,6 +344,7 @@ export function ResultCard({ result: r, name, breakEven = false, forecast: given
           <MetricLines days={days} fallbackWhy={shownReason(r.reason_text) === DASH ? null : r.reason_text} forecast={forecast} testId="p3-fc" />
         </div>
       )}
+      {isVoucherResult(r) ? <VoucherNumbers forecast={forecast} result={r} /> : null}
       {a ? <CpaBar breakEven={a.break_even_cpa} cpaAfter={a.cpa.after} cpaNow={a.cpa.now} /> : null}
       <table className="p3-rows">
         <tbody>
