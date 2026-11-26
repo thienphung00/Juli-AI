@@ -16,7 +16,7 @@ from juli_backend.services.shopee_analytics.loaders import (
 )
 from juli_backend.services.shopee_analytics.metrics import _splits
 from juli_backend.services.shopee_analytics.windows import Window
-from juli_backend.services.shopee_profit.order_profit import OrderStatus
+from juli_backend.services.shopee_profit.order_profit import OrderLine, OrderStatus
 from juli_backend.services.shopee_profit.shop_profit import shop_profit
 from tests.unit.test_c1_in_transit_ads import _pair
 
@@ -64,3 +64,58 @@ def test_product_gmv_and_orders_leave_out_cancelled_lines():
     view = SimpleNamespace(pairs=pairs, line_orders=2)
     split = _splits(view, None, None)[0]["A"]
     assert split.gmv == D(100_000) and split.orders == 1
+
+
+def _line(order, item, value, status=OrderStatus.DELIVERED):
+    return OrderLine(
+        order_id=order,
+        sku="S-" + item,
+        product_id=item,
+        order_date=date(2026, 11, 4),
+        qty=1,
+        original_price=D(value),
+        deal_price=D(value),
+        status=status,
+    )
+
+
+def test_a_cancelled_line_keeps_its_place_in_the_scale_and_its_share_is_not_given_away():
+    # shop day total 200k holds the cancelled order: A delivered 100k, B cancelled 100k
+    pairs = [
+        (_line("o1", "A", 100_000), None),
+        (_line("o2", "B", 100_000, OrderStatus.CANCELLED), None),
+    ]
+    view = SimpleNamespace(pairs=pairs, line_orders=2)
+    out = _splits(view, D(200_000), 2)[0]
+    assert out["A"].gmv == D(100_000) and out["A"].orders == 1
+    assert out["B"].gmv == 0 and out["B"].orders == 0 and out["B"].units == 0
+
+
+def test_a_day_of_only_cancelled_lines_has_no_period_fallback():
+    pairs = [(_line("o2", "B", 100_000, OrderStatus.CANCELLED), None)]
+    view = SimpleNamespace(pairs=pairs, line_orders=1)
+    out, scale, _ = _splits(view, D(100_000), 1)
+    assert scale == 1 and out["B"].gmv == 0 and out["B"].basis == "scaled_order_lines"
+
+
+def test_an_unknown_ad_cost_gives_no_final_margin_but_a_known_zero_does():
+    from juli_backend.services.shopee_analytics.margins import final_margin, measured_rates
+
+    pairs = [_pair("o1", 100_000, 4, 40_000)]
+    unknown, _ = measured_rates(pairs, None, ads_unknown=True)
+    known, _ = measured_rates(pairs, D(0))
+    assert unknown is not None and known is not None
+    assert final_margin(40.0, unknown) is None
+    assert final_margin(40.0, known) == 40.0
+
+
+def test_a_product_with_an_unknown_ads_gmv_is_not_ranked_as_zero():
+    from juli_backend.services.shopee_analytics.rankings import _product_m
+    from juli_backend.services.shopee_profit.shop_profit import AdsFigures
+
+    view = SimpleNamespace(
+        ads=SimpleNamespace(product_figures={"1": AdsFigures(D(10), None, None)}),
+        profit=SimpleNamespace(products={}),
+        pairs=[],
+    )
+    assert _product_m(view, "1", "ads", None) is None

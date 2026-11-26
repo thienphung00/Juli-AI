@@ -27,17 +27,18 @@ class Rates:
 
     voucher: Decimal = ZERO
     commission: Decimal = ZERO
-    ads: Decimal = ZERO
+    #: ``None`` = the ad cost is unknown (no ad data for the window): never 0 (owner #99)
+    ads: Decimal | None = ZERO
 
     @property
     def total(self) -> Decimal:
-        return self.voucher + self.commission + self.ads
+        return self.voucher + self.commission + (self.ads or ZERO)
 
-    def json(self) -> dict[str, float]:
+    def json(self) -> dict[str, float | None]:
         return {
             "voucher_pct": float(pct_points(self.voucher) or 0),
             "commission_pct": float(pct_points(self.commission) or 0),
-            "ads_pct": float(pct_points(self.ads) or 0),
+            "ads_pct": None if self.ads is None else float(pct_points(self.ads) or 0),
         }
 
 
@@ -47,6 +48,7 @@ def measured_rates(
     *,
     affiliate_cost_basis: bool = False,
     order_basis: Iterable[tuple[Any, Any]] | None = None,
+    ads_unknown: bool = False,
 ) -> tuple[Rates | None, dict[str, Rates]]:
     """``(the product's rates, SKU key -> rates)`` from the product's ``(OrderLine, breakdown)``
     pairs of the window; cancelled / excluded lines are left out. ``product_spend`` = the ads
@@ -68,7 +70,8 @@ def measured_rates(
     total = sum(paid.values(), ZERO)
     if total <= 0:
         return None, {}
-    ads = (product_spend or ZERO) / total  # revenue-weighted: the same rate on every SKU
+    # revenue-weighted: the same rate on every SKU; unknown stays None
+    ads = None if ads_unknown else (product_spend or ZERO) / total
     by_sku = {
         sku: Rates(voucher[sku] / p, commission[sku] / p, ads) for sku, p in paid.items() if p > 0
     }
@@ -79,7 +82,7 @@ def measured_rates(
 
 def final_margin(margin_pct: float | Decimal | None, rates: Rates | None) -> float | None:
     """Biên cuối in percent points: the price-only margin less the measured rates."""
-    if margin_pct is None or rates is None:
-        return None
+    if margin_pct is None or rates is None or rates.ads is None:
+        return None  # an unknown ad cost gives no Biên cuối
     value = Decimal(str(margin_pct)) - rates.total * HUNDRED
     return float(value.quantize(Decimal("0.1"), ROUND_HALF_UP))

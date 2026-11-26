@@ -93,6 +93,9 @@ class ProductSplit:
     line_gmv: Decimal
     line_orders: int
     basis: str
+    #: the shop's units of this product's lines, cancelled ones included (the shop total holds
+    #: them, owner #99); ``None`` = the same as ``units``
+    shop_units: int | None = None
 
 
 @dataclass(frozen=True)
@@ -124,6 +127,8 @@ class ShopMetrics:
     funnel_basis: str = "flow_tables"
     #: P100-A (B.17): the window's days whose order data arrived (the only days in the totals)
     days_with_data: int | None = None
+    #: the shop's stored units (cancelled lines included, owner #99); ``None`` = sum the splits
+    shop_units: int | None = None
 
     def coverage(self) -> dict[str, Any]:
         """ "N/30 ngày có dữ liệu": the one coverage every surface of this window shows."""
@@ -157,7 +162,9 @@ class ShopMetrics:
 
     @property
     def units(self) -> int:
-        return sum(s.units for s in self.splits.values())
+        if self.shop_units is not None:
+            return self.shop_units
+        return sum(s.units if s.shop_units is None else s.shop_units for s in self.splits.values())
 
     def split(self, item_id: str) -> ProductSplit | None:
         return self.splits.get(item_id)
@@ -231,14 +238,24 @@ def _splits(
     line_gmv: dict[str, Decimal] = defaultdict(lambda: ZERO)
     units: dict[str, int] = defaultdict(int)
     order_ids: dict[str, set[str]] = defaultdict(set)
+    # owner #99: Shopee's shop total still holds an order cancelled after confirmation, so the
+    # scale is made with EVERY sale line; the cancelled lines' share is then left out of the
+    # product (the products add up to the shop minus that share, by design)
+    canc_gmv: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    canc_units: dict[str, int] = defaultdict(int)
+    canc_orders: dict[str, set[str]] = defaultdict(set)
     for ln, _ in view.pairs:
-        if not counts_in_product_sales(ln):
-            continue  # a returned order is no sale (T5 D2); a cancelled one is not a product's
+        if not counts_in_sales(ln):
+            continue  # a returned order is no sale (T5 D2)
         line_gmv[ln.product_id] += ln.order_value
         units[ln.product_id] += ln.qty
         order_ids[ln.product_id].add(ln.order_id)
+        if not counts_in_product_sales(ln):
+            canc_gmv[ln.product_id] += ln.order_value
+            canc_units[ln.product_id] += ln.qty
+            canc_orders[ln.product_id].add(ln.order_id)
     total_line_gmv = sum(line_gmv.values(), ZERO)
-    total_line_orders = len(set().union(*order_ids.values())) if order_ids else 0
+    total_line_orders = view.line_orders
     if total_line_gmv > 0:
         scale = (gmv / total_line_gmv) if gmv is not None else None
         o_scale = (
@@ -247,18 +264,20 @@ def _splits(
             else None
         )
         shares = allocate(gmv, dict(line_gmv)) if gmv is not None else dict(line_gmv)
-        out = {
-            i: ProductSplit(
+        out = {}
+        for i in line_gmv:
+            kept_orders = order_ids[i] - canc_orders[i]
+            own = shares[i] - shares[i] * canc_gmv[i] / line_gmv[i]
+            out[i] = ProductSplit(
                 i,
-                shares[i],
-                _round(Decimal(len(order_ids[i])) * (o_scale or Decimal(1))),
-                _round(Decimal(units[i]) * (scale or Decimal(1))),
-                line_gmv[i],
-                len(order_ids[i]),
+                own.quantize(Decimal(1), rounding=ROUND_HALF_UP),
+                _round(Decimal(len(kept_orders)) * (o_scale or Decimal(1))),
+                _round(Decimal(units[i] - canc_units[i]) * (scale or Decimal(1))),
+                line_gmv[i] - canc_gmv[i],
+                len(kept_orders),
                 SPLIT_SCALED_LINES if scale is not None else SPLIT_LINES,
+                _round(Decimal(units[i]) * (scale or Decimal(1))),
             )
-            for i in line_gmv
-        }
         return out, scale, o_scale
     if spread and any(s.orders is not None for s in spread.values()):
         return _spread_splits(spread, gmv), None, None
@@ -407,6 +426,7 @@ def from_stored(view: PeriodView, stored: StoredWindow) -> ShopMetrics:
         gmv=gmv,
         orders=stored.orders,
         gmv_basis=BASIS_SHOP_TOTALS,
+        shop_units=stored.units,
         views=stored.views,
         clicks=stored.clicks,
         ad_spend=stored.ads_spend,

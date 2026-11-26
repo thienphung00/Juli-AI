@@ -77,6 +77,7 @@ def _rates(view: PeriodView, product_id: str, sku: str | None) -> Rates | None:
         view.ads.product_spend.get(product_id, ZERO),
         affiliate_cost_basis=True,
         order_basis=view.pairs,
+        ads_unknown=view.ads.known_spend is None,
     )
     return product_rates if sku is None else by_sku.get(sku)
 
@@ -231,8 +232,10 @@ def sku_waterfall(
         voucher = sum((pb.voucher for _, pb in carrying), ZERO)
         combo = sum((pb.bundle for _, pb in carrying), ZERO)
         contribution = sum((pb.contribution or ZERO for _, pb in carrying), ZERO)
-        ad_cost = (spend * paid / product_paid) if product_paid > 0 else ZERO
-        ad_rate = safe_div(ad_cost, paid) if paid > 0 else None
+        ad_cost: Decimal | None = (spend * paid / product_paid) if product_paid > 0 else ZERO
+        if view.ads.known_spend is None:
+            ad_cost = None  # no ad data for the window: the ad cost and what depends on it is "—"
+        ad_rate = safe_div(ad_cost, paid) if paid > 0 and ad_cost is not None else None
         stated = assumed_costs or real  # False = no giá vốn on this page: "chưa tính"
         floor = None
         cap = ctx.rules.max_discount_pct.get(sku)
@@ -291,9 +294,11 @@ def sku_waterfall(
                     "commission": per_unit(commission_shown),
                     "contribution_before_ads": per_unit(contribution) if stated else None,
                     "ads": per_unit(ad_cost),
-                    "profit": per_unit(contribution - ad_cost) if stated else None,
-                    "margin_pct": pct(pct_points(safe_div(contribution - ad_cost, paid)))
+                    "profit": per_unit(None if ad_cost is None else contribution - ad_cost)
                     if stated
+                    else None,
+                    "margin_pct": pct(pct_points(safe_div(contribution - ad_cost, paid)))
+                    if stated and ad_cost is not None
                     else None,
                     "organic_vs_ads": "unknown (đơn xuất không ghi nguồn quảng cáo)",
                 },
