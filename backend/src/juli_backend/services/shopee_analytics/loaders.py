@@ -301,6 +301,7 @@ async def load_order_lines(
             deal_price=r.deal_price,
             shop_voucher_share=r.shop_voucher_share,
             bundle_discount=r.bundle_discount,
+            source=r.source,
             promo_kind=r.promo_kind,
             voucher_code=r.voucher_code,
             affiliate=bool(r.affiliate),

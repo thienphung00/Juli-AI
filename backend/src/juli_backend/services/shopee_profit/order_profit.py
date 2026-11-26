@@ -164,6 +164,9 @@ class OrderLine:
     deal_price: Decimal
     shop_voucher_share: Decimal = ZERO
     bundle_discount: Decimal = ZERO
+    #: owner #102: a Connector combo line: ``deal_price`` is already the line's share of the combo
+    #: price, so ``bundle_discount`` is information and is not taken off again
+    combo_in_price: bool = False
     promo_kind: PromoKind = PromoKind.NONE
     ad_attributed: bool = False
     affiliate: bool = False
@@ -198,9 +201,25 @@ class OrderLine:
         return max(ZERO, self.shop_voucher_share - self.voucher_funded)
 
     @property
+    def combo_off(self) -> Decimal:
+        """The combo discount still to take off ``order_value`` (none for a Connector combo line,
+        whose deal price already holds it, owner #102)."""
+        return ZERO if self.combo_in_price else self.bundle_discount
+
+    @property
+    def programme_discount(self) -> Decimal:
+        """List value less the goods total, without the combo already inside the deal price: the
+        Chương Trình Của Shop / Flash Sale part of Ưu đãi."""
+        return (
+            self.list_value
+            - self.order_value
+            - (self.bundle_discount if self.combo_in_price else ZERO)
+        )
+
+    @property
     def buyer_paid(self) -> Decimal:
         """Doanh thu thực before VAT: goods total − the seller's voucher − combo (#50)."""
-        return self.order_value - self.seller_voucher - self.bundle_discount
+        return self.order_value - self.seller_voucher - self.combo_off
 
     @property
     def item_after_seller_promo(self) -> Decimal:
@@ -326,7 +345,7 @@ def line_profit(
     if not line.status.carries_profit:
         return ProfitBreakdown(
             list_value=line.list_value,
-            promo_discount=line.list_value - line.order_value,
+            promo_discount=line.programme_discount,
             voucher=line.seller_voucher,
             bundle=line.bundle_discount,
             buyer_paid=line.buyer_paid,
@@ -413,7 +432,7 @@ def line_profit(
 
     return ProfitBreakdown(
         list_value=line.list_value,
-        promo_discount=line.list_value - line.order_value,
+        promo_discount=line.programme_discount,
         voucher=line.seller_voucher,
         bundle=line.bundle_discount,
         buyer_paid=line.buyer_paid,
@@ -456,7 +475,7 @@ def _refund_profit(line: OrderLine, cost: SkuCost | None) -> ProfitBreakdown | N
     contribution = None if packaging is None else -(charged + packaging)
     return ProfitBreakdown(
         list_value=line.list_value,
-        promo_discount=line.list_value - line.order_value,
+        promo_discount=line.programme_discount,
         voucher=line.seller_voucher,
         bundle=line.bundle_discount,
         buyer_paid=line.buyer_paid,

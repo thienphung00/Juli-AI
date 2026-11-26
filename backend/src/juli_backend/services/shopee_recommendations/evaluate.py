@@ -1067,6 +1067,7 @@ def _bundle_line(line: OrderLine, qty: int, pct_off: Decimal) -> OrderLine:
         line,
         qty=qty,
         bundle_discount=to_dong(gross * pct_off / 100),
+        combo_in_price=False,
         shop_voucher_share=ZERO,
         order_id=f"bundle:{line.sku}:{qty}",
         promo_kind=PromoKind.NONE,
@@ -1182,6 +1183,7 @@ def eval_bundle(
             bundle_discount=to_dong(
                 ln.deal_price * ln.qty * tiers[max(q for q in tiers if q <= ln.qty)] / 100
             ),
+            combo_in_price=False,
         )
         if ln.product_id == item and ln.qty >= min(tiers)
         else ln
@@ -1506,7 +1508,7 @@ def eval_gift(
         # P100 (B.11): the minimum spend is met on the basket after the programme price
         # (``deal_price``) and the combo discount; Shopee's own rule for a gift is not
         # confirmed in Seller Centre yet (brief J verified the combo, not the gift)
-        after_offers[ln.order_id] += ln.order_value - ln.bundle_discount
+        after_offers[ln.order_id] += ln.order_value - ln.combo_off
     if trigger.get("type") == "buy_item":
         item_orders = {ln.order_id for ln in lines if ln.product_id == main and counts_in_sales(ln)}
         qualifying = [o for o in by_order if o in item_orders]

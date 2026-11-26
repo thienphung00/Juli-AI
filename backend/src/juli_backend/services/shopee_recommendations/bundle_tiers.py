@@ -250,7 +250,7 @@ def eval_bundle_tiers(
     )
     # five numbers: the listed lines of the qualifying orders carry their discount
     after_lines = [
-        replace(ln, bundle_discount=discount_of[(ln.order_id, id(ln))])
+        replace(ln, bundle_discount=discount_of[(ln.order_id, id(ln))], combo_in_price=False)
         if (ln.order_id, id(ln)) in discount_of
         else ln
         for ln in lines
