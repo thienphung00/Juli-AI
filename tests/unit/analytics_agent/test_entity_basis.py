@@ -97,14 +97,6 @@ async def test_voucher_plus_no_voucher_is_the_shop_total(data: SqliteData) -> No
     assert float(v["cost"]) == 30.0  # the voucher cost of o1 + o2
 
 
-async def test_per_voucher_rows_partition_the_voucher_total(data: SqliteData) -> None:
-    rows = await data.voucher_rows(A, B)
-    v = await data.entity_totals("voucher", A, B)
-    assert {r["code"] for r in rows} == {"VC-A", "VC-B"}  # the returned VC-A line is not counted
-    assert sum(r["orders"] for r in rows) == v["orders"]
-    assert sum(float(r["gmv"]) for r in rows) == float(v["gmv"])
-
-
 async def test_one_product_is_a_subset_of_the_whole(data: SqliteData) -> None:
     whole = await data.entity_totals("all", A, B)
     one = await data.entity_totals("all", A, B, "p1")
