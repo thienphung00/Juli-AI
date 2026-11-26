@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
 
 import { ackText, breachNoun, breachVerb, breachWarnLines, breachesOf, cardOfVersion, measuringDaysLeft, queueLabel, rangeK, rangeTone, svk, titleCount, versionCode, versionFlag, versionTable, versionTag, versionsOf, vnWhenFull } from "../versions";
-import { ABSOLUTE_BREACH, OPERATING_BREACH, titleCard, versionOf, versionedVoucher, voucherCard } from "./fixtures";
+import type { CardVersion } from "../types";
+import { ABSOLUTE_BREACH, OPERATING_BREACH, RESULT_A, titleCard, versionOf, versionedVoucher, voucherCard } from "./fixtures";
+
+type Offer = NonNullable<NonNullable<NonNullable<CardVersion["result"]>["option"]>["cost"]["offers"]>[number];
+const withOffer = (r: CardVersion["result"], ...offers: Offer[]): CardVersion["result"] =>
+  r && r.option ? { ...r, option: { ...r.option, cost: { ...r.option.cost, offers } } } : r;
+const voucherCols = (...vs: Partial<CardVersion>[]) => {
+  const base = versionedVoucher();
+  const versions = vs.map((v, i) => ({ ...base.versions![0]!, version: i + 1, ...v }));
+  const card = { ...base, versions, certain: versions[0]!.certain!, predicted: versions[0]!.predicted! };
+  const rows = versionTable(card, versions);
+  return (k: string) => rows.find((r) => r.key === k)!.cells;
+};
+const R = RESULT_A;
+const offer = (o: Partial<Offer> = {}): Offer => ({ label: "voucher", expected_uses: 6, per_use: 5000, total: 30_000, ...o });
 
 describe("money to the nearest nghìn", () => {
   it("prints signed and ranged values like the artboards", () => {
@@ -126,7 +140,7 @@ describe("the side-by-side table", () => {
   it("has the artboard's rows, one cell per version, and flags the breaching column", () => {
     const card = versionedVoucher();
     const rows = versionTable(card, card.versions!);
-    expect(rows.map((r) => r.label)).toEqual(["Δ GMV", "Δ lợi nhuận", "Chi phí", "Δ đơn", "Biên đóng góp", "Hoà vốn", "Giá sàn"]);
+    expect(rows.map((r) => r.label)).toEqual(["Δ GMV", "Δ lợi nhuận", "Chi phí", "Δ đơn", "Biên đóng góp", "Hoà vốn", "Giá sàn", "Số lượt dùng", "Giới hạn mỗi người mua", "Mức giảm tối đa", "Vì sao giống V1"]);
     expect(rows.every((r) => r.cells.length === 3)).toBe(true);
     const floor = rows.find((r) => r.key === "floor")!;
     expect(floor.cells[0]!.v).toBe("✓ Trên giá sàn vận hành");
@@ -152,15 +166,6 @@ describe("the side-by-side table", () => {
 
   it("a voucher shows usage against its limit, the per-buyer limit, the max discount and why versions match; flows are per day and per order", () => {
     const base = versionedVoucher();
-    const detail = (used: number, limit: number | null, capped: boolean, binding = 0) => ({
-      days: 3,
-      usage: { expected_uses: used, used, limit, capped, headroom: limit === null ? null : Math.max(limit - used, 0) },
-      per_user: { limit: 1, status: "not_enforceable", enforced: false },
-      max_discount: { value: 20_000, applies: true, pct_voucher: true, binding_orders: binding, qualifying_orders: 10, binding_share: binding / 10 },
-      min_spend: { value: 99_000, qualifying_orders: 10, total_orders: 40 },
-      cost_per_used_order: 5000,
-      profit_per_order_after: 30_000,
-    });
     const money = {
       ...base.predicted.money_per_month,
       days: 3,
@@ -170,14 +175,15 @@ describe("the side-by-side table", () => {
       orders: { base_per_day: 2, total: { p10: { per_day: 2, period: 6, changes: false }, p50: { per_day: 2, period: 6, changes: false }, p90: { per_day: 2, period: 6, changes: false } } },
       aov: { base: 100_000, certain: 100_000, total: { p10: 103_000, p50: 108_000, p90: 112_000 } },
     };
-    const mk = (limit: number, capped: boolean, notes?: readonly string[]) => ({
+    const mk = (limit: number, _capped: boolean, notes?: readonly string[]) => ({
       ...base.versions![0]!,
-      certain: { ...base.certain, voucher_detail: detail(6, limit, capped) },
+      inputs: { ...base.versions![0]!.inputs, quantity: limit, per_user_limit: 1, pct: 10, max_value: 20_000 },
+      result: withOffer(base.versions![0]!.result, { label: "voucher", expected_uses: 6, per_use: 5000, total: 30_000, max_discount: { cap: 20_000, binding_orders: 0, qualifying_orders: 10 } }),
       predicted: { ...base.predicted, money_per_month: money },
       same_as_default_notes: notes,
     });
     const versions = [mk(10, false), mk(20, false, ["Giới hạn 20 lượt không đổi kết quả: dự kiến chỉ dùng 6 lượt trong 3 ngày, chưa chạm giới hạn."]), mk(5, true)];
-    const card = { ...base, versions, certain: versions[0]!.certain, predicted: versions[0]!.predicted };
+    const card = { ...base, versions, certain: versions[0]!.certain!, predicted: versions[0]!.predicted! };
     const rows = versionTable(card, versions);
     const by = (k: string) => rows.find((r) => r.key === k)!;
     expect(by("usage").cells.map((c) => c.v)).toEqual(["Dùng 6 / 10 lượt", "Dùng 6 / 20 lượt", "Dùng 6 / 5 lượt"]);
@@ -190,6 +196,62 @@ describe("the side-by-side table", () => {
     expect(by("chi").cells[0]).toMatchObject({ v: "63.000đ", d: "30 ngày" });
     expect(by("exp").cells[0]!.d).toContain("30 ngày: +57.000đ");
     expect(rows.some((r) => r.label.includes("tháng") || r.sub.includes("tháng"))).toBe(false);
+  });
+
+  it("voucher rows read the version's own offer and inputs: uses against the limit, capped, under the limit, no limit", () => {
+    const o = withOffer(R, offer({ expected_uses: 6 }));
+    const by = voucherCols(
+      { inputs: { value: 5000, quantity: 10 }, result: o },
+      { inputs: { value: 5000, quantity: 6 }, result: o },
+      { inputs: { value: 5000, quantity: 5 }, result: o },
+      { inputs: { value: 5000 }, result: o },
+    );
+    expect(by("usage").map((c) => c.v)).toEqual(["Dùng 6 / 10 lượt", "Dùng 6 / 6 lượt", "Dùng 6 / 5 lượt", "Dùng 6 / không giới hạn lượt"]);
+    expect(by("usage").map((c) => c.d)).toEqual(["chưa chạm giới hạn", "chạm giới hạn", "chạm giới hạn", ""]);
+  });
+
+  it("the per-buyer limit comes from the version's inputs", () => {
+    const o = withOffer(R, offer());
+    const by = voucherCols({ inputs: { per_user_limit: 2 }, result: o }, { inputs: {}, result: o });
+    expect(by("peruser").map((c) => c.v)).toEqual(["2 lượt/người", "Không đặt"]);
+  });
+
+  it("a percent voucher's cap binds or not from the offer's max_discount", () => {
+    const by = voucherCols(
+      { inputs: { pct: 10, max_value: 20_000 }, result: withOffer(R, offer({ max_discount: { cap: 20_000, binding_orders: 3, qualifying_orders: 10 } })) },
+      { inputs: { pct: 10, max_value: 20_000 }, result: withOffer(R, offer({ max_discount: { cap: 20_000, binding_orders: 0, qualifying_orders: 10 } })) },
+    );
+    expect(by("maxd")[0]).toMatchObject({ d: "chạm trần ở 3/10 đơn đủ điều kiện", tone: "down" });
+    expect(by("maxd")[1]).toMatchObject({ d: "chưa đơn nào chạm trần", tone: "plain" });
+    expect(by("maxd")[0]!.v).toContain("20.000");
+  });
+
+  it("no max_discount: Không đặt without a max value; a fixed amount with one says it only works for a percent voucher", () => {
+    const o = withOffer(R, offer({ max_discount: null }));
+    const by = voucherCols({ inputs: { value: 5000 }, result: o }, { inputs: { value: 5000, max_value: 20_000 }, result: o });
+    expect(by("maxd")[0]).toMatchObject({ v: "Không đặt", d: "" });
+    expect(by("maxd")[1]!.d).toBe("chỉ có tác dụng với voucher %");
+  });
+
+  it("a result stored before offers shows — in the usage and max-discount rows", () => {
+    const by = voucherCols({ inputs: { quantity: 10, per_user_limit: 1 }, result: R });
+    expect(by("usage")[0]!.v).toBe("—");
+    expect(by("maxd")[0]!.v).toBe("—");
+    expect(by("peruser")[0]!.v).toBe("1 lượt/người");
+  });
+
+  it("only the offer labelled voucher is read, whatever its position", () => {
+    const by = voucherCols({ inputs: { quantity: 20 }, result: withOffer(R, offer({ label: "flash_sale", expected_uses: 99 }), offer({ expected_uses: 4 })) });
+    expect(by("usage")[0]!.v).toBe("Dùng 4 / 20 lượt");
+  });
+
+  it("a voucher_detail with other numbers is ignored", () => {
+    const base = versionedVoucher();
+    const detail = { days: 3, usage: { expected_uses: 99, used: 99, limit: 1, capped: true, headroom: 0 }, per_user: { limit: 9, status: "x", enforced: false }, max_discount: { value: 1, applies: true, pct_voucher: true, binding_orders: 9, qualifying_orders: 9, binding_share: 1 }, min_spend: { value: 1, qualifying_orders: 1, total_orders: 1 }, cost_per_used_order: 1, profit_per_order_after: 1 };
+    const by = voucherCols({ inputs: { quantity: 10, per_user_limit: 1, pct: 10, max_value: 20_000 }, certain: { ...base.certain, voucher_detail: detail } as never, result: withOffer(R, offer({ max_discount: { cap: 20_000, binding_orders: 0, qualifying_orders: 10 } })) });
+    expect(by("usage")[0]!.v).toBe("Dùng 6 / 10 lượt");
+    expect(by("peruser")[0]!.v).toBe("1 lượt/người");
+    expect(by("maxd")[0]!.d).toBe("chưa đơn nào chạm trần");
   });
 
   it("a title card has no money, floor or cap rows: its new title, the 120-character limit and ONE line saying why there is no estimate", () => {
