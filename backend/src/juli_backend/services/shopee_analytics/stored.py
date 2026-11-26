@@ -105,6 +105,9 @@ class StoredWindow:
     profit_partial: bool
     products: dict[str, StoredProduct] = field(default_factory=dict)
     residual_gmv: Decimal = ZERO
+    #: owner #103 10a: the cancelled-after-confirmation share of the stored days (detail keys)
+    cancelled_gmv: Decimal = ZERO
+    cancelled_orders: int = 0
     sources: dict[str, str] = field(default_factory=dict)
 
     #: the days of the window that have a stored row (complete or not)
@@ -216,6 +219,10 @@ async def load_stored(
         profit_partial=any((r.detail or {}).get("profit_partial") for r in rows),
         products=products,
         residual_gmv=residual,
+        cancelled_gmv=sum(
+            (Decimal(str((r.detail or {}).get("cancelled_gmv") or 0)) for r in rows), ZERO
+        ),
+        cancelled_orders=sum(int((r.detail or {}).get("cancelled_orders") or 0) for r in rows),
         sources=sources,
         days=frozenset(r.day for r in all_rows),
         data_days=frozenset(shop_day),

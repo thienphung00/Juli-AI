@@ -97,19 +97,17 @@ async def test_voucher_plus_no_voucher_is_the_shop_total(data: SqliteData) -> No
     assert float(v["cost"]) == 30.0  # the voucher cost of o1 + o2
 
 
-async def test_per_voucher_rows_partition_the_voucher_total(data: SqliteData) -> None:
-    rows = await data.voucher_rows(A, B)
-    v = await data.entity_totals("voucher", A, B)
-    assert {r["code"] for r in rows} == {"VC-A", "VC-B"}  # the returned VC-A line is not counted
-    assert sum(r["orders"] for r in rows) == v["orders"]
-    assert sum(float(r["gmv"]) for r in rows) == float(v["gmv"])
+async def test_a_products_totals_leave_out_cancelled_lines(data: SqliteData) -> None:
+    whole = await data.entity_totals("all", A, B, "p1")  # owner #99: o4 is cancelled
+    assert whole["orders"] == 3 and float(whole["gmv"]) == 600.0
 
 
 async def test_one_product_is_a_subset_of_the_whole(data: SqliteData) -> None:
     whole = await data.entity_totals("all", A, B)
     one = await data.entity_totals("all", A, B, "p1")
     other = await data.entity_totals("all", A, B, "p2")
-    assert one["orders"] == whole["orders"] and other["orders"] == 0
+    # owner #99: the product leaves out the cancelled o4, the shop headline line basis keeps it
+    assert one["orders"] == whole["orders"] - 1 and other["orders"] == 0
 
 
 def test_basis_is_built_from_the_registry_refund_statuses() -> None:

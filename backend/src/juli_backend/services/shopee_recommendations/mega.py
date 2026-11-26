@@ -216,7 +216,11 @@ def evaluate_mega(
             eligible = [q for q in t if q <= cur.qty]
             if eligible:
                 off = t[max(eligible)]
-                cur = replace(cur, bundle_discount=to_dong(cur.deal_price * cur.qty * off / 100))
+                cur = replace(
+                    cur,
+                    bundle_discount=to_dong(cur.deal_price * cur.qty * off / 100),
+                    combo_in_price=False,
+                )
         free_lines.append(cur)
     # 2) voucher on top, for the orders that use it
     vou_lines: list[OrderLine] | None = None

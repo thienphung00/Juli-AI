@@ -42,6 +42,7 @@ def shop_profit_raw(view: PeriodView) -> KnownCostProfit:
         view.metrics.gmv,
         view.data.ads_daily.spend_by_day,
         order_data_days(view),
+        ads_known=view.ads.known_spend is not None,
     )
 
 
@@ -140,11 +141,15 @@ def cell_json(cell: CellStats | None) -> dict[str, Any]:
     }
 
 
-def five_json(f: FiveNumbers, *, comparable: bool = True) -> dict[str, Any]:
+def five_json(f: FiveNumbers, *, comparable: bool = True, ads_known: bool = True) -> dict[str, Any]:
     """``comparable`` False = the previous period has no order lines: the "after" side is shown
     and every difference to the previous period is withheld (never a delta against nothing)."""
     cap = f.spend_cap
     out = _five_json(f)
+    if not ads_known:  # owner #103 11a: no ad data at all gives no profit, never one before ads
+        out["margin"].update(
+            {"profit_before": None, "profit_after": None, "pct_before": None, "pct_after": None}
+        )
     out["comparison"] = {
         "available": comparable,
         "reason": None if comparable else "no_order_lines_in_previous_period",

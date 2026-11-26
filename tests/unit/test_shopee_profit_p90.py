@@ -499,7 +499,8 @@ def test_order_status_fee_and_profit_rules() -> None:
     sp = shop_profit(pairs, campaigns=[], product_ad_spend={})
     # confirmed views keep the GMV of every order but the refunds (owner 2026-11-18: no sale) ...
     assert sp.orders == 3 and sp.gmv == D(600000)
-    assert sp.products["P1"].gmv == D(600000) and sp.products["P1"].excluded_orders == 4
+    # a product leaves the cancelled order out too (owner #99, 26/11)
+    assert sp.products["P1"].gmv == D(400000) and sp.products["P1"].excluded_orders == 4
     # ... the profit base is the delivered order only
     assert sp.buyer_paid == D(200000) and sp.buyer_paid_covered == D(200000)
     assert sp.contribution == D(65350) and sp.profit == D(65350)

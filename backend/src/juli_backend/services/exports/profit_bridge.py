@@ -155,7 +155,7 @@ def profit_bridge(view: Any) -> ProfitBridge:
         packaging_real_pct=pack_real,
         commission=float(affiliate_cost(known) or ZERO),
         shipping_other=float(sum((a for _, pb in known for _, a in (pb.income_costs or ())), ZERO)),
-        ads=_f(kp.ads_charged) if kp.profit is not None else None,
+        ads=_f(kp.ads_charged) if kp.profit is not None and kp.ads_known else None,
         ads_no_order_days=float(kp.ads_no_order_days),
         other_marketing=float(kp.other_marketing_charged),
         profit=_f(shown.profit),

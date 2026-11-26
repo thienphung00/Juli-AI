@@ -93,7 +93,7 @@ from juli_backend.services.shopee_profit.ladder import (
     offers_cost,
     unknown_orders,
 )
-from juli_backend.services.shopee_profit.order_profit import counts_in_sales
+from juli_backend.services.shopee_profit.order_profit import counts_in_product_sales
 from juli_backend.services.shopee_profit.shop_profit import product_profit_reliable
 
 LOG = logging.getLogger(__name__)
@@ -691,7 +691,7 @@ def _product_affiliate(view: PeriodView, product_id: str | None) -> dict[str, De
     lines = [
         ln
         for ln, _ in view.pairs
-        if ln.affiliate and ln.product_id == product_id and counts_in_sales(ln)
+        if ln.affiliate and ln.product_id == product_id and counts_in_product_sales(ln)
     ]
     if not lines:
         return None
@@ -736,7 +736,7 @@ def _sums(
     """GMV and đơn of the sale lines; doanh thu thực and Lợi nhuận đóng góp of the covered lines
     (every cost known); Ưu đãi (the combined seller cost, ``ProfitBreakdown.offer_cost``) of the
     known orders; the affiliate commission of the covered lines."""
-    sale = [ln for ln, _ in pairs if counts_in_sales(ln)]
+    sale = [ln for ln, _ in pairs if counts_in_product_sales(ln)]
     unknown = unknown_orders(pairs if basis is None else basis)
     known = [pb for ln, pb in pairs if covered(pb) and ln.order_id not in unknown]
     return {
@@ -807,7 +807,7 @@ def _reconcile_to_kpi(
     rest (``rows['ads']``, the M rule, as built per product); both capped by
     :func:`partition_channels`; Organic = the KPI total minus them. Profit columns are untouched
     (line based). A KPI total that is ``None`` leaves that column on the lines."""
-    sale = [(ln, pb) for ln, pb in pairs if counts_in_sales(ln)]
+    sale = [(ln, pb) for ln, pb in pairs if counts_in_product_sales(ln)]
     aff = [ln for ln, _ in sale if ln.affiliate]
     rest = [ln for ln, _ in sale if not ln.affiliate]
     aff_gmv = sum((ln.order_value for ln in aff), ZERO_D)

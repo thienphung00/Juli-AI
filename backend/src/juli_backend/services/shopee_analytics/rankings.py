@@ -240,11 +240,9 @@ def _product_m(view: PeriodView, pid: str, source: str, sub: str | None) -> M | 
         )
     if source == "ads":
         fig = view.ads.product_figures.get(pid)
-        if fig is None:
-            return None
-        return M(
-            fig.gmv or ZERO, ZERO, None, ZERO, spend=fig.spend, extra={"direct_gmv": fig.direct_gmv}
-        )
+        if fig is None or fig.gmv is None:
+            return None  # owner #99: an unknown ads GMV is left out, never ranked as 0
+        return M(fig.gmv, ZERO, None, ZERO, spend=fig.spend, extra={"direct_gmv": fig.direct_gmv})
     # all
     split = view.metrics.split(pid)  # order lines scaled to the shop totals (D85.2)
     gmv = split.gmv if split else ZERO

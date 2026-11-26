@@ -47,6 +47,7 @@ from juli_backend.services.shopee_profit.order_profit import (
     OrderLine,
     OrderStatus,
     ProfitBreakdown,
+    counts_in_product_sales,
     counts_in_sales,
 )
 
@@ -120,6 +121,8 @@ class ProductProfit:
     #: of them and those of the known-cost (whole) orders: the product's known share
     gmv_net: Decimal = ZERO
     gmv_known_net: Decimal = ZERO
+    #: owner #103 11a: ``False`` = the window has no ad data at all (not "0 spent"): no profit
+    ads_known: bool = True
 
     @property
     def organic_contribution(self) -> Decimal:
@@ -319,11 +322,13 @@ def product_profits(
                         missing[m] += 1
         out[product] = ProductProfit(
             product_id=product,
-            orders=len({ln.order_id for ln, _ in all_items if counts_in_sales(ln)}),
-            gmv=sum((ln.order_value for ln, _ in all_items if counts_in_sales(ln)), ZERO),
+            orders=len({ln.order_id for ln, _ in all_items if counts_in_product_sales(ln)}),
+            gmv=sum((ln.order_value for ln, _ in all_items if counts_in_product_sales(ln)), ZERO),
             buyer_paid=sum((pb.revenue for _, pb in items), ZERO),
             buyer_paid_covered=sum((pb.revenue for _, pb in covered), ZERO),
-            gmv_covered=sum((ln.order_value for ln, _ in covered if counts_in_sales(ln)), ZERO),
+            gmv_covered=sum(
+                (ln.order_value for ln, _ in covered if counts_in_product_sales(ln)), ZERO
+            ),
             contribution=contribution,
             ad_spend=spend,
             profit=contribution - spend,
@@ -359,7 +364,8 @@ def product_profit_reliable(pp: ProductProfit) -> bool:
     product that only has ads) or no known order: not reliable."""
     share = product_known_share_pct(pp)
     return (
-        share is not None
+        pp.ads_known
+        and share is not None
         and pp.buyer_paid_covered > 0
         and MIN_KNOWN_GMV_SHARE_PCT <= share <= MAX_KNOWN_GMV_SHARE_PCT
     )
@@ -390,8 +396,12 @@ def shop_profit(
     other_marketing_costs: Decimal = ZERO,
     export_gmv: Decimal | None = None,
     product_ads: Mapping[str, AdsFigures] | None = None,
+    ads_known: bool = True,
 ) -> ShopProfit:
-    products = product_profits(pairs, product_ad_spend, product_ads)
+    products = {
+        k: replace(p, ads_known=ads_known)
+        for k, p in product_profits(pairs, product_ad_spend, product_ads).items()
+    }
     total_ads = sum((c.spend for c in campaigns), ZERO)
     by_product = sum(product_ad_spend.values(), ZERO)
     unattributed = total_ads - by_product
@@ -505,6 +515,12 @@ class KnownCostProfit:
     ads_no_order_days: Decimal = ZERO
     #: R1: the reliability gate withheld profit / margin (the raw figure: ``shop_profit_raw``)
     withheld: bool = False
+    #: owner #99: ``False`` = no ad-cost data for the window (no daily rows, no report): every ads
+    #: line of the bridge reads ``None`` ("—"), never 0. Profit itself is gated by
+    #: :func:`profit_is_reliable`, which does not look at ads (reported to the owner).
+    ads_known: bool = True
+    #: why the gate withheld the profit when it is not the known-cost share (internal, not shown)
+    withheld_reason: str | None = None
 
     @property
     def label(self) -> str:
@@ -527,6 +543,9 @@ class KnownCostProfit:
             return f"QC đã tính theo ngày: {charged}đ / tổng chi QC {total}đ{tail}"
         return f"QC tính theo tỷ lệ doanh thu đơn có chi phí: {charged}đ / tổng chi QC {total}đ"
 
+    def _ads(self, value: Decimal) -> int | float | None:
+        return _money(value) if self.ads_known else None
+
     def json(self) -> dict[str, object]:
         return {
             "profit": _money(self.profit),
@@ -535,27 +554,31 @@ class KnownCostProfit:
             "gmv": _money(self.gmv),
             "gmv_share_pct": None if self.gmv_share_pct is None else float(self.gmv_share_pct),
             "net_revenue": _money(self.buyer_paid),  # no "buyer" key in any payload
-            "ads_charged": _money(self.ads_charged),
+            "ads_charged": self._ads(self.ads_charged),
             "ads_basis": self.ads_basis,
             "label": self.label,
             "bridge": {
                 "product_profit": _money(self.product_profit),
-                "ads_unattributed": _money(self.ads_unattributed_charged),
-                "ads_no_order_days": _money(self.ads_no_order_days),
+                "ads_unattributed": self._ads(self.ads_unattributed_charged),
+                "ads_no_order_days": self._ads(self.ads_no_order_days),
                 "ads_no_order_days_label": NO_ORDER_DAYS_ADS_LABEL,
                 "other_marketing": _money(self.other_marketing_charged),
                 "profit": _money(self.profit),
-                "ads_charged": _money(self.ads_charged),
-                "ads_total": _money(self.ads_total),
+                "ads_charged": self._ads(self.ads_charged),
+                "ads_total": self._ads(self.ads_total),
                 "ads_label": self.ads_label,
             },
         }
 
 
+#: owner #103 11a: the internal reason when the window has no ad data (never shown on a screen)
+NO_ADS_DATA_REASON = "chưa có dữ liệu quảng cáo"
+
+
 def profit_is_reliable(kp: KnownCostProfit) -> bool:
     """THE reliability rule. Share known: ``70 <= share <= 100``. Share unknown (no shop GMV):
     reliable only when there are known-cost orders (today's behaviour, reported to the owner)."""
-    if kp.profit is None:
+    if kp.profit is None or not kp.ads_known:
         return False
     if kp.gmv_share_pct is None:
         return kp.orders > 0
@@ -567,7 +590,14 @@ def gate_profit(kp: KnownCostProfit) -> KnownCostProfit:
     :func:`profit_is_reliable` says no; the coverage, GMV, ads and costs stay."""
     if kp.profit is None or profit_is_reliable(kp):
         return kp
-    return replace(kp, profit=None, margin_pct=None, product_profit=None, withheld=True)
+    return replace(
+        kp,
+        profit=None,
+        margin_pct=None,
+        product_profit=None,
+        withheld=True,
+        withheld_reason=None if kp.ads_known else NO_ADS_DATA_REASON,
+    )
 
 
 def stored_day_profit_trusted(
@@ -613,6 +643,7 @@ def known_cost_profit(
     shop_gmv: Decimal | None,
     daily_spend: Mapping[date, Decimal] | None = None,
     order_data_days: Collection[date] | None = None,
+    ads_known: bool = True,
 ) -> KnownCostProfit:
     """The one shop profit (P100 B.5), ORDER-based. An order is "có chi phí" only when every one
     of its counted lines (cancelled / undelivered ones are outside the profit base) has its
@@ -731,4 +762,5 @@ def known_cost_profit(
         other_marketing_charged=other,
         ads_total=ads_total,
         ads_no_order_days=no_order_days,
+        ads_known=ads_known,
     )

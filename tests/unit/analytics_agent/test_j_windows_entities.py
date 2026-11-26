@@ -48,6 +48,35 @@ def test_last_7_days_are_the_last_seven_complete_calendar_days() -> None:
     assert w.cur == (date(2026, 11, 16), YDAY) and w.prev == (date(2026, 11, 9), date(2026, 11, 15))
 
 
+def test_an_unfinished_named_month_compares_the_same_days_of_the_month_before() -> None:
+    """Tháng 11 asked on 26/11 (as_of 25/11, data to 24/11): 01-24/11 against 01-24/10, never
+    the whole October (and never "01/10–30/10", which the clip made of a 31-day October)."""
+    p = "named_month_vs_previous"
+    w = windows.build_windows(
+        p, windows.anchor_for(p, date(2026, 11, 25), date(2026, 11, 24)), named_month="2026-11"
+    )
+    assert w.cur == (date(2026, 11, 1), date(2026, 11, 25))
+    assert w.prev == (date(2026, 10, 1), date(2026, 10, 25))
+    assert w.context == (date(2026, 10, 1), date(2026, 10, 31))
+    w = windows.clip_to_freshness(w, date(2026, 11, 24))
+    assert w.cur == (date(2026, 11, 1), date(2026, 11, 24))
+    assert w.prev == (date(2026, 10, 1), date(2026, 10, 24))
+    assert w.label() == "01/11–24/11 so với 01/10–24/10"
+
+
+def test_a_finished_named_month_compares_with_the_whole_month_before() -> None:
+    w = windows.build_windows("named_month_vs_previous", date(2026, 11, 25), named_month="2026-10")
+    assert w.cur == (date(2026, 10, 1), date(2026, 10, 31))
+    assert w.prev == (date(2026, 9, 1), date(2026, 9, 30)) and w.context is None
+    # the last day of the month is the anchor: the month is over
+    w = windows.build_windows("named_month_vs_previous", date(2026, 3, 31), named_month="2026-03")
+    assert w.cur == (date(2026, 3, 1), date(2026, 3, 31))
+    assert w.prev == (date(2026, 2, 1), date(2026, 2, 28))
+    # 31/03 not over yet on 30/03: the same 30 days of a 28-day February are the whole of it
+    w = windows.build_windows("named_month_vs_previous", date(2026, 3, 30), named_month="2026-03")
+    assert w.prev == (date(2026, 2, 1), date(2026, 2, 28))
+
+
 def test_sale_days_are_double_days_15th_and_25th() -> None:
     got = windows.campaign_days(date(2026, 11, 9), date(2026, 11, 26))
     assert got == [date(2026, 11, 11), date(2026, 11, 15), date(2026, 11, 25)]
@@ -146,16 +175,7 @@ def _shop() -> list[dict[str, Any]]:
 
 
 async def test_voucher_orders_are_the_voucher_orders_not_the_shop_orders() -> None:
-    data = FakeEntityData(
-        _shop(),
-        entity={
-            "voucher": _week_rows(2.0, 400.0, 20.0),
-            "voucher_codes": [
-                {"code": "VC-A", "orders": 9, "gmv": 900.0, "cost": 90.0},
-                {"code": "VC-B", "orders": 5, "gmv": 300.0, "cost": 15.0},
-            ],
-        },
-    )
+    data = FakeEntityData(_shop(), entity={"voucher": _week_rows(2.0, 400.0, 20.0)})
     sink, res = await _ask(
         data,
         intent(
@@ -165,15 +185,17 @@ async def test_voucher_orders_are_the_voucher_orders_not_the_shop_orders() -> No
             time_phrase="last week",
         ),
     )
-    tot, per = sink.of("data_answer")
+    (tot,) = sink.of("data_answer")  # no per-voucher source: no card at all, no "chưa có" card
     assert tot["title_vi"].startswith("Đơn dùng voucher") and tot["value"] == "14"  # 2 x 7, not 210
     assert tot["window_vi"].startswith("16/11–22/11")
-    assert per["value"] == "Juli chưa có số liệu này"  # no source names the voucher code
+    assert all(a.get("value") != "Juli chưa có số liệu này" for a in sink.of("data_answer"))
     assert res.stop_reasons == ["data_answer"] and not sink.of("path")
 
 
-async def test_voucher_cost_is_a_cost_line_from_the_voucher_rows() -> None:
-    data = FakeEntityData(_shop(), entity={"voucher": _week_rows(2.0, 400.0, 20.0)})
+async def test_voucher_cost_is_the_known_orders_seller_voucher_with_its_coverage() -> None:
+    rows = _week_rows(2.0, 400.0, 20.0)
+    rows[0]["known"] = False  # one day's orders lack a cost: out of the cost, against coverage
+    data = FakeEntityData(_shop(), entity={"voucher": rows})
     sink, _ = await _ask(
         data,
         intent(
@@ -183,8 +205,85 @@ async def test_voucher_cost_is_a_cost_line_from_the_voucher_rows() -> None:
             time_phrase="last week",
         ),
     )
-    tot = sink.of("data_answer")[0]
-    assert tot["title_vi"].startswith("Chi phí voucher (Ưu đãi)") and tot["value"] == "140đ"
+    (tot,) = sink.of("data_answer")
+    assert tot["title_vi"].startswith(
+        "Chi phí voucher (Ưu đãi) · trên 12 đơn có chi phí, 85,7 % GMV"
+    )
+    assert tot["value"] == "120đ"  # 6 known days x 20, the unknown day is not 0-costed
+
+
+async def test_voucher_cost_with_no_known_order_is_missing_never_zero() -> None:
+    rows = [dict(r, known=False) for r in _week_rows(2.0, 400.0, 20.0)]
+    data = FakeEntityData(_shop(), entity={"voucher": rows})
+    sink, res = await _ask(
+        data, intent(question_type="status", metric_phrase="voucher cost", entity_phrase="voucher")
+    )
+    assert not sink.of("data_answer") and res.stop_reasons == ["data_missing"]
+
+
+async def test_analysing_vouchers_gives_orders_gmv_cost_and_the_voucher_list() -> None:
+    """ "Phân tích các voucher": every figure together, plus the shop's vouchers that ran (their
+    settings; no result column, the usage only with its read date)."""
+    settings = [
+        {
+            "name": "Giảm 5k",
+            "starts": date(2026, 11, 10),
+            "ends": date(2026, 11, 30),
+            "discount_amount": 5000,
+            "discount_percent": None,
+            "max_value": None,
+            "min_spend": 99000,
+            "usage": 12,
+            "usage_on": date(2026, 11, 22),
+        },
+        {
+            "name": "Giảm 10%",
+            "starts": date(2026, 11, 1),
+            "ends": None,
+            "discount_amount": None,
+            "discount_percent": 10,
+            "max_value": 20000,
+            "min_spend": None,
+            "usage": None,
+            "usage_on": None,
+        },
+    ]
+    data = FakeEntityData(
+        _shop(), entity={"voucher": _week_rows(2.0, 400.0, 20.0), "voucher_settings": settings}
+    )
+    it = intent(question_type="status", entity_phrase="voucher", time_phrase="last week")
+    it["raw_text"] = "Phân tích giúp tôi các voucher tuần trước"
+    sink, _ = await _ask(data, it)
+    orders, gmv, cost, card = sink.of("data_answer")
+    assert orders["title_vi"] == "Đơn dùng voucher" and orders["value"] == "14"
+    assert gmv["title_vi"] == "GMV đơn dùng voucher" and gmv["value"] == "2.800đ"
+    assert cost["title_vi"].startswith("Chi phí voucher (Ưu đãi)") and cost["value"] == "140đ"
+    assert card["title_vi"] == "Voucher của shop trong kỳ"
+    assert card["rows"][0] == {
+        "label_vi": "Giảm 5k",
+        "value_vi": "Giảm 5.000đ",
+        "detail_vi": "10/11–30/11 · đơn tối thiểu 99.000đ · Lượt dùng 12 (đọc 22/11)",
+    }
+    assert card["rows"][1]["value_vi"] == "Giảm 10% (tối đa 20.000đ)"
+    assert card["rows"][1]["detail_vi"] == "từ 01/11"
+    assert "GMV" not in card["rows"][0]["detail_vi"]  # settings carry no result
+
+
+async def test_a_near_empty_previous_period_gives_no_percent_change() -> None:
+    """The rankings' order floor: under 10 voucher orders on a side, no "▲ 4.304 %"."""
+    rows = [r for r in _week_rows(2.0, 400.0, 20.0) if r["day"] > YDAY - timedelta(days=7)]
+    # the baseline is 02-08/11 (the 09-15/11 week holds 11/11): one voucher order in it
+    rows.append({"day": date(2026, 11, 5), "orders": 1.0, "gmv": 10.0, "cost": 1.0})
+    data = FakeEntityData(_shop(), entity={"voucher": rows})
+    sink, _ = await _ask(
+        data,
+        intent(question_type="status", metric_phrase="GMV", entity_phrase="voucher",
+               time_phrase="last week"),
+        _lookup_jev("gmv"),
+    )  # fmt: skip
+    (tot,) = sink.of("data_answer")
+    assert tot["value"] == "2.800đ" and tot["before_vi"] == "10đ"
+    assert tot["delta"] == {"dir": "flat", "text_vi": "Chưa đủ dữ liệu"}
 
 
 async def test_affiliate_orders_come_from_affiliate_rows() -> None:

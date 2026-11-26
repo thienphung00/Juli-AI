@@ -15,7 +15,6 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
-from decimal import Decimal
 from typing import Any
 
 import pytest_asyncio
@@ -25,7 +24,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from juli_backend.core.config.runtime import async_database_url
 from juli_backend.models.shop_proposals import ShopProposal
 from juli_backend.models.shopee_metrics import ShopeeShopMetricsDaily
-from juli_backend.models.shopee_profit import ShopeeOrderIncome
 from juli_backend.models.stock_alert import ShopeeStockHistory
 from juli_backend.services.analytics_agent.cards_service import ServiceCardEngine
 from juli_backend.services.analytics_agent.chains import run_chain
@@ -33,7 +31,14 @@ from juli_backend.services.analytics_agent.data_service import ServiceData
 from juli_backend.services.analytics_agent.labels import shopee_labels
 from juli_backend.services.shopee_recommendations.kinds import WIRING
 from tests.support.postgres import requires_postgres
-from tests.support.shopee_analytics import CUR_END, ITEMS, seed_shopee_shop
+from tests.support.shopee_analytics import (
+    CUR_END,
+    CUR_START,
+    ITEMS,
+    PREV_END,
+    PREV_START,
+    seed_shopee_shop,
+)
 
 pytestmark = [requires_postgres]
 
@@ -296,7 +301,6 @@ async def test_entity_readers_run_on_the_real_schema_and_return_their_shapes(wor
         tot = await d.entity_totals(kind, a, b)
         assert {"orders", "gmv", "cost"} <= set(tot)
         assert {"orders", "gmv", "cost"} <= set(await d.entity_totals(kind, a, b, "1001"))
-    assert isinstance(await d.voucher_rows(a, b), list)
     assert isinstance(await d.budget_days(a, b), list)
     for c in await d.campaign_rows(a, b):
         assert {"key", "name", "spend", "gmv", "roas", "break_even", "profit_after_ads"} <= set(c)
@@ -304,42 +308,65 @@ async def test_entity_readers_run_on_the_real_schema_and_return_their_shapes(wor
     assert p is None or {"profit", "margin_pct", "coverage_pct", "gmv"} <= set(p)
 
 
-async def test_voucher_income_counts_only_income_rows_in_the_window(world: Any) -> None:
-    """`order_settlements` (the stored per-order income) filtered on `ordered_on`: voucher orders
-    are rows with seller_voucher_borne > 0, the cost is the sum, `income_to` the last order day
-    with an income row; a window with no income row is "no rows", never 0."""
+async def test_voucher_figures_are_the_tabs_own_on_the_real_view(world: Any) -> None:
+    """Chat's voucher đơn / GMV = the Phân tích voucher ranking's shop cell, the cost = the
+    ladder's `offer_voucher`, both on the view the screens load. A stored per-voucher result
+    row (confirmed `platform_promotions`) is never shown per voucher (owner #107)."""
+    from dataclasses import replace
+
+    from juli_backend.services.shopee_analytics import loaders, service
+    from juli_backend.services.shopee_analytics.rankings import _cell_other
+    from juli_backend.services.shopee_profit.ladder import components_of
+
     sid, f = world
-
-    def row(ref: str, day: date, borne: str | None) -> ShopeeOrderIncome:
-        return ShopeeOrderIncome(
-            shop_id=sid,
-            platform="shopee",
-            order_ref=ref,
-            ordered_on=day,
-            seller_voucher_borne=None if borne is None else Decimal(borne),
-            source="file",
-            source_rank=3,
-            source_version="seller-centre-xlsx-1",
-        )
-
+    got = await ServiceData(f, sid).voucher_figures(CUR_START, CUR_END)
+    assert got is not None and got["lines"] > 0
     async with f() as s:
-        s.add_all(
-            [
-                row("SYN-INC-1", date(2026, 10, 2), "5000"),
-                row("SYN-INC-2", date(2026, 10, 3), "3000"),
-                row("SYN-INC-3", date(2026, 10, 4), "0"),  # an income row with no voucher
-                row("SYN-INC-4", date(2026, 10, 6), None),  # the export did not state it
-                row("SYN-INC-5", date(2026, 10, 20), "9000"),  # outside the window
-            ]
+        window = await service.resolve(s, sid, period="custom", start=CUR_START, end=CUR_END)
+        assert window is not None
+        ctx = await loaders.load_context(s, sid)
+        ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
+        view = await service.load_view(s, sid, ctx, window, funnel=True, rows="soft")
+        cell = _cell_other("vouchers", view)
+        offer = components_of(view.pairs)["offer_voucher"]
+        await s.rollback()
+    assert got["orders"] == int(cell.orders) and got["gmv"] == cell.gmv
+    assert got["cost"] is None or got["cost"] == offer
+    assert "programmes" not in got
+    assert got["settings"] == []  # confirmed result rows are no settings
+
+
+async def test_voucher_settings_are_listed_when_no_result_is_stored(world: Any) -> None:
+    """The Connector's voucher-list snapshots (order type "none", gmv / orders NULL) are
+    settings: listed with what Shopee stated, never as results."""
+    from juli_backend.models.platform_data import PlatformPromotion
+
+    sid, f = world
+    a, b = PREV_START, PREV_END  # order lines, but no stored voucher result
+    async with f() as s:
+        s.add(
+            PlatformPromotion(
+                shop_id=sid,
+                platform="shopee",
+                promo_type="voucher",
+                program_name="SYN Giảm 5k",
+                starts_at=datetime.combine(a, datetime.min.time()),
+                ends_at=datetime.combine(b, datetime.min.time()),
+                ordinal=0,
+                period_start=b,
+                period_end=b,
+                order_type="none",
+                extra={"voucher_id": 1, "discount_amount": 5000, "current_usage": 3},
+                source="connector",
+                source_rank=1,
+                source_version="syn-1",
+                captured_at=datetime.combine(b, datetime.min.time()),
+                updated_at=datetime.now(UTC).replace(tzinfo=None),
+            )
         )
         await s.commit()
-    d = ServiceData(f, sid)
-    got = await d.voucher_income(CUR_END - timedelta(days=6), CUR_END)
-    assert got["rows"] == 4  # the 20/10 row is outside
-    assert got["orders"] == 2  # only seller_voucher_borne > 0
-    assert got["cost"] == Decimal("8000")  # NULL adds nothing, the outside row is not in
-    assert got["income_to"] == date(2026, 10, 6)
-    assert got["gmv"] == 0  # synthetic refs match no order line
-    empty = await d.voucher_income(date(2026, 9, 1), date(2026, 9, 7))
-    assert empty["rows"] == 0 and empty["orders"] == 0 and empty["income_to"] is None
-    assert empty["cost"] is None  # no income row: not 0
+    got = await ServiceData(f, sid).voucher_figures(a, b)
+    assert got is not None and got["lines"] > 0
+    (v,) = got["settings"]
+    assert v["name"] == "SYN Giảm 5k" and v["discount_amount"] == 5000
+    assert v["usage"] == 3 and v["usage_on"] == b
