@@ -250,9 +250,12 @@ async def execute(
             ms=elapsed(),
         )
         return
-    except JevUnavailable:
+    except JevUnavailable as exc:
         # J11: the router is down after its retries -- offer the templates (no Jev needed)
-        logger.warning("juli_agent_jev_unavailable", extra={"message_id": str(message_id)})
+        logger.warning(
+            "juli_agent_jev_unavailable",
+            extra={"message_id": str(message_id), "error": str(exc)[:400]},
+        )
         await _finish_safely(
             write_factory,
             shop_id=shop_id,
