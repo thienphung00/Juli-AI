@@ -341,6 +341,17 @@ def base_scale(days: int, known_days: int, window_days: int) -> float:
 
 
 @dataclass(frozen=True)
+class OfferLine:
+    """#78 / #87: one offer's part of ``OptionResult.cost_total`` -- the middle column's expected
+    uses (after its use cap) x its cost per use. The SAME numbers the cost total is the sum of."""
+
+    label: str
+    expected_uses: Decimal
+    per_use: Decimal
+    total: Decimal
+
+
+@dataclass(frozen=True)
 class OptionResult:
     """Everything the card and the comparison table show (ADR-122 d.5). ``before`` is the base
     scaled to the duration (no range); ``low`` / ``likely`` / ``high`` are the P10 / P50 / P90
@@ -374,6 +385,9 @@ class OptionResult:
     data_through: date | None = None
     days_with_data: int = 0
     window_days: int = 0
+    #: #78 / #87: per offer {label, expected uses, per use, total}; ``cost_total`` = the sum of
+    #: their totals + the option's fixed cost
+    offers: tuple[OfferLine, ...] = ()
 
     def json(self) -> dict[str, object]:
         """The wire shape, mirrored exactly by ``apps/demo/.../option-result.ts``. Implemented in
@@ -406,7 +420,8 @@ WIRE_KEYS = {
     },
     "build_up": "list[{key, amount, text}]  # <= 3",
     "drivers_pct": "list[{metric, label, pct}]  # 'AOV +1,7%'",
-    "cost": "{total, break_even_orders, break_even_aov, text}",
+    "cost": "{total, break_even_orders, break_even_aov, text, offers: list[{label, "
+    "expected_uses, per_use, total}], fixed}  # #78/#87: total = sum(offers.total) + fixed",
     "after": "{days, label: 'Sau 14 ngày' | '30 ngày đầu', gmv_before, gmv_after, "
     "profit_before, profit_after}",
     "per_30d": "{profit, gmv, orders, secondary: True, label}  # P99b: secondary, labelled "

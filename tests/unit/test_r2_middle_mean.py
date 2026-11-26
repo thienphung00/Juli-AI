@@ -98,4 +98,4 @@ def test_the_middle_is_the_mean_of_the_middle_ten_percent():
         assert sum(s["orders"] for s in c["by_source"].values()) == pytest.approx(c["orders"])
         assert sum(s["profit"] for s in c["by_source"].values()) == pytest.approx(c["profit"])
     assert sum(p["amount"] for p in j["build_up"]) == j["delta"]["profit"]["value"]
-    assert r.cost_total == r.likely.offer_cost
+    assert float(r.cost_total) == pytest.approx(float(r.likely.offer_cost), rel=1e-12)

@@ -40,6 +40,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
     Driver,
     DriverEffect,
     FunnelBase,
+    OfferLine,
     OptionInput,
     OptionResult,
     Scenario,
@@ -471,6 +472,20 @@ def _build_up(
     return tuple(out)
 
 
+def _offer_lines(draw: _Draw, option: OptionInput) -> tuple[OfferLine, ...]:
+    """#78 / #87: each offer's expected uses (the column's, after its cap) x its cost per use."""
+    out = []
+    for offer, uses in zip(option.offers, draw.offer_uses, strict=True):
+        u = _d(uses)
+        out.append(OfferLine(offer.label, u, offer.per_use, u * offer.per_use))
+    return tuple(out)
+
+
+def _cost_of(lines: tuple[OfferLine, ...], option: OptionInput) -> Decimal:
+    """The option's cost = its offers' totals + its fixed cost (one computation, #78)."""
+    return sum((x.total for x in lines), Decimal(0)) + option.fixed_cost
+
+
 def _weakest(drivers: tuple[DriverEffect, ...]) -> Basis:
     rank = [_BASIS_ORDER.index(d.basis) for d in drivers]
     return _BASIS_ORDER[max(rank)] if rank else "measured"
@@ -551,7 +566,6 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         False,
     )
     before = _to_scenario(before_draw, keys)
-    fixed = float(option.fixed_cost)
     ppo_be = _break_even_ppo(option, added, before_draw, srcs)
 
     if base.stale is not None:  # F2: the newest data is too old: no forecast numbers
@@ -560,7 +574,9 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         mid = _neutral(len(srcs), len(option.offers))
         mid.use_shares = [float(o.use_share.p50) for o in option.offers]
         cost_draw = _scenario(srcs, mid, option, cr, profit_known, aov_idx, None, True)
-        cost = cost_draw.offer_cost + fixed
+        lines = _offer_lines(cost_draw, option)
+        cost_d = _cost_of(lines, option)
+        cost = float(cost_d)
         return OptionResult(
             kind=option.kind,
             label=option.label,
@@ -574,7 +590,8 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
             likely=None,
             high=None,
             build_up=(),
-            cost_total=_d(cost),
+            cost_total=cost_d,
+            offers=lines,
             break_even_orders=_be_orders(cost, ppo_be),
             break_even_aov=_be_aov(
                 cost, 0.0, 0.0, srcs, aov_idx, before_draw.aov_orders, cr, has_aov
@@ -626,7 +643,9 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
 
     d10, d50, d90 = pick(0.10), pick(0.50), pick(0.90)
     likely = d50
-    cost = likely.offer_cost + fixed
+    lines = _offer_lines(likely, option)
+    cost_d = _cost_of(lines, option)
+    cost = float(cost_d)
     d_profit = (
         None
         if likely.profit is None or before_draw.profit is None
@@ -654,7 +673,8 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         likely=_to_scenario(d50, keys),
         high=_to_scenario(d90, keys),
         build_up=build_up,
-        cost_total=_d(cost),
+        cost_total=cost_d,
+        offers=lines,
         break_even_orders=_be_orders(cost, ppo_be),
         break_even_aov=_be_aov(
             cost,

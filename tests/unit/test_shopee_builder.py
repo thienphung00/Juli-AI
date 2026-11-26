@@ -637,7 +637,12 @@ async def test_two_vouchers_compare_side_by_side_with_typed_numbers(session, sho
     assert da["total_orders"] > da["qualifying_orders"]
     assert db["voucher_cost_scenario"] == 2 * da["voucher_cost_scenario"]
     # P99: a voucher without dates keeps its OptionResult's 30-day horizon ("30 ngày đầu")
-    assert b["cost"]["amount"] == 2 * a["cost"]["amount"] and a["cost"]["period_days"] == 30
+    # #78 / #87: the cost line is the engine's voucher offer (its middle column's expected uses x
+    # the discount), not the evaluator's usage formula: the two vouchers' middle columns average
+    # slightly different scenarios (each ranked by its own Δ profit), so twice the discount is
+    # about -- not exactly -- twice the cost
+    assert b["cost"]["amount"] == pytest.approx(2 * a["cost"]["amount"], rel=0.05)
+    assert a["cost"]["source"] == "result" and a["cost"]["period_days"] == 30
     assert a["result"]["days"] == 30 and a["result"]["horizon"] == "first_30_days"
     # the shop's stored profit is partial (order lines cover 7 of 30 days): "chưa tính", never a
     # second calculation from the order lines

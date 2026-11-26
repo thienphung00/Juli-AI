@@ -320,6 +320,62 @@ def _result_cost(result: Mapping[str, Any] | None) -> Mapping[str, Any]:
     return (result or {}).get("cost") or {}
 
 
+VOUCHER_KINDS = ("min_spend_voucher", "review_voucher")
+VOUCHER_OFFER_LABEL = "voucher"
+
+
+def _voucher_offer(result: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
+    """#78 / #87: the voucher's line of ``result.cost.offers`` (the engine's own uses x cost)."""
+    for o in _result_cost(result).get("offers") or ():
+        if o.get("label") == VOUCHER_OFFER_LABEL:
+            return o
+    return None
+
+
+def voucher_cost_from_result(
+    kind: str, cost: Mapping[str, Any], result: Mapping[str, Any] | None
+) -> dict[str, Any]:
+    """#78 / #87 (F2): a voucher card's cost line = the result's voucher offer (expected uses x
+    cost per use = its total), not the evaluator's own usage formula. Unchanged without one (a
+    result stored before ``cost.offers``)."""
+    out = dict(cost)
+    offer = _voucher_offer(result) if kind in VOUCHER_KINDS else None
+    if offer is None:
+        return out
+    out.update(
+        amount=offer["total"],
+        per_unit=offer["per_use"],
+        expected_units=offer["expected_uses"],
+        period_days=(result or {}).get("days") or out.get("period_days"),
+        source="result",
+    )
+    return out
+
+
+def voucher_detail_from_result(
+    detail: Mapping[str, Any] | None, result: Mapping[str, Any] | None
+) -> dict[str, Any] | None:
+    """#78 / #87: the voucher panel's "Dùng x / y lượt" and cost per use from the result's voucher
+    offer; the rest of the evaluator's detail (min spend, max discount, per-buyer) is kept."""
+    if detail is None:
+        return None
+    out = dict(detail)
+    offer = _voucher_offer(result)
+    if offer is None:
+        return out
+    usage = dict(out.get("usage") or {})
+    used = float(offer["expected_uses"])
+    limit = usage.get("limit")
+    usage.update(
+        used=used,
+        capped=limit is not None and used >= float(limit) - 1e-9,
+        headroom=None if limit is None else max(float(limit) - used, 0.0),
+        source_cost="result",
+    )
+    out.update(usage=usage, cost_per_used_order=offer["per_use"], cost=offer["total"])
+    return out
+
+
 def cost_on_days(
     cost: Mapping[str, Any], result: Mapping[str, Any] | None, days: int
 ) -> dict[str, Any]:
@@ -861,12 +917,18 @@ def shape(
             "certain_profit": certain_profit,
             "per_order": _per_order(numbers, cost_known),
         },
-        "voucher": (numbers.get("certain") or {}).get("voucher_detail"),
+        "voucher": voucher_detail_from_result(
+            (numbers.get("certain") or {}).get("voucher_detail"), result
+        ),
         "margin_before_pct": margin_before,
         "margin_after_pct": margin_after,
         "profit_status": "ok" if cost_known else "chua_tinh",
         "cost_known": cost_known,
-        "cost": cost_on_days(_cost(numbers, tr, p50_orders), result, own_days),
+        "cost": voucher_cost_from_result(
+            card["change_kind"],
+            cost_on_days(_cost(numbers, tr, p50_orders), result, own_days),
+            result,
+        ),
         "break_even": _break_even(numbers, ctx, items, days=own_days, result=result),
         "basis": result_basis(result, basis),
         "warnings": [
