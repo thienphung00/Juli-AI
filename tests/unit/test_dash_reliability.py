@@ -72,6 +72,8 @@ def _view(known_gmv, shop_gmv, in_transit=False):
         data=SimpleNamespace(
             ads_daily=SimpleNamespace(spend_by_day={}), totals=SimpleNamespace(basis="daily")
         ),
+        # b370e528: the profit gate reads whether ad spend is known at all; here it is (0đ)
+        ads=SimpleNamespace(known_spend=Decimal(0)),
         coverage=None,
         gmv_from_totals=False,
     )
