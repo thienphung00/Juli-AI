@@ -12,8 +12,10 @@ from typing import Any
 from juli_backend.services.analytics_agent import fmt
 from juli_backend.services.analytics_agent.chains import (
     CHAIN_METRIC,
+    COST_METRIC,
     COUNTS,
     MONEY_METRICS,
+    _cost,
     bucket,
     metric_value,
 )
@@ -191,6 +193,15 @@ async def _total(
         o1 = (await data.overview(*w.cur)).get("profit") or {}
         o0 = ((await data.overview(*w.prev)).get("profit") or {}) if w.prev else {}
         return _break_even(o1), (_break_even(o0) if w.prev else None)
+    if metric == COST_METRIC:  # Tổng chi phí / doanh thu thực: the cost chain's own figure
+        a0, b0 = w.prev if w.prev else w.cur
+        l1, l0 = await data.cost_lines_pair(*w.cur, a0, b0)
+
+        def ratio(lines: dict[str, Any]) -> float | None:
+            cost, net = _cost(lines), lines.get("net_revenue")
+            return None if cost is None or not net else cost / float(net)
+
+        return ratio(l1), (ratio(l0) if w.prev else None)
     if metric in MONEY_METRICS:
         o1 = await data.overview(*w.cur)
         o0 = await data.overview(*w.prev) if w.prev else {}

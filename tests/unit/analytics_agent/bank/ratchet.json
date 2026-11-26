@@ -1,7 +1,7 @@
 {
  "bank": {
   "count": 192,
-  "passing": 152,
+  "passing": 153,
   "cases": {
    "gmv-yesterday": "f5ea1d11780cc28e",
    "gmv-yesterday-noaccent": "0edab8310a0aa3e5",
@@ -176,7 +176,7 @@
    "why-weekly-template-no-router": "abb51d9236f38e79",
    "gmv-7d-before-matches-screen": "2961d3de9c70ffeb",
    "orders-7d-before-matches-screen": "4187b5d1a2436180",
-   "cost-ratio-lookup-7d": "09dc846450689368",
+   "cost-ratio-lookup-7d": "7b81ff054c598f13",
    "grid-gmv-yesterday": "675170e5b0676cde",
    "grid-gmv-this-month": "63a24d79faca3206",
    "grid-gmv-last-month": "fca9a75a604dec20",

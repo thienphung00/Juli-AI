@@ -75,3 +75,19 @@ async def test_a_month_not_started_states_it_and_no_figure(shop: tuple[Path, Any
     )
     assert not out.of("data_answer")
     assert out.of("label")[0]["text_vi"] == "Tháng 11/2026 chưa bắt đầu (số liệu đến hết 07/10)."
+
+
+async def test_a_cost_ratio_lookup_answers_never_raises(shop: tuple[Path, Any]) -> None:
+    case = {
+        "id": "t",
+        "question": "Tổng chi phí chiếm bao nhiêu % doanh thu 7 ngày qua?",
+        "intents": [
+            {"metric_key": "cost_total_pct", "metric_phrase": "cost share", "time_phrase": "7 days"}
+        ],
+        "jev": {"metric": "cost_ratio"},
+        "expect": {},
+    }
+    out, _, _ = await _ask(shop, case)
+    assert out.error is None and not out.of("error")
+    (ans,) = out.of("data_answer")
+    assert ans["value"].endswith("%") and ans["window_vi"].startswith("01/10–07/10")

@@ -5817,9 +5817,7 @@
     "no_events": [
      "error"
     ]
-   },
-   "status": "xfail",
-   "reason": "a cost_ratio lookup raises KeyError('cost_ratio') in lookup._total (MONEY_METRICS has it, the overview key map does not): the seller sees 'Juli đang gặp sự cố'"
+   }
   },
   {
    "id": "grid-gmv-yesterday",
