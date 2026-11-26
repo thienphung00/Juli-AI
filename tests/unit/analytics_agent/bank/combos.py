@@ -907,7 +907,7 @@ GAP_RULES: tuple[GapRule, ...] = (
         "this_vs_last_week",
         "'this week compared with last week' runs last week (window_from_phrase order)",
         lambda p, s, m, o: p == "this_vs_last_week",
-        (r"window '", r"chat .* != screen", r"points for"),
+        (r"window '", r"chat .* != screen", r"GMV .* != screen", r"points for"),
     ),
     R(
         "entity_word_in_metric",
@@ -944,6 +944,20 @@ GAP_RULES: tuple[GapRule, ...] = (
         "window and says 'Juli chưa có số liệu này' while the Phân tích voucher cell has orders",
         lambda p, s, m, o: SCOPE[s].kind == "voucher" and p == "sale_day",
         (r"Chat has no figure", r"stop "),
+    ),
+    R(
+        "why_card_estimate_word",
+        "the why chain's card note on one product says 'Juli chưa ước tính được…' (a forbidden "
+        "word on a screen)",
+        lambda p, s, m, o: o == "why" and SCOPE[s].kind == "product",
+        (r"ước tính",),
+    ),
+    R(
+        "top_list_vs_screen",
+        "the top-products list ranks every product with a row in the window (a product with no "
+        "sale included) while Phân tích lists only the products that sold",
+        lambda p, s, m, o: o == "top" and SCOPE[s].kind == "shop",
+        (r"order \[",),
     ),
     R(
         "product_money_output",
