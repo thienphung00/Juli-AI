@@ -380,7 +380,11 @@ def test_zy_136_downgrade_recreates_the_134_views_and_upgrade_drops_only_them(
                     {"t": f"public.{old}"},
                 ).scalar()
                 assert "security_invoker=true" in (options or []), (old, options)
-                assert _columns(conn, old) == _columns(conn, new), old  # SELECT * of the table
+                # the columns at 134: all but those 140 added later (136 sits on 140)
+                later = set(M136.ADDED_AFTER_134.get(new, ()))
+                assert _columns(conn, old) == [c for c in _columns(conn, new) if c not in later], (
+                    old
+                )
                 assert _verbs(conn, old) == {v.strip() for v in verbs.split(",")}, old
             # security_invoker: the invoker's RLS applies through the view
             _scope(conn, a.shop_id)

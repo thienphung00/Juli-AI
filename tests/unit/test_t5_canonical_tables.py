@@ -528,6 +528,21 @@ def test_136_fits_alembic_and_follows_140():
     assert mod.down_revision == "140_data_layer_facts_opps"
 
 
+def test_136_added_after_134_is_what_140_adds():
+    path = PATH_136.parent / "140_data_layer_facts_opps.py"
+    spec = importlib.util.spec_from_file_location("m140_for_136", path)
+    assert spec and spec.loader
+    m140 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m140)
+    shared = (*m140._COMPONENTS,)
+    more = (*m140._KNOWN_AND_ADS_MONEY, *m140._ADS_COUNTS, "derivation_version")
+    assert _module_136().ADDED_AFTER_134 == {
+        "shop_metrics_daily": (*shared, "other_marketing", *more),
+        "product_metrics_daily": (*shared, "ads_gmv", *more),
+        "source_metrics_daily": ("derivation_version",),
+    }
+
+
 def test_136_sql_is_literal():
     source = PATH_136.read_text("utf-8")
     assert 'f"' not in source and "f'" not in source and "format(" not in source
@@ -555,10 +570,15 @@ def test_136_downgrade_recreates_the_views_exactly_as_134_did():
     views = dict(
         re.findall(
             r"CREATE VIEW public\.(\w+) WITH \(security_invoker = true\) "
-            r"AS SELECT \* FROM public\.(\w+)",
+            r"AS SELECT (?:\*|' \|\| cols \|\| ') FROM public\.(\w+)",
             down,
         )
     )
+    # since 136 sits on 140: the three tables 140 widened select every column but 140's
+    lists = dict(re.findall(r"table_name = '(\w+)'\s+AND column_name NOT IN \(([^)]*)\)", down))
+    added = _module_136().ADDED_AFTER_134
+    assert {t: tuple(re.findall(r"'(\w+)'", v)) for t, v in lists.items()} == added
+    assert down.count("SELECT * FROM public.") == 7 - len(added)
     grants = {
         view: verbs
         for verbs, view in re.findall(r"GRANT ([A-Z, ]+) ON public\.(\w+) TO juli_app", down)
