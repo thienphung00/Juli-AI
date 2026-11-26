@@ -180,7 +180,11 @@ async def test_every_profit_figure_carries_its_assumed_cost_share(session, seede
     assert body["profit"]["assumed_cost_share_pct"] == 100.0
     assert body["profit"]["assumed_cost_label"] == "giá vốn giả định (1/3 giá)"
     assert any(w["code"] == "cost_all_assumed" for w in body["warnings"])
-    assert body["profit"]["profit_vnd"] is not None  # contract 13: shown, labelled
+    # owner #96 (R1 gate): a profit is shown only when the known-cost orders are 70-100 % of the
+    # GMV; a shop whose every cost is the assumed 1/3 has no known cost, so no profit is shown
+    # (it was shown, labelled, under contract 13). The share and its label stay.
+    assert body["profit"]["profit_vnd"] is None
+    assert body["profit"]["margin_pct"] is None
 
 
 async def test_imported_costs_win_and_the_two_sources_are_reported_apart(session, seeded_rules):
@@ -288,13 +292,19 @@ async def test_matrix_rows_carry_flows_levers_and_a_labelled_ads_overlay(session
     assert set(by) == {"1001", "1002", "1003"}
     gloves = by["1001"]
     assert gloves["name"].startswith("Găng tay")
-    # D85.2: the order lines scaled to the shop totals, so the products add up to the shop GMV
     assert gloves["gmv_basis"] == "scaled_order_lines"
-    assert sum(r["gmv"] for r in by.values()) == body["sums"]["gmv_shop"] == 7 * 275_000
     # P99b: the window reads the stored daily rows (each day's lines scaled to that day's shop
     # total), never a window-level split of the raw tables
     stored = await stored_mod.load_stored(session, seeded.shop_id, Window(CUR_START, CUR_END))
     assert stored is not None
+    # D85.2 + owner #99 / #103 10a: the order lines are scaled to the shop totals with every sale
+    # line, then a product leaves out its cancelled-after-confirmation lines; that share is its
+    # own row, so the products plus it add up to the shop GMV
+    assert body["sums"]["gmv_shop"] == 7 * 275_000
+    assert stored.cancelled_gmv > 0
+    assert sum(r["gmv"] for r in by.values()) + float(stored.cancelled_gmv) == pytest.approx(
+        body["sums"]["gmv_shop"], abs=len(by)
+    )
     assert gloves["gmv"] == pytest.approx(float(stored.products["1001"].gmv), abs=1)
     assert gloves["ads"]["basis"]["label"] == "đơn đã đặt"
     # the report window is the window and the report is the spend: 60.000 of 100.000
@@ -415,7 +425,7 @@ async def test_a_sku_sold_below_its_floor_is_listed_with_the_floor_as_reference(
 # =========================================================================== rankings
 
 
-@pytest.mark.parametrize("xep", ["gmv_per_day", "profit_per_day", "orders"])
+@pytest.mark.parametrize("xep", ["gmv_per_day", "orders"])
 async def test_product_ranking_adds_up_for_every_additive_measure(session, seeded, xep):
     body = await queries.ranking(
         session, seeded.shop_id, kind="products", xep_theo=xep, period="7d", as_of=CUR_END
@@ -434,6 +444,24 @@ async def test_product_ranking_adds_up_for_every_additive_measure(session, seede
     for view in body["views"].values():
         assert Decimal(str(view["sum"])) == pytest.approx(cell, abs=Decimal("0.05"))
         assert len(view["closing"]) == 4
+
+
+async def test_profit_ranking_shows_no_total_while_the_profit_gate_withholds_the_shop_profit(
+    session, seeded
+):
+    # owner #96 (R1 gate): the fixture's known-cost share of the GMV is outside 70-100 %, so the
+    # shop profit is withheld and the cell has no figure: there is nothing shown to add up
+    body = await queries.ranking(
+        session,
+        seeded.shop_id,
+        kind="products",
+        xep_theo="profit_per_day",
+        period="7d",
+        as_of=CUR_END,
+    )
+    assert body["supported"] is True
+    assert body["cell"]["now"] is None and body["cell"]["delta"] is None
+    assert body["adds_up"] is None
 
 
 async def test_ranking_default_is_gmv_per_day_and_rows_name_confidence(session, seeded):
