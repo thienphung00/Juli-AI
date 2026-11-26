@@ -50,9 +50,7 @@ def data_orders() -> FakeData:
         }
         for r in shop
     ]
-    d = FakeData(shop, srcs, products=prods, names={"p1": "Sản phẩm A"})
-    d.default_span = (AS_OF - timedelta(days=6), AS_OF)  # this shop's default period (#112(3))
-    return d
+    return FakeData(shop, srcs, products=prods, names={"p1": "Sản phẩm A"})
 
 
 def req(**kw: Any) -> AskRequest:
@@ -141,7 +139,6 @@ async def test_template_skips_parse_and_routing_and_allows_card_at_any_stop() ->
         },
         names={"p9": "Sản phẩm Z"},
     )
-    d.default_span = (AS_OF - timedelta(days=6), AS_OF)
     jev = FakeJev(lambda s, q: full(kind=ch("ads_budget")))
     sink, _ = await go(req(template="reduce_cost"), llm=llm, jev=jev, data=d)
     assert llm.parse_calls == 0 and all("fits" not in c[1] for c in jev.calls)

@@ -84,6 +84,8 @@ LABELS_FOR_OFFER = {
     "aov": "AOV",
 }
 NO_TIKTOK_CARD_VI = "Chưa có đề xuất cho TikTok"
+#: the window a template widens to when its fixed 7 days hold no data (owner #113)
+TEMPLATE_WIDER = "last_30d_vs_prev_30d"
 ANALYTICS_PLATFORMS = ("shopee",)  # TikTok joins when P101 W3 opens its analytics routes (U12)
 #: Platforms whose recommendation engine can fill a draft card (Shopee only for now).
 CARD_PLATFORMS = ("shopee",)
@@ -492,24 +494,13 @@ def _month_not_started(intent: dict[str, Any], dec: dict[str, Any], as_of: date)
     return f"{m}/{y}" if first > as_of else None
 
 
-#: the period words of a "more" button (the parser's phrases are English)
-PERIOD_VI = {
-    "yesterday_vs_same_weekday": "hôm qua",
-    "this_week_vs_same_days_last_week": "tuần này",
-    "last_full_week_vs_week_before": "tuần trước",
-    "last_7d_vs_prev_7d": "7 ngày qua",
-    "last_30d_vs_prev_30d": "30 ngày qua",
-    "mtd_vs_same_days_last_month": "tháng này",
-    "last_month_vs_month_before": "tháng trước",
-}
-
-
 def _more_item(intent: dict[str, Any], labels: LabelTable) -> dict[str, str]:
     """One "more" button in Vietnamese: the metric's own label and the period the seller named;
     the text is what the tap asks (never the parser's English phrase)."""
     metric = routing.named_metric_of(intent)
     label = labels.metric(metric) if metric else "Câu hỏi tiếp"
-    period = PERIOD_VI.get(windows.window_from_phrase(intent.get("time_phrase")) or "")
+    period = windows.PERIOD_VI.get(windows.window_from_phrase(intent.get("time_phrase")) or "")
+    period = period.lower() if period else None
     text = f"{label} {period}" if metric and period else (label if metric else "")
     return {"label_vi": label, "text": text}
 
@@ -679,7 +670,7 @@ async def _answer_inner(
             )
         result.stop_reasons.append("data_answer")
         return
-    preset = dec.get("window") or windows.DEFAULT_PRESET
+    preset = dec.get("window") or "last_7d_vs_prev_7d"
     month = _month_not_started(intent, dec, as_of)
     if month:  # "tháng 11" asked in October: never the month before's figure under its name
         fresh = f" (số liệu đến hết {latest or as_of:%d/%m})"
@@ -752,10 +743,6 @@ async def _answer_inner(
         result.stop_reasons.append("data_answer")
         return
     kw = _window_args(intent, dec)
-    if not kw.get("explicit") and dec.get("window") == windows.DEFAULT_PRESET:
-        span = await data.default_window(latest or as_of)  # the tabs' default period (#112(3))
-        if span is not None:
-            kw["explicit"] = span
     entity = routing.entity_kind(intent)
     prod_money = bool(
         item_id
@@ -831,6 +818,15 @@ async def _answer_inner(
     chain = await asyncio.wait_for(
         run_chain(data, chain_name, metric, preset, as_of, item_id=item_id, **kw), chain_timeout_s()
     )
+    if template and chain.stop_reason == "data_missing" and preset != TEMPLATE_WIDER:
+        # owner #113: a template keeps its fixed 7 days unless they hold no data; then 30 days
+        wider = await asyncio.wait_for(
+            run_chain(data, chain_name, metric, TEMPLATE_WIDER, as_of, item_id=item_id),
+            chain_timeout_s(),
+        )
+        if wider.stop_reason != "data_missing":
+            chain = wider
+            result.routing.append({"step": "template_window", "kept": TEMPLATE_WIDER})
     await out.emit(present.comparing(chain))
     line = readable.meta_of(
         {

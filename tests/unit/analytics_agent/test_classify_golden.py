@@ -91,7 +91,7 @@ ROWS: list[tuple[str, Any, Any, Any]] = [
             raw_text="Chiến dịch quảng cáo nào đang lỗ?",
         ),
         ans(fits=nl(0.6), mode=ch("lookup")),
-        {"outcome": "go", "entity": "campaign"},
+        {"outcome": "needs_choice", "entity": "campaign"},  # owner #113: no period -> asked
     ),
     (
         "Tuần này có bao nhiêu đơn dùng voucher?",
@@ -273,7 +273,8 @@ ROWS: list[tuple[str, Any, Any, Any]] = [
             raw_text="ROAS hoà vốn của shop là bao nhiêu?",
         ),
         ans(fits=nl(0.58), mode=ch("lookup")),
-        {"outcome": "go", "entity": None, "metric": "roas_break_even", "mode": "lookup"},
+        # owner #113: no period named -> the period is asked
+        {"outcome": "needs_choice", "metric": "roas_break_even", "mode": "lookup"},
     ),
     (
         "Phí cố định của Shopee tính thế nào?",
@@ -350,4 +351,5 @@ async def test_classify_routes_each_question(
     for got, exp in zip(out["intents"], wanted, strict=True):
         for k, v in exp.items():
             assert got[k] == v, (text, k, got)
-        assert got["outcome"] != "needs_choice", (text, got)  # the picker never fires on these
+        if exp.get("outcome") != "needs_choice":  # owner #113: only an unnamed period is asked
+            assert got["outcome"] != "needs_choice", (text, got)

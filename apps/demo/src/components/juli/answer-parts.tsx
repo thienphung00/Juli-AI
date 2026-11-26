@@ -250,6 +250,9 @@ export function DataAnswer({ data, platform }: { readonly data: JuliDataAnswerDa
   );
 }
 
+/** The option a choice hands back to the input ("Khoảng khác", backend `windows.OTHER_PERIOD`). */
+export const OTHER_VALUE = "other";
+
 /** U5a: one short question + buttons + "Khác…". */
 export function NeedsChoice({
   data,
@@ -289,14 +292,23 @@ export function NeedsChoice({
     <div className="juli-choice">
       <p className="juli-ask">{data.question_vi}</p>
       <div className={`juli-opts${stacked ? " juli-opts--stack" : ""}`} role="group" aria-label={data.question_vi}>
-        {data.options.map((o) => (
-          <button key={o.value} type="button" className="juli-opt" disabled={!interactive} onClick={() => onChoose(data.item, o)}>
-            {o.label_vi}
+        {data.options.map((o) =>
+          o.value === OTHER_VALUE ? (
+            // owner #113: "Khoảng khác" hands the period back to the seller's own words
+            <button key={o.value} type="button" className="juli-opt juli-opt--other" disabled={!interactive} onClick={onOther}>
+              {o.label_vi}
+            </button>
+          ) : (
+            <button key={o.value} type="button" className="juli-opt" disabled={!interactive} onClick={() => onChoose(data.item, o)}>
+              {o.label_vi}
+            </button>
+          ),
+        )}
+        {data.options.some((o) => o.value === OTHER_VALUE) ? null : (
+          <button type="button" className="juli-opt juli-opt--other" disabled={!interactive} onClick={onOther}>
+            Khác…
           </button>
-        ))}
-        <button type="button" className="juli-opt juli-opt--other" disabled={!interactive} onClick={onOther}>
-          Khác…
-        </button>
+        )}
       </div>
     </div>
   );
