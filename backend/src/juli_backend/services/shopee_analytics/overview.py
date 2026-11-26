@@ -451,8 +451,10 @@ def build_overview(
     prev_totals_ok = comparable or before.data.totals.complete
     prev_traffic_ok = before.data.traffic.basis not in ("partial_daily", "none")
     prev_chain = prev_chain if prev_traffic_ok else {}
-    prev_gmv = before.shop_gmv if prev_totals_ok else None
-    prev_orders = before.shop_orders if prev_totals_ok else None
+    # owner #99 (6): one GMV / đơn -- the headline ShopMetrics (stored daily rows), never the raw
+    # window total ``shop_gmv`` (a period file's whole total can stand in for the window there)
+    prev_gmv = prev_metrics.gmv if prev_totals_ok else None
+    prev_orders = prev_metrics.orders if prev_totals_ok else None
     if not prev_totals_ok:
         prev_chain = {k: v for k, v in prev_chain.items() if k != "aov"}
     profit_now, profit_before = shop_profit_of(now), shop_profit_of(before)
@@ -470,7 +472,7 @@ def build_overview(
         "data": data_status(now),
         "warnings": warns,
         "kpi_strip": {
-            "gmv": _kpi(now.shop_gmv, prev_gmv),
+            "gmv": _kpi(metrics.gmv, prev_gmv),
             "views": _kpi(chain.get("views"), prev_chain.get("views")),
             "ctr": _kpi(chain.get("ctr"), prev_chain.get("ctr"), fraction=True),
             "ctor": {
@@ -478,7 +480,7 @@ def build_overview(
                 "note": CTOR_NOTE,
             },
             "aov": _kpi(metrics.aov, prev_metrics.aov if prev_totals_ok else None),
-            "orders": _kpi(now.shop_orders, prev_orders),
+            "orders": _kpi(metrics.orders, prev_orders),
             # P100 B.6: Tổng lợi nhuận, the one shop profit (shop level only, never per source)
             "profit": {
                 **_kpi(profit_now.profit, profit_before.profit if comparable else None),
@@ -499,8 +501,8 @@ def build_overview(
         },
         "gmv": {
             "excluded_gmv": excluded_summary(now),
-            "shopee_gmv": num(now.shop_gmv),
-            "shopee_orders": now.shop_orders,
+            "shopee_gmv": num(metrics.gmv),
+            "shopee_orders": metrics.orders,
             "aov_gmv": num(metrics.aov),
             "aov_label": AOV_LABEL,
             "aov_seller_centre": num(metrics.aov_seller_centre),
