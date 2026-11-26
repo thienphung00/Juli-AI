@@ -1149,9 +1149,13 @@ async def channel_split(
         window.end,
         ads_last=ads_last_day(view.data.ads_daily.source_by_day),
     )
+    from juli_backend.services.shopee_analytics import queries
+
+    unsettled = await queries.unsettled_freshness(session, shop_id, platform)
     return {
         "level": "product" if product_id else "shop",
         "product_id": product_id,
+        **({} if unsettled is None else {"freshness": {"unsettled_orders": unsettled}}),
         "from": window.start.isoformat(),
         "to": window.end.isoformat(),
         "days": window.days,

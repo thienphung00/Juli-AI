@@ -56,6 +56,17 @@ def freshness_json(latest: dict[str, Any], anchor: date) -> dict[str, Any]:
     }
 
 
+async def unsettled_freshness(
+    session: AsyncSession, shop_id: uuid.UUID, platform: str
+) -> dict[str, Any] | None:
+    """7b: ``freshness.unsettled_orders`` -- completed orders still unpaid over 2 days later
+    (``{count, oldest_completed_on}``), Shopee shops only. The one computation behind the
+    overview and the channel split (Tổng quan reads the latter); TikTok gets ``None``."""
+    if platform != "shopee":
+        return None
+    return await read_days.unsettled_status(session, shop_id, platform)
+
+
 class NoShopeeData(LookupError):
     """The shop has no numbers (Shopee or TikTok) to anchor a window on; the route words the
     refusal by the shop's platform."""
@@ -143,11 +154,9 @@ async def overview(
     body["freshness"] = freshness_json(
         await loaders.load_freshness(session, shop_id), now.window.end
     )
-    if platform == "shopee":
-        # 7b: completed orders still unpaid over 2 days later (Tổng quan flags it)
-        body["freshness"]["unsettled_orders"] = await read_days.unsettled_status(
-            session, shop_id, platform
-        )
+    unsettled = await unsettled_freshness(session, shop_id, platform)
+    if unsettled is not None:
+        body["freshness"]["unsettled_orders"] = unsettled
     return body
 
 

@@ -55,3 +55,18 @@ def test_a_stale_order_line_read_does_not_date_the_gmv_back():
     latest = _latest(shop_overview=date(2026, 11, 14), order_lines=date(2026, 11, 4))
     out = data_through(latest, date(2026, 11, 14), ads_last=date(2026, 11, 13))
     assert out["kpis"] == "2026-11-14" and out["profit"] == "2026-11-04"
+
+
+async def test_overview_and_channel_split_carry_the_same_unsettled_orders(session):
+    """7b: Tổng quan reads the channel split; both give one computation of the unpaid count."""
+    from juli_backend.services.shopee_analytics import channel_split, queries
+
+    seeded = await seed_shopee_shop(session, rules=True)
+    await session.commit()
+    split = await channel_split.channel_split(session, seeded.shop.id, period="7d", as_of=CUR_END)
+    over = await queries.overview(session, seeded.shop.id, period="7d", as_of=CUR_END)
+    block = split["freshness"]["unsettled_orders"]
+    assert set(block) == {"count", "oldest_completed_on"}
+    assert block == over["freshness"]["unsettled_orders"]
+    tiktok = await queries.unsettled_freshness(session, seeded.shop.id, "tiktok")
+    assert tiktok is None
