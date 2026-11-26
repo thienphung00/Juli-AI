@@ -25,7 +25,11 @@ from tests.support.shopee_analytics import seed_shopee_shop
 #: sale now gets its own order_lines row, profit = -ad cost; 8 such rows in the fixture) and
 #: #39/#50 (ROWS_VERSION 2 -> 4 in every shop row's ``detail.rows_v``). Every other row and
 #: every source row is unchanged against 3ff94165.
-BASE_DIGEST = "fc4de35745f00147bf79aa432f8b50dbaf4f5e5acda96fa28204b5d635eb2598"
+#: Re-pinned on batch-1125 r1-dec (owner #103, 8a): the day 2026-10-05 holds only cancelled-after-
+#: confirmation lines, so product 1002 now has gmv / orders / units / line_gmv / line_orders = 0 and
+#: its 275.000 GMV sits in that day's ``__residual__`` row (the shop row is unchanged). Nothing else
+#: moved (dump diff against the base, all three tables).
+BASE_DIGEST = "9a7f496d2e2c553bc9740697563e788c444cdcfe0b9a5ee29adac7505bbe2207"
 _SKIP = {"id", "shop_id", "built_at"}
 #: the columns migration 140 added, which nothing writes since #2367 was taken out: they must be
 #: empty, and the digest of every other column is the one from before it
