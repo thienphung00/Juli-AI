@@ -14,6 +14,7 @@ Shared by the SQLite bank (`test_chat_bank.py`) and its Postgres subset
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 from collections.abc import Callable
@@ -56,6 +57,7 @@ SELLER_KEYS = (
     "before_vi",
     "reason_vi",
     "note_vi",
+    "sale_vi",
 )
 STATUSES = ("pass", "xfail", "pending")
 #: a Vietnamese letter (a label with none is English)
@@ -110,7 +112,9 @@ def jev_answers(spec: dict[str, Any] | None, it: dict[str, Any]) -> dict[str, di
     otherwise."""
     s = dict(spec or {})
     metric = s.pop("metric", None) or routing.named_metric_of(it) or "gmv"
-    chain = s.pop("chain", None) or routing.METRIC_CHAIN.get(metric, "gmv_change")
+    chain = s.pop("chain", None) or (
+        routing.METRIC_CHAIN.get(metric, "gmv_change") if isinstance(metric, str) else "gmv_change"
+    )
     out = {
         "fits": nl(float(s.pop("fits", 0.95))),
         "mode": _choice(s.pop("mode", "lookup")),
@@ -164,6 +168,7 @@ def fakes_of(case: dict[str, Any]) -> tuple[FakeLLM, Any, list[dict[str, Any]]]:
         llm = FakeLLM(
             {"restated_vi": case.get("restated") or case["question"], "intents": intents},
             text=case.get("writer", ""),
+            agent_script=case.get("agent_script"),
         )
     if case.get("jev_down"):
         return llm, DownJev(), intents
@@ -256,6 +261,7 @@ async def ask(
     data: Any,
     shop_id: Any,
     case: dict[str, Any],
+    engine: Any = None,
 ) -> Outcome:
     as_of = date.fromisoformat(case["as_of"]) if case.get("as_of") else DEFAULT_AS_OF
     llm, jev, _ = fakes_of(case)
@@ -267,7 +273,8 @@ async def ask(
         template=case.get("template"),
         as_of=as_of,
     )
-    out = await _run(req, factory, data, shop_id, llm, jev, sink)
+    engine = engine if engine is not None else ServiceCardEngine(factory, shop_id)
+    out = await _run(req, data, engine, llm, jev, sink)
     out.routes = [] if case.get("template") or case.get("parse_fails") else await _classify(case)
     then = case.get("then")
     if then and out.error is None:
@@ -285,15 +292,14 @@ async def ask(
                 pending=pending,
                 as_of=as_of,
             )
-            out.followup = await _run(follow, factory, data, shop_id, llm, jev, ListSink())
+            out.followup = await _run(follow, data, engine, llm, jev, ListSink())
     return out
 
 
 async def _run(
     req: AskRequest,
-    factory: SessionFactory,
     data: Any,
-    shop_id: Any,
+    engine: Any,
     llm: Any,
     jev: Any,
     sink: ListSink,
@@ -307,7 +313,7 @@ async def _run(
             sink=sink,
             labels=shopee_labels(),
             data=data,
-            card_engine=ServiceCardEngine(factory, shop_id),
+            card_engine=engine,
         )
         stops = list(res.stop_reasons)
     except Exception as exc:  # recorded: a case that raises fails on its expectations
@@ -336,8 +342,22 @@ async def _classify(case: dict[str, Any]) -> list[dict[str, Any]]:
 # ------------------------------------------------------------------ the screen's figures
 
 
+_SCREENS: dict[str, Any] = {}
+
+
 async def screen_value(factory: SessionFactory, shop_id: Any, spec: dict[str, Any]) -> Any:
-    """The tab's own figure for `spec["screen"]` over [from, to]."""
+    """The tab's own figure for `spec["screen"]` over [from, to] (memoised: the shop is
+    read-only; the key holds the profit gate)."""
+    from juli_backend.services.shopee_profit import shop_profit
+
+    key = f"{shop_id}|{spec['screen']}|{spec['from']}|{spec['to']}|"
+    key += str(shop_profit.MIN_KNOWN_GMV_SHARE_PCT)
+    if key not in _SCREENS:
+        _SCREENS[key] = await _screen_value(factory, shop_id, spec)
+    return copy.deepcopy(_SCREENS[key])
+
+
+async def _screen_value(factory: SessionFactory, shop_id: Any, spec: dict[str, Any]) -> Any:
     from juli_backend.services.shopee_analytics import loaders, metric_view, queries, service
     from juli_backend.services.shopee_analytics.channel_split import channel_split
     from juli_backend.services.shopee_analytics.rankings import _cell_other
@@ -361,26 +381,38 @@ async def screen_value(factory: SessionFactory, shop_id: Any, spec: dict[str, An
             if src == "overview_profit":  # Tổng quan's profit block (ROAS hoà vốn)
                 body = await queries.overview(s, shop_id, period="custom", start=a, end=b)
                 return (body.get("profit") or {}).get(key)
-            if src == "metric_view":  # Phân tích: the product list of a metric
-                return await metric_view.metric_view(
-                    s, shop_id, metric=key, period="custom", start=a, end=b, product_id=None
-                )
+            if src in ("metric_view", "metric_view_channels", "metric_view_total"):
+                # Phân tích: a metric's view (products, channels, total), optionally one product
+                metric, _, item = key.partition("@")
+                try:
+                    return await metric_view.metric_view(
+                        s,
+                        shop_id,
+                        metric=metric,
+                        period="custom",
+                        start=a,
+                        end=b,
+                        product_id=item or None,
+                    )
+                except ValueError:
+                    return None
             if src == "channel_split":  # Kênh: the channel KPIs
-                return ((await channel_split(s, shop_id, period="custom", start=a, end=b))
-                        .get("kpis") or {}).get(key)  # fmt: skip
+                return (
+                    (await channel_split(s, shop_id, period="custom", start=a, end=b)).get("kpis")
+                    or {}
+                ).get(key)
             window = await service.resolve(s, shop_id, period="custom", start=a, end=b)
             if window is None:
                 return None
             ctx = await loaders.load_context(s, shop_id)
             ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
             view = await service.load_view(s, shop_id, ctx, window, funnel=True, rows="soft")
-            if src == "voucher":  # Phân tích voucher cell; Ưu đãi's voucher part
+            if src in ("voucher", "kol"):  # Phân tích voucher / KOL cells; Ưu đãi's voucher part
                 if key == "cost":
                     return components_of(view.pairs)["offer_voucher"]
-                cell = _cell_other("vouchers", view)
-                return cell.orders if key == "orders" else cell.gmv
-            if src == "kol":  # Phân tích KOL cell (the Tiếp thị liên kết flow)
-                cell = _cell_other("kols", view)
+                cell = _cell_other("vouchers" if src == "voucher" else "kols", view)
+                if key == "aov":
+                    return None if not cell.orders else cell.gmv / cell.orders
                 return cell.orders if key == "orders" else cell.gmv
             if src == "offer":  # Ưu đãi parts: offer_combo / offer_promo / offer_voucher
                 return components_of(view.pairs)[key]
@@ -391,6 +423,15 @@ async def screen_value(factory: SessionFactory, shop_id: Any, spec: dict[str, An
                     return None
                 if what == "profit":
                     return product_profit_shown(p)
+                if what == "break_even":
+                    from juli_backend.services.shopee_analytics.fmt import ratio
+                    from juli_backend.services.shopee_profit.shop_profit import (
+                        product_break_even_roas_shown,
+                    )
+
+                    return ratio(product_break_even_roas_shown(p), 2)
+                if what == "ads_spend":
+                    return p.ad_spend if view.ads.known_spend is not None else None
                 v = product_margin_pct_shown(p)
                 return None if v is None else float(v) / 100
             raise KeyError(f"unknown screen source {src!r}")
@@ -439,8 +480,15 @@ async def check(
     exp = case["expect"] if expect is None else expect
     r = Report()
     r.need(out.error is None, f"raised {out.error}")
-    if "stop" in exp:
+    if "stop" in exp and not (exp.get("answers_optional") and not out.of("data_answer")):
         r.need(out.stop_reasons == exp["stop"], f"stop {out.stop_reasons} != {exp['stop']}")
+    if "stop_in" in exp:
+        r.need(
+            bool(out.stop_reasons) and set(out.stop_reasons) <= set(exp["stop_in"]),
+            f"stop {out.stop_reasons} not in {exp['stop_in']}",
+        )
+    if "events_any" in exp:
+        r.need(any(out.of(k) for k in exp["events_any"]), f"none of {exp['events_any']}")
     for i, want in enumerate(exp.get("routes") or []):
         got = out.routes[i] if i < len(out.routes) else {}
         for p in _subset(got, want):
@@ -467,6 +515,15 @@ async def check(
         got = asked[-1]["item"] if asked else None
         r.need(got == exp["needs_choice_item"], f"needs_choice item {got!r}")
     answers = out.of("data_answer")
+    if exp.get("answers_optional") and not answers and exp.get("answers"):
+        # "no data" is right only when the tab has no figure either
+        want = exp["answers"][0]
+        screen = await screen_value(factory, shop_id, want) if "screen" in want else None
+        if want.get("screen", "").startswith("metric_view_total."):
+            screen = ((screen or {}).get("total") or {}).get("now")
+        r.need(screen is None, f"Chat has no figure but the tab shows {screen!r}")
+        r.need(set(out.stop_reasons) <= {"data_missing"}, f"stop {out.stop_reasons}")
+        exp = {k: v for k, v in exp.items() if k not in ("answers", "stop")}
     for j, want in enumerate(exp.get("answers") or []):
         if j >= len(answers):
             r.problems.append(f"answer[{j}] missing ({len(answers)} data answers)")
@@ -502,9 +559,13 @@ async def check(
             r.need(
                 want["value_has"] in str(a.get("value")), f"answer[{j}] value {a.get('value')!r}"
             )
-        if "screen" in want:
+        if "screen" in want and want["screen"].startswith(("daily.", "metric_view_channels.")):
+            await _series_check(r, j, a, want, factory, shop_id)
+        elif "screen" in want:
             fig = {**want, "from": want["from"], "to": want["to"]}
             screen = await screen_value(factory, shop_id, fig)
+            if want["screen"].startswith("metric_view_total."):
+                screen = ((screen or {}).get("total") or {}).get("now")
             if want["screen"].startswith("metric_view."):
                 prods = sorted(
                     (p for p in screen.get("products") or [] if p.get("now") is not None),
@@ -515,8 +576,10 @@ async def check(
                 want_ids = [p["key"] for p in prods][: len(got_ids)]
                 r.need(got_ids == want_ids, f"answer[{j}] order {got_ids} != screen {want_ids}")
                 for x, p in zip(rows, prods, strict=False):
-                    r.need(_same(x.get("gmv"), p["now"]), f"answer[{j}] {x.get('item_id')} "
-                           f"GMV {x.get('gmv')} != screen {p['now']}")  # fmt: skip
+                    r.need(
+                        _same(x.get("gmv"), p["now"]),
+                        f"answer[{j}] {x.get('item_id')} GMV {x.get('gmv')} != screen {p['now']}",
+                    )
             else:
                 r.need(
                     _same(a.get("value_raw"), screen),
@@ -535,7 +598,11 @@ async def check(
             prev = await screen_value(
                 factory,
                 shop_id,
-                {"screen": want["before_screen"], "from": want["from"], "to": want["to"]},
+                {
+                    "screen": want["before_screen"],
+                    "from": want.get("prev_from", want["from"]),
+                    "to": want.get("prev_to", want["to"]),
+                },
             )
             r.need(
                 _same(a.get("before"), prev),
@@ -543,6 +610,8 @@ async def check(
             )
     if "n_answers" in exp:
         r.need(len(answers) == exp["n_answers"], f"{len(answers)} data answers")
+    if "n_answers_min" in exp:
+        r.need(len(answers) >= exp["n_answers_min"], f"{len(answers)} data answers")
     seller = out.seller_strings()
     blob = "\n".join(seller)
     for w in FORBIDDEN + tuple(exp.get("forbid") or ()):
@@ -553,8 +622,11 @@ async def check(
     for w in exp.get("require") or []:
         r.need(w in "\n".join(said), f"seller text lacks {w!r}")
     if exp.get("no_numbers"):  # a refusal / an offer states no figure
-        nums = [s for s in said if re.search(r"\d[\d.]*\s*(đ|%)|\b\d{2,}\b", s)
-                and not re.search(r"\d\d/\d\d", s)]  # fmt: skip
+        nums = [
+            s
+            for s in said
+            if re.search(r"\d[\d.]*\s*(đ|%)|\b\d{2,}\b", s) and not re.search(r"\d\d/\d\d", s)
+        ]
         r.need(not nums, f"a figure in a no-number answer: {nums[:3]}")
     if answers and out.stop_reasons and set(out.stop_reasons) == {"data_answer"}:
         text = out.final_text()
@@ -570,6 +642,36 @@ async def check(
     if "max_jev_calls" in exp:
         r.need(out.jev_calls <= exp["max_jev_calls"], f"{out.jev_calls} router calls")
     return r.problems
+
+
+async def _series_check(
+    r: Report, j: int, a: dict[str, Any], want: dict[str, Any], factory: Any, shop_id: Any
+) -> None:
+    """A daily trend point by point against Tổng quan of that day; a channel split row by row
+    against Phân tích's channel cells."""
+    src, _, key = want["screen"].partition(".")
+    if src == "daily":
+        a0, b0 = date.fromisoformat(want["from"]), date.fromisoformat(want["to"])
+        days = [a0.fromordinal(d) for d in range(a0.toordinal(), b0.toordinal() + 1)]
+        series = a.get("series") or []
+        r.need(len(series) == len(days), f"answer[{j}] {len(series)} points for {len(days)} days")
+        for d, pt in zip(days, series, strict=False):
+            v = await screen_value(
+                factory, shop_id, {"screen": key, "from": d.isoformat(), "to": d.isoformat()}
+            )
+            r.need(
+                _same(pt.get("value"), v),
+                f"answer[{j}] {d:%d/%m}: chat {pt.get('value')!r} != screen {v!r}",
+            )
+        return
+    view = await screen_value(factory, shop_id, {**want, "screen": f"metric_view.{key}"})
+    cells = {c["key"]: c.get("now") for c in (view or {}).get("channels") or []}
+    for row in a.get("rows") or []:
+        ch = row.get("channel")
+        r.need(
+            _same(row.get("value"), cells.get(ch)),
+            f"answer[{j}] channel {ch}: chat {row.get('value')!r} != screen {cells.get(ch)!r}",
+        )
 
 
 __all__ = ["Outcome", "ask", "check", "load_cases", "screen_value"]

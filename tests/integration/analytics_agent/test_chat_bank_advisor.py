@@ -28,7 +28,7 @@ from juli_backend.services.analytics_agent.data_service import ServiceData
 from juli_backend.services.juli_agent_api.ports import open_ports
 from tests.support.consent import grant_llm_consent, grant_service_consent
 from tests.support.postgres import requires_postgres
-from tests.unit.analytics_agent.bank import runner
+from tests.unit.analytics_agent.bank import combo_eval, paid_sample, runner
 from tests.unit.analytics_agent.bank.test_chat_bank import _param
 from tests.unit.analytics_agent.bank.world import seed_into
 from tests.unit.analytics_agent.fakes import ListSink
@@ -44,6 +44,7 @@ pytestmark = [
 ]
 
 CASES = runner.load_cases(runner.ADVISOR_FILE)
+SAMPLE = paid_sample.load()  # the stratified sample of the generated combinations
 
 
 @pytest_asyncio.fixture
@@ -97,3 +98,36 @@ async def test_paid_case(case: dict[str, Any], world: Any) -> None:
     assert not problems, f"{case['id']} ({case['question']!r}) cost ${res.cost_usd:.4f}:\n  - " + (
         "\n  - ".join(problems)
     )
+
+
+@pytest.mark.parametrize("case", [pytest.param(c, id=c["id"]) for c in SAMPLE])
+async def test_paid_sample(case: dict[str, Any], world: Any) -> None:
+    """The real parse of a generated combination in a seller's wording; the free bank's oracle
+    and gap rules judge it (a known gap xfails as in the free bank)."""
+    sid, factory, write = world
+    llm, jev = await open_ports(write, sid)
+    sink = ListSink()
+    res = await run(
+        AskRequest(
+            shop_id=sid, platform="shopee", text=case["question"], as_of=runner.DEFAULT_AS_OF
+        ),
+        llm=llm,
+        jev=jev,
+        sink=sink,
+        labels=shopee_labels(),
+        data=ServiceData(factory, sid),
+        card_engine=ServiceCardEngine(factory, sid),
+    )
+    out = runner.Outcome(sink.events, list(res.stop_reasons), [])
+    combo = {**combo_eval.case_of(case["combo_id"]), "expect": case["expect"]}
+    problems = await runner.check(out, combo, factory, sid)
+    v = combo_eval.judge(combo, out, problems)
+    if v.status == "mismatch":
+        if v.bucket != "correct_refusal":  # the mismatch rule (combos.MISMATCH_RULE)
+            pytest.xfail(f"mismatch outcome: {v.bucket}")
+        return
+    assert v.status != "fail", f"{case['id']} ({case['question']!r}) ${res.cost_usd:.4f}:\n  - " + (
+        "\n  - ".join(v.unexplained)
+    )
+    if v.status == "gap":
+        pytest.xfail("gap: " + ", ".join(v.rules))

@@ -1,0 +1,987 @@
+{
+ "period": {
+  "yesterday": {
+   "accent": "hôm qua",
+   "no_accent": "hom qua",
+   "typo": "hôm qua",
+   "english_mix": "hôm yesterday",
+   "shorthand": "hôm qua"
+  },
+  "this_week": {
+   "accent": "tuần này",
+   "no_accent": "tuan nay",
+   "typo": "tuầnn này",
+   "english_mix": "tuần this week",
+   "shorthand": "tuần này"
+  },
+  "last_week": {
+   "accent": "tuần trước",
+   "no_accent": "tuan truoc",
+   "typo": "tuầnn trướcc",
+   "english_mix": "tuần last week",
+   "shorthand": "tuần trc"
+  },
+  "this_vs_last_week": {
+   "accent": "tuần này so với tuần trước",
+   "no_accent": "tuan nay so voi tuan truoc",
+   "typo": "tuầnn này so với tuầnn trướcc",
+   "english_mix": "tuần này so this week vs last week",
+   "shorthand": "tuần này so với tuần trc"
+  },
+  "7d": {
+   "accent": "7 ngày qua",
+   "no_accent": "7 ngay qua",
+   "typo": "7 ngàyy qua",
+   "english_mix": "7 last 7 days",
+   "shorthand": "7 ng qua"
+  },
+  "14d": {
+   "accent": "14 ngày qua",
+   "no_accent": "14 ngay qua",
+   "typo": "14 ngàyy qua",
+   "english_mix": "14 last 14 days",
+   "shorthand": "14 ng qua"
+  },
+  "30d": {
+   "accent": "30 ngày qua",
+   "no_accent": "30 ngay qua",
+   "typo": "30 ngàyy qua",
+   "english_mix": "30 last 30 days",
+   "shorthand": "30 ng qua"
+  },
+  "90d": {
+   "accent": "90 ngày qua",
+   "no_accent": "90 ngay qua",
+   "typo": "90 ngàyy qua",
+   "english_mix": "90 last 90 days",
+   "shorthand": "90 ng qua"
+  },
+  "this_month": {
+   "accent": "tháng này",
+   "no_accent": "thang nay",
+   "typo": "thángg này",
+   "english_mix": "tháng this month",
+   "shorthand": "tháng này"
+  },
+  "last_month": {
+   "accent": "tháng trước",
+   "no_accent": "thang truoc",
+   "typo": "thángg trướcc",
+   "english_mix": "tháng last month",
+   "shorthand": "tháng trước"
+  },
+  "named_finished": {
+   "accent": "tháng 9",
+   "no_accent": "thang 9",
+   "typo": "thángg 9",
+   "english_mix": "tháng September",
+   "shorthand": "tháng 9"
+  },
+  "named_unfinished": {
+   "accent": "tháng 10",
+   "no_accent": "thang 10",
+   "typo": "thángg 10",
+   "english_mix": "tháng October",
+   "shorthand": "tháng 10"
+  },
+  "named_not_started": {
+   "accent": "tháng 11",
+   "no_accent": "thang 11",
+   "typo": "thángg 11",
+   "english_mix": "tháng November",
+   "shorthand": "tháng 11"
+  },
+  "explicit_range": {
+   "accent": "từ 2/10 đến 5/10",
+   "no_accent": "tu 2/10 den 5/10",
+   "typo": "từ 2/10 đến 5/10",
+   "english_mix": "từ 2/10 from 2/10 to 5/10",
+   "shorthand": "từ 2/10 đến 5/10"
+  },
+  "single_date": {
+   "accent": "ngày 3/10",
+   "no_accent": "ngay 3/10",
+   "typo": "ngàyy 3/10",
+   "english_mix": "ngày on 3/10",
+   "shorthand": "ng 3/10"
+  },
+  "sale_day": {
+   "accent": "ngày 25/9",
+   "no_accent": "ngay 25/9",
+   "typo": "ngàyy 25/9",
+   "english_mix": "ngày on 25/9 sale day",
+   "shorthand": "ng 25/9"
+  },
+  "none": {
+   "accent": "",
+   "no_accent": "",
+   "typo": "",
+   "english_mix": "",
+   "shorthand": ""
+  }
+ },
+ "scope": {
+  "shop": {
+   "accent": "cả shop",
+   "no_accent": "ca shop",
+   "typo": "cả shopp",
+   "english_mix": "cả whole shop",
+   "shorthand": "cả shop"
+  },
+  "product_name": {
+   "accent": "găng tay",
+   "no_accent": "gang tay",
+   "typo": "găngg tay",
+   "english_mix": "găng găng tay product",
+   "shorthand": "găng tay"
+  },
+  "product_id": {
+   "accent": "sản phẩm 1002",
+   "no_accent": "san pham 1002",
+   "typo": "sản phẩmm 1002",
+   "english_mix": "sản item 1002",
+   "shorthand": "sp 1002"
+  },
+  "product_sku": {
+   "accent": "mã T1",
+   "no_accent": "ma T1",
+   "typo": "mã T1",
+   "english_mix": "mã SKU T1",
+   "shorthand": "mã T1"
+  },
+  "voucher": {
+   "accent": "đơn dùng voucher",
+   "no_accent": "don dung voucher",
+   "typo": "đơn dùngg voucherr",
+   "english_mix": "đơn voucher orders",
+   "shorthand": "đơn dùng voucher"
+  },
+  "affiliate": {
+   "accent": "tiếp thị liên kết",
+   "no_accent": "tiep thi lien ket",
+   "typo": "tiếpp thị liênn kết",
+   "english_mix": "tiếp thị affiliate",
+   "shorthand": "ttlk"
+  },
+  "kol": {
+   "accent": "KOL",
+   "no_accent": "KOL",
+   "typo": "KOL",
+   "english_mix": "KOL KOL",
+   "shorthand": "KOL"
+  },
+  "campaign": {
+   "accent": "chiến dịch quảng cáo",
+   "no_accent": "chien dich quang cao",
+   "typo": "chiếnn dịchh quảngg cáo",
+   "english_mix": "chiến dịch ad campaign",
+   "shorthand": "chiến dịch qc"
+  },
+  "combo": {
+   "accent": "combo khuyến mãi",
+   "no_accent": "combo khuyen mai",
+   "typo": "comboo khuyếnn mãi",
+   "english_mix": "combo combo deal",
+   "shorthand": "combo khuyến mãi"
+  },
+  "add_on": {
+   "accent": "mua kèm deal sốc",
+   "no_accent": "mua kem deal soc",
+   "typo": "mua kèm deall sốc",
+   "english_mix": "mua kèm add-on deal",
+   "shorthand": "mua kèm deal sốc"
+  },
+  "flash_sale": {
+   "accent": "flash sale của shop",
+   "no_accent": "flash sale cua shop",
+   "typo": "flashh salee của shopp",
+   "english_mix": "flash sale shop flash sale",
+   "shorthand": "flash sale của shop"
+  },
+  "programme": {
+   "accent": "chương trình của shop",
+   "no_accent": "chuong trinh cua shop",
+   "typo": "chươngg trìnhh của shopp",
+   "english_mix": "chương trình shop programme",
+   "shorthand": "chương trình của shop"
+  },
+  "gift": {
+   "accent": "mua để nhận quà",
+   "no_accent": "mua de nhan qua",
+   "typo": "mua để nhậnn quà",
+   "english_mix": "mua để gift with purchase",
+   "shorthand": "mua để nhận quà"
+  },
+  "channel_organic": {
+   "accent": "tự nhiên (organic)",
+   "no_accent": "tu nhien (organic)",
+   "typo": "tự nhiênn (organic)",
+   "english_mix": "tự organic",
+   "shorthand": "tự nhiên (organic)"
+  },
+  "channel_ads": {
+   "accent": "từ quảng cáo",
+   "no_accent": "tu quang cao",
+   "typo": "từ quảngg cáo",
+   "english_mix": "từ from ads",
+   "shorthand": "từ qc"
+  },
+  "dvht_product": {
+   "accent": "dịch vụ hiển thị sản phẩm",
+   "no_accent": "dich vu hien thi san pham",
+   "typo": "dịchh vụ hiểnn thị sản phẩmm",
+   "english_mix": "dịch vụ hiển DVHT product ads",
+   "shorthand": "dịch vụ hiển thị sp"
+  },
+  "dvht_shop": {
+   "accent": "dịch vụ hiển thị shop+",
+   "no_accent": "dich vu hien thi shop+",
+   "typo": "dịchh vụ hiểnn thị shop+",
+   "english_mix": "dịch vụ DVHT Shop+ ads",
+   "shorthand": "dịch vụ hiển thị shop+"
+  },
+  "ads_live": {
+   "accent": "quảng cáo livestream",
+   "no_accent": "quang cao livestream",
+   "typo": "quảngg cáo livestreamm",
+   "english_mix": "quảng livestream ads",
+   "shorthand": "qc livestream"
+  },
+  "ads_other": {
+   "accent": "quảng cáo khác",
+   "no_accent": "quang cao khac",
+   "typo": "quảngg cáo khácc",
+   "english_mix": "quảng other ads",
+   "shorthand": "qc khác"
+  }
+ },
+ "metric": {
+  "gmv": {
+   "accent": "gmv",
+   "no_accent": "gmv",
+   "typo": "gmv",
+   "english_mix": "gmv gmv",
+   "shorthand": "gmv"
+  },
+  "orders": {
+   "accent": "đơn hàng",
+   "no_accent": "don hang",
+   "typo": "đơn hàngg",
+   "english_mix": "đơn orders",
+   "shorthand": "đh"
+  },
+  "units": {
+   "accent": "sản phẩm bán",
+   "no_accent": "san pham ban",
+   "typo": "sản phẩmm bán",
+   "english_mix": "sản units",
+   "shorthand": "sp bán"
+  },
+  "aov": {
+   "accent": "aov",
+   "no_accent": "aov",
+   "typo": "aov",
+   "english_mix": "aov aov",
+   "shorthand": "aov"
+  },
+  "net_revenue": {
+   "accent": "doanh thu thực",
+   "no_accent": "doanh thu thuc",
+   "typo": "doanhh thu thựcc",
+   "english_mix": "doanh net revenue",
+   "shorthand": "dt thực"
+  },
+  "cost_coverage": {
+   "accent": "độ phủ giá vốn",
+   "no_accent": "do phu gia von",
+   "typo": "độ phủ giá vốn",
+   "english_mix": "độ phủ cost coverage",
+   "shorthand": "độ phủ giá vốn"
+  },
+  "gross_profit": {
+   "accent": "lợi nhuận gộp",
+   "no_accent": "loi nhuan gop",
+   "typo": "lợi nhuậnn gộp",
+   "english_mix": "lợi gross profit",
+   "shorthand": "ln gộp"
+  },
+  "contribution": {
+   "accent": "lợi nhuận đóng góp",
+   "no_accent": "loi nhuan dong gop",
+   "typo": "lợi nhuậnn đóngg góp",
+   "english_mix": "lợi nhuận contribution",
+   "shorthand": "ln đóng góp"
+  },
+  "profit": {
+   "accent": "lợi nhuận ròng",
+   "no_accent": "loi nhuan rong",
+   "typo": "lợi nhuậnn ròngg",
+   "english_mix": "lợi profit",
+   "shorthand": "ln ròng"
+  },
+  "margin_gross": {
+   "accent": "biên gộp",
+   "no_accent": "bien gop",
+   "typo": "biênn gộp",
+   "english_mix": "biên margin gross",
+   "shorthand": "biên gộp"
+  },
+  "margin_contribution": {
+   "accent": "biên đóng góp",
+   "no_accent": "bien dong gop",
+   "typo": "biênn đóngg góp",
+   "english_mix": "biên margin contribution",
+   "shorthand": "biên đóng góp"
+  },
+  "margin": {
+   "accent": "biên lợi nhuận",
+   "no_accent": "bien loi nhuan",
+   "typo": "biênn lợi nhuậnn",
+   "english_mix": "biên margin",
+   "shorthand": "biên ln"
+  },
+  "margin_sale": {
+   "accent": "biên ở giá bán",
+   "no_accent": "bien o gia ban",
+   "typo": "biênn ở giá bán",
+   "english_mix": "biên ở margin sale",
+   "shorthand": "biên ở giá bán"
+  },
+  "contribution_rate": {
+   "accent": "tỷ lệ đóng góp",
+   "no_accent": "ty le dong gop",
+   "typo": "tỷ lệ đóngg góp",
+   "english_mix": "tỷ lệ contribution rate",
+   "shorthand": "tỷ lệ đóng góp"
+  },
+  "cost_cogs": {
+   "accent": "giá vốn",
+   "no_accent": "gia von",
+   "typo": "giá vốn",
+   "english_mix": "giá cost cogs",
+   "shorthand": "giá vốn"
+  },
+  "cost_packaging": {
+   "accent": "đóng gói",
+   "no_accent": "dong goi",
+   "typo": "đóngg gói",
+   "english_mix": "đóng cost packaging",
+   "shorthand": "đóng gói"
+  },
+  "cost_fees": {
+   "accent": "phí sàn",
+   "no_accent": "phi san",
+   "typo": "phí sàn",
+   "english_mix": "phí cost fees",
+   "shorthand": "phí sàn"
+  },
+  "cost_shipping": {
+   "accent": "vận chuyển",
+   "no_accent": "van chuyen",
+   "typo": "vận chuyểnn",
+   "english_mix": "vận cost shipping",
+   "shorthand": "vận chuyển"
+  },
+  "cost_ads": {
+   "accent": "quảng cáo",
+   "no_accent": "quang cao",
+   "typo": "quảngg cáo",
+   "english_mix": "quảng cost ads",
+   "shorthand": "qc"
+  },
+  "cost_affiliate": {
+   "accent": "hoa hồng tiếp thị liên kết",
+   "no_accent": "hoa hong tiep thi lien ket",
+   "typo": "hoa hồngg tiếpp thị liênn kết",
+   "english_mix": "hoa hồng tiếp cost affiliate",
+   "shorthand": "hoa hồng ttlk"
+  },
+  "cost_offer_promo": {
+   "accent": "khuyến mãi",
+   "no_accent": "khuyen mai",
+   "typo": "khuyếnn mãi",
+   "english_mix": "khuyến cost offer promo",
+   "shorthand": "khuyến mãi"
+  },
+  "cost_offer_voucher": {
+   "accent": "voucher",
+   "no_accent": "voucher",
+   "typo": "voucherr",
+   "english_mix": "voucher cost offer voucher",
+   "shorthand": "voucher"
+  },
+  "cost_offer_combo": {
+   "accent": "combo",
+   "no_accent": "combo",
+   "typo": "comboo",
+   "english_mix": "combo cost offer combo",
+   "shorthand": "combo"
+  },
+  "cost_other": {
+   "accent": "chi phí marketing khác",
+   "no_accent": "chi phi marketing khac",
+   "typo": "chi phí marketingg khácc",
+   "english_mix": "chi phí cost other",
+   "shorthand": "cp marketing khác"
+  },
+  "cost_ads_product": {
+   "accent": "chi phí quảng cáo của sản phẩm",
+   "no_accent": "chi phi quang cao cua san pham",
+   "typo": "chi phí quảngg cáo của sản phẩmm",
+   "english_mix": "chi phí quảng cost ads product",
+   "shorthand": "cp qc của sp"
+  },
+  "cost_offers": {
+   "accent": "ưu đãi",
+   "no_accent": "uu dai",
+   "typo": "ưu đãi",
+   "english_mix": "ưu cost offers",
+   "shorthand": "ưu đãi"
+  },
+  "cost_marketing": {
+   "accent": "chi phí marketing",
+   "no_accent": "chi phi marketing",
+   "typo": "chi phí marketingg",
+   "english_mix": "chi cost marketing",
+   "shorthand": "cp marketing"
+  },
+  "cost_total": {
+   "accent": "tổng chi phí",
+   "no_accent": "tong chi phi",
+   "typo": "tổngg chi phí",
+   "english_mix": "tổng cost total",
+   "shorthand": "tổng cp"
+  },
+  "cost_cogs_pct": {
+   "accent": "giá vốn (% doanh thu thực)",
+   "no_accent": "gia von (% doanh thu thuc)",
+   "typo": "giá vốn (% doanhh thu thực)",
+   "english_mix": "giá vốn (% cost cogs pct",
+   "shorthand": "giá vốn (% dt thực)"
+  },
+  "cost_packaging_pct": {
+   "accent": "đóng gói (% doanh thu thực)",
+   "no_accent": "dong goi (% doanh thu thuc)",
+   "typo": "đóngg gói (% doanhh thu thực)",
+   "english_mix": "đóng gói (% cost packaging pct",
+   "shorthand": "đóng gói (% dt thực)"
+  },
+  "cost_fees_pct": {
+   "accent": "phí sàn (% doanh thu thực)",
+   "no_accent": "phi san (% doanh thu thuc)",
+   "typo": "phí sàn (% doanhh thu thực)",
+   "english_mix": "phí sàn (% cost fees pct",
+   "shorthand": "phí sàn (% dt thực)"
+  },
+  "cost_shipping_pct": {
+   "accent": "vận chuyển (% doanh thu thực)",
+   "no_accent": "van chuyen (% doanh thu thuc)",
+   "typo": "vận chuyểnn (% doanhh thu thực)",
+   "english_mix": "vận chuyển (% cost shipping pct",
+   "shorthand": "vận chuyển (% dt thực)"
+  },
+  "cost_ads_pct": {
+   "accent": "quảng cáo (% doanh thu thực)",
+   "no_accent": "quang cao (% doanh thu thuc)",
+   "typo": "quảngg cáo (% doanhh thu thực)",
+   "english_mix": "quảng cáo (% cost ads pct",
+   "shorthand": "qc (% dt thực)"
+  },
+  "cost_affiliate_pct": {
+   "accent": "hoa hồng tiếp thị liên kết (% doanh thu thực)",
+   "no_accent": "hoa hong tiep thi lien ket (% doanh thu thuc)",
+   "typo": "hoa hồngg tiếpp thị liênn kết (% doanhh thu thực)",
+   "english_mix": "hoa hồng tiếp thị liên cost affiliate pct",
+   "shorthand": "hoa hồng ttlk (% dt thực)"
+  },
+  "cost_offers_pct": {
+   "accent": "ưu đãi (% doanh thu thực)",
+   "no_accent": "uu dai (% doanh thu thuc)",
+   "typo": "ưu đãi (% doanhh thu thực)",
+   "english_mix": "ưu đãi (% cost offers pct",
+   "shorthand": "ưu đãi (% dt thực)"
+  },
+  "cost_other_pct": {
+   "accent": "chi phí marketing khác (% doanh thu thực)",
+   "no_accent": "chi phi marketing khac (% doanh thu thuc)",
+   "typo": "chi phí marketingg khácc (% doanhh thu thực)",
+   "english_mix": "chi phí marketing khác cost other pct",
+   "shorthand": "cp marketing khác (% dt thực)"
+  },
+  "cost_total_pct": {
+   "accent": "tổng chi phí (% doanh thu thực)",
+   "no_accent": "tong chi phi (% doanh thu thuc)",
+   "typo": "tổngg chi phí (% doanhh thu thực)",
+   "english_mix": "tổng chi phí cost total pct",
+   "shorthand": "tổng cp (% dt thực)"
+  },
+  "cost_marketing_pct": {
+   "accent": "chi phí marketing (% doanh thu thực)",
+   "no_accent": "chi phi marketing (% doanh thu thuc)",
+   "typo": "chi phí marketingg (% doanhh thu thực)",
+   "english_mix": "chi phí marketing cost marketing pct",
+   "shorthand": "cp marketing (% dt thực)"
+  },
+  "roi": {
+   "accent": "roi",
+   "no_accent": "roi",
+   "typo": "roi",
+   "english_mix": "roi roi",
+   "shorthand": "roi"
+  },
+  "roas": {
+   "accent": "roas",
+   "no_accent": "roas",
+   "typo": "roass",
+   "english_mix": "roas roas",
+   "shorthand": "roas"
+  },
+  "roas_direct": {
+   "accent": "roas trực tiếp",
+   "no_accent": "roas truc tiep",
+   "typo": "roass trựcc tiếpp",
+   "english_mix": "roas roas direct",
+   "shorthand": "roas trực tiếp"
+  },
+  "roas_break_even": {
+   "accent": "roas hoà vốn",
+   "no_accent": "roas hoa von",
+   "typo": "roass hoà vốn",
+   "english_mix": "roas roas break even",
+   "shorthand": "roas hoà vốn"
+  },
+  "roi_kol": {
+   "accent": "roi kol",
+   "no_accent": "roi kol",
+   "typo": "roi kol",
+   "english_mix": "roi roi kol",
+   "shorthand": "roi kol"
+  },
+  "card_return": {
+   "accent": "δgmv / chi phí",
+   "no_accent": "δgmv / chi phi",
+   "typo": "δgmvv / chi phí",
+   "english_mix": "δgmv / card return",
+   "shorthand": "δgmv / cp"
+  },
+  "views": {
+   "accent": "lượt xem",
+   "no_accent": "luot xem",
+   "typo": "lượtt xem",
+   "english_mix": "lượt views",
+   "shorthand": "lượt xem"
+  },
+  "clicks": {
+   "accent": "lượt click",
+   "no_accent": "luot click",
+   "typo": "lượtt clickk",
+   "english_mix": "lượt clicks",
+   "shorthand": "lượt click"
+  },
+  "ctr": {
+   "accent": "ctr",
+   "no_accent": "ctr",
+   "typo": "ctr",
+   "english_mix": "ctr ctr",
+   "shorthand": "ctr"
+  },
+  "ctor": {
+   "accent": "ctor",
+   "no_accent": "ctor",
+   "typo": "ctorr",
+   "english_mix": "ctor ctor",
+   "shorthand": "ctor"
+  },
+  "ctr_ads": {
+   "accent": "ctr quảng cáo",
+   "no_accent": "ctr quang cao",
+   "typo": "ctr quảngg cáo",
+   "english_mix": "ctr ctr ads",
+   "shorthand": "ctr qc"
+  },
+  "ctor_ads": {
+   "accent": "ctor quảng cáo",
+   "no_accent": "ctor quang cao",
+   "typo": "ctorr quảngg cáo",
+   "english_mix": "ctor ctor ads",
+   "shorthand": "ctor qc"
+  },
+  "channel_gmv_affiliate": {
+   "accent": "gmv tiếp thị liên kết",
+   "no_accent": "gmv tiep thi lien ket",
+   "typo": "gmv tiếpp thị liênn kết",
+   "english_mix": "gmv tiếp channel gmv affiliate",
+   "shorthand": "gmv ttlk"
+  },
+  "channel_gmv_ads": {
+   "accent": "gmv quảng cáo",
+   "no_accent": "gmv quang cao",
+   "typo": "gmv quảngg cáo",
+   "english_mix": "gmv channel gmv ads",
+   "shorthand": "gmv qc"
+  },
+  "channel_gmv_organic": {
+   "accent": "gmv organic",
+   "no_accent": "gmv organic",
+   "typo": "gmv organicc",
+   "english_mix": "gmv channel gmv organic",
+   "shorthand": "gmv organic"
+  },
+  "channel_share_organic": {
+   "accent": "tỷ trọng organic",
+   "no_accent": "ty trong organic",
+   "typo": "tỷ trọngg organicc",
+   "english_mix": "tỷ channel share organic",
+   "shorthand": "tỷ trọng organic"
+  },
+  "channel_net_revenue_organic": {
+   "accent": "doanh thu thực organic",
+   "no_accent": "doanh thu thuc organic",
+   "typo": "doanhh thu thựcc organicc",
+   "english_mix": "doanh thu channel net revenue organic",
+   "shorthand": "dt thực organic"
+  },
+  "channel_profit_organic": {
+   "accent": "lợi nhuận organic",
+   "no_accent": "loi nhuan organic",
+   "typo": "lợi nhuậnn organicc",
+   "english_mix": "lợi channel profit organic",
+   "shorthand": "ln organic"
+  },
+  "channel_cost_pct_organic": {
+   "accent": "chi phí organic (%)",
+   "no_accent": "chi phi organic (%)",
+   "typo": "chi phí organicc (%)",
+   "english_mix": "chi phí channel cost pct organic",
+   "shorthand": "cp organic (%)"
+  },
+  "channel_share_ads": {
+   "accent": "tỷ trọng quảng cáo",
+   "no_accent": "ty trong quang cao",
+   "typo": "tỷ trọngg quảngg cáo",
+   "english_mix": "tỷ trọng channel share ads",
+   "shorthand": "tỷ trọng qc"
+  },
+  "channel_net_revenue_ads": {
+   "accent": "doanh thu thực quảng cáo",
+   "no_accent": "doanh thu thuc quang cao",
+   "typo": "doanhh thu thựcc quảngg cáo",
+   "english_mix": "doanh thu channel net revenue ads",
+   "shorthand": "dt thực qc"
+  },
+  "channel_profit_ads": {
+   "accent": "lợi nhuận quảng cáo",
+   "no_accent": "loi nhuan quang cao",
+   "typo": "lợi nhuậnn quảngg cáo",
+   "english_mix": "lợi nhuận channel profit ads",
+   "shorthand": "ln qc"
+  },
+  "channel_cost_pct_ads": {
+   "accent": "chi phí quảng cáo (%)",
+   "no_accent": "chi phi quang cao (%)",
+   "typo": "chi phí quảngg cáo (%)",
+   "english_mix": "chi phí channel cost pct ads",
+   "shorthand": "cp qc (%)"
+  },
+  "channel_share_affiliate": {
+   "accent": "tỷ trọng tiếp thị liên kết",
+   "no_accent": "ty trong tiep thi lien ket",
+   "typo": "tỷ trọngg tiếpp thị liênn kết",
+   "english_mix": "tỷ trọng tiếp channel share affiliate",
+   "shorthand": "tỷ trọng ttlk"
+  },
+  "channel_net_revenue_affiliate": {
+   "accent": "doanh thu thực tiếp thị liên kết",
+   "no_accent": "doanh thu thuc tiep thi lien ket",
+   "typo": "doanhh thu thựcc tiếpp thị liênn kết",
+   "english_mix": "doanh thu thực channel net revenue affiliate",
+   "shorthand": "dt thực ttlk"
+  },
+  "channel_profit_affiliate": {
+   "accent": "lợi nhuận tiếp thị liên kết",
+   "no_accent": "loi nhuan tiep thi lien ket",
+   "typo": "lợi nhuậnn tiếpp thị liênn kết",
+   "english_mix": "lợi nhuận tiếp channel profit affiliate",
+   "shorthand": "ln ttlk"
+  },
+  "channel_cost_pct_affiliate": {
+   "accent": "chi phí tiếp thị liên kết (%)",
+   "no_accent": "chi phi tiep thi lien ket (%)",
+   "typo": "chi phí tiếpp thị liênn kết (%)",
+   "english_mix": "chi phí tiếp channel cost pct affiliate",
+   "shorthand": "cp ttlk (%)"
+  },
+  "units_per_day": {
+   "accent": "bán / ngày",
+   "no_accent": "ban / ngay",
+   "typo": "bán / ngàyy",
+   "english_mix": "bán units per day",
+   "shorthand": "bán / ng"
+  },
+  "days_left": {
+   "accent": "còn bán được (ngày)",
+   "no_accent": "con ban duoc (ngay)",
+   "typo": "còn bán đượcc (ngày)",
+   "english_mix": "còn bán days left",
+   "shorthand": "còn bán dc (ng)"
+  },
+  "runs_out_on": {
+   "accent": "hết hàng khoảng",
+   "no_accent": "het hang khoang",
+   "typo": "hết hàngg khoảngg",
+   "english_mix": "hết runs out on",
+   "shorthand": "hết hàng khoảng"
+  },
+  "restock_units": {
+   "accent": "cần nhập thêm",
+   "no_accent": "can nhap them",
+   "typo": "cần nhậpp thêmm",
+   "english_mix": "cần restock units",
+   "shorthand": "cần nhập thêm"
+  },
+  "kol_gmv": {
+   "accent": "gmv kol",
+   "no_accent": "gmv kol",
+   "typo": "gmv kol",
+   "english_mix": "gmv kol gmv",
+   "shorthand": "gmv kol"
+  },
+  "kol_share": {
+   "accent": "tỷ trọng kol",
+   "no_accent": "ty trong kol",
+   "typo": "tỷ trọngg kol",
+   "english_mix": "tỷ kol share",
+   "shorthand": "tỷ trọng kol"
+  },
+  "kol_commission": {
+   "accent": "hoa hồng kol",
+   "no_accent": "hoa hong kol",
+   "typo": "hoa hồngg kol",
+   "english_mix": "hoa kol commission",
+   "shorthand": "hoa hồng kol"
+  },
+  "kol_net": {
+   "accent": "lợi nhuận ròng kol",
+   "no_accent": "loi nhuan rong kol",
+   "typo": "lợi nhuậnn ròngg kol",
+   "english_mix": "lợi nhuận kol net",
+   "shorthand": "ln ròng kol"
+  },
+  "kol_status": {
+   "accent": "hiệu quả kol",
+   "no_accent": "hieu qua kol",
+   "typo": "hiệuu quả kol",
+   "english_mix": "hiệu kol status",
+   "shorthand": "hiệu quả kol"
+  },
+  "none": {
+   "accent": "số liệu",
+   "no_accent": "so lieu",
+   "typo": "số liệuu",
+   "english_mix": "số numbers",
+   "shorthand": "số liệu"
+  }
+ },
+ "output": {
+  "value": {
+   "accent": "bao nhiêu",
+   "no_accent": "bao nhieu",
+   "typo": "bao nhiêuu",
+   "english_mix": "bao how much",
+   "shorthand": "bn"
+  },
+  "comparison": {
+   "accent": "so với kỳ trước thế nào",
+   "no_accent": "so voi ky truoc the nao",
+   "typo": "so với kỳ trướcc thế nào",
+   "english_mix": "so với kỳ vs before",
+   "shorthand": "so với kỳ trước thế nào"
+  },
+  "top": {
+   "accent": "sản phẩm nào cao nhất",
+   "no_accent": "san pham nao cao nhat",
+   "typo": "sản phẩmm nào cao nhấtt",
+   "english_mix": "sản phẩm top products",
+   "shorthand": "sp nào cao nhất"
+  },
+  "decline": {
+   "accent": "sản phẩm nào giảm mạnh nhất",
+   "no_accent": "san pham nao giam manh nhat",
+   "typo": "sản phẩmm nào giảmm mạnhh nhấtt",
+   "english_mix": "sản phẩm nào biggest drop",
+   "shorthand": "sp nào giảm mạnh nhất"
+  },
+  "breakdown": {
+   "accent": "theo từng kênh",
+   "no_accent": "theo tung kenh",
+   "typo": "theoo từngg kênhh",
+   "english_mix": "theo by channel",
+   "shorthand": "theo từng kênh"
+  },
+  "trend": {
+   "accent": "theo từng ngày",
+   "no_accent": "theo tung ngay",
+   "typo": "theoo từngg ngàyy",
+   "english_mix": "theo per day",
+   "shorthand": "theo từng ng"
+  },
+  "why": {
+   "accent": "vì sao thay đổi",
+   "no_accent": "vi sao thay doi",
+   "typo": "vì sao thayy đổi",
+   "english_mix": "vì sao why changed",
+   "shorthand": "vì sao thay đổi"
+  },
+  "verdict": {
+   "accent": "đang lãi hay lỗ",
+   "no_accent": "dang lai hay lo",
+   "typo": "đangg lãi hay lỗ",
+   "english_mix": "đang lãi profit or loss",
+   "shorthand": "đang lãi hay lỗ"
+  }
+ },
+ "card_type": {
+  "voucher": {
+   "accent": "tạo thẻ voucher",
+   "no_accent": "tao the voucher",
+   "typo": "tạo thẻ voucherr",
+   "english_mix": "tạo create voucher card",
+   "shorthand": "tạo thẻ voucher"
+  },
+  "combo": {
+   "accent": "tạo thẻ combo",
+   "no_accent": "tao the combo",
+   "typo": "tạo thẻ comboo",
+   "english_mix": "tạo create combo card",
+   "shorthand": "tạo thẻ combo"
+  },
+  "add_on": {
+   "accent": "tạo thẻ add on",
+   "no_accent": "tao the add on",
+   "typo": "tạo thẻ add on",
+   "english_mix": "tạo thẻ create add_on card",
+   "shorthand": "tạo thẻ add on"
+  },
+  "gift": {
+   "accent": "tạo thẻ gift",
+   "no_accent": "tao the gift",
+   "typo": "tạo thẻ giftt",
+   "english_mix": "tạo create gift card",
+   "shorthand": "tạo thẻ gift"
+  },
+  "product_discount": {
+   "accent": "tạo thẻ product discount",
+   "no_accent": "tao the product discount",
+   "typo": "tạo thẻ productt discountt",
+   "english_mix": "tạo thẻ create product_discount card",
+   "shorthand": "tạo thẻ product discount"
+  },
+  "price": {
+   "accent": "tạo thẻ price",
+   "no_accent": "tao the price",
+   "typo": "tạo thẻ pricee",
+   "english_mix": "tạo create price card",
+   "shorthand": "tạo thẻ price"
+  },
+  "flash_sale": {
+   "accent": "tạo thẻ flash sale",
+   "no_accent": "tao the flash sale",
+   "typo": "tạo thẻ flashh salee",
+   "english_mix": "tạo thẻ create flash_sale card",
+   "shorthand": "tạo thẻ flash sale"
+  },
+  "variation_set": {
+   "accent": "tạo thẻ variation set",
+   "no_accent": "tao the variation set",
+   "typo": "tạo thẻ variationn set",
+   "english_mix": "tạo thẻ create variation_set card",
+   "shorthand": "tạo thẻ variation set"
+  },
+  "title": {
+   "accent": "tạo thẻ title",
+   "no_accent": "tao the title",
+   "typo": "tạo thẻ titlee",
+   "english_mix": "tạo create title card",
+   "shorthand": "tạo thẻ title"
+  },
+  "cover_image": {
+   "accent": "tạo thẻ cover image",
+   "no_accent": "tao the cover image",
+   "typo": "tạo thẻ coverr imagee",
+   "english_mix": "tạo thẻ create cover_image card",
+   "shorthand": "tạo thẻ cover image"
+  },
+  "description_first_line": {
+   "accent": "tạo thẻ description first line",
+   "no_accent": "tao the description first line",
+   "typo": "tạo thẻ descriptionn firstt linee",
+   "english_mix": "tạo thẻ create description_first_line card",
+   "shorthand": "tạo thẻ description first line"
+  },
+  "price_display": {
+   "accent": "tạo thẻ price display",
+   "no_accent": "tao the price display",
+   "typo": "tạo thẻ pricee displayy",
+   "english_mix": "tạo thẻ create price_display card",
+   "shorthand": "tạo thẻ price display"
+  }
+ },
+ "goal": {
+  "none": {
+   "accent": "nên làm gì (none)",
+   "no_accent": "nen lam gi (none)",
+   "typo": "nên làm gì (none)",
+   "english_mix": "nên làm what to do none",
+   "shorthand": "nên làm gì (none)"
+  },
+  "plan_week": {
+   "accent": "nên làm gì (plan week)",
+   "no_accent": "nen lam gi (plan week)",
+   "typo": "nên làm gì (plan week)",
+   "english_mix": "nên làm what to do plan_week",
+   "shorthand": "nên làm gì (plan week)"
+  },
+  "prioritise": {
+   "accent": "nên làm gì (prioritise)",
+   "no_accent": "nen lam gi (prioritise)",
+   "typo": "nên làm gì (prioritise)",
+   "english_mix": "nên làm what to do prioritise",
+   "shorthand": "nên làm gì (prioritise)"
+  },
+  "ads": {
+   "accent": "nên làm gì (ads)",
+   "no_accent": "nen lam gi (ads)",
+   "typo": "nên làm gì (ads)",
+   "english_mix": "nên làm what to do ads",
+   "shorthand": "nên làm gì (ads)"
+  },
+  "profit": {
+   "accent": "nên làm gì (profit)",
+   "no_accent": "nen lam gi (profit)",
+   "typo": "nên làm gì (profit)",
+   "english_mix": "nên làm what to do profit",
+   "shorthand": "nên làm gì (profit)"
+  },
+  "traffic": {
+   "accent": "nên làm gì (traffic)",
+   "no_accent": "nen lam gi (traffic)",
+   "typo": "nên làm gì (traffic)",
+   "english_mix": "nên làm what to do traffic",
+   "shorthand": "nên làm gì (traffic)"
+  },
+  "pricing_promo": {
+   "accent": "nên làm gì (pricing promo)",
+   "no_accent": "nen lam gi (pricing promo)",
+   "typo": "nên làm gì (pricing promo)",
+   "english_mix": "nên làm what to do pricing_promo",
+   "shorthand": "nên làm gì (pricing promo)"
+  },
+  "product": {
+   "accent": "nên làm gì (product)",
+   "no_accent": "nen lam gi (product)",
+   "typo": "nên làm gì (product)",
+   "english_mix": "nên làm what to do product",
+   "shorthand": "nên làm gì (product)"
+  }
+ }
+}
