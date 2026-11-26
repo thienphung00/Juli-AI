@@ -24,7 +24,10 @@ from juli_backend.services.analytics_agent.types import (
     Usage,
 )
 from juli_backend.services.analytics_agent.windows import (
-    DEFAULT_PRESET,
+    ASK_PERIODS,
+    OTHER_PERIOD,
+    OTHER_PERIOD_VI,
+    PERIOD_VI,
     anchor_for,
     build_windows,
     fold,
@@ -259,11 +262,17 @@ def ranking_of(intent: dict[str, Any]) -> str:
     return "none"
 
 
-def window_of(intent: dict[str, Any]) -> str:
-    """The window an intent runs on: the one the seller named, else the tabs' default period
-    (#112(3), `DEFAULT_PRESET`, resolved to dates by the engine); a named period is never moved.
-    Explicit dates run as given (`custom`, the engine reads them)."""
-    return named_period(intent) or DEFAULT_PRESET
+def window_of(intent: dict[str, Any]) -> str | None:
+    """The window the seller named (owner #113: never asked, never moved), else None: the
+    question names no period and Chat asks for one (`ASK_PERIODS`). Explicit dates run as given
+    (`custom`, the engine reads them)."""
+    return named_period(intent)
+
+
+def _ask_period(dec: dict[str, Any]) -> dict[str, Any]:
+    """Owner #113: no period named -> one question, the period buttons; nothing is assumed."""
+    dec.update(outcome="needs_choice", remaining=[("window", list(ASK_PERIODS))])
+    return dec
 
 
 def named_period(intent: dict[str, Any]) -> str | None:
@@ -749,7 +758,7 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
         )
         dec["window"] = window_of(intent)
         dec["metric"] = named_metric_of(intent) or "gmv"
-        return dec
+        return dec if dec["window"] else _ask_period(dec)
     ranking = False  # a ranking question needs no metric: it defaults to GMV decline
     if "mode" in answers and "lookup" in answers:
         okm, im = choice_ok(answers["mode"])
@@ -763,7 +772,7 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
         dec["metric"] = named or (
             choice_ok(answers["metric"])[1]["pick"] if "metric" in answers else None
         )
-        return dec
+        return dec if dec["window"] else _ask_period(dec)
     named_metric = named_metric_of(intent)
     if (
         fits < FITS_GO and not named_metric and not (ranking and fits > FITS_NO)
@@ -795,13 +804,16 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
         if not ok:
             unclear.append((k, info["top2"]))
     preset = window_of(intent)
-    # one phrase, one window; no period named: the tabs' default (#112(3)); never asked
-    dec["window"] = preset
-    dec["checks"]["window"] = {
-        "pick": preset,
-        "rule": "phrase" if preset != DEFAULT_PRESET else "default_period",
-    }
+    # one phrase, one window, never asked; no period named: the seller picks it (owner #113),
+    # whatever the router guessed
     unclear = [x for x in unclear if x[0] != "window"]
+    if preset:
+        dec["window"] = preset
+        dec["checks"]["window"] = {"pick": preset, "rule": "phrase"}
+    else:
+        dec.pop("window", None)
+        dec["checks"]["window"] = {"pick": None, "rule": "no period named: asked"}
+        unclear.append(("window", list(ASK_PERIODS)))
     named = named_metric_of(intent)
     if named and dec.get("mode") != "lookup":  # a named metric is never asked about (Q19)
         dec["metric"] = named
@@ -917,6 +929,10 @@ def options_vi(
             label = labels.metric(v)
         elif item == "scope":
             label = SCOPE_VI.get(v, v)
+        elif item == "window" and v == OTHER_PERIOD:
+            label = OTHER_PERIOD_VI
+        elif item == "window" and v in ASK_PERIODS and v in PERIOD_VI:
+            label = PERIOD_VI[v]  # the period question: the "more" buttons' names (owner #113)
         elif item == "window":
             label = build_windows(
                 v, anchor_for(v, as_of, latest), sale_aware=sale_aware
@@ -958,14 +974,19 @@ def resume(pending: dict[str, Any], choice: dict[str, Any]) -> dict[str, Any]:
     again)."""
     dec = dict(pending["dec"])
     item, value = choice["item"], choice["value"]
+    if item == "window" and value == OTHER_PERIOD:  # the page sends words instead; ask again
+        return {**dec, "outcome": "needs_choice", "remaining": pending["remaining"], "turns": 0}
     dec[item] = value
     if item == "product":
         dec["item_id"] = value
         dec["scope"] = "product"
     rest = [(i, v) for i, v in pending["remaining"] if i != item]
     turns = pending.get("turns", 0) + 1
+    period = [(i, v) for i, v in rest if i == "window" and not dec.get("window")]
     if rest and turns < MAX_CLARIFY_TURNS:
         dec.update(outcome="needs_choice", remaining=rest)
+    elif period:  # owner #113: the period is the seller's, never the best guess
+        dec.update(outcome="needs_choice", remaining=period)
     else:
         dec["outcome"] = "go"  # max 2 clarifying turns, then go with the best pick
     dec["turns"] = turns

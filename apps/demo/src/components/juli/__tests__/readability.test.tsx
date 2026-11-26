@@ -157,3 +157,40 @@ describe("#110 reading rules in the Chat answer", () => {
     expect(screen.getAllByText("Số liệu đến hết 18/11")).toHaveLength(1);
   });
 });
+
+describe("#113 the period question", () => {
+  it("five period buttons; 'Khoảng khác' focuses the input instead of choosing", async () => {
+    const a = actions();
+    pair(
+      [
+        e("needs_choice", {
+          item: "window",
+          question_vi: "Bạn muốn so sánh khoảng thời gian nào?",
+          options: [
+            { label_vi: "7 ngày qua", value: "last_7d_vs_prev_7d" },
+            { label_vi: "30 ngày qua", value: "last_30d_vs_prev_30d" },
+            { label_vi: "Tháng này", value: "mtd_vs_same_days_last_month" },
+            { label_vi: "Tháng trước", value: "last_month_vs_month_before" },
+            { label_vi: "Khoảng khác", value: "other" },
+          ],
+          pending: {},
+        }),
+        e("done", { stop_reasons: ["needs_choice"] }),
+      ],
+      a,
+    );
+    const group = screen.getByRole("group", { name: "Bạn muốn so sánh khoảng thời gian nào?" });
+    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "7 ngày qua",
+      "30 ngày qua",
+      "Tháng này",
+      "Tháng trước",
+      "Khoảng khác",
+    ]);
+    await userEvent.click(screen.getByRole("button", { name: "Khoảng khác" }));
+    expect(a.onOther).toHaveBeenCalled();
+    expect(a.onChoose).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "7 ngày qua" }));
+    expect(a.onChoose).toHaveBeenCalledWith("window", { label_vi: "7 ngày qua", value: "last_7d_vs_prev_7d" }, "Câu hỏi");
+  });
+});

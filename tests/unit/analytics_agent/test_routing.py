@@ -17,7 +17,7 @@ def intent(**kw: Any) -> dict[str, Any]:
         "question_type": "why_changed",
         "metric_phrase": "that number",
         "claimed_direction": "down",
-        "time_phrase": "recently",
+        "time_phrase": "last 7 days",  # a named period (owner #113: an unnamed one is asked)
         "explicit_from": None,
         "explicit_to": None,
         "named_month": None,
@@ -195,11 +195,14 @@ def test_choice_goes_ahead_only_when_ptop_06_and_twice_second() -> None:
         "scope",
         ["shop", "product"],
     )
-    # #112(3): a split window vote never asks: no period named -> the tabs' default period
-    dflt = routing.decide(
+    # a named period is never asked, whatever the router's split window vote (owner #113)
+    named = routing.decide(
         intent(), ans(window=ch("last_7d_vs_prev_7d", 0.55, "last_30d_vs_prev_30d"))
     )
-    assert dflt["outcome"] == "go" and dflt["window"] == "default"
+    assert named["outcome"] == "go" and named["window"] == "last_7d_vs_prev_7d"
+    # no period named: the seller picks it, even when the router is sure
+    unnamed = routing.decide(intent(time_phrase=None), ans(window=ch("last_30d_vs_prev_30d")))
+    assert unnamed["outcome"] == "needs_choice" and unnamed["remaining"][0][0] == "window"
 
 
 def test_one_unclear_item_at_a_time_in_order_chain_metric_window_product() -> None:
@@ -261,7 +264,7 @@ def test_needs_choice_event_has_real_dates_and_resume_runs_in_code() -> None:
     }
     ev = routing.needs_choice_event(dec, intent(), shopee_labels(), date(2026, 11, 8))
     assert (
-        ev["item"] == "window" and ev["options"][0]["label_vi"] == "02/11–08/11 so với 26/10–01/11"
+        ev["item"] == "window" and ev["options"][0]["label_vi"] == "7 ngày qua"  # owner #113 names
     )
     assert ev["question_vi"]
     dec2 = routing.resume(ev["pending"], {"item": "window", "value": "last_30d_vs_prev_30d"})

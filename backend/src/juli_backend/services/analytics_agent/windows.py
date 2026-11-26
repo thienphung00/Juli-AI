@@ -76,10 +76,27 @@ CALENDAR_PRESETS = frozenset(
 )
 
 
-#: "no period named": the tabs' default period (`shopee_analytics.default_period`, the newest 30
-#: days with >= 70 % of GMV's costs known), resolved to explicit dates by the engine; without
-#: them it builds as the last 30 days (`build_windows`' fallback)
-DEFAULT_PRESET = "default"
+#: the Vietnamese name of each period (the "more" buttons and the period question share it)
+PERIOD_VI = {
+    "yesterday_vs_same_weekday": "Hôm qua",
+    "this_week_vs_same_days_last_week": "Tuần này",
+    "last_full_week_vs_week_before": "Tuần trước",
+    "last_7d_vs_prev_7d": "7 ngày qua",
+    "last_30d_vs_prev_30d": "30 ngày qua",
+    "mtd_vs_same_days_last_month": "Tháng này",
+    "last_month_vs_month_before": "Tháng trước",
+}
+#: the button that hands the period back to the seller's own words (the page focuses the input)
+OTHER_PERIOD = "other"
+OTHER_PERIOD_VI = "Khoảng khác"
+#: owner #113: a question that names no period asks for one, with these buttons
+ASK_PERIODS = (
+    "last_7d_vs_prev_7d",
+    "last_30d_vs_prev_30d",
+    "mtd_vs_same_days_last_month",
+    "last_month_vs_month_before",
+    OTHER_PERIOD,
+)
 
 WEEKLY = frozenset(
     {"last_full_week_vs_week_before", "this_week_vs_same_days_last_week", "last_7d_vs_prev_7d"}

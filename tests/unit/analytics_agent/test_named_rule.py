@@ -16,6 +16,7 @@ import pytest
 
 from juli_backend.services.analytics_agent import routing, shopee_labels
 from juli_backend.services.analytics_agent.engine import _more_item
+from juli_backend.services.analytics_agent.windows import ASK_PERIODS as ASK
 from juli_backend.services.analytics_agent.windows import fold, window_from_phrase
 from tests.unit.analytics_agent.test_routing import ans, ch, intent, nl
 
@@ -73,11 +74,11 @@ def test_a_split_mode_on_a_status_question_is_a_lookup() -> None:
     assert dec["window"] == "this_week_vs_same_days_last_week"
 
 
-def test_no_period_named_runs_the_default_period_never_the_router_pick() -> None:
+def test_no_period_named_asks_for_one_never_the_router_pick() -> None:
     it = status(metric_phrase="GMV", metric_key="gmv", time_phrase=None)
     for window in (split("last_7d_vs_prev_7d", "last_30d_vs_prev_30d"), ch("last_7d_vs_prev_7d")):
         dec = routing.decide(it, ans(mode=ch("lookup"), window=window))
-        assert dec["outcome"] == "go" and dec["window"] == "default"
+        assert dec["outcome"] == "needs_choice" and dec["remaining"] == [("window", list(ASK))]
     named = routing.decide(
         status(metric_phrase="GMV", metric_key="gmv", time_phrase="yesterday"),
         ans(mode=ch("lookup"), window=ch("last_30d_vs_prev_30d")),

@@ -581,7 +581,9 @@ async def test_every_intent_is_answered_even_after_a_clarifying_choice() -> None
     two = {
         "restated_vi": "hai câu",
         "intents": [
-            intent(question_type="status", metric_phrase="how it is going", time_phrase="recently"),
+            intent(
+                question_type="status", metric_phrase="how it is going", time_phrase="last 30 days"
+            ),
             intent(question_type="status", metric_phrase="orders", time_phrase="last week"),
         ],
     }
