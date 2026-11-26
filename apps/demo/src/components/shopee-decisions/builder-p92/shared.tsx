@@ -20,11 +20,11 @@ export function Field({ label, hint, children, wide }: { readonly label: string;
 }
 
 /** A typed number: the raw text is kept by the caller (no sliders, from 0). */
-export function NumIn({ label, value, onChange, suffix, placeholder, hint, wide }: { readonly label: string; readonly value: string; readonly onChange: (v: string) => void; readonly suffix?: string; readonly placeholder?: string; readonly hint?: ReactNode; readonly wide?: boolean }) {
+export function NumIn({ label, value, onChange, suffix, placeholder, hint, wide, disabled }: { readonly disabled?: boolean; readonly label: string; readonly value: string; readonly onChange: (v: string) => void; readonly suffix?: string; readonly placeholder?: string; readonly hint?: ReactNode; readonly wide?: boolean }) {
   return (
     <Field hint={hint} label={label} wide={wide}>
       <span className="p2-num">
-        <input aria-label={label} inputMode="decimal" onChange={(e) => onChange(e.target.value)} placeholder={placeholder} type="text" value={value} />
+        <input aria-label={label} disabled={disabled} inputMode="decimal" onChange={(e) => onChange(e.target.value)} placeholder={placeholder} type="text" value={value} />
         {suffix ? <span className="p2-num__suffix">{suffix}</span> : null}
       </span>
     </Field>

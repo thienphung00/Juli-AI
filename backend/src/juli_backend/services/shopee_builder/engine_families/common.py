@@ -16,6 +16,7 @@ CASHBACK_LABEL = "trang hoàn tiền / mã giảm giá"
 #: Ads / affiliate notes (Vietnamese, shown on the card).
 NOTE_ADS_NOT_ESTIMABLE = "chưa ước tính được — cần chạy thử"
 NOTE_NO_GAIN = "Không thêm từ khoá nào so với hiện tại: không dự kiến thêm lượt xem hay đơn."
+NOTE_NOT_MEASURED = NOTE_ADS_NOT_ESTIMABLE  # F5: title / cover, until measured
 NOTE_KOL_NOT_ESTIMABLE = "chưa ước tính được — đo sau lần gửi mẫu đầu"
 NOTE_NO_PACK_EVIDENCE = "chưa có dữ liệu cho quy cách này"
 #: Deal Sốc (Mua kèm / Quà tặng): the attach rate is read off the main product's own order lines, so

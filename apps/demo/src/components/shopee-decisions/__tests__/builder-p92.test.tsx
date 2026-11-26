@@ -402,12 +402,12 @@ describe("P92 · các loại khác", () => {
     await toKinds(builder);
     chooseKind("product_discount");
     expect(screen.queryByTestId("market-marker")).toBeNull();
-    fireEvent.change(await screen.findByRole("textbox", { name: "% GIẢM · Combo 3 hộp" }), { target: { value: "8" } });
+    fireEvent.change(await screen.findByRole("textbox", { name: "% GIẢM · Combo 3 hộp" }), { target: { value: "15" } });
     expect(await screen.findByTestId("market-marker")).toHaveTextContent("trung vị 28.000đ · trung bình 28.900đ")
     expect(screen.getByTestId("market-marker")).toHaveTextContent("bản nháp 26.680đ (−4,7% so với trung vị)")
     expect(screen.queryByTestId("market-bar")).toBeNull();
-    // 87.000đ list price minus 8 % = 80.040đ, sent as the drafted price of the variation.
-    await waitFor(() => expect(urls.some((u) => u === `/v1/demo/shopee/builder/products/${P_ZIP}/market-range?variation_id=v3&price=80040`)).toBe(true));
+    // F4: % GIẢM is taken off the variation's list price: 99.000đ minus 15 % = 84.150đ, rounded down to 84.100đ (below the 87.000đ paid today; the old rule took 8 % off the selling price: 80.040đ). A discount at or above the paid price sends no drafted price.
+    await waitFor(() => expect(urls.some((u) => u === `/v1/demo/shopee/builder/products/${P_ZIP}/market-range?variation_id=v3&price=84100`)).toBe(true));
     await waitFor(() => expect(screen.getByTestId("p2-add")).toBeEnabled());
     fireEvent.click(screen.getByTestId("p2-add"));
     await waitFor(() => expect(screen.getByTestId("p3-next")).toBeEnabled());

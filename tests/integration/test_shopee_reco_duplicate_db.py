@@ -166,3 +166,16 @@ async def test_s6_every_card_kind_can_be_removed_from_the_draft_plan_one_by_one(
         assert all(r.removed_at is not None for r in rows), kinds
         got = {(await session.get(ShopProposal, c)).status for c in ids.values()}
         assert got == {"sent"}, kinds
+
+
+async def test_a_card_marked_reverted_by_hand_does_not_count_as_open(shopee_tenants):
+    """E145: an executed card undone in Seller Centre ("Đã hoàn tác thủ công") no longer blocks."""
+    a, _ = shopee_tenants
+    async with juli_app_session() as session, with_shop_scope(session, a.shop_id):
+        first = await _make(session, a.shop_id, a.user_id)
+        p = [r for r, _ in await store.list_cards(session, a.shop_id) if r.code == first["code"]][0]
+        p.status = "executed"
+        await session.flush()
+        assert await store.find_open_duplicate(session, a.shop_id, _card()) is not None
+        await store.set_meta(session, a.shop_id, p.id, {"reverted": {"by": "seller", "at": "x"}})
+        assert await store.find_open_duplicate(session, a.shop_id, _card()) is None

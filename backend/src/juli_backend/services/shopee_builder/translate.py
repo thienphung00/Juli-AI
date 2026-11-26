@@ -11,8 +11,10 @@ numbers come from the set model).
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
+from decimal import Decimal as D
 from typing import Any
 
 from juli_backend.services.shopee_analytics.compute import campaign_of
@@ -103,10 +105,20 @@ def _variation_inputs(
             discount=discount,
         )
         own_base = _own_base(own, discount=discount)
+        if quoted is None and own_base is None and v.final_price is None:
+            # a variation without a price: no percent can be applied to it
+            if v.discount_pct is not None or v.change_pct is not None:
+                raise SpecRefused("no_price")
         # A shared cost key collapses to the last variation in the evaluator. Pin this
         # variation's own price then. A unique key keeps the percent, which the evaluator
         # prices from that key's own order line.
-        pin = quoted is not None and own_base is not None and collision
+        # F4: a discount is always pinned to the variation's own price, so the server's price is
+        # the one the screen quotes (the evaluator would otherwise read the key's list price)
+        if discount and v.final_price is not None:
+            listed_own = own.get("list_price")
+            if listed_own and v.final_price >= listed_own:
+                raise SpecRefused("final_price_not_below_list")
+        pin = quoted is not None and own_base is not None and (collision or discount)
         if pin:
             row["final_price"] = quoted
         elif v.final_price is not None:
@@ -119,7 +131,9 @@ def _variation_inputs(
         else:
             row["new_price_pct"] = 100 + float(v.change_pct or 0)
         if discount:
-            _refuse_unless_below_today(ctx, item_id, key, row)
+            _refuse_unless_below_today(
+                ctx, item_id, key, row, own=own, shared=collision, quoted=quoted
+            )
         out.append(row)
     return out
 
@@ -138,19 +152,42 @@ def _fill_price_details(
 
 
 def _refuse_unless_below_today(
-    ctx: BuilderContext, item_id: str, key: str, row: dict[str, Any]
+    ctx: BuilderContext,
+    item_id: str,
+    key: str,
+    row: dict[str, Any],
+    *,
+    own: Mapping[str, Any] | None = None,
+    shared: bool = False,
+    quoted: int | None = None,
 ) -> None:
-    """P100: %GIẢM of Chương Trình Của Shop / Flash Sale is taken off Giá gốc. A product already
-    in a deeper programme (ORY: Giảm giá trực tiếp sản phẩm 15/06-12/12) then gets a price ABOVE
-    what buyers pay today; the engine modelled that as a price rise with a discount's CTOR uplift
-    and no cost. Refuse with today's price and the smallest %GIẢM that lowers it."""
-    current = ctx.env.current_price(key)
-    listed = ctx.env.list_price(key)
-    after = evaluate.new_price(ctx.env, "product_discount", key, row)
+    """P100 / F4: one price rule -- the price the buyer pays after is never at or above what the
+    buyer pays today. %GIẢM of Chương Trình Của Shop / Flash Sale is taken off Giá gốc, so a
+    product already in a deeper programme would get a price ABOVE today's. Refuse with today's
+    price and the smallest %GIẢM that lowers it. Today's price is the variation's OWN: a shared
+    cost key's newest order line may belong to another variation, so it only counts when the key
+    is the variation's alone."""
+    own = own or {}
+    listed_own = own.get("list_price")
+    listed = D(int(listed_own)) if listed_own else ctx.env.list_price(key)
+    current = paid_today(own.get("selling_price"), None if shared else ctx.env.current_price(key))
+    after = (
+        D(quoted)
+        if quoted is not None
+        else evaluate.new_price(ctx.env, "product_discount", key, row)
+    )
     if current is None or after is None or after < current:
         return
     min_pct = "" if not listed or listed <= current else str(min_discount_pct(current, listed))
     raise SpecRefused(f"discount_not_below_current:{item_id}:{int(current)}:{int(after)}:{min_pct}")
+
+
+def paid_today(selling: Any, order_price: Decimal | None) -> Decimal | None:
+    """What the buyer pays today for one variation: its own live price when known, else the
+    newest order line's price of its (unshared) cost key."""
+    if selling:
+        return D(int(selling))
+    return order_price if order_price else None
 
 
 def min_discount_pct(paid: Decimal, listed: Decimal) -> int:

@@ -192,7 +192,7 @@ describe("the side-by-side table", () => {
     expect(rows.some((r) => r.label.includes("tháng") || r.sub.includes("tháng"))).toBe(false);
   });
 
-  it("a title card has no money, floor or cap rows: its new title, the 100-character limit and ONE line saying why there is no estimate", () => {
+  it("a title card has no money, floor or cap rows: its new title, the 120-character limit and ONE line saying why there is no estimate", () => {
     const card = titleCard();
     const rows = versionTable(card, card.versions!);
     expect(rows.find((r) => r.key === "cap")).toBeUndefined();
@@ -200,8 +200,8 @@ describe("the side-by-side table", () => {
     expect(rows.map((r) => r.key).filter((k) => ["gmv", "exp", "chi", "orders", "bien", "be", "aov", "disc", "eff"].includes(k))).toEqual([]);
     expect(rows.every((r) => r.cells.every((c) => c.v !== "Không tính được"))).toBe(true);
     const limit = rows.find((r) => r.key === "limit")!;
-    expect(limit.label).toBe("Giới hạn 100 ký tự");
-    expect(limit.cells[0]!.v).toMatch(/^✓ \d+\/100 ký tự · không tốn chi phí$/);
+    expect(limit.label).toBe("Giới hạn 120 ký tự");
+    expect(limit.cells[0]!.v).toMatch(/^✓ \d+\/120 ký tự · không tốn chi phí$/);
     expect(rows.find((r) => r.key === "sure")).toBeUndefined();
   });
 });

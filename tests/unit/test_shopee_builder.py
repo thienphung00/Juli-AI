@@ -863,8 +863,10 @@ async def test_price_and_flash_sale_share_the_economics(session, shop):
         units=5,
         slot_hours=3,
     )
-    assert flash["ok"] and flash["cost"]["period_days"] == 1
-    assert flash["details"]["skus"][0]["price_after"] == 48_000
+    assert flash["ok"], flash.get("refusal")
+    assert flash["cost"]["period_days"] == 1
+    # F4: the discount is taken off the variation's own list price (100.000), as the screen quotes
+    assert flash["details"]["skus"][0]["price_after"] == 80_000
     nope = await one(session, shop, kind="flash_sale", item_id="1002", units=5)
     assert nope["refusal"]["code"] == "variations_required"
 
@@ -934,7 +936,9 @@ async def test_listing_levers_have_a_range_or_say_they_cannot(session, shop):
     )
     assert title["driver"]["target_metric"] == "views"
     assert [m["key"] for m in title["driver"]["metrics"]] == ["views", "ctr", "orders"]
-    assert title["delta"]["gmv"]["high"] > title["delta"]["gmv"]["low"]
+    # F5: a title shows no uplift until measured
+    assert title["result"]["estimable"] is False
+    assert title["delta"]["gmv"]["high"] is None and title["delta"]["gmv"]["low"] is None
     cover = await one(
         session,
         shop,
@@ -951,7 +955,7 @@ async def test_listing_levers_have_a_range_or_say_they_cannot(session, shop):
         cover["driver"]["target_metric"] == "ctr"
         and cover["details"]["overlay"]["layout"] == "banner_bottom"
     )
-    assert cover["ok"] and cover["result"]["estimable"] is True  # kind prior (#27)
+    assert cover["ok"] and cover["result"]["estimable"] is False  # F5: not measured yet
     desc = await one(
         session,
         shop,

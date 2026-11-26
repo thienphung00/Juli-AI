@@ -335,8 +335,9 @@ async def test_a_chosen_version_keeps_its_spec_so_every_kind_gets_a_result(sessi
     ]
     agg = await _plan_of_saved(session, seeded, uuid.UUID(saved["id"]))
     card = agg["cards"][0]
-    assert card["result"]["counted"] is True, card["result"].get("reason")
-    assert agg["not_estimable_cards"] == []
+    assert card["result"]["counted"] is False
+    assert card["result"].get("reason")
+    assert len(agg["not_estimable_cards"]) == 1
     per30 = saved["outcome"]["result"]["per_30d"]
     assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(per30["gmv"], abs=1)
 
@@ -360,9 +361,9 @@ TITLE_SPEC = sp.TitleSpec(
 )
 
 
-async def test_a_keyword_rich_title_card_is_estimable_in_the_plan(session, shop):
-    """4f64e2e5: a title lift is scored against the product's keyword volumes, so the plan loads
-    them too -- a saved title version is not "chưa ước tính được" in Kế hoạch."""
+async def test_a_title_card_adds_nothing_to_the_plan_until_measured(session, shop):
+    """F5 (owner): a title shows no uplift until measured; its plan row says why and the plan
+    totals add nothing for it (supersedes 4f64e2e5, where keyword volumes scored a title)."""
     from juli_backend.services.shopee_builder import service as builder
     from juli_backend.services.shopee_recommendations import manual
     from tests.unit.test_shopee_builder_drafts import _market
@@ -378,5 +379,6 @@ async def test_a_keyword_rich_title_card_is_estimable_in_the_plan(session, shop)
     await session.commit()
     agg = await _plan_of_saved(session, seeded, uuid.UUID(saved["id"]))
     card = agg["cards"][0]
-    assert card["result"]["counted"] is True, card["result"].get("reason")
-    assert agg["not_estimable_cards"] == []
+    assert card["result"]["counted"] is False
+    assert card["result"].get("reason")
+    assert len(agg["not_estimable_cards"]) == 1
