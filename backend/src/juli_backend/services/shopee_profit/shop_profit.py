@@ -294,6 +294,30 @@ def _net_value(ln: OrderLine) -> Decimal:
     return ln.order_value - ln.seller_voucher
 
 
+def known_cost_net_gmv(pairs: Pairs) -> Decimal:
+    """The numerator of the known-cost share (:attr:`KnownCostProfit.gmv_share_pct` x the shop
+    GMV / 100): the confirmed-basis GMV of the sale lines of orders whose costs are all known.
+    Additive over days (an order's lines share one day), so the stored day rows carry it and a
+    window's share is the sum of its days over the sum of their GMV (owner #85/#94)."""
+    unknown = unknown_orders(pairs)
+    return sum(
+        (
+            _net_value(ln)
+            for ln, pb in pairs
+            if pb.excluded_reason is None and ln.order_id not in unknown and counts_in_sales(ln)
+        ),
+        ZERO,
+    )
+
+
+def share_passes(known: Decimal, shop_gmv: Decimal | None) -> bool:
+    """THE 70-100 % rule on a (known-cost GMV, shop GMV) pair, rounded like the figure."""
+    if shop_gmv is None or shop_gmv <= 0:
+        return False
+    share = (known * 100 / shop_gmv).quantize(Decimal("0.1"))
+    return MIN_KNOWN_GMV_SHARE_PCT <= share <= MAX_KNOWN_GMV_SHARE_PCT
+
+
 def product_profits(
     pairs: Pairs,
     product_ad_spend: Mapping[str, Decimal],

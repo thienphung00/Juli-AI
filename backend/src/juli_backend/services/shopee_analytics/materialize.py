@@ -71,6 +71,7 @@ from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_profit.flows import FLOW_ORDER, RESIDUAL_KEY, FlowTable
 from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_profit.order_profit import OrderStatus, counts_in_sales
+from juli_backend.services.shopee_profit.shop_profit import known_cost_net_gmv
 
 logger = logging.getLogger(__name__)
 
@@ -79,9 +80,12 @@ logger = logging.getLogger(__name__)
 #: ad cost is the ads report by product (:mod:`product_ads`), ad-only days get a row; 4 (decision
 #: #50): doanh thu thực subtracts only the shop voucher the seller bore (settlement); 5 (owners
 #: #99 / #103): a product leaves out its cancelled lines, whose share is the shop row's
-#: ``detail.cancelled_gmv`` / ``cancelled_orders``. Bump it to
-#: rebuild every shop's stored days automatically (:func:`rebuild_outdated`).
-ROWS_VERSION = 5
+#: ``detail.cancelled_gmv`` / ``cancelled_orders``; 6 (owner #85/#94, 3a):
+#: ``detail.known_cost_gmv``, the day's known-cost GMV the default period is chosen on.
+#: Bump it to rebuild every shop's stored days automatically (:func:`rebuild_outdated`).
+ROWS_VERSION = 6
+#: the day's known-cost GMV (``shop_profit.known_cost_net_gmv``), the numerator of the gate share
+KNOWN_COST_GMV_KEY = "known_cost_gmv"
 ROWS_VERSION_KEY = "rows_v"
 
 #: ingest datasets that cannot change a day's shop or product numbers
@@ -365,6 +369,7 @@ def day_rows(
         "detail": {
             "aov_sc_net_gmv": None if not m.line_orders else str(net_gmv),
             "profit_partial": bool(m.profit_is_partial),
+            KNOWN_COST_GMV_KEY: str(_money(known_cost_net_gmv(view.pairs))),
             ROWS_VERSION_KEY: ROWS_VERSION,
             **(
                 {"cancelled_gmv": str(m.cancelled_gmv), "cancelled_orders": m.cancelled_orders}

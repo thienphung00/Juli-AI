@@ -53,7 +53,11 @@ from juli_backend.services.shopee_analytics import kol_labels as labels
 from juli_backend.services.shopee_analytics.catalog import Catalog
 from juli_backend.services.shopee_analytics.data_through import ads_last_day, data_through
 from juli_backend.services.shopee_analytics.fmt import frac, num
-from juli_backend.services.shopee_analytics.queries import NoShopeeData, resolve_window
+from juli_backend.services.shopee_analytics.queries import (
+    NoShopeeData,
+    resolve_screen_window,
+    resolve_window,
+)
 from juli_backend.services.shopee_analytics.stored import RowsNotMaterialized
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_builder.engine.contract import (
@@ -641,9 +645,11 @@ async def metric_view(
 ) -> dict[str, Any]:
     if metric not in METRICS:
         raise ValueError(f"metric must be one of {list(METRICS)}")
-    window = await _window(
+    window, pick = await resolve_screen_window(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
+    if window is None:
+        raise NoShopeeData(str(shop_id))
     ctx = await loaders.load_context(session, shop_id)
     ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
     now_view = await service.load_view(session, shop_id, ctx, window, funnel=True)
@@ -696,6 +702,8 @@ async def metric_view(
                 body["unavailable"].setdefault(key, REASON_SOURCE_BREAKDOWN_MISSING)
     # P100 B.5: "Số liệu đến dd/mm" per section (channels / products)
     body["data_through"] = {k: through[k] for k in ("channels", "products")}
+    if pick is not None:  # owner #85/#94: opened on the default period, named with its dates
+        body["default_period"] = pick.json()
     return body
 
 
