@@ -1,6 +1,8 @@
 """P100 UI fix: the listing levers follow the content. A title / first line is scored by the
 share of the product's keyword volume it holds; cover image and price display wait for the banner
-checks."""
+checks.
+#93 (owner, F5): a title and a cover image show no uplift until measured; keyword coverage still
+scores a first line."""
 
 from __future__ import annotations
 
@@ -75,7 +77,7 @@ def _profit(v):
     return round(d["likely"]["profit"] - d["before"]["profit"])
 
 
-async def test_a_junk_title_scores_below_a_keyword_title(session, shop):
+async def test_no_title_scores_an_uplift_until_measured(session, shop):
     keyword_title = await one(
         session,
         shop,
@@ -85,18 +87,19 @@ async def test_a_junk_title_scores_below_a_keyword_title(session, shop):
     )
     junk = await one(session, shop, kind="title", item_id="1001", title="abc xyz")
     assert keyword_title["ok"] and junk["ok"]
-    assert keyword_title["result"]["estimable"] is True
-    assert junk["result"]["estimable"] is True  # an estimable zero, with a note
-    assert _profit(junk) == 0
-    assert _profit(keyword_title) > _profit(junk)
-    assert any("Không thêm từ khoá" in n for n in junk["result"]["notes"])
+    # #93 (owner, F5): a title shows no uplift until measured, whatever keywords it holds
+    for v in (keyword_title, junk):
+        assert v["result"]["estimable"] is False
+        assert _profit(v) is None
 
 
-async def test_a_title_holding_the_same_keywords_as_today_gains_nothing(session, shop):
+async def test_a_title_holding_the_same_keywords_as_today_shows_no_delta(session, shop):
     same = await one(
         session, shop, kind="title", item_id="1001", title="Găng tay tự hủy sinh học STAHAUS"
     )
-    assert _profit(same) == 0
+    # #93 (owner, F5): no title uplift until measured, so no Δ at all (was an estimable 0)
+    assert same["ok"] and same["result"]["estimable"] is False
+    assert _profit(same) is None
 
 
 async def test_a_description_first_line_follows_the_keywords(session, shop):
@@ -113,21 +116,28 @@ async def test_a_description_first_line_follows_the_keywords(session, shop):
     assert _profit(dot) == 0 and _profit(rich) > 0
 
 
-async def test_no_keyword_data_uses_the_kind_prior_floored_at_5_percent(session, bare_shop):
+async def test_no_keyword_data_uses_the_kind_prior_for_a_first_line(session, bare_shop):
     # decision #27 / #29: no keyword weights = the typical result of the kind, never a stop
-    for version in (
-        {"kind": "title", "item_id": "1001", "title": "Găng tay nitrile hộp 100"},
-        {"kind": "description_first_line", "item_id": "1001", "first_line": "Găng tay nitrile."},
-    ):
-        v = await one(session, bare_shop, **version)
-        assert v["ok"] is True
-        assert v["result"]["estimable"] is True
-        assert v["result"]["basis"] != "not_estimable"
-        assert v["result"].get("reason_code") is None
-        assert _profit(v) is not None and _profit(v) > 0
+    v = await one(
+        session,
+        bare_shop,
+        kind="description_first_line",
+        item_id="1001",
+        first_line="Găng tay nitrile.",
+    )
+    assert v["ok"] is True
+    assert v["result"]["estimable"] is True
+    assert v["result"]["basis"] != "not_estimable"
+    assert v["result"].get("reason_code") is None
+    assert _profit(v) is not None and _profit(v) > 0
+    # #93 (owner, F5): a title gets no uplift until measured, so no kind prior either
+    title = await one(
+        session, bare_shop, kind="title", item_id="1001", title="Găng tay nitrile hộp 100"
+    )
+    assert title["ok"] is True and title["result"]["estimable"] is False
 
 
-async def test_cover_image_and_price_display_use_the_kind_prior(session, shop):
+async def test_cover_image_waits_and_price_display_uses_the_kind_prior(session, shop):
     cover = await one(
         session,
         shop,
@@ -140,6 +150,8 @@ async def test_cover_image_and_price_display_use_the_kind_prior(session, shop):
     )
     for v in (cover, display):
         assert v["ok"] is True
-        assert v["result"]["estimable"] is True
-        assert v["result"]["basis"] != "not_estimable"
         assert v["result"]["cost"]["total"] == 0
+    # #93 (owner, F5): a cover image shows no uplift until measured; price display keeps its prior
+    assert cover["result"]["estimable"] is False
+    assert display["result"]["estimable"] is True
+    assert display["result"]["basis"] != "not_estimable"

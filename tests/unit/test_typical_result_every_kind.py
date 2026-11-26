@@ -115,15 +115,21 @@ async def _outcome(session, shop, version):
     return v, (v.get("result") or {})
 
 
-@pytest.mark.parametrize(
-    "kind",
-    ["title", "description_first_line", "cover_image", "price_display", "bundle_deal"],
-)
+@pytest.mark.parametrize("kind", ["description_first_line", "price_display", "bundle_deal"])
 async def test_the_decision_27_kinds_are_estimable_on_a_shop_with_no_data(session, bare_shop, kind):
     v, result = await _outcome(session, bare_shop, _VERSIONS[kind])
     assert v["ok"] is True, v.get("refusal")
     assert result["estimable"] is True and result["basis"] != "not_estimable"
     assert result.get("reason_code") is None
+
+
+@pytest.mark.parametrize("kind", ["title", "cover_image"])
+async def test_title_and_cover_show_no_uplift_until_measured(session, bare_shop, kind):
+    # #93 (owner, F5): a title or a cover image gets NO uplift until it is measured, so the
+    # decision #27 kind prior no longer applies to them; the version is still accepted
+    v, result = await _outcome(session, bare_shop, _VERSIONS[kind])
+    assert v["ok"] is True, v.get("refusal")
+    assert result["estimable"] is False
 
 
 @pytest.mark.parametrize("kind", ["min_spend_voucher", "gift", "variation_set"])
