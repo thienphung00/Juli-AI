@@ -1462,9 +1462,7 @@
      }
     ]
    },
-   "pg": true,
-   "status": "xfail",
-   "reason": "Chat shows 'chưa có dữ liệu' where Tổng quan shows '—' (shop profit below 70 % known-cost GMV)"
+   "pg": true
   },
   {
    "id": "profit-last-week-noaccent",
@@ -1504,9 +1502,7 @@
       "missing_as": "—"
      }
     ]
-   },
-   "status": "xfail",
-   "reason": "Chat shows 'chưa có dữ liệu' where Tổng quan shows '—' (shop profit below 70 % known-cost GMV)"
+   }
   },
   {
    "id": "margin-7d-below-70",
@@ -1546,9 +1542,7 @@
       "missing_as": "—"
      }
     ]
-   },
-   "status": "xfail",
-   "reason": "Chat shows 'chưa có dữ liệu' where Tổng quan shows '—' (shop profit below 70 % known-cost GMV)"
+   }
   },
   {
    "id": "profit-7d-known",

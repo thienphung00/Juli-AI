@@ -62,7 +62,8 @@ export interface JuliSeriesPoint {
   readonly missing?: boolean;
 }
 
-export type JuliDataKind = "metric_total" | "top_products" | "daily_trend" | "channel_breakdown";
+/** `metric_list`: the 4th figure on of one answer, as one table (owner #110 rule 5). */
+export type JuliDataKind = "metric_total" | "metric_list" | "top_products" | "daily_trend" | "channel_breakdown";
 
 export interface JuliChoiceOption {
   readonly label_vi: string;
@@ -96,6 +97,21 @@ export interface JuliDataAnswerData {
   readonly rows?: readonly JuliDataRow[];
   readonly series?: readonly JuliSeriesPoint[];
   readonly fresh_vi: string;
+  readonly sale_vi?: string;
+  /** A tile's one comparison line ("▲ 20,0% so với 800đ", "Kỳ trước chưa đủ dữ liệu"). */
+  readonly compare_vi?: string;
+  /** A list with no row: no box is drawn (the lead says it, #110 rule 7). */
+  readonly empty?: boolean;
+}
+/** The answer's one period line, on top (#110 rule 2): period, data day, sale days. */
+export interface JuliMetaData {
+  readonly window_vi?: string;
+  readonly fresh_vi?: string;
+  readonly sale_vi?: string;
+}
+/** The answer's first sentence, its main number in it (#110 rule 1). */
+export interface JuliLeadData {
+  readonly text_vi: string;
 }
 export interface JuliCardData {
   readonly draft_ref: string;
@@ -113,7 +129,7 @@ export interface JuliNoCardData {
 }
 export interface JuliNeedsChoiceData {
   /** "template": the Jev outage fallback; options are the template keys. */
-  readonly item: "metric" | "window" | "product" | "chain" | "template";
+  readonly item: "metric" | "window" | "product" | "chain" | "scope" | "template";
   readonly question_vi: string;
   readonly options: readonly JuliChoiceOption[];
   readonly pending: Readonly<Record<string, unknown>>;
@@ -149,6 +165,8 @@ export interface JuliEventMap {
   path: JuliPathData;
   label: JuliLabelData;
   data_answer: JuliDataAnswerData;
+  meta: JuliMetaData;
+  lead: JuliLeadData;
   card: JuliCardData;
   no_card: JuliNoCardData;
   needs_choice: JuliNeedsChoiceData;
@@ -173,6 +191,8 @@ export const JULI_EVENT_TYPES: readonly JuliEventType[] = [
   "path",
   "label",
   "data_answer",
+  "meta",
+  "lead",
   "card",
   "no_card",
   "needs_choice",

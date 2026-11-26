@@ -15,7 +15,7 @@ def test_vietnamese_number_formats() -> None:
     assert fmt.value("ctr", 0.0307) == "3,07%"
     assert fmt.value("roas", 3.414) == "3,41"
     assert fmt.value("orders", 1285) == "1.285"
-    assert fmt.value("gmv", None) == "chưa có dữ liệu"
+    assert fmt.value("gmv", None) == "—"  # #110 rule 7: one missing number is a dash
 
 
 def test_delta_direction_up_down_flat() -> None:

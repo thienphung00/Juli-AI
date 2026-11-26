@@ -1,7 +1,7 @@
 {
  "bank": {
   "count": 192,
-  "passing": 157,
+  "passing": 160,
   "cases": {
    "gmv-yesterday": "f5ea1d11780cc28e",
    "gmv-yesterday-noaccent": "0edab8310a0aa3e5",
@@ -40,9 +40,9 @@
    "gmv-by-channel-7d": "20f90c70bd9c3ab6",
    "orders-daily-trend": "4e4c8386b07da1bd",
    "views-by-channel-noaccent": "b30f253025c8070f",
-   "profit-7d-below-70": "b406281fc3bce68a",
-   "profit-last-week-noaccent": "082129480c991c16",
-   "margin-7d-below-70": "9a5cf8562fab2009",
+   "profit-7d-below-70": "3d5e9898db005afc",
+   "profit-last-week-noaccent": "590d18158ecb65ba",
+   "margin-7d-below-70": "9e51d3e25469d202",
    "profit-7d-known": "5f254d3afef1dd8f",
    "margin-7d-known": "95dcbf8d198f1618",
    "profit-this-week-known": "36a5f49e5100e7c7",

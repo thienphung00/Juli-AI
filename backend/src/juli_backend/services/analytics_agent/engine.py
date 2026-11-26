@@ -24,6 +24,7 @@ from juli_backend.services.analytics_agent import (
     entities,
     lookup,
     present,
+    readable,
     routing,
     summary,
     weekly,
@@ -93,10 +94,43 @@ class _Out:
 
     def __init__(self, sink: EventSink, result: AnswerResult) -> None:
         self.sink, self.result = sink, result
+        #: the period line on screen (#110 rule 2: once, on top; repeated only when it changes)
+        self.meta: dict[str, Any] | None = None
 
     async def emit(self, event: dict[str, Any]) -> None:
         self.result.events.append(event)
         await self.sink.emit(event)
+
+
+class _Held(_Out):
+    """One intent's answer: status and text stream through at once; the structured events wait
+    and are shaped by the reading rules (`readable.shape`, #110) when the intent ends."""
+
+    def __init__(self, out: _Out) -> None:
+        super().__init__(out.sink, out.result)
+        self.base = out
+        self.held: list[dict[str, Any]] = []
+
+    async def emit(self, event: dict[str, Any]) -> None:
+        if event.get("type") in readable.HELD:
+            self.held.append(event)
+        else:
+            await self.base.emit(event)
+
+    async def release(self) -> None:
+        shaped, self.base.meta = readable.shape(self.held, self.base.meta)
+        self.held = []
+        for ev in shaped:
+            await self.base.emit(ev)
+
+
+def _strip_header(text: str) -> str:
+    """#110 rule 1: the writer's first line restates the question ("Đang tìm hiểu: …"); the
+    answer starts with its answer, so that line goes."""
+    head, sep, rest = text.partition("\n")
+    if head.strip().startswith(routing.RESTATE_PREFIX.strip()):
+        return rest.lstrip("\n") if sep else ""
+    return text
 
 
 async def _latest(data: DataPort, as_of: date) -> date | None:
@@ -442,6 +476,8 @@ async def _run(
                 "items": [_more_item(i, labels) for i in more],
             }
         )
+    elif total == 1 and (steps := readable.next_steps(result.events)):
+        await out.emit({"type": "more", "items": steps})  # #110 rule 8: next steps as buttons
 
 
 def _month_not_started(intent: dict[str, Any], dec: dict[str, Any], as_of: date) -> str | None:
@@ -498,10 +534,14 @@ async def _answer(
     """One intent's answer, then (J-H1) a written summary of its structured events. The chain path
     writes its own explanation; a text stream already present means nothing is added."""
     mark = len(result.events)
-    await _answer_inner(
-        req, out, result, data, engine, llm, jev, labels, as_of, intent, dec, restated, template,
-        carry, latest,
-    )  # fmt: skip
+    held = _Held(out)
+    try:
+        await _answer_inner(
+            req, held, result, data, engine, llm, jev, labels, as_of, intent, dec, restated,
+            template, carry, latest,
+        )  # fmt: skip
+    finally:
+        await held.release()
     new = result.events[mark:]
     if any(e.get("type") in ("text_delta", "text_replace") for e in new):
         return
@@ -792,6 +832,15 @@ async def _answer_inner(
         run_chain(data, chain_name, metric, preset, as_of, item_id=item_id, **kw), chain_timeout_s()
     )
     await out.emit(present.comparing(chain))
+    line = readable.meta_of(
+        {
+            "window_vi": chain.windows.label(),
+            "fresh_vi": lookup.fresh_line(latest) if latest else None,
+            "sale_vi": windows.sale_days_vi(chain.windows),
+        }
+    )
+    if line:  # #110 rule 2: the period of a why-answer is the same one line on top
+        await out.emit(line)
     await out.emit(present.status("finding_cause"))
     result.stop_reasons.append(chain.stop_reason)
     chain_json = chain.json(labels)
@@ -838,6 +887,10 @@ async def _answer_inner(
         note,
         cardstage.card_figures(outcome.accepted),
     )
+    body = _strip_header(expl)
+    if body != expl:
+        expl = body
+        await out.emit({"type": "text_replace", "text": expl})
     result.cost_usd += meta["cost_usd"]
     result.routing.append(
         {
@@ -859,7 +912,8 @@ async def _answer_inner(
             {
                 "type": "text_replace",
                 "text": (
-                    f"{expl}\n\nKhông có thay đổi lớn; cơ hội lớn nhất là {c['kind_vi'].lower()}"
+                    (f"{expl}\n\n" if expl else "")
+                    + f"Không có thay đổi lớn; cơ hội lớn nhất là {c['kind_vi'].lower()}"
                     + (f" cho {c['item_name']}" if c.get("item_name") else "")
                     + "."
                 ),

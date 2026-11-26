@@ -558,10 +558,13 @@ async def check(
                 and not re.search(r"\d\d/\d\d", s)]  # fmt: skip
         r.need(not nums, f"a figure in a no-number answer: {nums[:3]}")
     if answers and out.stop_reasons and set(out.stop_reasons) == {"data_answer"}:
-        text = out.final_text()
+        # owner #110 rule 2: the period and the data day once, in the answer's top line
+        metas = out.of("meta")
         r.need(
-            bool(re.search(r"Số liệu đến hết \d\d/\d\d", text)), "summary lacks the freshness day"
+            any(re.fullmatch(r"Số liệu đến hết \d\d/\d\d", str(m.get("fresh_vi"))) for m in metas),
+            "no top line (meta) with the freshness day",
         )
+        r.need(len(metas) <= len(answers), f"{len(metas)} period lines for {len(answers)} answers")
     if "followup" in exp:
         if out.followup is None:
             r.problems.append("no follow-up ran (no needs_choice to answer)")

@@ -217,8 +217,11 @@ async def test_lookup_renders_data_answer_without_llm_text_or_card() -> None:
         and da["delta"]["dir"] in ("up", "down", "flat")
     )
     assert res.stop_reasons == ["data_answer"] and not sink.of("card")
-    # J-H1: the stubbed LLM wrote nothing, so the code template summarises the structured answer
-    assert sink.of("text_replace") and da["fresh_vi"] in sink.of("text_replace")[-1]["text"]
+    # #110: the answer's lead sentence carries the figure; the period line is the top `meta`
+    assert sink.of("lead")[0]["text_vi"].startswith(f"GMV là {da['value']}")
+    assert sink.of("meta")[0]["fresh_vi"] == da["fresh_vi"]
+    # rule 8: the next steps are buttons
+    assert [i["label_vi"] for i in sink.of("more")[0]["items"]] == ["Theo sản phẩm", "Theo ngày"]
 
 
 async def test_tiktok_before_w3_says_data_missing_and_no_card() -> None:
@@ -229,10 +232,8 @@ async def test_tiktok_before_w3_says_data_missing_and_no_card() -> None:
         jev=FakeJev(lambda s, q: full()),
         data=data_orders(),
     )
-    assert (
-        sink.of("label")[0]["text_vi"] == "Thiếu dữ liệu"
-        and sink.of("no_card")[0]["reason_vi"] == "Chưa có đề xuất cho TikTok"
-    )
+    # #110 rule 7: no box that only says "Chưa có đề xuất cho TikTok"
+    assert sink.of("label")[0]["text_vi"] == "Thiếu dữ liệu" and not sink.of("no_card")
     assert not sink.of("card") and res.stop_reasons == ["data_missing"]
 
 
