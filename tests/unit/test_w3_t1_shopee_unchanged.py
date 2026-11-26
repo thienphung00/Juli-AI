@@ -32,7 +32,10 @@ from tests.support.shopee_analytics import seed_shopee_shop
 #: Re-pinned again (owners #99 / #103, 10a + 4a): ROWS_VERSION 4 -> 5 (every shop row's
 #: ``detail.rows_v``) and the day 2026-10-05 gains ``detail.cancelled_gmv`` = 275000 /
 #: ``cancelled_orders`` = 1. Dump diff against the previous pin: only those ``detail`` values.
-BASE_DIGEST = "4ffcffa5dfb8b2c99a2e39b4804daca07da443509db4b5cde0dd23e98539f7c7"
+#: Re-pinned on batch-1126 r2 (owner #112, 3a): ROWS_VERSION 5 -> 6 and every shop row stores
+#: ``detail.known_cost_gmv``. Dump diff against r1-tag1 (03b2d7d5): the 14 shop rows gain that key
+#: and move ``rows_v``; no product or source row moved.
+BASE_DIGEST = "ead7d6e1db9afdbf244fdce86f611f5eff15a490d9e0c1cf766a7dd328130dd4"
 _SKIP = {"id", "shop_id", "built_at"}
 #: the columns migration 140 added, which nothing writes since #2367 was taken out: they must be
 #: empty, and the digest of every other column is the one from before it
