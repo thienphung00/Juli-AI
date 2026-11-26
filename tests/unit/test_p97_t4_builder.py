@@ -508,16 +508,22 @@ async def test_the_plan_carries_a_tiers_combo_as_its_own_layer(session, shop):
     # batch-1124-a R (#27 / #29): the seeded shop has too few orders to measure who moves up to a
     # tier, so the card takes the typical-result prior of its kind (was: not estimable, P100-C);
     # the plan sums that result like any other card's, the same ΔGMV the builder showed
-    assert saved["outcome"]["result"]["basis"] == "prior"
-    # F1 (2026-11-25): on the real 30 days the ΔGMV is inside the normal swing, so the wire value
-    # is null (F5); Kế hoạch keeps the result's own figure
-    assert per30["gmv"] is None and "gmv" in saved["outcome"]["result"]["within_noise"]
-    detail = saved["outcome"]["result"]["detail"]
-    dgmv = detail["likely"]["gmv"] - detail["before"]["gmv"]
-    assert dgmv > 0
-    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(dgmv)
+    result = saved["outcome"]["result"]
+    assert result["basis"] == "prior"
+    d_gmv = result["after"]["gmv_after"] - result["after"]["gmv_before"]
+    assert d_gmv > 0
+    # owner #99 (r1 f9c9b70b2): the seeded day whose orders were cancelled after confirmation is
+    # no product sale, so the product's daily GMV history swings more and its ΔGMV P90 (~759k)
+    # falls inside its 30-day noise band (~777k): the card shows "—" for it (F5). With the F1/F2
+    # base scale (r1-fcore) the effect clears the band again. Either way the plan sums the ΔGMV
+    # the builder computed for the card.
+    if "gmv" in result["within_noise"]:
+        assert per30["gmv"] is None
+    else:
+        assert per30["gmv"] == pytest.approx(d_gmv)
+    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(d_gmv)
     # a 5 % / 8 % tier: a modest AOV lift, never more than the shop's own 30-day GMV
-    assert dgmv < agg["today"]["gmv_30d"]
+    assert d_gmv < agg["today"]["gmv_30d"]
     low, mid, high = (agg["dprofit_month"]["total"][k] for k in ("p10", "p50", "p90"))
     assert low <= mid <= high
     assert agg["totals_estimable"] is True

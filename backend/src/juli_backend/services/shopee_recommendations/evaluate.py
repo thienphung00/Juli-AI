@@ -583,10 +583,12 @@ def eval_price(
         )
         for ln in lines:
             if ln.sku == sku and ln.product_id == item:
+                # owner #119: before a Connector combo, the combo on top
+                before = ln.price_before_combo
                 if cand.kind == "price":
-                    repriced[id(ln)] = replace(ln, deal_price=to_dong(ln.deal_price * factor))
+                    repriced[id(ln)] = ln.at_price(to_dong(before * factor))
                 else:
-                    repriced[id(ln)] = replace(ln, deal_price=min(ln.deal_price, new))
+                    repriced[id(ln)] = ln.at_price(min(before, new))
     if not results:
         return _refuse("no_price")
     after_lines = [repriced.get(id(ln), ln) for ln in lines]
@@ -800,10 +802,10 @@ def campaign_profile(env: RecoEnv, campaign_key: str) -> dict[str, Any] | None:
         pp = env.product(item)
         if pp is None:
             continue
-        rate = (
+        product_rate = (
             safe_div(pp.contribution, pp.buyer_paid_covered) if pp.buyer_paid_covered > 0 else None
         )
-        r = rate if rate is not None and rate > 0 else ZERO
+        r = product_rate if product_rate is not None and product_rate > 0 else ZERO
         spend_weight += spend
         by_spend += spend * r
         if fig is None or fig.direct_gmv is None:

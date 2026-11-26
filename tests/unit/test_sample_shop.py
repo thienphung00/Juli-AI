@@ -996,8 +996,9 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             assert before["gmv"] == pytest.approx(before["orders"] * before["aov"], rel=1e-9)
             assert cd["gmv"] == pytest.approx(after["gmv"] - before["gmv"], rel=1e-9)
             # tag 2 merge (4c #102 + 5a): the combo's tier discount is in the price, so its cost
-            # moved -918_479 -> -903_626; the 5a figures below were re-derived on the merged code
-            assert cd["profit"] == pytest.approx(-903_626, rel=0.01)
+            # moved -918_479 -> -903_626; the 5a figures below were re-derived on the merged code.
+            # Tag 1 #119 (combo lines are Connector lines, re-priced before the combo): -882_341
+            assert cd["profit"] == pytest.approx(-882_341, rel=0.01)
             option = common.floor_prior_drivers(
                 option_for(combo, ctx, integrate.extras_for(combo_done.base))
             )
@@ -1006,9 +1007,10 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # 5a (owner #99): the middle column is the MEAN of the scenarios ranked 45-55 % by Δ
             # profit, so the shown ΔGMV is stable: 433_551 on 2,65 orders at seed 0, 410k .. 452k
             # over 15 seeds (was one draw: 254k .. 970k); the seed median 422_914 (was 351_471).
-            # With 4c (#102) merged: 419_334 -> 433_551, median 417_370 -> 422_914
-            assert cd["gmv"] == pytest.approx(433_551, rel=0.02)
-            assert median(gmvs) == pytest.approx(422_914, rel=0.05)
+            # With 4c (#102) merged: 419_334 -> 433_551, median 417_370 -> 422_914; with tag 1 #119:
+            # 411_447 on 2,67 orders, 391k .. 435k over 15 seeds, median 405_236
+            assert cd["gmv"] == pytest.approx(411_447, rel=0.02)
+            assert median(gmvs) == pytest.approx(405_236, rel=0.05)
             assert max(gmvs) - min(gmvs) <= 0.15 * median(gmvs)
             # never a GMV with almost no orders (445.900đ on 0,31 đơn): reach is 0 at P50, so over
             # the seeds the typical gain is its extra orders at today's AOV
@@ -1028,7 +1030,8 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # Track P (#42-#44): the middle-profit draw on the contribution basis (one rate for
             # the extra orders and the AOV effect): 806_567 (was 856_463 on the after-ads basis)
             # F1: on the real 30 days (109 đơn, 14,8 tr): 779_549
-            assert sd["gmv"] == pytest.approx(779_549, rel=0.02)
+            # tag 1 #119 (the base AOV is the combo price on the combo lines): 755_932
+            assert sd["gmv"] == pytest.approx(755_932, rel=0.02)
             assert s["cost"]["total"] > 0 and sd["profit"] < 0
 
 

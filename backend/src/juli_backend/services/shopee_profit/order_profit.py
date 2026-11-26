@@ -48,7 +48,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
@@ -213,6 +213,24 @@ class OrderLine:
         """The combo discount still to take off ``order_value`` (none for a Connector combo line,
         whose deal price already holds it, owner #102)."""
         return ZERO if self.combo_in_price else self.bundle_discount
+
+    @property
+    def price_before_combo(self) -> Decimal:
+        """The unit price before a Connector combo (owner #119: its deal price + its combo
+        discount per unit); any other line's deal price."""
+        if not self.combo_in_price or not self.bundle_discount:
+            return self.deal_price
+        return self.deal_price + self.bundle_discount / self.qty
+
+    def at_price(self, price: Decimal) -> OrderLine:
+        """This line sold at ``price`` a unit before any combo. A Connector combo line keeps its
+        combo rate on top (Shopee takes the combo off the programme price, owner #119), so its
+        deal price stays the combo price share and its discount stays information (#102)."""
+        before = self.price_before_combo
+        if before == self.deal_price or before <= 0:
+            return replace(self, deal_price=price)
+        deal = to_dong(price * self.deal_price / before)
+        return replace(self, deal_price=deal, bundle_discount=(price - deal) * self.qty)
 
     @property
     def programme_discount(self) -> Decimal:

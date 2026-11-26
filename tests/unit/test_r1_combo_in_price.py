@@ -121,3 +121,50 @@ def test_a_collapsed_combo_does_not_put_the_order_discount_on_every_line():
     got = from_settlement([parent, sibling], parent, D(190_000))
     assert got is not None and got.qty == 1 and got.deal_price == D(95_000)
     assert got.bundle_discount == D(5_000)  # its own 5.000, not the order's 10.000
+
+
+# -- owner #119: a what-if that re-prices a Connector combo line prices it before its combo ------
+
+
+def _combo_pair() -> OrderLine:
+    # 2 x 100.000 at 5 % off: deal 95.000 (the combo price share), 10.000 off as information
+    return OrderLine(
+        order_id="o1",
+        sku="S",
+        product_id="P",
+        order_date=date(2026, 11, 4),
+        qty=2,
+        original_price=D(100_000),
+        deal_price=D(95_000),
+        bundle_discount=D(10_000),
+        status=OrderStatus.DELIVERED,
+        combo_in_price=True,
+    )
+
+
+def test_a_connector_combo_line_states_its_price_before_the_combo():
+    assert _combo_pair().price_before_combo == D(100_000)
+    assert _line(in_price=False).price_before_combo == D(95_000)  # a file line: its deal price
+
+
+def test_a_programme_price_on_a_connector_combo_line_keeps_the_combo_on_top():
+    # Shopee takes the combo off the programme price: 90.000 then 5 % = 85.500 a unit
+    after = _combo_pair().at_price(D(90_000))
+    assert after.deal_price == D(85_500) and after.bundle_discount == D(9_000)
+    assert after.combo_in_price and after.buyer_paid == D(171_000)
+    plain = _line(in_price=False).at_price(D(90_000))
+    assert plain.deal_price == D(90_000) and plain.bundle_discount == D(5_000)
+
+
+def test_a_discount_cap_reads_a_connector_combo_line_before_its_combo():
+    from juli_backend.services.shopee_profit.whatif import price_change_whatif
+    from tests.unit.test_shopee_profit import SCHEDULE
+
+    costs = {"S": SkuCost("S", D(40_000), D(0))}
+    out = price_change_whatif(
+        [_combo_pair()], costs, sku="S", new_deal_price=D(90_000), ceiling=True, schedule=SCHEDULE
+    )
+    # 10 % off the 100.000 before the combo, the combo still on top: 2 x (95.000 - 85.500) less
+    # per order, never "already cheaper than 90.000, keeps its price"
+    assert out.certain.profit_delta_same_volume is not None
+    assert out.certain.profit_delta_same_volume < D(-15_000)
