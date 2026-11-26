@@ -350,3 +350,129 @@ async def test_s1_the_order_days_an_older_connector_read_are_handed_out_once_fro
     assert await backfill() is None  # done: never handed out again
     covered = await read_days.covered_days(session, shop.id, "shopee", TODAY)
     assert "order_lines" not in read_days.missing_by_dataset(covered, TODAY)  # C2 unchanged
+
+
+# -- 7b (owner #101): completed orders with no settlement ----------------------------------------
+
+NOW_UTC = datetime(2026, 11, 19, 3, 0, tzinfo=UTC)  # 10:00 GMT+7 on TODAY
+
+
+def _order_line(shop_id, ref, placed, *, completed=None, status="delivered", line_no=1):
+    from juli_backend.models.shopee_profit import VN_TZ, ShopeeOrderLine
+
+    return ShopeeOrderLine(
+        shop_id=shop_id,
+        platform="shopee",
+        order_ref=ref,
+        line_no=line_no,
+        ordered_at=placed.replace(tzinfo=VN_TZ),
+        day=placed.date(),
+        status=status,
+        item_id="1001",
+        qty=1,
+        original_price=Decimal(100000),
+        deal_price=Decimal(100000),
+        source="extension",
+        source_version="0.3.36",
+        completed_at=completed.replace(tzinfo=VN_TZ) if completed else None,
+    )
+
+
+def _settled(shop_id, ref):
+    from juli_backend.models.shopee_profit import ShopeeOrderIncome
+
+    return ShopeeOrderIncome(
+        shop_id=shop_id,
+        platform="shopee",
+        order_ref=ref,
+        source="extension",
+        source_rank=3,
+        source_version="0.3.36",
+    )
+
+
+async def _seed_unsettled(session, shop_id):
+    d = datetime
+    session.add_all(
+        [
+            # completed > 1 day ago, no settlement -> listed (placed 10/11)
+            _order_line(shop_id, "a" * 64, d(2026, 11, 10, 9), completed=d(2026, 11, 12, 9)),
+            # the same order again as a second line: counted once
+            _order_line(
+                shop_id, "a" * 64, d(2026, 11, 10, 9), completed=d(2026, 11, 12, 9), line_no=2
+            ),
+            # completed, settled -> not listed
+            _order_line(shop_id, "b" * 64, d(2026, 11, 10, 9), completed=d(2026, 11, 12, 9)),
+            _settled(shop_id, "b" * 64),
+            # completed yesterday evening (under 1 day) -> not yet
+            _order_line(shop_id, "c" * 64, d(2026, 11, 17, 9), completed=d(2026, 11, 18, 20)),
+            # delivered, no completion time, placed 10 days ago (> N) -> listed
+            _order_line(shop_id, "d" * 64, d(2026, 11, 9, 9)),
+            # delivered, no completion time, placed 3 days ago (< N) -> not yet
+            _order_line(shop_id, "e" * 64, d(2026, 11, 16, 9)),
+            # cancelled: never settles
+            _order_line(shop_id, "f" * 64, d(2026, 11, 10, 9), status="cancelled"),
+            # placed before the window
+            _order_line(shop_id, "g" * 64, d(2026, 9, 1, 9), completed=d(2026, 9, 3, 9)),
+        ]
+    )
+    await session.commit()
+
+
+async def test_unsettled_orders_lists_completed_without_a_settlement_once_per_order(session):
+    _user, shop = await _shopee_tenant(session)
+    await _seed_unsettled(session, shop.id)
+    found = await read_days.unsettled_orders(session, shop.id, "shopee", now=NOW_UTC)
+    assert {ref[0] for ref, _day in found} == {"a", "d"}
+    assert len(found) == 2
+    by_ref = {ref[0]: day for ref, day in found}
+    assert by_ref["a"] == date(2026, 11, 10) and by_ref["d"] == date(2026, 11, 9)
+
+
+async def test_read_days_hands_out_the_unsettled_days_and_their_refs(session, monkeypatch):
+    monkeypatch.setattr(read_days, "vietnam_today", lambda now=None: TODAY)
+    _user, shop = await _shopee_tenant(session)
+    await _seed_unsettled(session, shop.id)
+    answer = await read_days.read_days(session, shop.id, "shopee", now=NOW_UTC)
+    entry = answer["datasets"][read_days.ORDER_INCOME_UNSETTLED]
+    assert entry["missing"] == ["2026-11-09", "2026-11-10"]
+    assert sorted(r[0] for refs in answer["unsettled_orders"].values() for r in refs) == ["a", "d"]
+    assert answer["unsettled_orders"]["2026-11-10"] == ["a" * 64]
+
+
+async def test_no_unsettled_order_adds_nothing_to_the_answer(session, monkeypatch):
+    monkeypatch.setattr(read_days, "vietnam_today", lambda now=None: TODAY)
+    _user, shop = await _shopee_tenant(session)
+    answer = await read_days.read_days(session, shop.id, "shopee", now=NOW_UTC)
+    assert read_days.ORDER_INCOME_UNSETTLED not in answer["datasets"]
+    assert "unsettled_orders" not in answer
+
+
+async def test_the_refs_are_capped_oldest_first(session, monkeypatch):
+    monkeypatch.setattr(read_days, "vietnam_today", lambda now=None: TODAY)
+    monkeypatch.setattr(read_days, "UNSETTLED_REFS_MAX", 2)
+    _user, shop = await _shopee_tenant(session)
+    d = datetime
+    session.add_all(
+        _order_line(shop.id, f"{n}" * 64, d(2026, 11, 1 + n, 9), completed=d(2026, 11, 2 + n, 9))
+        for n in range(1, 5)
+    )
+    await session.commit()
+    answer = await read_days.read_days(session, shop.id, "shopee", now=NOW_UTC)
+    assert sorted(answer["unsettled_orders"]) == ["2026-11-02", "2026-11-03"]
+
+
+async def test_unsettled_freshness_counts_orders_over_two_days_after_completion(session):
+    _user, shop = await _shopee_tenant(session)
+    d = datetime
+    await _seed_unsettled(session, shop.id)
+    session.add(_order_line(shop.id, "h" * 64, d(2026, 11, 14, 9), completed=d(2026, 11, 17, 9)))
+    await session.commit()
+    stat = await read_days.unsettled_status(session, shop.id, "shopee", now=NOW_UTC)
+    # a (12/11) is over 2 days; h (completed 17/11 09:00, 2 days 1 h) is too; the delivered
+    # order without a completion time (d) is not counted: its completion is unknown
+    assert stat == {"count": 2, "oldest_completed_on": "2026-11-12"}
+    assert await read_days.unsettled_status(session, uuid.uuid4(), "shopee", now=NOW_UTC) == {
+        "count": 0,
+        "oldest_completed_on": None,
+    }

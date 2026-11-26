@@ -14,6 +14,7 @@ import {
   ADS_JOB_TIMEOUT_MS,
   ADS_HISTORY_DAY_COST,
   TODAY_REQUEST_RESERVE,
+  UNSETTLED_MAX_PER_RUN,
   type ReaderDataset,
   type ReaderId,
 } from "../src/platforms/shopee/config";
@@ -21,6 +22,7 @@ import {
   type BlockEvent,
   nextStockAt,
   ordersSinceDay,
+  orderBackfillSinceDay,
   READER_KICK_ALARM,
   READER_WATCHDOG_ALARM,
   stockDueAt,
@@ -32,6 +34,7 @@ import {
   type SchedulerAlarms,
   type SchedulerTabs,
 } from "../src/platforms/shopee/background/scheduler";
+import { parseReadDays } from "../src/platforms/shopee/background/catchup";
 import { loadState, saveState } from "../src/platforms/shopee/background/state";
 import { lastFinishedDays } from "../src/core/time";
 import type { ReaderJob, ReaderResponse } from "../src/platforms/shopee/reader";
@@ -104,7 +107,7 @@ class FakeAlarms implements SchedulerAlarms {
   }
 }
 
-function setup(options: { token?: boolean; backfillBusy?: boolean; readers?: readonly ReaderId[]; stockRun?: boolean } = {}) {
+function setup(options: { token?: boolean; backfillBusy?: boolean; readers?: readonly ReaderId[]; stockRun?: boolean; sink?: Record<string, unknown> } = {}) {
   const storage = new MemoryStorage();
   const tabs = new FakeTabs();
   const alarms = new FakeAlarms();
@@ -129,6 +132,7 @@ function setup(options: { token?: boolean; backfillBusy?: boolean; readers?: rea
     random: () => 0.5,
     backfillBusy: async () => flags.backfillBusy,
     sink: {
+      ...(options.sink as object),
       async reportBlock(event) {
         events.push(event);
       },
@@ -1859,5 +1863,84 @@ describe("0.3.32: an order page that cannot name a line is read 3 times, then 'u
     };
     expect(await ordersRun([])).toEqual(["26110009"]);
     expect(await ordersRun(["26110009"])).toEqual([]);
+  });
+});
+
+
+// -- 7b (owner #101): completed orders with no payment read ---------------------------------------
+
+describe("7b: orders Juli lists as completed without a settlement get their order page read", () => {
+  const REF = (n: number) => `ab${String(n).padStart(6, "0")}`;
+  const unsettledSink = (names: Record<string, string>, refs: string[]) => ({
+    async readDays() {
+      return { asOf: "2026-11-03", datasets: { order_income_unsettled: ["2026-10-20"] }, unsettled: { "2026-10-20": refs } };
+    },
+    async orderRefHasher() {
+      return async (orderNumber: string) => names[orderNumber] ?? "ff000000";
+    },
+  });
+  const OLD = Math.floor(T0 / 1000) - 12 * 86_400; // far before the usual look-back (3 days on a first run)
+
+  async function runOrders(ctx: ReturnType<typeof setup>, cards: unknown[]) {
+    await ctx.scheduler.tick();
+    await finishPage(ctx); // shop_totals
+    ctx.clock.now += GAP;
+    await ctx.scheduler.tick();
+    await finishPage(ctx, "done", cards); // orders
+  }
+
+  it("queues the named orders whatever day they completed, skips settled ones, reads their page", async () => {
+    const ctx = setup({ readers: P97_READERS, sink: unsettledSink({ "2610010OLD1": REF(1) }, [REF(1)]) });
+    await runOrders(ctx, [orderCard("2610010OLD1", OLD), orderCard("2610010OLD2", OLD)]);
+    const queue = (await ctx.read())?.incomeQueue ?? [];
+    expect(queue.map((o) => o.id)).toEqual(["2610010OLD1"]); // OLD2 is not named: no settlement owed
+    expect(queue[0]).toMatchObject({ completedAt: OLD * 1000, income: true });
+    ctx.clock.now += GAP;
+    await ctx.scheduler.tick();
+    expect(ctx.tabs.current.url).toBe(`${SC}/portal/sale/order/2610010OLD1`);
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", responses: [incomeAnswer("2610010OLD1")] });
+    expect((await ctx.read())?.incomeQueue).toEqual([]); // resumable: read once, then it leaves the queue
+  });
+
+  it("never queues more than K orders in one run", async () => {
+    const names: Record<string, string> = {};
+    const cards = Array.from({ length: UNSETTLED_MAX_PER_RUN + 10 }, (_, n) => {
+      names[`26100${String(n).padStart(2, "0")}OOO`] = REF(n);
+      return orderCard(`26100${String(n).padStart(2, "0")}OOO`, OLD + n);
+    });
+    const ctx = setup({ readers: P97_READERS, sink: unsettledSink(names, Object.values(names)) });
+    await runOrders(ctx, cards);
+    const queue = (await ctx.read())?.incomeQueue ?? [];
+    expect(queue).toHaveLength(UNSETTLED_MAX_PER_RUN);
+    expect(queue[0]?.id).toBe("2610000OOO"); // oldest first
+  });
+
+  it("queues nothing when Juli named none, or the shop key is unavailable", async () => {
+    const none = setup({ readers: P97_READERS });
+    await runOrders(none, [orderCard("2610010OLD1", OLD)]);
+    expect((await none.read())?.incomeQueue ?? []).toEqual([]);
+    const noKey = setup({ readers: P97_READERS, sink: { ...unsettledSink({ "2610010OLD1": REF(1) }, [REF(1)]), async orderRefHasher() { return undefined; } } });
+    await runOrders(noKey, [orderCard("2610010OLD1", OLD)]);
+    expect((await noKey.read())?.incomeQueue ?? []).toEqual([]);
+  });
+
+  it("the orders job reads back to the oldest unsettled day it can afford", () => {
+    const holes = { order_income_unsettled: ["2026-10-20", "2026-10-25"] };
+    expect(orderBackfillSinceDay("2026-11-03", "2026-10-31", holes, 550)).toBe("2026-10-20");
+    expect(orderBackfillSinceDay("2026-11-03", "2026-10-31", holes, 100)).toBeUndefined();
+  });
+
+  it("parseReadDays keeps only well-formed refs of past days inside the window", () => {
+    const out = parseReadDays(
+      {
+        as_of: "2026-11-03",
+        datasets: {},
+        unsettled_orders: { "2026-10-20": [REF(1), "not a ref", 5], "2026-11-03": [REF(2)], "2020-01-01": [REF(3)] },
+      },
+      "2026-11-03",
+    );
+    expect(out?.unsettled).toEqual({ "2026-10-20": [REF(1)] });
   });
 });

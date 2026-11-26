@@ -93,6 +93,7 @@ const scheduler: ReaderScheduler = new ReaderScheduler({
     reportBlock: (event) => connector.reportBlock(event),
     reportTick: (report) => connector.reportTick(report),
     readDays: () => connector.readDays(),
+    orderRefHasher: () => connector.orderRefHasher(),
     queueBackfillHoles: (datasets) => connector.reopenBackfillDays(datasets),
   },
   backfillBusy: async () => (await connector.backfillInFlight()) || (await market.isBusy()) || (await fillJobs.isBusy()),

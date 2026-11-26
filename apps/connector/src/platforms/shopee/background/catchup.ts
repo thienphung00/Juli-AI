@@ -18,14 +18,19 @@ const dayMinus = (day: string, n: number): string => gmt7Date(gmt7DateStart(day)
 export interface ReadDays {
   asOf: string;
   datasets: Record<string, string[]>;
+  /** 7b: day -> keyed refs of the orders completed with no payment read yet (never a raw order id). */
+  unsettled?: Record<string, string[]>;
 }
+
+const REF = /^[0-9a-f]{8,128}$/i;
+const UNSETTLED_REFS_MAX = 300;
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** The answer of GET /v1/connector/shopee/read-days, checked: only real past days inside the window, oldest first. */
 export function parseReadDays(raw: unknown, today: string): ReadDays | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
-  const body = raw as { as_of?: unknown; datasets?: unknown };
+  const body = raw as { as_of?: unknown; datasets?: unknown; unsettled_orders?: unknown };
   if (typeof body.datasets !== "object" || body.datasets === null) return undefined;
   const floor = dayMinus(today, CATCHUP_WINDOW_DAYS);
   const datasets: Record<string, string[]> = {};
@@ -35,7 +40,21 @@ export function parseReadDays(raw: unknown, today: string): ReadDays | undefined
     const days = [...new Set(missing.filter((d): d is string => typeof d === "string" && DAY.test(d) && d < today && d >= floor))].sort();
     if (days.length > 0) datasets[name.slice(0, 48)] = days;
   }
-  return { asOf: typeof body.as_of === "string" && DAY.test(body.as_of) ? body.as_of : today, datasets };
+  const unsettled: Record<string, string[]> = {};
+  let kept = 0;
+  if (typeof body.unsettled_orders === "object" && body.unsettled_orders !== null) {
+    for (const [day, refs] of Object.entries(body.unsettled_orders as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b))) {
+      if (!DAY.test(day) || day >= today || day < floor || !Array.isArray(refs)) continue;
+      const list = refs.filter((r): r is string => typeof r === "string" && REF.test(r)).slice(0, UNSETTLED_REFS_MAX - kept);
+      kept += list.length;
+      if (list.length > 0) unsettled[day] = list;
+    }
+  }
+  return {
+    asOf: typeof body.as_of === "string" && DAY.test(body.as_of) ? body.as_of : today,
+    datasets,
+    ...(Object.keys(unsettled).length > 0 ? { unsettled } : {}),
+  };
 }
 
 /** The reader that can read a dataset's hole days (a job with `days`). */

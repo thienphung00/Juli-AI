@@ -296,6 +296,15 @@ export const ORDER_CATCHUP_MAX_DAYS = 30;
  */
 export const ORDER_LINES_BACKFILL = "order_lines_backfill";
 export const ORDER_BACKFILL_DAY_COST = 15;
+/**
+ * 7b (owner #101): the server's `order_income_unsettled` hole set names the order days that hold
+ * completed orders with no payment read yet, and `unsettled_orders` their keyed refs. The orders job
+ * reads back to the oldest such day it can afford (like ORDER_LINES_BACKFILL), and queues the listed
+ * orders for their order page (income) regardless of when they completed: at most this many a run
+ * (K), oldest first; the queue's own daily cap (ORDER_INCOME_MAX_PER_DAY) still applies.
+ */
+export const ORDER_INCOME_UNSETTLED = "order_income_unsettled";
+export const UNSETTLED_MAX_PER_RUN = 40;
 /** 40 pages x (20-45 s gap + 2 calls) can take ~30 min: the orders job has its own timeout. */
 export const ORDERS_JOB_TIMEOUT_MS = 45 * 60_000;
 /** Extra wait before an order-list page after the first (ms, plus jitter): 20-45 s like page gaps. */

@@ -15,7 +15,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import (
@@ -25,7 +25,7 @@ from juli_backend.models.ingest import (
     PlatformDailyMetric,
 )
 from juli_backend.models.shopee_connector import ShopeeConnectorState
-from juli_backend.models.shopee_profit import ShopeeOrderLine
+from juli_backend.models.shopee_profit import ShopeeOrderIncome, ShopeeOrderLine
 from juli_backend.services.ingest import min_version
 from juli_backend.services.ingest.writers import UNRESOLVED_PREFIX
 
@@ -237,6 +237,100 @@ async def order_lines_backfill_days(
     return sorted(old - new)
 
 
+#: 7b (owner #101): Shopee pays on completion day (median 0 days, max 2 on a real shop), yet the
+#: Connector reads an order's payment only when it opens that order's page, so an order completed
+#: on a day nobody opened stays unsettled for good. The hole set below names the order days that
+#: hold such orders; ``unsettled_orders`` in the answer carries their keyed refs (never a raw id).
+ORDER_INCOME_UNSETTLED = "order_income_unsettled"
+#: A completed order is read for its payment once its completion is older than this.
+SETTLE_AFTER = timedelta(days=1)
+#: A delivered order with no completion time is read once it was placed this many days ago (N).
+DELIVERED_NO_COMPLETION_DAYS = 7
+#: The freshness signal counts an order unpaid this long after its completion (Tổng quan flag).
+UNSETTLED_FLAG_AFTER = timedelta(days=2)
+#: At most this many refs are handed out in one answer, oldest order day first.
+UNSETTLED_REFS_MAX = 300
+
+
+def _unsettled_condition(shop_id: uuid.UUID, platform: str, now: datetime):
+    """SQL condition on ``order_lines``: completed over ``SETTLE_AFTER`` ago (or delivered with no
+    completion time, placed over ``DELIVERED_NO_COMPLETION_DAYS`` ago), not cancelled, and no
+    ``order_settlements`` row for the order."""
+    moment = now.astimezone(UTC)
+    settled = exists().where(
+        ShopeeOrderIncome.shop_id == ShopeeOrderLine.shop_id,
+        ShopeeOrderIncome.platform == ShopeeOrderLine.platform,
+        ShopeeOrderIncome.order_ref == ShopeeOrderLine.order_ref,
+    )
+    return (
+        ShopeeOrderLine.shop_id == shop_id,
+        ShopeeOrderLine.platform == platform,
+        ShopeeOrderLine.status != "cancelled",
+        or_(
+            ShopeeOrderLine.completed_at < moment - SETTLE_AFTER,
+            (ShopeeOrderLine.completed_at.is_(None))
+            & (ShopeeOrderLine.status == "delivered")
+            & (ShopeeOrderLine.ordered_at < moment - timedelta(days=DELIVERED_NO_COMPLETION_DAYS)),
+        ),
+        ~settled,
+    )
+
+
+async def unsettled_orders(
+    session: AsyncSession, shop_id: uuid.UUID, platform: str, *, now: datetime | None = None
+) -> list[tuple[str, date]]:
+    """``(order_ref, order day)`` of the window's orders that completed without a settlement,
+    oldest order day first, each order once (an order has many lines)."""
+    moment = now or datetime.now(UTC)
+    today = vietnam_today(moment)
+    rows = await session.execute(
+        select(ShopeeOrderLine.order_ref, func.min(ShopeeOrderLine.day))
+        .where(
+            *_unsettled_condition(shop_id, platform, moment),
+            ShopeeOrderLine.day >= today - timedelta(days=WINDOW_DAYS),
+            ShopeeOrderLine.day <= today - timedelta(days=1),
+        )
+        .group_by(ShopeeOrderLine.order_ref)
+        .order_by(func.min(ShopeeOrderLine.day), ShopeeOrderLine.order_ref)
+    )
+    return [(ref, day) for ref, day in rows]
+
+
+async def unsettled_status(
+    session: AsyncSession, shop_id: uuid.UUID, platform: str, *, now: datetime | None = None
+) -> dict[str, object]:
+    """The freshness signal (``freshness.unsettled_orders`` on the Shopee analytics screens): the
+    window's orders completed more than ``UNSETTLED_FLAG_AFTER`` ago with no settlement, and the
+    oldest completion day among them. An order with no completion time is not counted."""
+    moment = (now or datetime.now(UTC)).astimezone(UTC)
+    today = vietnam_today(moment)
+    settled = exists().where(
+        ShopeeOrderIncome.shop_id == ShopeeOrderLine.shop_id,
+        ShopeeOrderIncome.platform == ShopeeOrderLine.platform,
+        ShopeeOrderIncome.order_ref == ShopeeOrderLine.order_ref,
+    )
+    row = (
+        await session.execute(
+            select(
+                func.count(func.distinct(ShopeeOrderLine.order_ref)),
+                func.min(ShopeeOrderLine.completed_at),
+            ).where(
+                ShopeeOrderLine.shop_id == shop_id,
+                ShopeeOrderLine.platform == platform,
+                ShopeeOrderLine.status != "cancelled",
+                ShopeeOrderLine.completed_at < moment - UNSETTLED_FLAG_AFTER,
+                ShopeeOrderLine.day >= today - timedelta(days=WINDOW_DAYS),
+                ~settled,
+            )
+        )
+    ).one()
+    count, oldest = int(row[0] or 0), row[1]
+    return {
+        "count": count,
+        "oldest_completed_on": oldest.date().isoformat() if oldest is not None else None,
+    }
+
+
 async def read_days(
     session: AsyncSession, shop_id: uuid.UUID, platform: str, *, now: datetime | None = None
 ) -> dict[str, object]:
@@ -246,11 +340,19 @@ async def read_days(
     backfill = await order_lines_backfill_days(session, shop_id, platform, today)
     if backfill:
         datasets[ORDER_LINES_BACKFILL] = {"missing": [d.isoformat() for d in backfill]}
-    return {
+    answer: dict[str, object] = {
         "as_of": today.isoformat(),
         "window_days": WINDOW_DAYS,
         "datasets": datasets,
     }
+    unsettled = (await unsettled_orders(session, shop_id, platform, now=now))[:UNSETTLED_REFS_MAX]
+    if unsettled:
+        refs: dict[str, list[str]] = {}
+        for ref, day in unsettled:
+            refs.setdefault(day.isoformat(), []).append(ref)
+        datasets[ORDER_INCOME_UNSETTLED] = {"missing": sorted(refs)}
+        answer["unsettled_orders"] = refs
+    return answer
 
 
 def progress_of(

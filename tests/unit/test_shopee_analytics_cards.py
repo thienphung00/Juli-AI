@@ -273,3 +273,6 @@ async def test_the_overview_says_how_fresh_each_dataset_is(session):
     assert f["datasets"]["traffic_overview"]["latest_day"] == CUR_END.isoformat()
     assert f["datasets"]["traffic_overview"]["kind"] == "daily"
     assert "item_snapshots" in f["datasets"]
+    # 7b: completed orders unpaid over 2 days later, counted per shop (the seeded orders are old)
+    assert set(f["unsettled_orders"]) == {"count", "oldest_completed_on"}
+    assert isinstance(f["unsettled_orders"]["count"], int)

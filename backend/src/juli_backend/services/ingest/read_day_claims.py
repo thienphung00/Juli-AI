@@ -124,4 +124,12 @@ async def claim_holes(
         days = [d for d in entry["missing"] if _key(shop_id, ds, d) in mine]
         if days:
             kept[ds] = {"missing": days}
-    return {**answer, "datasets": kept}
+    out = {**answer, "datasets": kept}
+    refs = answer.get("unsettled_orders")
+    if isinstance(refs, dict):
+        # 7b: the refs of the days this token did not claim stay with the computer that did
+        held = set(kept.get("order_income_unsettled", {}).get("missing", []))
+        out["unsettled_orders"] = {day: r for day, r in refs.items() if day in held}
+        if not out["unsettled_orders"]:
+            del out["unsettled_orders"]
+    return out

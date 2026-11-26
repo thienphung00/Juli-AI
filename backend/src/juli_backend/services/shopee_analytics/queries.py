@@ -16,6 +16,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.repositories import PlatformItemSnapshotsRepo
+from juli_backend.services.ingest import read_days
 from juli_backend.services.shopee_analytics import (
     ads_gate,
     default_period,
@@ -61,6 +62,17 @@ def freshness_json(latest: dict[str, Any], anchor: date) -> dict[str, Any]:
             for name, v in sorted(latest.items())
         },
     }
+
+
+async def unsettled_freshness(
+    session: AsyncSession, shop_id: uuid.UUID, platform: str
+) -> dict[str, Any] | None:
+    """7b: ``freshness.unsettled_orders`` -- completed orders still unpaid over 2 days later
+    (``{count, oldest_completed_on}``), Shopee shops only. The one computation behind the
+    overview and the channel split (Tổng quan reads the latter); TikTok gets ``None``."""
+    if platform != "shopee":
+        return None
+    return await read_days.unsettled_status(session, shop_id, platform)
 
 
 class NoShopeeData(LookupError):
@@ -203,6 +215,9 @@ async def overview(
     body["freshness"] = freshness_json(
         await loaders.load_freshness(session, shop_id), now.window.end
     )
+    unsettled = await unsettled_freshness(session, shop_id, platform)
+    if unsettled is not None:
+        body["freshness"]["unsettled_orders"] = unsettled
     return with_default(body, pick)
 
 

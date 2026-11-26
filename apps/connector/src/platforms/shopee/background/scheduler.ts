@@ -30,6 +30,8 @@ import {
   ORDER_BACKFILL_DAY_COST,
   ORDER_CATCHUP_MAX_DAYS,
   ORDER_CATCHUP_OVERLAP_DAYS,
+  ORDER_INCOME_UNSETTLED,
+  UNSETTLED_MAX_PER_RUN,
   ORDER_LINES_BACKFILL,
   ORDERS_JOB_TIMEOUT_MS,
   READER_KICK_DELAY_MINUTES,
@@ -67,7 +69,7 @@ import {
   TRAFFIC_MAX_ITEMS,
   CONTENT_READY_MINUTE_GMT7,
 } from "../config";
-import { completedOrders, incomeReadIds, PAGE_FIX_MAX_FAILS, skuLessOrders, zeroRowsStep } from "../orders-map";
+import { completedOrders, incomeReadIds, PAGE_FIX_MAX_FAILS, skuLessOrders, unsettledOrders, zeroRowsStep } from "../orders-map";
 import { viewedItemIds } from "../product-period-map";
 import { activeItemIds, adsDayAnswer, completedTrafficDays, ongoingAdsCampaigns } from "../reader-map";
 import type { CaptureOutcome } from "./connector";
@@ -136,7 +138,7 @@ export function ordersSinceDay(today: string, coveredDay: string | undefined): s
  * ORDER_CATCHUP_MAX_DAYS). Only days older than the usual `sinceDay` extend the read.
  */
 export function orderBackfillSinceDay(today: string, sinceDay: string, holes: Record<string, string[]> | undefined, room: number): string | undefined {
-  const days = [...(holes?.[ORDER_LINES_BACKFILL] ?? [])].sort();
+  const days = [...new Set([...(holes?.[ORDER_LINES_BACKFILL] ?? []), ...(holes?.[ORDER_INCOME_UNSETTLED] ?? [])])].sort();
   const depth = Math.min(ORDER_CATCHUP_MAX_DAYS, Math.floor(Math.max(0, room) / ORDER_BACKFILL_DAY_COST));
   if (days.length === 0 || depth <= 0) return undefined;
   const floor = dayMinus(today, depth);
@@ -196,6 +198,8 @@ export interface SchedulerDeps {
     reportTick?(report: TickReport): Promise<void>;
     /** 0.3.29 (F4.2, contract C2): the backend's hole list (undefined when it could not be read). */
     readDays?(): Promise<ReadDays | undefined>;
+    /** 7b: hashes an order number with the shop's key (to match the orders Juli lists as unpaid). */
+    orderRefHasher?(): Promise<((orderNumber: string) => Promise<string>) | undefined>;
     /** 0.3.29 (F4.2): reopen these days of the per-day backfill (the mydata item datasets). */
     queueBackfillHoles?(datasets: Record<string, string[]>): Promise<void>;
   };
@@ -678,9 +682,18 @@ export class ReaderScheduler {
     } catch {
       answer = undefined;
     }
-    const parsed = answer ? parseReadDays({ as_of: answer.asOf, datasets: Object.fromEntries(Object.entries(answer.datasets).map(([k, v]) => [k, { missing: v }])) }, today) : undefined;
+    const parsed = answer
+      ? parseReadDays(
+          {
+            as_of: answer.asOf,
+            datasets: Object.fromEntries(Object.entries(answer.datasets).map(([k, v]) => [k, { missing: v }])),
+            ...(answer.unsettled ? { unsettled_orders: answer.unsettled } : {}),
+          },
+          today,
+        )
+      : undefined;
     if (!parsed) return sched.holes?.day === today ? sched.holes : undefined;
-    const holes = { day: today, datasets: parsed.datasets };
+    const holes = { day: today, datasets: parsed.datasets, ...(parsed.unsettled ? { unsettled: parsed.unsettled } : {}) };
     const reopen = Object.fromEntries(Object.entries(parsed.datasets).filter(([dataset]) => isBackfillHole(dataset)));
     if (Object.keys(reopen).length > 0) await this.deps.sink.queueBackfillHoles?.(reopen).catch(() => undefined);
     return holes;
@@ -1406,7 +1419,8 @@ export class ReaderScheduler {
         Object.entries(posted).some(([key, outcome]) => key.startsWith("ads_campaign_settings:") && outcome === "posted");
       const adsSettingsDay = settingsPosted ? run.day : sched.adsSettingsDay;
       const adsCampaigns = job.id === "ads" && settingsPosted ? ongoingAdsCampaigns(responses) : sched.adsCampaigns;
-      const extra = this.shopReaderState(sched, run, job, posted, responses, state.token?.shop_id, !note.startsWith("partial"), note);
+      const unsettled = job.id === "orders" ? await this.unsettledPicks(sched, run, responses) : [];
+      const extra = this.shopReaderState(sched, run, job, posted, responses, state.token?.shop_id, !note.startsWith("partial"), note, unsettled);
       // 0.3.19: the product list with stock landed (the 06:30 stock read counts it), the traffic days posted.
       const productsAt = job.id === "products" && posted.item_snapshot === "posted" ? this.deps.now() : sched.productsAt;
       const trafficOverviewDone =
@@ -1485,6 +1499,28 @@ export class ReaderScheduler {
     await addRequests(this.deps.storage, day, list.filter((r) => r.source === "replay").length);
   }
 
+  /**
+   * 7b (owner #101): the orders of this list read that Juli names as completed without a payment
+   * (matched by their keyed refs), at most UNSETTLED_MAX_PER_RUN, oldest first. Empty when Juli named
+   * none, or the key is not available (nothing is queued by guessing).
+   */
+  private async unsettledPicks(sched: ReaderSchedule, run: ReaderRun, responses: ReaderResponse[]): Promise<{ id: string; sn?: string; completedAt: number }[]> {
+    const listed = sched.holes?.day === run.day ? sched.holes.unsettled : undefined;
+    if (!listed) return [];
+    const refs = new Set(Object.values(listed).flat());
+    if (refs.size === 0) return [];
+    let hasher: Awaited<ReturnType<NonNullable<SchedulerDeps["sink"]["orderRefHasher"]>>>;
+    try {
+      hasher = await this.deps.sink.orderRefHasher?.();
+    } catch {
+      hasher = undefined;
+    }
+    if (!hasher) return [];
+    const known = new Set((sched.incomeQueue ?? []).map((o) => o.id));
+    const found = await unsettledOrders(responses, refs, hasher, this.deps.now());
+    return found.filter((o) => !known.has(o.id)).slice(0, UNSETTLED_MAX_PER_RUN);
+  }
+
   /** Bookkeeping of the shop totals / order list / per-order income jobs after a finished read. */
   private shopReaderState(
     sched: ReaderSchedule,
@@ -1495,6 +1531,7 @@ export class ReaderScheduler {
     shopId: string | undefined,
     complete = true,
     note = "",
+    unsettled: { id: string; sn?: string; completedAt: number }[] = [],
   ): Partial<ReaderSchedule> {
     if (job.id === "shop_totals") {
       // Done when the confirmed post (the one Tổng quan reads) landed; the 30-day read marks the shop backfilled.
@@ -1529,7 +1566,10 @@ export class ReaderScheduler {
       // 0.3.32: an order queued for its lines only asks for its income too once it has completed
       const upgraded = (sched.incomeQueue ?? []).map((o) => (o.income === false && doneIds.has(o.id) ? { ...o, income: true } : o));
       const givenUp = new Set(sched.pageFixGivenUp ?? []);
-      const queue = withSkuFixes([...upgraded, ...fresh], skuLessOrders(responses).filter((o) => !givenUp.has(o.id)), now)
+      // 7b: orders Juli lists as completed with no payment join whatever their completion day
+      const freshIds = new Set([...upgraded, ...fresh].map((o) => o.id));
+      const owed = unsettled.filter((o) => !freshIds.has(o.id)).map((o) => ({ ...o, income: true }));
+      const queue = withSkuFixes([...upgraded, ...owed, ...fresh], skuLessOrders(responses).filter((o) => !givenUp.has(o.id)), now)
         .filter((o) => o.completedAt >= horizon)
         .slice(0, ORDER_INCOME_QUEUE_MAX);
       return {
