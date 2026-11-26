@@ -360,6 +360,11 @@
    "aov_label": "AOV = GMV shop ÷ đơn shop",
    "aov_seller_centre": 84105.26,
    "aov_seller_centre_label": "AOV theo Seller Centre (GMV trừ voucher shop ÷ đơn)",
+   "cancelled_after_confirm": {
+    "gmv": 275000,
+    "label": "Đơn hủy sau xác nhận",
+    "orders": 1
+   },
    "clicks": 980,
    "coverage": {
     "days_with_data": 14,
@@ -414,7 +419,7 @@
     "views": "source_funnel"
    },
    "split_note": "Sản phẩm: dòng đơn hàng nhân với (GMV shop ÷ GMV dòng đơn) nên cộng lại đúng bằng GMV shop.",
-   "unattributed_gmv": 550000,
+   "unattributed_gmv": 275000,
    "units": 53,
    "views": 15400,
    "window": {
@@ -920,6 +925,11 @@
    "aov_label": "AOV = GMV shop ÷ đơn shop",
    "aov_seller_centre": 88538.46,
    "aov_seller_centre_label": "AOV theo Seller Centre (GMV trừ voucher shop ÷ đơn)",
+   "cancelled_after_confirm": {
+    "gmv": 275000,
+    "label": "Đơn hủy sau xác nhận",
+    "orders": 1
+   },
    "clicks": 490,
    "coverage": {
     "days_with_data": 7,
@@ -974,7 +984,7 @@
     "views": "source_funnel"
    },
    "split_note": "Sản phẩm: dòng đơn hàng nhân với (GMV shop ÷ GMV dòng đơn) nên cộng lại đúng bằng GMV shop.",
-   "unattributed_gmv": 275000,
+   "unattributed_gmv": 0,
    "units": 28,
    "views": 7700,
    "window": {
