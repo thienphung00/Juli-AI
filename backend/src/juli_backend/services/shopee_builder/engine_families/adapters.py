@@ -459,6 +459,24 @@ def new_listing_facts(
     )
 
 
+def flash_cut_per_order(lines: Sequence[Any], skus: Sequence[Mapping[str, Any]]) -> Decimal:
+    """Owner #98: the Flash Sale price cut on one order holding a flash-priced variation: Σ over
+    those order lines (today's price − flash price, never below 0) x units ÷ their orders. The
+    prices are the evaluator's (``certain["skus"]``: ``price_before`` = today's price the buyer
+    pays, ``price_after`` = the flash price)."""
+    cut = {
+        str(r["sku"]): max(ZERO, Decimal(str(r["price_before"])) - Decimal(str(r["price_after"])))
+        for r in skus
+        if r.get("sku") and r.get("price_before") is not None and r.get("price_after") is not None
+    }
+    mine = [ln for ln in lines if ln.sku in cut]
+    orders = {ln.order_id for ln in mine}
+    if not orders:
+        return ZERO
+    total = sum((cut[ln.sku] * Decimal(ln.qty) for ln in mine), ZERO)
+    return total / Decimal(len(orders))
+
+
 def price_facts_from_evaluation(
     ev: Any,
     *,

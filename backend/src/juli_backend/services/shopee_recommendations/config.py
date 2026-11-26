@@ -16,7 +16,7 @@ RULES_VERSION = "rules:ADR-121:shopee-reco-v1"
 SCHEMA = "shopee_reco/v1"
 #: Bump when a change to the evaluation (formulas, models, defaults) must refresh every stored card:
 #: a card computed by another engine version is stale and the refresh job recomputes it.
-ENGINE_VERSION = "2026-11-26.1"  # 5a (owner #99): a forecast column = mean of its middle 10 %
+ENGINE_VERSION = "2026-11-26.2"  # 5a mean middle (owner #99); Flash Sale cost (owner #98)
 
 DAYS_PER_MONTH = 30
 #: History window the certain layer is computed on (the last N days ending on ``as_of``).

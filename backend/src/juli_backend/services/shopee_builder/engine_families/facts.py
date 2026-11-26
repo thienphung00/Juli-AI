@@ -134,6 +134,10 @@ class PriceFacts:
     #: orders response and the programme's uses are scaled by this share. ``units_per_order`` /
     #: ``orders_per_day`` are those orders' own.
     coverage: Decimal = Decimal(1)
+    #: owner #98: a Flash Sale's price cut on one order holding a flash-priced variation = Σ over
+    #: its lines (today's price − flash price) x units (``adapters.flash_cut_per_order``); the
+    #: slot's cost is this x the engine's slot orders, capped at the slot's units. None = unknown
+    flash_cut_per_order: Decimal | None = None
 
 
 @dataclass(frozen=True)

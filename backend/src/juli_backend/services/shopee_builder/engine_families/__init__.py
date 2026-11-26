@@ -222,6 +222,10 @@ def option_for(
                 units_per_order=units / Decimal(len(covered_orders)),
                 orders_per_day=Decimal(len(covered_orders)) / Decimal(env.window_days),
             )
+        if isinstance(spec, sp.FlashSaleSpec):
+            # owner #98: the slot's cost = the cut on each variation x its units
+            cut = adapters.flash_cut_per_order(covered, ev.certain.get("skus", []))
+            facts = replace(facts, flash_cut_per_order=cut if cut > 0 else None)
         return price_option(spec, facts)
     if isinstance(spec, sp.VariationSetSpec):
         return _variation_set(spec, ctx)
