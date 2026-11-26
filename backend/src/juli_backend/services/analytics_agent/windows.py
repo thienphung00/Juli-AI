@@ -194,8 +194,17 @@ def build_windows(
         w = Windows(preset, lm, _prev_month(lm[0]))
     elif preset == "named_month_vs_previous" and named_month:
         y, m = map(int, named_month.split("-"))
-        first = date(y, m, 1)
-        w = Windows(preset, (first, min(_clamp_day(y, m, 31), a_)), _prev_month(first))
+        first, last = date(y, m, 1), _clamp_day(y, m, 31)
+        pa, pb = _prev_month(first)
+        if last <= a_:  # a finished month: the whole month against the whole month before
+            w = Windows(preset, (first, last), (pa, pb))
+        else:  # not over yet: the same days of the month before, the whole one as context
+            w = Windows(
+                preset,
+                (first, a_),
+                (pa, _clamp_day(pa.year, pa.month, a_.day)),
+                context=(pa, pb),
+            )
     else:
         w = build_windows("last_30d_vs_prev_30d", a_, sale_aware=sale_aware)
         w.flags.append("window_defaulted")

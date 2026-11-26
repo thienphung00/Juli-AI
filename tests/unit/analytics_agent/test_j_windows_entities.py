@@ -48,6 +48,35 @@ def test_last_7_days_are_the_last_seven_complete_calendar_days() -> None:
     assert w.cur == (date(2026, 11, 16), YDAY) and w.prev == (date(2026, 11, 9), date(2026, 11, 15))
 
 
+def test_an_unfinished_named_month_compares_the_same_days_of_the_month_before() -> None:
+    """Tháng 11 asked on 26/11 (as_of 25/11, data to 24/11): 01-24/11 against 01-24/10, never
+    the whole October (and never "01/10–30/10", which the clip made of a 31-day October)."""
+    p = "named_month_vs_previous"
+    w = windows.build_windows(
+        p, windows.anchor_for(p, date(2026, 11, 25), date(2026, 11, 24)), named_month="2026-11"
+    )
+    assert w.cur == (date(2026, 11, 1), date(2026, 11, 25))
+    assert w.prev == (date(2026, 10, 1), date(2026, 10, 25))
+    assert w.context == (date(2026, 10, 1), date(2026, 10, 31))
+    w = windows.clip_to_freshness(w, date(2026, 11, 24))
+    assert w.cur == (date(2026, 11, 1), date(2026, 11, 24))
+    assert w.prev == (date(2026, 10, 1), date(2026, 10, 24))
+    assert w.label() == "01/11–24/11 so với 01/10–24/10"
+
+
+def test_a_finished_named_month_compares_with_the_whole_month_before() -> None:
+    w = windows.build_windows("named_month_vs_previous", date(2026, 11, 25), named_month="2026-10")
+    assert w.cur == (date(2026, 10, 1), date(2026, 10, 31))
+    assert w.prev == (date(2026, 9, 1), date(2026, 9, 30)) and w.context is None
+    # the last day of the month is the anchor: the month is over
+    w = windows.build_windows("named_month_vs_previous", date(2026, 3, 31), named_month="2026-03")
+    assert w.cur == (date(2026, 3, 1), date(2026, 3, 31))
+    assert w.prev == (date(2026, 2, 1), date(2026, 2, 28))
+    # 31/03 not over yet on 30/03: the same 30 days of a 28-day February are the whole of it
+    w = windows.build_windows("named_month_vs_previous", date(2026, 3, 30), named_month="2026-03")
+    assert w.prev == (date(2026, 2, 1), date(2026, 2, 28))
+
+
 def test_sale_days_are_double_days_15th_and_25th() -> None:
     got = windows.campaign_days(date(2026, 11, 9), date(2026, 11, 26))
     assert got == [date(2026, 11, 11), date(2026, 11, 15), date(2026, 11, 25)]
