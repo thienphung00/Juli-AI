@@ -152,6 +152,12 @@ class FakeData:
     async def critical(self, a: date, b: date) -> dict[str, Any]:
         return self._critical
 
+    #: the tabs' default period a test sets; None = the engine's fallback (the last 30 days)
+    default_span: tuple[date, date] | None = None
+
+    async def default_window(self, as_of: date) -> tuple[date, date] | None:
+        return self.default_span
+
 
 class FakeJev:
     """Answers from a script: `answers` maps a question id to its answer, or is a callable."""

@@ -391,6 +391,21 @@ class ServiceData:
                        or (status = 'executed' and updated_at > now() - interval '28 days'))"""
         )
 
+    async def default_window(self, as_of: date) -> tuple[date, date] | None:
+        """The tabs' default period (#112(3)): `queries.resolve_screen_window(period="auto")` --
+        the newest 30-day window with >= 70 % of its GMV's costs known, the same dates Tổng quan
+        opens on. None when the shop has no complete day."""
+        from juli_backend.services.shopee_analytics import default_period, queries
+
+        async with self._f() as s:
+            try:
+                win, _ = await queries.resolve_screen_window(
+                    s, self.shop, period=default_period.AUTO, as_of=as_of
+                )
+            finally:
+                await s.rollback()
+        return None if win is None else (win.start, win.end)
+
     async def overview(self, a: date, b: date) -> dict[str, Any]:
         return dict(await self._svc("overview", period="custom", start=a, end=b))
 

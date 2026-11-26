@@ -50,7 +50,9 @@ def data_orders() -> FakeData:
         }
         for r in shop
     ]
-    return FakeData(shop, srcs, products=prods, names={"p1": "Sản phẩm A"})
+    d = FakeData(shop, srcs, products=prods, names={"p1": "Sản phẩm A"})
+    d.default_span = (AS_OF - timedelta(days=6), AS_OF)  # this shop's default period (#112(3))
+    return d
 
 
 def req(**kw: Any) -> AskRequest:
@@ -139,6 +141,7 @@ async def test_template_skips_parse_and_routing_and_allows_card_at_any_stop() ->
         },
         names={"p9": "Sản phẩm Z"},
     )
+    d.default_span = (AS_OF - timedelta(days=6), AS_OF)
     jev = FakeJev(lambda s, q: full(kind=ch("ads_budget")))
     sink, _ = await go(req(template="reduce_cost"), llm=llm, jev=jev, data=d)
     assert llm.parse_calls == 0 and all("fits" not in c[1] for c in jev.calls)
@@ -159,16 +162,15 @@ async def test_template_skips_parse_and_routing_and_allows_card_at_any_stop() ->
 
 async def test_needs_choice_then_resume_from_pending_without_a_new_routing_call() -> None:
     llm = FakeLLM({"restated_vi": "Vì sao đơn giảm", "intents": [intent()]}, text=TEXT)
-    jev = FakeJev(lambda s, q: full(window=ch("last_7d_vs_prev_7d", 0.55, "last_30d_vs_prev_30d")))
+    jev = FakeJev(lambda s, q: full(scope=ch("shop", 0.55, "product")))
     sink, res = await go(req(text="q"), llm=llm, jev=jev, data=data_orders())
     nc = sink.of("needs_choice")[0]
-    assert nc["item"] == "window" and res.stop_reasons == ["needs_choice"] and not sink.of("card")
-    assert nc["options"][0]["label_vi"] == "02/11–08/11 so với 26/10–01/11"
+    assert nc["item"] == "scope" and res.stop_reasons == ["needs_choice"] and not sink.of("card")
     n_before = len(jev.calls)
     llm2 = FakeLLM(None, text=TEXT)
     jev2 = FakeJev(lambda s, q: full())
     sink2, _ = await go(
-        req(choice={"item": "window", "value": "last_7d_vs_prev_7d"}, pending=nc["pending"]),
+        req(choice={"item": "scope", "value": "shop"}, pending=nc["pending"]),
         llm=llm2,
         jev=jev2,
         data=data_orders(),

@@ -190,20 +190,24 @@ def test_choice_goes_ahead_only_when_ptop_06_and_twice_second() -> None:
     assert (
         routing.choice_ok({"choice": "a", "probabilities": {"a": 0.5, "b": 0.2}})[0] is False
     )  # p_top < 0.6
-    dec = routing.decide(
+    dec = routing.decide(intent(), ans(scope=ch("shop", 0.55, "product")))
+    assert dec["outcome"] == "needs_choice" and dec["remaining"][0] == (
+        "scope",
+        ["shop", "product"],
+    )
+    # #112(3): a split window vote never asks: no period named -> the tabs' default period
+    dflt = routing.decide(
         intent(), ans(window=ch("last_7d_vs_prev_7d", 0.55, "last_30d_vs_prev_30d"))
     )
-    assert dec["outcome"] == "needs_choice" and dec["remaining"][0] == (
-        "window",
-        ["last_7d_vs_prev_7d", "last_30d_vs_prev_30d"],
-    )
+    assert dflt["outcome"] == "go" and dflt["window"] == "default"
 
 
 def test_one_unclear_item_at_a_time_in_order_chain_metric_window_product() -> None:
     dec = routing.decide(
-        intent(), ans(window=ch("a", 0.5, "b"), chain=ch("orders_change", 0.5, "gmv_change"))
+        intent(),
+        ans(scope=ch("shop", 0.5, "product"), chain=ch("orders_change", 0.5, "gmv_change")),
     )
-    assert [i for i, _ in dec["remaining"]] == ["chain", "window"]
+    assert [i for i, _ in dec["remaining"]] == ["chain", "scope"]
 
 
 def test_cross_check_chain_metric_conflict() -> None:
@@ -249,9 +253,12 @@ def test_lookup_rules_vague_asks_metric_and_top_products_needs_none() -> None:
 
 
 def test_needs_choice_event_has_real_dates_and_resume_runs_in_code() -> None:
-    dec = routing.decide(
-        intent(), ans(window=ch("last_7d_vs_prev_7d", 0.55, "last_30d_vs_prev_30d"))
-    )
+    # the window question is only asked by the engine now (a Monday's empty "tuần này")
+    dec = {
+        **routing.decide(intent(), ans()),
+        "outcome": "needs_choice",
+        "remaining": [("window", ["last_7d_vs_prev_7d", "last_30d_vs_prev_30d"])],
+    }
     ev = routing.needs_choice_event(dec, intent(), shopee_labels(), date(2026, 11, 8))
     assert (
         ev["item"] == "window" and ev["options"][0]["label_vi"] == "02/11–08/11 so với 26/10–01/11"
@@ -270,20 +277,18 @@ def test_max_two_clarifying_turns_then_go() -> None:
         intent(),
         ans(
             chain=ch("orders_change", 0.5, "gmv_change"),
-            window=ch("a", 0.5, "b"),
+            metric=ch("orders", 0.5, "units"),
             scope=ch("product", 0.5, "shop"),
         ),
     )
+    assert [i for i, _ in dec["remaining"]] == ["chain", "metric", "scope"]
     ev = routing.needs_choice_event(dec, intent(), shopee_labels(), date(2026, 11, 8))
     d1 = routing.resume(ev["pending"], {"item": "chain", "value": "gmv_change"})
     assert d1["outcome"] == "needs_choice"
     ev2 = routing.needs_choice_event(
         d1, intent(), shopee_labels(), date(2026, 11, 8), turns=d1["turns"]
     )
-    assert (
-        routing.resume(ev2["pending"], {"item": "window", "value": "last_7d_vs_prev_7d"})["outcome"]
-        == "go"
-    )
+    assert routing.resume(ev2["pending"], {"item": "metric", "value": "gmv"})["outcome"] == "go"
 
 
 async def test_product_resolution_one_many_none() -> None:

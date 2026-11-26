@@ -73,12 +73,16 @@ def test_a_split_mode_on_a_status_question_is_a_lookup() -> None:
     assert dec["window"] == "this_week_vs_same_days_last_week"
 
 
-def test_a_named_metric_without_a_period_may_still_ask_the_window() -> None:
+def test_no_period_named_runs_the_default_period_never_the_router_pick() -> None:
     it = status(metric_phrase="GMV", metric_key="gmv", time_phrase=None)
-    dec = routing.decide(
-        it, ans(mode=ch("lookup"), window=split("last_7d_vs_prev_7d", "last_30d_vs_prev_30d"))
+    for window in (split("last_7d_vs_prev_7d", "last_30d_vs_prev_30d"), ch("last_7d_vs_prev_7d")):
+        dec = routing.decide(it, ans(mode=ch("lookup"), window=window))
+        assert dec["outcome"] == "go" and dec["window"] == "default"
+    named = routing.decide(
+        status(metric_phrase="GMV", metric_key="gmv", time_phrase="yesterday"),
+        ans(mode=ch("lookup"), window=ch("last_30d_vs_prev_30d")),
     )
-    assert dec["outcome"] == "needs_choice" and dec["remaining"][0][0] == "window"
+    assert named["window"] == "yesterday_vs_same_weekday"  # a named period is never moved
 
 
 def test_no_metric_and_no_entity_still_asks() -> None:

@@ -24,7 +24,8 @@ class Template:
     label_vi: str
     chain: str
     metric: str
-    window: str = "last_7d_vs_prev_7d"
+    #: a template names no period: the tabs' default (#112(3)), see `windows.DEFAULT_PRESET`
+    window: str = "default"
     allows_card_any_stop: bool = True
 
 
@@ -118,6 +119,7 @@ class DataPort(Protocol):
     async def voucher_figures(self, a: date, b: date) -> dict[str, Any] | None: ...
     async def campaign_rows(self, a: date, b: date) -> list[dict[str, Any]]: ...
     async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]: ...
+    async def default_window(self, as_of: date) -> tuple[date, date] | None: ...
 
 
 class CardEnginePort(Protocol):

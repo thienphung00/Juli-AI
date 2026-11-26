@@ -444,6 +444,18 @@ async def _run(
         )
 
 
+def _month_not_started(intent: dict[str, Any], dec: dict[str, Any], as_of: date) -> str | None:
+    """ "mm/yyyy" when the seller named a month whose first day is after the newest data day."""
+    if dec.get("window") != "named_month_vs_previous" or not intent.get("named_month"):
+        return None
+    try:
+        y, m = map(int, str(intent["named_month"]).split("-"))
+        first = date(y, m, 1)
+    except ValueError:
+        return None
+    return f"{m}/{y}" if first > as_of else None
+
+
 #: the period words of a "more" button (the parser's phrases are English)
 PERIOD_VI = {
     "yesterday_vs_same_weekday": "hôm qua",
@@ -488,7 +500,7 @@ async def _answer(
     mark = len(result.events)
     await _answer_inner(
         req, out, result, data, engine, llm, jev, labels, as_of, intent, dec, restated, template,
-        carry,
+        carry, latest,
     )  # fmt: skip
     new = result.events[mark:]
     if any(e.get("type") in ("text_delta", "text_replace") for e in new):
@@ -521,6 +533,7 @@ async def _answer_inner(
     restated: str,
     template: Template | None,
     carry: dict[str, Any] | None = None,
+    latest: date | None = None,
 ) -> None:
     mode = dec.get("mode", "why")
     if mode == "create":  # J10: a Juli DRAFT card from a free request (never sent)
@@ -626,7 +639,20 @@ async def _answer_inner(
             )
         result.stop_reasons.append("data_answer")
         return
-    preset = dec.get("window") or "last_7d_vs_prev_7d"
+    preset = dec.get("window") or windows.DEFAULT_PRESET
+    month = _month_not_started(intent, dec, as_of)
+    if month:  # "tháng 11" asked in October: never the month before's figure under its name
+        fresh = f" (số liệu đến hết {latest or as_of:%d/%m})"
+        await out.emit(
+            {
+                "type": "label",
+                "stop_reason": "data_missing",
+                "text_vi": f"Tháng {month} chưa bắt đầu{fresh}.",
+                "detail_vi": None,
+            }
+        )
+        result.stop_reasons.append("data_missing")
+        return
     item_id: str | None = dec.get("item_id")
     if dec.get("scope") == "product" and not item_id and intent.get("product_phrase"):
         prod, u = await routing.resolve_product(data, jev, intent)
@@ -686,6 +712,10 @@ async def _answer_inner(
         result.stop_reasons.append("data_answer")
         return
     kw = _window_args(intent, dec)
+    if not kw.get("explicit") and dec.get("window") == windows.DEFAULT_PRESET:
+        span = await data.default_window(latest or as_of)  # the tabs' default period (#112(3))
+        if span is not None:
+            kw["explicit"] = span
     entity = routing.entity_kind(intent)
     prod_money = bool(
         item_id

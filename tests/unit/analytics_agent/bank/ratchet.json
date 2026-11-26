@@ -1,7 +1,7 @@
 {
  "bank": {
   "count": 192,
-  "passing": 151,
+  "passing": 152,
   "cases": {
    "gmv-yesterday": "f5ea1d11780cc28e",
    "gmv-yesterday-noaccent": "0edab8310a0aa3e5",
@@ -16,10 +16,10 @@
    "gmv-named-month-unfinished": "e87081a5ea4e5232",
    "gmv-named-month-finished": "e3be41d69c73d338",
    "gmv-named-range": "b32f39481419270e",
-   "gmv-future-month": "5049ad0751cf42d4",
+   "gmv-future-month": "9db759866261e6c3",
    "gmv-this-week-on-monday": "fd3a02144eb49aad",
    "gmv-this-vs-last-week": "bd6ac2d527c42db2",
-   "gmv-no-period-asks": "dffef405a1e687bf",
+   "gmv-no-period-asks": "82929c29cd974333",
    "orders-last-week": "b95fcec74534e1b1",
    "orders-7d-noaccent": "f0114a187d8894d0",
    "orders-yesterday-mixed": "520986505d48c11c",
@@ -146,7 +146,7 @@
    "refuse-metric-offer-named": "2c5306c87afa4b38",
    "followup-text-last-week": "06d292fa87c78917",
    "followup-text-that-product": "3b7da25bf28fc242",
-   "followup-choice-window": "c86476cb36e144f8",
+   "followup-choice-window": "acba71992b2feb7e",
    "followup-choice-product": "8859ff1729b995cc",
    "followup-choice-chain": "ffffee379a36f9ae",
    "template-improve_gmv": "33b0bf953e070c77",

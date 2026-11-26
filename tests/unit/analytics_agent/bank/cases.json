@@ -535,9 +535,7 @@
      "data_answer"
     ],
     "no_numbers": true
-   },
-   "status": "xfail",
-   "reason": "a month that has not started (tháng 11 asked on 07/10) is answered with October GMV: build_windows runs (1st of the month, anchor) even when the 1st is after the anchor"
+   }
   },
   {
    "id": "gmv-this-week-on-monday",
@@ -640,30 +638,23 @@
      ]
     ]
    },
-   "then": {
-    "choice": {
-     "value": "last_7d_vs_prev_7d"
-    }
-   },
    "expect": {
     "stop": [
+     "data_answer"
+    ],
+    "no_events": [
      "needs_choice"
     ],
-    "needs_choice_item": "window",
-    "followup": {
-     "stop": [
-      "data_answer"
-     ],
-     "answers": [
-      {
-       "window": "01/10–07/10",
-       "screen": "overview.gmv",
-       "from": "2026-10-01",
-       "to": "2026-10-07"
-      }
-     ]
-    }
-   }
+    "answers": [
+     {
+      "window": "08/09–07/10",
+      "screen": "overview.gmv",
+      "from": "2026-09-08",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "note": "owner #112(3): no period named -> the tabs' default period (newest 30 days with >= 70 % known costs; this shop passes none, so the newest 30 days), never a window question"
   },
   {
    "id": "orders-last-week",
@@ -5043,30 +5034,23 @@
      ]
     ]
    },
-   "then": {
-    "choice": {
-     "value": "last_full_week_vs_week_before"
-    }
-   },
    "expect": {
     "stop": [
+     "data_answer"
+    ],
+    "no_events": [
      "needs_choice"
     ],
-    "needs_choice_item": "window",
-    "followup": {
-     "stop": [
-      "data_answer"
-     ],
-     "answers": [
-      {
-       "window": "28/09–04/10",
-       "screen": "overview.orders",
-       "from": "2026-09-28",
-       "to": "2026-10-04"
-      }
-     ]
-    }
-   }
+    "answers": [
+     {
+      "window": "08/09–07/10",
+      "screen": "overview.orders",
+      "from": "2026-09-08",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "note": "owner #112(3): no period named -> the tabs' default period (newest 30 days with >= 70 % known costs; this shop passes none, so the newest 30 days), never a window question"
   },
   {
    "id": "followup-choice-product",

@@ -24,6 +24,7 @@ from juli_backend.services.analytics_agent.types import (
     Usage,
 )
 from juli_backend.services.analytics_agent.windows import (
+    DEFAULT_PRESET,
     anchor_for,
     build_windows,
     fold,
@@ -230,6 +231,13 @@ def ranking_of(intent: dict[str, Any]) -> str:
     if TOP_WORDS.search(said):
         return "top"
     return "none"
+
+
+def window_of(intent: dict[str, Any]) -> str:
+    """The window an intent runs on: the one the seller named, else the tabs' default period
+    (#112(3), `DEFAULT_PRESET`, resolved to dates by the engine); a named period is never moved.
+    Explicit dates run as given (`custom`, the engine reads them)."""
+    return named_period(intent) or DEFAULT_PRESET
 
 
 def named_period(intent: dict[str, Any]) -> str | None:
@@ -713,9 +721,7 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
             mode="lookup",
             lookup="top_decliners" if rank == "decline" else "top_products",
         )
-        dec["window"] = window_from_phrase(intent.get("time_phrase")) or (
-            choice_ok(answers["window"])[1]["pick"] if "window" in answers else None
-        )
+        dec["window"] = window_of(intent)
         dec["metric"] = named_metric_of(intent) or "gmv"
         return dec
     ranking = False  # a ranking question needs no metric: it defaults to GMV decline
@@ -726,9 +732,7 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
     ent = entity_kind(intent)
     if ent and fits > FITS_NO:  # an entity is answered from its own rows by code (Q17): no picker
         dec.update(outcome="go", mode="lookup", lookup="metric_total")
-        dec["window"] = window_from_phrase(intent.get("time_phrase")) or (
-            choice_ok(answers["window"])[1]["pick"] if "window" in answers else None
-        )
+        dec["window"] = window_of(intent)
         named = named_metric_of(intent)
         dec["metric"] = named or (
             choice_ok(answers["metric"])[1]["pick"] if "metric" in answers else None
@@ -764,11 +768,14 @@ def decide(intent: dict[str, Any], answers: dict[str, dict[str, Any]]) -> dict[s
         dec[k] = info["pick"]
         if not ok:
             unclear.append((k, info["top2"]))
-    preset = window_from_phrase(intent.get("time_phrase"))
-    if preset:  # one phrase, one window; never asked
-        dec["window"] = preset
-        dec["checks"]["window"] = {"pick": preset, "rule": "phrase"}
-        unclear = [x for x in unclear if x[0] != "window"]
+    preset = window_of(intent)
+    # one phrase, one window; no period named: the tabs' default (#112(3)); never asked
+    dec["window"] = preset
+    dec["checks"]["window"] = {
+        "pick": preset,
+        "rule": "phrase" if preset != DEFAULT_PRESET else "default_period",
+    }
+    unclear = [x for x in unclear if x[0] != "window"]
     named = named_metric_of(intent)
     if named and dec.get("mode") != "lookup":  # a named metric is never asked about (Q19)
         dec["metric"] = named
@@ -850,7 +857,10 @@ QUESTION_VI = {
     "metric": "Bạn muốn xem chỉ số nào?",
     "window": "Bạn muốn so sánh khoảng thời gian nào?",
     "product": "Bạn muốn nói sản phẩm nào?",
+    # a split scope vote used to raise KeyError here (the item had no question)
+    "scope": "Bạn muốn xem cả shop hay một sản phẩm?",
 }
+SCOPE_VI = {"shop": "Cả shop", "product": "Một sản phẩm"}
 NO_FULL_DAY_VI = "Tuần này chưa có ngày nào đủ số liệu. Xem tuần trước?"
 NO_FULL_MONTH_DAY_VI = "Tháng này chưa có ngày nào đủ số liệu. Xem tháng trước?"
 CHAIN_VI = {
@@ -879,6 +889,8 @@ def options_vi(
             label = CHAIN_VI.get(v, v)
         elif item == "metric":
             label = labels.metric(v)
+        elif item == "scope":
+            label = SCOPE_VI.get(v, v)
         elif item == "window":
             label = build_windows(
                 v, anchor_for(v, as_of, latest), sale_aware=sale_aware

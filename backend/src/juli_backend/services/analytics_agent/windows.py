@@ -76,6 +76,11 @@ CALENDAR_PRESETS = frozenset(
 )
 
 
+#: "no period named": the tabs' default period (`shopee_analytics.default_period`, the newest 30
+#: days with >= 70 % of GMV's costs known), resolved to explicit dates by the engine; without
+#: them it builds as the last 30 days (`build_windows`' fallback)
+DEFAULT_PRESET = "default"
+
 WEEKLY = frozenset(
     {"last_full_week_vs_week_before", "this_week_vs_same_days_last_week", "last_7d_vs_prev_7d"}
 )
@@ -142,11 +147,11 @@ _PHRASES: tuple[tuple[re.Pattern[str], str], ...] = (
         "last_month_vs_month_before",
     ),
     (
-        folded(r"30\s*ngày\s*(qua|gần nhất|vừa rồi)|(last|past)\s+30\s+days"),
+        folded(r"(?<!\d)30\s*(ngày|days?)\b"),
         "last_30d_vs_prev_30d",
     ),
     (
-        folded(r"7\s*ngày\s*(qua|gần nhất|vừa rồi)|(last|past)\s+7\s+days"),
+        folded(r"(?<!\d)7\s*(ngày|days?)\b"),
         "last_7d_vs_prev_7d",
     ),
 )
