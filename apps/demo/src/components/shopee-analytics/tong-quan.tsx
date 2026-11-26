@@ -255,7 +255,7 @@ function UnsettledChip({ split }: { readonly split: ChannelSplit }) {
   if (!u || u.count <= 0) return null;
   return (
     <span className="sa-chip sa-chip--warn" data-testid="sa-unsettled" title={u.oldest_completed_on ? `Đơn sớm nhất hoàn thành ${dayMonth(u.oldest_completed_on)}` : undefined}>
-      {vnCount(u.count)} đơn chưa đối soát
+      {vnCount(u.count)} đơn chưa có thanh toán
     </span>
   );
 }

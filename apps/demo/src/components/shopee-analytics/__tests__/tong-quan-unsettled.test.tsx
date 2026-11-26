@@ -15,7 +15,7 @@ describe("Tổng quan: unsettled orders (owner #101)", () => {
   it("shows the count next to Cập nhật, the oldest completion day in its title", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi({ split: withUnsettled({ count: 3, oldest_completed_on: "2026-11-20" }) }));
     const chip = await screen.findByTestId("sa-unsettled");
-    expect(chip).toHaveTextContent(/^3 đơn chưa đối soát$/);
+    expect(chip).toHaveTextContent(/^3 đơn chưa có thanh toán$/);
     expect(chip).toHaveAttribute("title", "Đơn sớm nhất hoàn thành 20/11");
   });
 
