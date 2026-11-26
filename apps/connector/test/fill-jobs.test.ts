@@ -26,7 +26,7 @@ class MemoryStorage {
   }
 }
 
-function setup(over: { jobs?: unknown[]; enabled?: boolean; busy?: boolean; listError?: number; tabOpen?: boolean; beat?: { open: boolean; commands?: unknown[] } } = {}) {
+function setup(over: { elsewhere?: string[]; reportAnswer?: Record<string, unknown>; jobs?: unknown[]; enabled?: boolean; busy?: boolean; listError?: number; tabOpen?: boolean; beat?: { open: boolean; commands?: unknown[] } } = {}) {
   const storage = new MemoryStorage();
   storage.data.token = TOKEN;
   const opened: string[] = [];
@@ -42,11 +42,11 @@ function setup(over: { jobs?: unknown[]; enabled?: boolean; busy?: boolean; list
       fillJobs: async (_t: string, query?: { scOpen?: boolean; ack?: string }) => {
         if (over.listError) throw new GatewayError(over.listError, "x");
         if (query && (query.scOpen !== undefined || query.ack)) beats.push(query);
-        return { enabled: state.enabled, jobs: state.jobs, commands: over.beat?.commands ?? [] };
+        return { enabled: state.enabled, jobs: state.jobs, commands: over.beat?.commands ?? [], ...(over.elsewhere ? { leased_elsewhere: over.elsewhere } : {}) };
       },
       fillJobReport: async (_t: string, id: string, body: Record<string, unknown>) => {
         reports.push({ id, body });
-        return {};
+        return over.reportAnswer ?? {};
       },
     },
     now: () => clock.t,
@@ -145,6 +145,10 @@ describe("serving the job to the page", () => {
     expect(await s.jobs.jobFor("https://banhang.shopee.vn/portal/marketing/vouchers/new?usecase=2#juli-fill=" + JOB_ID, JOB_ID)).toEqual({ ok: false, reason: "wrong_page" });
     expect(await s.jobs.jobFor(`https://banhang.shopee.vn/portal/product/1#juli-fill=${JOB_ID}`, JOB_ID)).toEqual({ ok: false, reason: "wrong_page" });
     expect(await s.jobs.jobFor(url, "11111111-1111-4111-8111-111111111111")).toEqual({ ok: false, reason: "unknown_job" });
+    // E130: a job another computer holds is named by the server, so this computer says so (a gone job keeps the old answer)
+    const other = setup({ jobs: [], elsewhere: [JOB_ID] });
+    expect(await other.jobs.jobFor(url, JOB_ID)).toEqual({ ok: false, reason: "leased_elsewhere" });
+    expect(await other.jobs.jobFor(url, "11111111-1111-4111-8111-111111111111")).toEqual({ ok: false, reason: "unknown_job" });
     expect(await s.jobs.jobFor(undefined, JOB_ID)).toEqual({ ok: false, reason: "wrong_page" });
   });
 
@@ -283,5 +287,15 @@ describe("heartbeat and the reconcile command (0.3.18)", () => {
     const s = setup({ beat: { open: true, commands: [{ type: "wipe", id: "x" }, { type: "reconcile" }] } });
     await s.jobs.poll();
     expect(s.reconciled).toEqual([]);
+  });
+});
+
+describe("E149 the answer to a save report", () => {
+  it("returns whether Juli recorded the card's Đã làm itself", async () => {
+    const done = setup({ reportAnswer: { card_done: true } });
+    expect(await done.jobs.report(JOB_ID, "saved")).toEqual({ cardDone: true });
+    const open = setup({ reportAnswer: { card_done: false } });
+    expect(await open.jobs.report(JOB_ID, "saved")).toEqual({ cardDone: false });
+    expect(await setup().jobs.report(JOB_ID, "saved")).toBeUndefined();
   });
 });

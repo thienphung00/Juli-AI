@@ -167,6 +167,23 @@ async def test_two_computers_never_get_the_same_job(owner_engine, computers):
     assert holder == second
 
 
+async def test_the_non_holder_is_told_the_job_is_leased_elsewhere(owner_engine, computers):
+    """E130: the holder's job is withheld from the other computer's list but named in
+    ``leased_elsewhere``, so its page says "another computer is filling this", not "gone"."""
+    a, _, first, second, _ = computers
+    with owner_engine.begin() as conn:
+        job_id = _job(conn, a.shop_id)
+    now = _now()
+    async with juli_app_session() as session:
+        async with with_shop_scope(session, a.shop_id):
+            await fill_queue.jobs_for_shop(session, a.shop_id, token_id=first, now=now)
+            theirs = await fill_queue.leased_elsewhere_ids(session, a.shop_id, second, now=now)
+            mine = await fill_queue.leased_elsewhere_ids(session, a.shop_id, first, now=now)
+        await session.commit()
+    assert str(job_id) in theirs
+    assert str(job_id) not in mine
+
+
 async def test_a_concurrent_poll_skips_the_rows_being_claimed(owner_engine, computers):
     """While one poll's transaction holds the claim, the other returns at once without them."""
     a, _, first, second, _ = computers

@@ -137,7 +137,10 @@ async def readback_result(
 
 def view(j: ShopeeFillJob, result: dict[str, Any], executed: bool = False) -> dict[str, Any]:
     role = role_of(j)
-    unread = fill_queue.saved_only(j) and (executed or j.status in (STATUS_SAVED, STATUS_CAPTURED))
+    # E148: `executed` is the card's forward save. An undo / read-back job counts as saved only on
+    # its own status, else an open undo shows "saved" while the object still exists.
+    own_saved = j.status in (STATUS_SAVED, STATUS_CAPTURED)
+    unread = fill_queue.saved_only(j) and (own_saved or (executed and role == ROLE_FORWARD))
     filled, total = _progress(j)
     return {
         "job_id": str(j.id),
