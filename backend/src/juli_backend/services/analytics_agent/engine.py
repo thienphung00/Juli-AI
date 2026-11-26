@@ -760,7 +760,7 @@ async def _answer_inner(
             chains=[chain],
             data=data,
             engine=engine,
-            jev=jev,
+            jev=None if template else jev,  # a template answers without the router (#112)
             labels=labels,
             as_of=as_of,
             template=template,

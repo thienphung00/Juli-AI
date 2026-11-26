@@ -5223,9 +5223,7 @@
      "unsupported",
      "error"
     ]
-   },
-   "status": "xfail",
-   "reason": "Session A #1-5: the template improve_margin needs the router: its card stage asks Jev (kind / actionable), so with Jev down the run raises JevUnavailable (prod: router_unavailable)"
+   }
   },
   {
    "id": "template-improve_conversion",
@@ -5279,9 +5277,7 @@
      "unsupported",
      "error"
     ]
-   },
-   "status": "xfail",
-   "reason": "Session A #1-5: the template reduce_cost needs the router: its card stage asks Jev (kind / actionable), so with Jev down the run raises JevUnavailable (prod: router_unavailable)"
+   }
   },
   {
    "id": "template-increase_visibility",

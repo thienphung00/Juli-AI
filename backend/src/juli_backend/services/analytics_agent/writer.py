@@ -215,6 +215,10 @@ def template_text(first_line: str, chain_json: dict[str, Any], labels: LabelTabl
     head = chain_json["findings"][0] if chain_json["findings"] else {}
     prod = chain_json.get("product") or {}
     who = f" · {prod.get('name') or prod['item_id']}" if prod.get("item_id") else ""
+    if chain_json.get("stop_reason") == "data_missing":  # the head is a coverage check, no figure
+        return "\n".join(
+            [first_line, f"Kỳ: {chain_json['window']['label_vi']}. Chưa đủ dữ liệu để so sánh."]
+        )
     parts = [
         first_line,
         f"Kỳ: {chain_json['window']['label_vi']}. {head.get('node_vi', labels.metric(m))}{who}: "

@@ -1,7 +1,7 @@
 {
  "bank": {
   "count": 192,
-  "passing": 141,
+  "passing": 143,
   "cases": {
    "gmv-yesterday": "f5ea1d11780cc28e",
    "gmv-yesterday-noaccent": "0edab8310a0aa3e5",
@@ -152,11 +152,11 @@
    "template-improve_gmv": "33b0bf953e070c77",
    "sa-template-improve_gmv-router-down": "12195726a16d06e6",
    "template-improve_margin": "e42551e8403fcaec",
-   "sa-template-improve_margin-router-down": "93254ed4da8d83f2",
+   "sa-template-improve_margin-router-down": "241eba5147001f74",
    "template-improve_conversion": "c8cb5188a313d2e6",
    "sa-template-improve_conversion-router-down": "1474b6e25e459815",
    "template-reduce_cost": "5a0c108bef4ef1f6",
-   "sa-template-reduce_cost-router-down": "4944a54aca5f8f54",
+   "sa-template-reduce_cost-router-down": "dae0dab02d912f6f",
    "template-increase_visibility": "7f3bdbea3d4e74be",
    "sa-template-increase_visibility-router-down": "fb6f4c3cb0053c16",
    "sa13-create-voucher-two-days": "397750f63bd100cf",
