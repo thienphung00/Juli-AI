@@ -131,6 +131,8 @@ def uplift_in_month(
             continue
         if not own.get("delta"):  # not estimable: no Δ, left out here as in the plan's total (K3)
             continue
+        if (c.get("result") or {}).get("replaced_by"):  # not counted in the plan (#47, A2.2)
+            continue
         d = own["dates"]
         n = _days_in(date.fromisoformat(d["from"]), date.fromisoformat(d["to"]), first, last)
         if n == 0:
@@ -140,8 +142,12 @@ def uplift_in_month(
         # one plan card counts once however many of its versions / parts run (K2)
         cid = c.get("card_id")
         counted.add(id(c) if cid is None else str(cid).split("@v", 1)[0].split("#", 1)[0])
+        # P4: an ads card's own Δ holds its full cost; the plan counts its share of the campaign
+        # (``own.cost_counted_share``), so the goal equals the plan total
+        share = own.get("cost_counted_share")
+        cost_back = 0.0 if share is None else float(own.get("cost_total") or 0.0) * (1 - share)
         gmv += (p50.get("dgmv") or 0.0) * k
-        profit += (p50.get("dprofit") or 0.0) * k
+        profit += ((p50.get("dprofit") or 0.0) + cost_back) * k
     return gmv, profit, len(counted)
 
 

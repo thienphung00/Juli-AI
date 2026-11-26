@@ -152,13 +152,13 @@ applies it on the VPS, then tags with nothing pending.
 
 The drop is `RESTRICT` (no `CASCADE`) with a 10 s `lock_timeout`: if anything outside the repo
 (a saved query, a BI view) depends on a view, or a query holds a lock on one, the migration fails
-and the database stays at 138. No code that is deployed reads the old names (audit 2026-11-19), so
+and the database stays at 140. No code that is deployed reads the old names (audit 2026-11-19), so
 the app keeps working during the window. Forward fix only, as for 134: the downgrade recreates
 the views, but it is for tests and emergencies, not part of a rollback.
 
 ### Before the window
 
-- Prod is at `138_juli_agent_spend` (134, 137 and 138 applied).
+- Prod is at `140_data_layer_facts_opps` (134 and 137–140 applied; 136 was rebuilt on 140 on 2026-11-26).
 - The batch that carries 136 is merged into `fasttrack/optimize-product`, and
   `fasttrack/gate_status.py` prints VALID for its merge sha (the GitHub gate ran
   `tests/integration/test_t5_canonical_tables_db.py`, including the 136 down / up test).
@@ -188,7 +188,7 @@ the views, but it is for tests and emergencies, not part of a rollback.
 
    The sha printed must be the one `gate_status.py` called VALID.
 
-3. Load the environment and check that the current revision is 138 and the code's head is 136.
+3. Load the environment and check that the current revision is 140 and the code's head is 136.
 
    ```bash
    set -a; . /etc/juli/api.env; set +a
@@ -196,7 +196,7 @@ the views, but it is for tests and emergencies, not part of a rollback.
    PYTHONPATH=/root/Juli-AI-v2/infra/scripts:/root/Juli-AI-v2/backend/src /root/releases/current/.venv/bin/python /root/Juli-AI-v2/infra/scripts/safe_alembic_helpers.py head-revision --alembic-ini /root/Juli-AI-v2/alembic.ini
    ```
 
-   Expect `138_juli_agent_spend`, then `136_drop_t5_compat_views`. Stop if either differs: the
+   Expect `140_data_layer_facts_opps`, then `136_drop_t5_compat_views`. Stop if either differs: the
    chain moved and the batch needs a re-chain.
 
 4. Before: count the rows of the seven tables and check that the seven views are there.
@@ -252,7 +252,7 @@ the views, but it is for tests and emergencies, not part of a rollback.
 
 ### If step 5 fails
 
-The migration runs in one transaction, so the database stays at 138 with the views in place.
+The migration runs in one transaction, so the database stays at 140 with the views in place.
 `DependentObjectsStillExist` names the object that depends on a view: report it and do not
 remove it without the owner. `LockNotAvailable` means a query held a lock past 10 s: re-run step
 5. In both cases restart the workers (step 8 without the tag) and do not tag.

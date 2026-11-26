@@ -64,6 +64,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import IngestDatasetStatus
 from juli_backend.services.metrics.registry import (
+    METRICS,
     REASON_SOURCE_BREAKDOWN_MISSING,
     Platform,
     counts_in_total,
@@ -84,6 +85,12 @@ from juli_backend.services.shopee_builder.engine.contract import (
     SourceFunnel,
 )
 from juli_backend.services.shopee_profit import shop_profit
+from juli_backend.services.shopee_profit.ladder import (
+    Ladder,
+    affiliate_cost,
+    covered,
+    ladder_of,
+)
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 
 LOG = logging.getLogger(__name__)
@@ -662,16 +669,6 @@ async def _load(
     return ctx, view, window
 
 
-def _affiliate_cost(view: PeriodView, product_id: str | None) -> Decimal | None:
-    lines = [
-        ln
-        for ln, _ in view.pairs
-        if ln.affiliate and (product_id is None or ln.product_id == product_id)
-    ]
-    known = [ln.commission for ln in lines if ln.commission is not None]
-    return sum(known, Decimal(0)) if known else None
-
-
 def _product_ads(
     view: PeriodView, product_id: str | None, ads_known: bool
 ) -> dict[str, Decimal] | None:
@@ -685,7 +682,7 @@ def _product_ads(
 
 def _product_affiliate(view: PeriodView, product_id: str | None) -> dict[str, Decimal] | None:
     """The product's Tiếp thị liên kết GMV and orders from the order lines (the lines
-    :func:`_affiliate_cost` reads), for a product whose funnel rows have no such source."""
+    the affiliate lines of the cost), for a product whose funnel rows have no such source."""
     if product_id is None:
         return None
     lines = [
@@ -702,13 +699,182 @@ def _product_affiliate(view: PeriodView, product_id: str | None) -> dict[str, De
 
 
 def _offers_cost(view: PeriodView, product_id: str | None) -> Decimal | None:
-    """Ưu đãi: the voucher + Chương Trình Của Shop (khuyến mãi / flash sale) + combo / Deal Sốc
-    discounts of the window's order lines -- the same three the profit computation takes off
-    (``five_numbers``: promo + voucher + combo). ``None`` without order lines."""
+    """Ưu đãi, one combined cost (#46): Chương Trình Của Shop (khuyến mãi / flash sale) + combo /
+    Deal Sốc + the shop voucher the SELLER bore (settlement ``seller_voucher_borne``, never the
+    buyer-side voucher share; ``ProfitBreakdown.offer_cost``). ``None`` without order lines."""
     pairs = [(ln, pb) for ln, pb in view.pairs if product_id is None or ln.product_id == product_id]
     if not pairs:
         return None
-    return sum((pb.promo_discount + pb.voucher + pb.bundle for _, pb in pairs), Decimal(0))
+    return sum((pb.offer_cost for _, pb in pairs), Decimal(0))
+
+
+ZERO_D = Decimal(0)
+
+
+# -- P7 (#42 / #46 / #49): the profit split Organic / Quảng cáo / TTLK ---------------------------
+
+#: the split's columns (registry ids where one exists); every one adds up over the channels
+SPLIT_COLUMNS = (
+    "gmv", "orders", "net_revenue", "cost_offers", "contribution", "cost_ads", "cost_affiliate",
+    "profit",
+)  # fmt: skip
+SPLIT_CHANNELS = ("organic", "ads", "affiliate")
+#: the shop's remainder no product owns: ads of no product, other marketing (its own row)
+UNATTRIBUTED = "unattributed"
+
+
+def _zero_row() -> dict[str, Decimal]:
+    return dict.fromkeys(SPLIT_COLUMNS, ZERO_D)
+
+
+def _sums(pairs: Sequence[tuple[Any, Any]]) -> dict[str, Decimal]:
+    """GMV and đơn of the sale lines; doanh thu thực and Lợi nhuận đóng góp of the covered lines
+    (every cost known); Ưu đãi (the combined seller cost, ``ProfitBreakdown.offer_cost``) of all
+    lines; the affiliate commission of the covered lines."""
+    sale = [ln for ln, _ in pairs if counts_in_sales(ln)]
+    known = [pb for _, pb in pairs if covered(pb)]
+    return {
+        "gmv": sum((ln.order_value for ln in sale), ZERO_D),
+        "orders": Decimal(len({ln.order_id for ln in sale})),
+        "net_revenue": sum((pb.revenue for pb in known), ZERO_D),
+        "cost_offers": sum((pb.offer_cost for _, pb in pairs), ZERO_D),
+        "contribution": sum((pb.organic_contribution or ZERO_D for pb in known), ZERO_D),
+        "cost_affiliate": affiliate_cost(pairs) or ZERO_D,
+    }
+
+
+def split_scope(
+    pairs: Sequence[tuple[Any, Any]], *, ads_gmv: Decimal | None, ads_spend: Decimal | None
+) -> dict[str, dict[str, Decimal]]:
+    """One scope (a product, or lines no product owns) split into Organic / Quảng cáo / TTLK
+    (owner decision #49):
+
+    - TTLK = the affiliate lines, exactly (their GMV, đơn, doanh thu thực, Ưu đãi, đóng góp,
+      commission).
+    - The rest (N): s = min(1, GMV_QC ÷ GMV_N), GMV_QC = the ads report's GMV of the scope (the M
+      rule); Quảng cáo = s x each of N's columns (GMV, đơn, doanh thu thực, Ưu đãi, đóng góp)
+      plus the scope's ads spend; Organic = N − Quảng cáo. No ads report row: s = 0.
+    - Lợi nhuận ròng of a channel = its đóng góp − its QC − its AFF.
+    Every column adds up to the scope's total exactly."""
+    aff = _sums([(ln, pb) for ln, pb in pairs if ln.affiliate])
+    rest = _sums([(ln, pb) for ln, pb in pairs if not ln.affiliate])
+    s = ZERO_D
+    if ads_gmv is not None and ads_gmv > 0 and rest["gmv"] > 0:
+        s = min(Decimal(1), ads_gmv / rest["gmv"])
+    ads = {k: v * s for k, v in rest.items() if k != "cost_affiliate"}
+    organic = {k: rest[k] - ads[k] for k in ads}
+    out = {
+        "organic": {**_zero_row(), **organic},
+        "ads": {**_zero_row(), **ads, "cost_ads": ads_spend or ZERO_D},
+        "affiliate": {**_zero_row(), **aff},
+    }
+    # an affiliate line's commission is TTLK's cost; a non-affiliate line carries none
+    out["organic"]["cost_affiliate"] = ZERO_D
+    out["ads"]["cost_affiliate"] = ZERO_D
+    for row in out.values():
+        row["profit"] = row["contribution"] - row["cost_ads"] - row["cost_affiliate"]
+    return out
+
+
+def _add_rows(a: dict[str, Decimal], b: Mapping[str, Decimal]) -> dict[str, Decimal]:
+    return {k: a[k] + b.get(k, ZERO_D) for k in SPLIT_COLUMNS}
+
+
+def has_profit(platform: str) -> bool:
+    """Does ``platform`` have Lợi nhuận ròng at all (a registry source)? D23: a platform
+    without one gets ``profit_split`` ``None``, never a split of zeros."""
+    return platform in METRICS["profit"].sources
+
+
+def _reconcile_to_kpi(
+    rows: dict[str, dict[str, Decimal]],
+    pairs: Sequence[tuple[Any, Any]],
+    kpi_gmv: Decimal | None,
+    kpi_orders: Decimal | None,
+) -> None:
+    """Decision #55 Q1: the GMV and đơn columns add up to the Tổng quan KPI totals. TTLK = the
+    affiliate sale lines (đơn deduplicated per order); Quảng cáo = the ads-report share of the
+    rest (``rows['ads']``, the M rule, as built per product); both capped by
+    :func:`partition_channels`; Organic = the KPI total minus them. Profit columns are untouched
+    (line based). A KPI total that is ``None`` leaves that column on the lines."""
+    sale = [(ln, pb) for ln, pb in pairs if counts_in_sales(ln)]
+    aff = [ln for ln, _ in sale if ln.affiliate]
+    rest = [ln for ln, _ in sale if not ln.affiliate]
+    aff_gmv = sum((ln.order_value for ln in aff), ZERO_D)
+    aff_orders = Decimal(len({ln.order_id for ln in aff}))
+    rest_gmv = sum((ln.order_value for ln in rest), ZERO_D)
+    rest_orders = Decimal(len({ln.order_id for ln in rest}))
+    share = ZERO_D if rest_gmv <= 0 else min(Decimal(1), rows["ads"]["gmv"] / rest_gmv)
+    ads_gmv = rows["ads"]["gmv"]
+    ads_orders = (rest_orders * share).to_integral_value()
+    for col, total, ads, a in (
+        ("gmv", kpi_gmv, ads_gmv, aff_gmv),
+        ("orders", kpi_orders, ads_orders, aff_orders),
+    ):
+        if total is None:
+            continue
+        ads_part, aff_part, organic = partition_channels(total, ads, a)
+        rows["ads"][col] = ads_part or ZERO_D
+        rows["affiliate"][col] = aff_part or ZERO_D
+        rows["organic"][col] = organic or ZERO_D
+
+
+def profit_split(
+    view: PeriodView,
+    product_id: str | None = None,
+    *,
+    kpi_gmv: Decimal | None = None,
+    kpi_orders: Decimal | None = None,
+) -> dict[str, Any]:
+    """Tổng quan's Organic / Quảng cáo / TTLK split (P7) of the shop or one product.
+
+    Product level: :func:`split_scope` on its lines, its ads report GMV (direct, else broad) and
+    its ad cost (``ProductProfit.ad_spend``, the M rule). Shop level: the SUM of every product's
+    split (so Σ products = shop per channel) plus the ``unattributed`` row -- the ads no product
+    owns (total campaign spend − the products' ad cost) and the other marketing costs -- stated
+    as its own row, never dropped. ``total`` = the rows' sum. With ``kpi_gmv`` / ``kpi_orders``
+    (the Tổng quan KPI totals of the same scope) the GMV and đơn columns are reconciled to them
+    (:func:`_reconcile_to_kpi`)."""
+    by_product: dict[str, list[tuple[Any, Any]]] = {}
+    for ln, pb in view.pairs:
+        if product_id is None or ln.product_id == product_id:
+            by_product.setdefault(ln.product_id, []).append((ln, pb))
+    if product_id is not None and product_id not in by_product:
+        by_product[product_id] = []
+    rows = {ch: _zero_row() for ch in SPLIT_CHANNELS}
+    claimed = ZERO_D
+    for pid, pairs in sorted(by_product.items()):
+        fig = view.ads.product_figures.get(pid)
+        gmv = None if fig is None else (fig.direct_gmv if fig.direct_gmv is not None else fig.gmv)
+        pp = view.profit.products.get(pid)
+        spend = None if pp is None else pp.ad_spend
+        claimed += spend or ZERO_D
+        for ch, row in split_scope(pairs, ads_gmv=gmv, ads_spend=spend).items():
+            rows[ch] = _add_rows(rows[ch], row)
+    if kpi_gmv is not None or kpi_orders is not None:
+        scope = [p for p in view.pairs if product_id is None or p[0].product_id == product_id]
+        _reconcile_to_kpi(rows, scope, kpi_gmv, kpi_orders)
+    unattributed = _zero_row()
+    if product_id is None:
+        ads_rest = view.profit.total_ad_spend - claimed
+        other = view.profit.other_marketing_costs
+        unattributed["cost_ads"] = ads_rest
+        unattributed["profit"] = -ads_rest - other
+        unattributed["other_marketing"] = other
+    total = _zero_row()
+    for row in (*rows.values(), unattributed):
+        total = _add_rows(total, row)
+
+    def js(row: Mapping[str, Decimal]) -> dict[str, Any]:
+        return {k: num(v) for k, v in row.items()}
+
+    return {
+        "level": "shop" if product_id is None else "product",
+        "columns": list(SPLIT_COLUMNS),
+        "rows": {ch: js(r) for ch, r in rows.items()},
+        UNATTRIBUTED: None if product_id is not None else js(unattributed),
+        "total": js(total),
+    }
 
 
 def kpis_of(
@@ -718,22 +884,40 @@ def kpis_of(
     cost_ads: Decimal | None,
     cost_affiliate: Decimal | None,
     cost_offers: Decimal | None,
+    ladder: Ladder | None = None,
 ) -> dict[str, Any]:
-    """Tổng quan's KPIs: Tổng chi phí = Quảng cáo (ads report) + Tiếp thị liên kết + Ưu đãi (the
-    known ones; ``None`` when none is known); ROI = Lợi nhuận ÷ Tổng chi phí (``None`` when the
-    cost is 0 or unknown)."""
-    total = _sum([cost_ads, cost_affiliate, cost_offers])
-    roi = None if profit is None else _div(profit, total)
-    return {
+    """Tổng quan's KPIs (decision #44). ``cost_marketing`` = Quảng cáo (ads report) + Tiếp thị
+    liên kết + Ưu đãi (the known ones; ``None`` when none is known). With the scope's ``ladder``
+    (the registry's ladder on its covered lines): Lợi nhuận gộp / đóng góp, the three margins,
+    ``cost_total`` = Tổng chi phí (giá vốn + đóng gói + phí + vận chuyển + QC + AFF + Ưu đãi +
+    khác) and ROI = Lợi nhuận ròng ÷ Tổng chi phí. No ladder: ``cost_total`` / ROI are ``None``
+    (never ÷ the marketing costs)."""
+    marketing = _sum([cost_ads, cost_affiliate, cost_offers])
+
+    def lv(mid: str) -> Decimal | None:
+        return None if ladder is None else ladder.get(mid)
+
+    total = lv("cost_total")
+    roi = None if profit is None or total is None else _div(profit, total)
+    out = {
         "gmv": num(gmv),
         "orders": num(orders),
         "profit": num(profit),
         "cost_total": num(total),
+        "cost_marketing": num(marketing),
         "cost_ads": num(cost_ads),
         "cost_affiliate": num(cost_affiliate),
         "cost_offers": num(cost_offers),
         "roi": frac(roi, 4),
     }
+    for mid in ("cost_cogs", "cost_packaging", "cost_fees", "cost_shipping", "cost_other"):
+        out[mid] = num(lv(mid))
+    for mid in ("gross_profit", "contribution"):
+        out[mid] = num(lv(mid))
+    for mid in ("margin_gross", "margin_contribution", "margin"):
+        v = lv(mid)
+        out[f"{mid}_pct"] = None if v is None else float(v * 100)
+    return out
 
 
 def _kpis(
@@ -743,17 +927,26 @@ def _kpis(
     if product_id is None:
         profit = shop_profit_of(view).profit
         ads_cost: Decimal | None = view.profit.total_ad_spend
+        other: Decimal | None = view.profit.other_marketing_costs
     else:
         pp = view.profit.products.get(product_id)
         profit = None if pp is None else pp.profit
         ads_cost = None if pp is None else pp.ad_spend
+        other = ZERO_D
+    pairs = [(ln, pb) for ln, pb in view.pairs if product_id is None or ln.product_id == product_id]
+    ladder = (
+        ladder_of(pairs, ads_spend=ads_cost, other_marketing=other, profit=profit)
+        if pairs
+        else None
+    )
     return kpis_of(
         base.total("gmv"),
         base.total("orders"),
         profit,
         ads_cost,
-        _affiliate_cost(view, product_id),
+        affiliate_cost(pairs),
         _offers_cost(view, product_id),
+        ladder,
     )
 
 
@@ -848,7 +1041,23 @@ async def split_figures(
     """``{"rows", "kpis"}`` of ``channel_split`` for a view the caller already loaded (no second
     read of the window, no previous period, no plan block): what a per-product loop needs."""
     body_rows, kpis = await _figures(session, shop_id, view, window, product_id, platform)
-    return {"rows": body_rows, "kpis": kpis}
+    split = _split_of(view, product_id, kpis, platform)
+    return {"rows": body_rows, "kpis": kpis, "profit_split": split}
+
+
+def _split_of(
+    view: PeriodView, product_id: str | None, kpis: Mapping[str, Any], platform: str
+) -> dict[str, Any] | None:
+    """The profit split of a scope, its GMV / đơn reconciled to the scope's KPIs (#55 Q1)."""
+    if not has_profit(platform):
+        return None
+
+    def dec(v: Any) -> Decimal | None:
+        return None if v is None else Decimal(str(v))
+
+    return profit_split(
+        view, product_id, kpi_gmv=dec(kpis.get("gmv")), kpi_orders=dec(kpis.get("orders"))
+    )
 
 
 _CELLS = ("views", "clicks", "ctr", "ctor", "aov", "gmv", "orders")
@@ -922,6 +1131,9 @@ async def channel_split(
         "kpis": kpis,
         "kpis_prev": prev_kpis,
         "plan": plan,
+        # P7 (#42 / #49): Organic / Quảng cáo / TTLK of GMV, đơn, doanh thu thực, Ưu đãi, đóng góp,
+        # QC, AFF and lợi nhuận ròng; None where the platform has no profit (D23)
+        "profit_split": _split_of(view, product_id, kpis, platform),
     }
 
 

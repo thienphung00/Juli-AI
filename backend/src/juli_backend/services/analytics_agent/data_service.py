@@ -44,8 +44,16 @@ def merge_campaigns(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
         gid = " ".join(str(r["name"]).casefold().split()) or str(r["key"])
         g = groups.setdefault(
             gid,
-            {"keys": [], "spend": Decimal(0), "gmv": Decimal(0), "before_ads": Decimal(0)},
+            {
+                "keys": [],
+                "spend": Decimal(0),
+                "gmv": Decimal(0),
+                "before_ads": Decimal(0),
+                "items": {},
+            },
         )
+        for item, sp in (r.get("items") or {}).items():
+            g["items"][item] = g["items"].get(item, Decimal(0)) + Decimal(str(sp))
         g["keys"].append(r["key"])
         g["name"] = r["name"]
         g["spend"] += Decimal(str(r["spend"]))
@@ -69,9 +77,37 @@ def merge_campaigns(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "roas": roas_direct(g["gmv"], g["spend"]),
                 "break_even": roas_break_even(g["gmv"], before) if before is not None else None,
                 "profit_after_ads": None if before is None else before - g["spend"],
+                # the products the campaign spends on, biggest spend first (ads report by product)
+                "items": sorted(g["items"], key=lambda k: -g["items"][k])[:5],
             }
         )
     return out
+
+
+SHOP_SCOPE_VI = "cả shop"
+
+
+def apply_shop_break_even(rows: list[dict[str, Any]], shop_be: Any) -> list[dict[str, Any]]:
+    """A campaign whose own ROAS hoà vốn is unknown takes the shop's (the same figure as Tổng quan)
+    and says so: `break_even_scope` = "cả shop". The campaign's own value is never replaced."""
+    if shop_be is None:
+        return rows
+    for r in rows:
+        if r.get("break_even") is None:
+            r["break_even"] = float(shop_be)
+            r["break_even_scope"] = SHOP_SCOPE_VI
+    return rows
+
+
+def _product_break_even(p: Any) -> dict[str, Any]:
+    """The product's contribution before ads and ROAS hoà vốn, as the cards show them
+    (`ProductProfit.contribution` / `.break_even_roas`)."""
+    from juli_backend.services.shopee_analytics.fmt import ratio
+
+    return {
+        "contribution_before_ads": p.contribution,
+        "break_even_roas": ratio(p.break_even_roas, 2),
+    }
 
 
 class ServiceData:
@@ -125,8 +161,8 @@ class ServiceData:
         pr = {
             r["day"]: r
             for r in await self._q(
-                """select day, sum(gmv) gmv, sum(orders) orders, sum(units) units from
-                product_metrics_daily
+                """select day, sum(gmv) gmv, sum(orders) orders, sum(units) units,
+                sum(ads_spend) ads_spend, count(ads_spend) n_ads from product_metrics_daily
                 where shop_id = :s and order_type = 'confirmed' and item_id = :i and day <= :e
                 group by day""",
                 e=end,
@@ -155,7 +191,8 @@ class ServiceData:
                     "units": (p_ or {}).get("units") or 0,
                     "views": t_["views"] if t_ and t_["n"] else None,
                     "clicks": t_["clicks"] if t_ and t_["n"] else None,
-                    "ads_spend": None,
+                    # decision #39: the product's own ad cost (NULL = no basis, never 0)
+                    "ads_spend": (p_ or {}).get("ads_spend") if (p_ or {}).get("n_ads") else None,
                     "ads_gmv": None,
                 }
             )
@@ -237,17 +274,19 @@ class ServiceData:
         return await self._q(
             """select item_id, read_at::date as day, min(available) as min_available,
                       string_agg(distinct listing_status, ',') as statuses
-                 from stock_history where shop_id = :s and read_at::date between :a and :b
+                 from stock_history where shop_id = :s
+                  and read_at >= cast(:a as date) and read_at < cast(:b as date) + 1
                 group by item_id, read_at::date""",
             a=a,
             b=b,
         )
 
     async def open_cards(self) -> list[dict[str, Any]]:
-        """Open cards plus executed ones within 28 days (G4)."""
+        """Open cards plus executed ones within 28 days (G4). `kind` is the stored (coarse) proposal
+        kind ("ads", "other", ...); `change_kind` is the card's own kind id (ads_budget, ...)."""
         return await self._q(
-            """select kind, item_id, status, planned_start, subject_label, change_after::text as
-            change_after,
+            """select kind, change_after->>'change_kind' as change_kind, item_id, status,
+                      planned_start, subject_label, change_after::text as change_after,
                       code
                  from shop_proposals
                 where shop_id = :s and platform = 'shopee'
@@ -440,7 +479,31 @@ class ServiceData:
                     "margin_pct": p.margin_pct,
                     "coverage_pct": p.cost_coverage_pct,
                     "gmv": p.gmv,
+                    **_product_break_even(p),
                 }
+            finally:
+                await s.rollback()
+
+    async def product_profit_rows(self, a: date, b: date) -> list[dict[str, Any]]:
+        """Every product's profit after ads, contribution before ads and ROAS hoà vốn: the
+        shared `ProductProfit` rows the cards and Phân tích read (`RecoEnv.product`)."""
+        async with self._f() as s:
+            try:
+                env = await self._reco_env(s, a, b)
+                if env is None:
+                    return []
+                return [
+                    {
+                        "item_id": item,
+                        "name": env.name(item),
+                        "profit": p.profit,
+                        "ad_spend": p.ad_spend,
+                        "margin_pct": p.margin_pct,
+                        "gmv": p.gmv,
+                        **_product_break_even(p),
+                    }
+                    for item, p in env.view.profit.products.items()
+                ]
             finally:
                 await s.rollback()
 
@@ -450,6 +513,7 @@ class ServiceData:
         vốn come from the metric registry. One row per campaign (`merge_campaigns`)."""
         from decimal import Decimal
 
+        from juli_backend.services.shopee_analytics.fmt import ratio
         from juli_backend.services.shopee_recommendations.evaluate import campaign_profile
 
         raw: list[dict[str, Any]] = []
@@ -467,22 +531,25 @@ class ServiceData:
                         {
                             "key": c.key,
                             "name": c.name or c.key,
+                            "items": dict(c.products or {}),
                             "spend": c.spend,
                             "gmv": prof["direct_per_day"] * days,
-                            # NULL is not 0: no contribution rate = profit before ads unknown
+                            # NULL is not 0: no rate = unknown, but a segment with no direct GMV
+                            # contributes 0 before ads (it only spent)
                             "before_ads": prof["profit_before_ads_per_day"] * days
                             if prof["rate"] is not None
-                            else None,
+                            else (Decimal(0) if prof["direct_per_day"] <= 0 else None),
                         }
                     )
+                shop_be = ratio(env.view.profit.break_even_roas, 2)
             finally:
                 await s.rollback()
-        return merge_campaigns(raw)
+        return apply_shop_break_even(merge_campaigns(raw), shop_be)
 
     async def budget_days(self, a: date, b: date) -> list[dict[str, Any]]:
-        """Per day: the shop's ad spend and its summed daily budget (None when a campaign has no
-        budget limit that day). The ads report rows `ads_campaign_daily`, read through the
-        existing `PlatformDailyMetricsRepo`."""
+        """Per day: the shop's ad spend, its ad orders and its summed daily budget (None when a
+        campaign has no budget limit that day). The ads report rows `ads_campaign_daily`, read
+        through the existing `PlatformDailyMetricsRepo`."""
         from decimal import Decimal
 
         from juli_backend.repositories import PlatformDailyMetricsRepo
@@ -493,14 +560,17 @@ class ServiceData:
                 rows = await PlatformDailyMetricsRepo(s).window(
                     self.shop, datasets=[ADS_DAILY], start=a, end=b, any_item=True
                 )
-                plain = [(r.day, r.segment, dict(r.extra or {})) for r in rows]
+                plain = [(r.day, r.segment, dict(r.extra or {}), r.orders) for r in rows]
             finally:
                 await s.rollback()
         per: dict[date, dict[str, Any]] = {}
-        for day, seg, extra in plain:
+        for day, seg, extra, orders in plain:
             if seg == "all":
                 continue
-            d = per.setdefault(day, {"day": day, "spend": Decimal(0), "budget": Decimal(0)})
+            d = per.setdefault(
+                day, {"day": day, "spend": Decimal(0), "budget": Decimal(0), "ad_orders": 0.0}
+            )
+            d["ad_orders"] += float(orders or 0)
             d["spend"] += Decimal(str(extra.get("cost") or 0))
             bud = extra.get("daily_budget")
             d["budget"] = (

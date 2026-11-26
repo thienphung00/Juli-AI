@@ -137,14 +137,19 @@ describe("SKUs from the order page (C1)", () => {
       { variationName: "Đỏ, L", sku: "G600025", lineTotal: 64_000, qty: 1 },
     ];
     const rows = mapOrderLines([detailReply(withPageSkus(parentAnswer, pageLines))], NOW).rows;
-    expect(rows.map((r) => r.qty)).toEqual(pageLines.map((p) => p.qty));
+    // batch-1124-b CONN D4: the API's sub-line amounts (1, 1) are the quantities; the page's 2 is
+    // posted as extra.page_qty for the check
+    expect(rows.map((r) => r.qty)).toEqual([1, 1]);
+    expect(rows.map((r) => (r.extra as Record<string, unknown>).page_qty)).toEqual([2, undefined]);
     const total = (field: "deal_price" | "original_price") => rows.reduce((a, r) => a + Math.round((r[field] as number) * (r.qty as number) * 100), 0);
     expect(total("deal_price")).toBe(190_001 * 100);
-    expect(total("original_price")).toBe(200_001 * 100);
+    // owner Q4 (batch-1124-b CONN): a combo line's original price is its combo price (no seller subsidy)
+    expect(total("original_price")).toBe(190_001 * 100);
   });
 
-  it("a page line without a quantity: the combo is not split (nothing guessed)", () => {
-    expect(withPageSkus(comboAnswer(), [{ sku: "A", lineTotal: 1 }, { sku: "B", qty: 1 }])).toBeNull();
+  it("no quantity in the answer and none on the page: the combo is not split (nothing guessed)", () => {
+    const noAmount = trimOrderDetail({ code: 0, data: { order_id: 5005, order_sn: "261123EEEEEEEE", create_time: Math.floor(NOW / 1000), order_items: [{ amount: 1, order_price: "190000", bundle_deal_id: 77, item_list: [{ item_id: 1 }, { item_id: 2 }] }] } });
+    expect(withPageSkus(noAmount, [{ sku: "A", lineTotal: 1 }, { sku: "B", qty: 1 }])).toBeNull();
   });
 
   it("as many page lines as order lines: each SKU-less line takes its page line; else nothing is guessed", () => {
@@ -232,7 +237,8 @@ describe("a line the order page cannot name (0.3.32, verifier)", () => {
     const job = { id: "order_income" as const, orderIds: ["5001"], orderSns: [""], incomeFor: [false], fixBodies: [comboAnswer()], fixLast: [false] };
     const outcome = await runReaderJob(job, env);
     expect(outcome.responses).toEqual([]);
-    expect(outcome.detail).toBe("page_lines_unmatched");
+    // 0.3.34 C-H5: page lines vs the answer's lines (the combo parent + its 2 children)
+    expect(outcome.detail).toBe("page_lines_unmatched:page_3:answer_1+2");
   });
 
   it("the last read posts the lines as unresolved_item", async () => {

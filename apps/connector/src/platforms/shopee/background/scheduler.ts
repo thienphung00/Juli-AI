@@ -27,8 +27,10 @@ import {
   ORDER_INCOME_QUEUE_DAYS,
   ORDER_INCOME_QUEUE_MAX,
   ORDER_CATCHUP_FIRST_DAYS,
+  ORDER_BACKFILL_DAY_COST,
   ORDER_CATCHUP_MAX_DAYS,
   ORDER_CATCHUP_OVERLAP_DAYS,
+  ORDER_LINES_BACKFILL,
   ORDERS_JOB_TIMEOUT_MS,
   READER_KICK_DELAY_MINUTES,
   READER_KICK_RETRY_MINUTES,
@@ -125,6 +127,20 @@ export function ordersSinceDay(today: string, coveredDay: string | undefined): s
   const since = dayMinus(coveredDay, ORDER_CATCHUP_OVERLAP_DAYS);
   const floor = dayMinus(today, ORDER_CATCHUP_MAX_DAYS);
   return since < floor ? floor : since;
+}
+
+/**
+ * batch-1124-a S1 (owner decision #48): the day the orders job reads back to for the server's
+ * order_lines_backfill days, or undefined (no such day, or none within what the backfill's part of
+ * the budget affords this run: `room` / ORDER_BACKFILL_DAY_COST days back from today, at most
+ * ORDER_CATCHUP_MAX_DAYS). Only days older than the usual `sinceDay` extend the read.
+ */
+export function orderBackfillSinceDay(today: string, sinceDay: string, holes: Record<string, string[]> | undefined, room: number): string | undefined {
+  const days = [...(holes?.[ORDER_LINES_BACKFILL] ?? [])].sort();
+  const depth = Math.min(ORDER_CATCHUP_MAX_DAYS, Math.floor(Math.max(0, room) / ORDER_BACKFILL_DAY_COST));
+  if (days.length === 0 || depth <= 0) return undefined;
+  const floor = dayMinus(today, depth);
+  return days.find((day) => day >= floor && day < sinceDay && day < today);
 }
 
 /** What the scheduler tells Juli about a tick (0.3.19): metadata only, never a body. */
@@ -283,7 +299,11 @@ export function planJobs(args: {
       // The 30-day product table, once a day (one page open; at most PRODUCT_PERIOD_MAX_PAGES requests).
       if (args.productPeriodDay !== todayDay) todayJobs.push({ id });
     } else if (id === "orders") {
-      if (args.ordersDay !== todayDay) todayJobs.push({ id, sinceDay: ordersSinceDay(todayDay, args.ordersCoveredDay) });
+      if (args.ordersDay !== todayDay) {
+        const sinceDay = ordersSinceDay(todayDay, args.ordersCoveredDay);
+        const backfill = orderBackfillSinceDay(todayDay, sinceDay, args.holes, room);
+        todayJobs.push({ id, sinceDay: backfill ?? sinceDay, ...(backfill ? { orderBackfill: true } : {}) });
+      }
     } else if (id === "order_income") {
       if (args.incomeDay !== todayDay) todayJobs.push({ id });
     } else if (id === "affiliate_content") {
@@ -365,8 +385,9 @@ function zeroRows(job: "orders" | "order_income", outcome: string | undefined, n
  */
 export function jobOutcome(id: ReaderId, posted: Record<string, string>, summary: string, note: string, responses: ReaderResponse[] = []): string {
   if (id === "orders") {
-    if (note === "no_orders" || note === "no_new_orders") return "done:order_lines=empty";
     const lines = posted.order_lines;
+    // 0.3.34 (C-H2): "empty" = every line read was placed before the job's read window
+    if (note === "no_orders" || note === "no_new_orders" || lines === "empty") return "done:order_lines=empty";
     if (lines !== "posted" && lines !== "queued") return zeroRows("orders", lines, note, responses);
   }
   if (id === "order_income") {
@@ -375,7 +396,13 @@ export function jobOutcome(id: ReaderId, posted: Record<string, string>, summary
     const linesOnly = !responses.some((r) => r.endpoint === "order_income_components") && (posted.order_lines === "posted" || posted.order_lines === "queued");
     if (income !== "posted" && income !== "queued" && !linesOnly) return zeroRows("order_income", income, note, responses);
   }
-  return `${summary ? `done:${summary}` : "done"}${note ? `|${note}` : ""}`;
+  return `${summary ? `done:${summary}` : "done"}${note ? `|${note}` : ""}${refusalReasons(posted)}`;
+}
+
+/** 0.3.34 (C-H1): "|rejected:<code>" once per reason a post of the job was refused for. */
+function refusalReasons(posted: Record<string, string>): string {
+  const reasons = [...new Set(Object.values(posted).filter((v) => String(v).startsWith("rejected:")))];
+  return reasons.map((r) => `|${r}`).join("");
 }
 
 /** Outcomes that count as one failed reader run today (0.3.31); reread and skip reasons do not. */
@@ -1350,7 +1377,9 @@ export class ReaderScheduler {
       const skippedEntries =
         job.id === "ads" ? (job.days ?? []).reduce((sum, day) => sum + adsDayAnswer(responses, day).skipped, 0) : 0;
       const summary = [
-        ...Object.entries(posted).map(([key, outcome]) => `${key}=${outcome}`),
+        // 0.3.34 (C-H1): the summary keeps the plain head ("=rejected", what Juli's reader_status
+        // reads); the reason goes after it (jobOutcome)
+        ...Object.entries(posted).map(([key, outcome]) => `${key}=${String(outcome).split(":", 1)[0]}`),
         // Entries without a campaign id (GMV Max shop-level, totals) are counted, never drift.
         ...(skippedEntries > 0 ? [`ads_entries_skipped=${skippedEntries}`] : []),
       ].join(",");
@@ -1484,9 +1513,12 @@ export class ReaderScheduler {
       // 0.3.29 (F4.9): orders completed since the last income read that LANDED (not since the last run): a
       // page that could not be read for days no longer loses those orders. An install that never read
       // one looks back over the whole queue window.
-      const since =
+      const usual =
         sched.incomeReadAt ??
         (sched.incomeSince !== undefined ? now - ORDER_INCOME_QUEUE_DAYS * 86_400_000 : now - ORDER_INCOME_FIRST_RUN_DAYS * 86_400_000);
+      // batch-1124-a S1 (#48): a backfill read queues its completed orders' order page again (buyer
+      // vouchers), read before or not; the queue's own caps and daily maximum still apply
+      const since = job.orderBackfill && job.sinceDay ? Math.min(usual, gmt7DateStart(job.sinceDay) * 1000) : usual;
       const known = new Set((sched.incomeQueue ?? []).map((o) => o.id));
       const completed = completedOrders(responses);
       const doneIds = new Set(completed.map((o) => o.id));
@@ -1697,7 +1729,8 @@ export function outcomeRank(outcome: string): number {
       .split(",")
       .map((pair) => pair.split("=")[1] ?? "")
       .filter((v) => v && v !== "held");
-    if (results.some((v) => POST_REFUSED.has(v))) return 3;
+    // 0.3.34 (C-H1): a refusal carries its reason ("rejected:period_too_long"): ranked by its head
+    if (results.some((v) => POST_REFUSED.has(v.split(":", 1)[0] ?? v))) return 3;
     if (results.some((v) => POST_ACCEPTED.has(v))) return 0;
     return results.length > 0 && results.every((v) => POST_NOTHING.has(v)) ? 1 : 0;
   }

@@ -1,7 +1,7 @@
 """Drop the seven T5 compat views that migration 134 left under the old ``shopee_*`` names
 
 Revision ID: 136_drop_t5_compat_views
-Revises: 138_juli_agent_spend
+Revises: 140_data_layer_facts_opps
 Create Date: 2026-11-24
 
 Owner decision 2026-11-20 (batch shape + window decision #34). Migration 134 renamed the seven
@@ -10,7 +10,8 @@ name for one release (D4). That release is over: no runtime code reads the old n
 2026-11-19), so the views go.
 
 - Number 136 was claimed for this step; the revision chains after the head it found
-  (``138_juli_agent_spend``), not by number.
+  (``138_juli_agent_spend``), not by number; rebuilt on ``140_data_layer_facts_opps`` on
+  2026-11-26 after 139 and 140 shipped (owner #89, #106).
 - Upgrade: ``DROP VIEW IF EXISTS`` for each of the seven views, and nothing else. The tables,
   their rows, RLS, policies and grants are not touched. ``RESTRICT`` (the default, no
   ``CASCADE``): if an object outside the repo depends on a view, the drop fails and the whole
@@ -36,7 +37,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "136_drop_t5_compat_views"
-down_revision: str | None = "138_juli_agent_spend"
+down_revision: str | None = "140_data_layer_facts_opps"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

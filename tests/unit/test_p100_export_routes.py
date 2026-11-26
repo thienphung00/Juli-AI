@@ -19,7 +19,7 @@ PARAMS = {"period": "7d", "as_of": CUR_END.isoformat()}
 #: the product level has no "Lợi nhuận" sheet (the bridge is the shop's)
 TQ_PRODUCT_SHEETS = [
     tq.SHEET_OVERVIEW, tq.SHEET_CHANNEL, tq.SHEET_DAY, tq.SHEET_PRODUCT, tq.SHEET_SKU,
-    "Theo tháng", "KOC", "Phân tích & đề xuất",
+    "Theo tháng", "KOC", "Phân tích & đề xuất", "Ghi chú",
 ]  # fmt: skip
 TQ_SHEETS = [TQ_PRODUCT_SHEETS[0], tq.SHEET_PROFIT, *TQ_PRODUCT_SHEETS[1:]]
 

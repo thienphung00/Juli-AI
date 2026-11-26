@@ -37,7 +37,7 @@ import {
   answerCode,
 } from "../reader";
 import { moreOrderPagesIn, orderLinksIn, orderListEmptyIn } from "../order-dom";
-import { incomeItemsIn, pageItemsIn } from "../order-page-dom";
+import { buyerItemsIn, incomeItemsIn, pageItemsIn } from "../order-page-dom";
 import { contentEmptyIn } from "../content-dom";
 import { Pacer, pageRowCount, runDay, type DayRequest } from "../runner";
 import { type PlannedRequest, requestUrl } from "../sync";
@@ -504,6 +504,7 @@ async function runReader(job: ReaderJob): Promise<void> {
     moreOrderPages: () => moreOrderPagesIn(document),
     // The order page (0.3.32): its "Doanh thu" rows and product lines, as shown (never clicked)
     orderPageIncome: () => incomeItemsIn(document),
+    orderPageBuyer: () => buyerItemsIn(document),
     orderPageItems: () => pageItemsIn(document),
     // Phân tích Nội dung (0.3.32): its empty state, on its own page only
     contentEmptyVisible: () => location.pathname.includes("/content_analytics") && contentEmptyIn(document),

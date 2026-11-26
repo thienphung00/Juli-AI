@@ -76,6 +76,13 @@ GENERATED_TABLES = frozenset(
             "shop_metrics_daily",
             "product_metrics_daily",
             "source_metrics_daily",
+            # batch-1124-c-data: the stored facts and the engine's opportunities are built
+            # from the loaded data (materialize / the daily run), so a reload replaces them
+            "product_channel_metrics_daily",
+            "shop_channel_metrics_daily",
+            "shop_facts_status",
+            "campaign_metrics_daily",
+            "shopee_opportunities",
             "platform_promotions",
             "platform_product_flags",
             "platform_item_snapshots",

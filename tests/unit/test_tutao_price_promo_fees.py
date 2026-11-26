@@ -300,11 +300,10 @@ async def test_sample_shop_price_and_promotion_estimates_stay_within_their_bound
             ctx = await builder.build_context(
                 session, report.shop_id, list(specs.values()), as_of=END, now=NOW
             )
-            # the generator writes Phí Dịch Vụ = 7,9 % of the buyer-paid value with no breakdown;
-            # the learner takes Phí Dịch Vụ minus the 3.000đ hạ tầng (real Shopee files carry it
-            # inside Phí Dịch Vụ, and the formula has it as its own component), so the learned
-            # service part is (7,9 % x paid - 3.000) / paid over the shop's orders: 5,86 %
-            assert ctx.env.service_fee_rate == D("0.0586")
+            # batch 1123-e5: the generator states Phí Dịch Vụ = 7,9 % of the buyer-paid value plus
+            # hạ tầng, with hạ tầng (3.000đ) as its own line, like a real file; the learner takes
+            # Phí Dịch Vụ minus it, so 7,9 % (7,71 % over the pre-voucher price; was 5,86 %)
+            assert ctx.env.service_fee_rate == D("0.0771")
             out = {
                 name: integrate.evaluate(ctx, spec, str(report.shop_id))[0].result
                 for name, spec in specs.items()
@@ -319,20 +318,22 @@ async def test_sample_shop_price_and_promotion_estimates_stay_within_their_bound
     assert float(one.cost_total) < 619_500
     # F2 (2026-11-16): the base is the adaptive window per metric, not the fixed 30 days
     assert float(one.cost_total) == pytest.approx(
-        495_124, rel=0.02
-    )  # was 482_068 at a 7,9 % service fee: see the docstring
+        483_268, rel=0.02
+    )  # was 495_124 at 5,86 %: 1123-e5 hạ tầng now sits inside Phí Dịch Vụ, so the rate is 7,71 %
 
     # 2. +5 % on 105 units × 59.000đ = 309.750đ gross: the price effect can never exceed it
     parts = {p.key: float(p.amount) for p in price.build_up}
     assert 0 < parts["price"] < 309_750
     d_profit = float(price.likely.profit or 0) - float(price.before.profit or 0)
     assert d_profit < 309_750
-    assert d_profit == pytest.approx(
-        147_788, rel=0.02
-    )  # was 141_818 at 7,9 %: +5 % on 309.750đ pays 2,04 points less fee
+    # Track P (#42): the orders a higher price loses are valued at Lợi nhuận đóng góp (before
+    # ads and affiliate, one rate), more per order than the after-ads profit: 122_968 (was
+    # 151_884 on the after-ads basis; 147_788 after 1123-e5)
+    assert d_profit == pytest.approx(122_968, rel=0.02)
 
     # 3. a 2-hour slot on one day: 2/24 of the day's 3,6 orders get the −15 %
     assert flash.days == 1
     d_flash = float(flash.likely.profit or 0) - float(flash.before.profit or 0)
     assert -10_000 < d_flash < 0
-    assert d_flash == pytest.approx(-3_523, rel=0.05)
+    # Track P (#42): the slot's extra orders at Lợi nhuận đóng góp (was −3.523 after ads)
+    assert d_flash == pytest.approx(-3_131, rel=0.05)

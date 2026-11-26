@@ -52,6 +52,7 @@ from juli_backend.services.shopee_analytics.catalog import (
     build_catalog,
 )
 from juli_backend.services.shopee_analytics.engine import RawLine
+from juli_backend.services.shopee_analytics.product_ads import ProductAdsInput, ReportRow
 from juli_backend.services.shopee_analytics.rules_view import (
     RULE_KEYS_READ,
     ProfitRules,
@@ -349,6 +350,7 @@ async def load_income(
             seller_coin_borne=r.seller_coin_borne,
             trade_in_bonus_seller=r.trade_in_bonus_seller,
             payout=r.payout,
+            seller_voucher_borne=r.seller_voucher_borne,
         )
         for r in rows
     }
@@ -1540,3 +1542,64 @@ async def load_flow_series(
             v[3] - sp[3],
         )
     return {k: v for k, v in out.items() if v}
+
+
+#: how far outside the window the nearest report of a campaign is looked for (product_ads rule)
+PRODUCT_ADS_REACH_DAYS = 45
+
+
+async def load_product_ads_input(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window
+) -> ProductAdsInput:
+    """The inputs of the one product ad cost (:mod:`product_ads`): the Connector's campaign days
+    of the window and the ads report by product around it (the nearest report of a campaign may
+    sit outside the window)."""
+    daily = await PlatformDailyMetricsRepo(session).window(
+        shop_id,
+        datasets=["ads_campaign_daily"],
+        start=window.start,
+        end=window.end,
+        streams=["ads"],
+    )
+    chosen: dict[tuple[str, date], Any] = {}
+    covered: set[date] = set()
+    for r in daily:
+        covered.add(r.day)
+        if r.segment == "all":
+            continue
+        key = (r.segment, r.day)
+        if key not in chosen or r.order_type == PLACED:
+            chosen[key] = r
+    reach = timedelta(days=PRODUCT_ADS_REACH_DAYS)
+    rows = await PlatformPeriodMetricsRepo(session).overlapping(
+        shop_id,
+        datasets=["ads_campaign_period"],
+        start=window.start - reach,
+        end=window.end + reach,
+        order_types=[PLACED],
+    )
+    # a report row joins its campaign by the segment hash (the campaign id); a report that names
+    # the campaign only by its title (no id) joins by the title the Connector's days carry
+    by_title = {r.platform_source: r.segment for r in chosen.values() if r.platform_source}
+    known = {r.segment for r in chosen.values()}
+
+    def campaign_key(p: Any) -> str:
+        if p.segment not in known and p.platform_source in by_title:
+            return by_title[p.platform_source]
+        return str(p.segment)
+
+    return ProductAdsInput(
+        campaign_days={k: _z((r.extra or {}).get("cost")) for k, r in chosen.items()},
+        covered_days=frozenset(covered),
+        report_rows=[
+            ReportRow(
+                campaign_key(p),
+                p.item_id,
+                p.period_start,
+                p.period_end,
+                _z((p.extra or {}).get("ads_expense")),
+            )
+            for p in rows
+            if p.item_id
+        ],
+    )

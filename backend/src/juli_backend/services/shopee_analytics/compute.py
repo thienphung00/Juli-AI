@@ -40,6 +40,7 @@ from juli_backend.services.shopee_analytics.loaders import (
     ShopTraffic,
     VouchersLoad,
 )
+from juli_backend.services.shopee_analytics.product_ads import ProductAdRule, ProductAdsInput
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_profit.ads_sources import AdSpendResult
 from juli_backend.services.shopee_profit.flows import (
@@ -83,6 +84,8 @@ class PeriodData:
     promotions: PromotionsLoad
     affiliate: AffiliateLoad
     ad_spend: AdSpendResult | None = None  # services/shopee_profit/ads_sources (Step 6)
+    #: the one product ad cost's inputs (:mod:`product_ads`); None = the report rows alone
+    product_ads: ProductAdsInput | None = None
     voucher_join: VoucherJoin | None = None
     #: the materialized daily rows of the window (P97 D85.2); None = not loaded / not built
     stored: Any = None
@@ -144,6 +147,7 @@ def allocate_ads(
     daily: AdsDaily,
     reports: AdsReports,
     resolved: AdSpendResult | None = None,
+    product_ads: ProductAdsInput | None = None,
 ) -> AdsAllocation:
     rows: list[AdsRow] = reports.campaign_rows
     daily_total: Decimal | None
@@ -191,6 +195,10 @@ def allocate_ads(
         )
     exact = reports.campaign_choice.basis == "exact"
     periods = reports.campaign_choice.periods
+    only_products = (
+        ProductAdRule(product_ads).window_spend(window.start, window.end) if product_ads else {}
+    )
+    only_figures = {i: AdsFigures(v, ZERO, ZERO) for i, v in only_products.items()}
 
     if not raw:
         if daily_total is not None and daily_total > 0:
@@ -208,8 +216,8 @@ def allocate_ads(
             )
             return AdsAllocation(
                 daily_total,
-                {},
-                {},
+                only_products,
+                only_figures,
                 [only],
                 Decimal(1),
                 "daily_only",
@@ -221,8 +229,8 @@ def allocate_ads(
             )
         return AdsAllocation(
             ZERO,
-            {},
-            {},
+            only_products,
+            only_figures,
             [],
             Decimal(1),
             "none",
@@ -280,7 +288,19 @@ def allocate_ads(
             product_spend[r.item_id] += r.spend * f
             product_gmv[r.item_id] += r.gmv * f
             product_direct[r.item_id] += r.direct_gmv * f
-    if resolved is not None and resolved.products:
+    if product_ads is not None:
+        # decision #39: one ad cost per product = the Connector's campaign days x the product's
+        # share in the ads report by product (:mod:`product_ads`); the window is its day sum
+        wanted_by_item = ProductAdRule(product_ads).window_spend(window.start, window.end)
+        for item, wanted in wanted_by_item.items():
+            have = product_spend.get(item, ZERO)
+            ratio = wanted / have if have > 0 else ZERO
+            product_gmv[item] = product_gmv.get(item, ZERO) * ratio
+            product_direct[item] = product_direct.get(item, ZERO) * ratio
+            product_spend[item] = wanted
+        for item in [i for i in product_spend if i not in wanted_by_item]:
+            del product_spend[item]
+    elif resolved is not None and resolved.products:
         # per-product spend only from the per-product CSV rows (Step 6); the rest is unattributed
         for item, wanted in resolved.products.items():
             have = product_spend.get(item, ZERO)
@@ -424,7 +444,9 @@ def compute_view(ctx: ShopContext, data: PeriodData) -> PeriodView:
     fees = build_fee_context(item_ids, ctx.catalog, ctx.db_schedules(item_ids), ctx.service_rate)
     pairs = profit_pairs(lines, costs, fees)
     sales = [(ln, pb) for ln, pb in pairs if counts_in_sales(ln)]  # a returned order is no sale
-    ads = allocate_ads(data.window, data.ads_daily, data.ads_reports, data.ad_spend)
+    ads = allocate_ads(
+        data.window, data.ads_daily, data.ads_reports, data.ad_spend, data.product_ads
+    )
     profit = shop_profit(
         pairs,
         campaigns=ads.ad_campaigns(),

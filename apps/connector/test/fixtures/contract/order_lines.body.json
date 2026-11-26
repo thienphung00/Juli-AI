@@ -1,0 +1,75 @@
+{
+  "source": "extension",
+  "source_version": "0.3.35",
+  "captured_at": "2026-11-03T03:00:00.000Z",
+  "period": {
+    "start": "2026-11-02",
+    "end": "2026-11-02",
+    "granularity": "period"
+  },
+  "order_type": null,
+  "rows": [
+    {
+      "line_no": 0,
+      "ordered_at": "2026-11-02T09:00:00",
+      "status": "delivered",
+      "qty": 1,
+      "original_price": 95000,
+      "deal_price": 95000,
+      "seller_subsidy": 0,
+      "variation_sku": "SKU-A1",
+      "variation_name": "Vị A",
+      "extra": {
+        "item_id": "9001",
+        "model_id": "9101",
+        "bundle_deal_id": 77,
+        "list_price": 100000
+      },
+      "promo_kind": "bundle",
+      "bundle_discount": 5000,
+      "completed_at": "2026-11-03T09:00:00",
+      "paid_at": "2026-11-02T09:00:00",
+      "order_ref": "0123456789abcdef0123456789abcdef"
+    },
+    {
+      "line_no": 1,
+      "ordered_at": "2026-11-02T09:00:00",
+      "status": "delivered",
+      "qty": 1,
+      "original_price": 95000,
+      "deal_price": 95000,
+      "seller_subsidy": 0,
+      "variation_sku": "SKU-C1",
+      "variation_name": "Vị C",
+      "extra": {
+        "item_id": "9003",
+        "model_id": "9301",
+        "bundle_deal_id": 77,
+        "list_price": 100000
+      },
+      "promo_kind": "bundle",
+      "bundle_discount": 5000,
+      "completed_at": "2026-11-03T09:00:00",
+      "paid_at": "2026-11-02T09:00:00",
+      "order_ref": "0123456789abcdef0123456789abcdef"
+    },
+    {
+      "line_no": 2,
+      "ordered_at": "2026-11-02T09:00:00",
+      "status": "delivered",
+      "qty": 1,
+      "original_price": 30000,
+      "deal_price": 30000,
+      "seller_subsidy": 0,
+      "variation_sku": "SKU-ADD",
+      "extra": {
+        "item_id": "9011",
+        "model_id": "9211"
+      },
+      "promo_kind": "add_on",
+      "completed_at": "2026-11-03T09:00:00",
+      "paid_at": "2026-11-02T09:00:00",
+      "order_ref": "0123456789abcdef0123456789abcdef"
+    }
+  ]
+}

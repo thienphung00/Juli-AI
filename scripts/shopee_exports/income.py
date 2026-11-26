@@ -26,8 +26,8 @@ what Shopee, the buyer and PiShip paid back).
 PRIVACY: as the order export, THE ALLOWLIST IS BY HEADER. Every header must be in :data:`READ`
 (its cells are decoded) or :data:`IGNORED` (known, never decoded); any other header stops the
 load with ``UnknownColumn``. The buyer's name and payment method, the invoice tax code, the
-product name and the voucher text are ``IGNORED``. The order id is hashed as it is read
-(``parse.order_ref``, the same key path as the order export) and never kept.
+product name are ``IGNORED``; the voucher code is read only when code-shaped. The order id is
+hashed as it is read (``parse.order_ref``, the same key path as the order export) and never kept.
 """
 
 from __future__ import annotations
@@ -89,10 +89,13 @@ READ: dict[str, str] = {
     "Trade-in Bonus by Seller": "trade_in_bonus_seller",
     "Đền bù đơn mất hàng": "lost_compensation",
     "Transaction Fee Rate (%)": "transaction_fee_rate",
+    # owner decision #49 (batch-1124-a S1): the voucher's code is not buyer data; only a
+    # code-shaped value (A-Z / 0-9, at most 64) is kept (:func:`voucher_code`), else NULL
+    "Mã voucher": "voucher_code",
 }
 
 #: Known headers whose cells are NEVER decoded: the buyer, how they paid, the invoice tax code,
-#: the product name, the voucher text, couriers, and amounts with no destination here.
+#: the product name, couriers, and amounts with no destination here.
 IGNORED: frozenset[str] = frozenset(
     {
         "Mã giao dịch",
@@ -111,7 +114,6 @@ IGNORED: frozenset[str] = frozenset(
         "Installment Plan (if applicable)",
         "Đơn vị vận chuyển",
         "Courier Name",
-        "Mã voucher",
         "Giá sản phẩm (sau khuyến mãi)",
         "Shopee xu",
         "Shopee voucher",
@@ -129,7 +131,6 @@ BUYER_HEADERS: frozenset[str] = frozenset(
         "Buyer Payment Method Details_1",
         "Mã Số Thuế",
         "Tên sản phẩm",
-        "Mã voucher",
         "Mã yêu cầu hoàn tiền",
         "Courier Name",
         "Đơn vị vận chuyển",
@@ -204,6 +205,16 @@ ZERO = Decimal(0)
 
 class IncomeLayoutError(ValueError):
     """The export's layout is not what this parser asserts (never carries a cell value)."""
+
+
+_VOUCHER_CODE = re.compile(r"^[A-Z0-9]{1,64}$")
+
+
+def voucher_code(text: str | None) -> str | None:
+    """Owner decision #49: the cell when it is one voucher code (A-Z / 0-9, at most 64), else None
+    (several codes, free text, lower case, punctuation: never kept)."""
+    value = (text or "").strip()
+    return value if _VOUCHER_CODE.match(value) else None
 
 
 def normal(text: str) -> str:
@@ -370,7 +381,16 @@ def read_income(path: Path, key: bytes) -> IncomeFile:
         money_fields = {
             name: _amount(cells.get(name), label[name])
             for name in READ.values()
-            if name not in ("kind", "order_id", "item_id", "variation", "ordered_on", "paid_on")
+            if name
+            not in (
+                "kind",
+                "order_id",
+                "item_id",
+                "variation",
+                "ordered_on",
+                "paid_on",
+                "voucher_code",
+            )
             and name != "transaction_fee_rate"
         }
         acc = sums.setdefault(ref, defaultdict(Decimal))
@@ -384,6 +404,9 @@ def read_income(path: Path, key: bytes) -> IncomeFile:
             row.setdefault("ordered_on", ordered.isoformat())
         if paid is not None:
             row.setdefault("paid_on", paid.isoformat())
+        code = voucher_code(cells.get("voucher_code"))
+        if code is not None:
+            row.setdefault("voucher_code", code)
         rate_text = cells.get("transaction_fee_rate")
         if rate_text and rate_text.strip() not in ("", "-"):
             rate = _amount(rate_text, label["transaction_fee_rate"]) / 100

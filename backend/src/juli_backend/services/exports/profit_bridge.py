@@ -10,7 +10,7 @@ Two blocks:
   buyer paid, so never a cost again) and the payout Shopee transferred (orders with an
   income-export row). GMV - lost - pending - refunds (when held) = the GMV of the delivered
   orders, whose buyer paid is that GMV less the offers.
-- **Lợi nhuận bán hàng trên sàn** -- over exactly the orders the dashboard profit counts
+- **Lợi nhuận (gộp → đóng góp → ròng, #51)** -- over exactly the orders the dashboard profit counts
   (:func:`known_cost_profit`: every counted line of the order has its costs): revenue after
   output VAT, then each cost on its own line, then the profit and its margin over that revenue.
   The costs are the same terms :func:`line_profit` takes off each line and the ads are the
@@ -28,6 +28,7 @@ from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
+from juli_backend.services.shopee_profit.ladder import affiliate_cost
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.order_profit import REFUND_STATUSES, OrderStatus
 
@@ -63,7 +64,7 @@ class ProfitBridge:
     offers: float  # khuyến mãi + voucher + combo of the counted lines: inside the buyer paid
     payout: float | None  # Shopee's payout of the orders with an income row
     payout_orders: int
-    # Lợi nhuận bán hàng trên sàn (the known-cost orders, as the dashboard profit)
+    # the profit ladder (the known-cost orders, as the dashboard profit)
     known_orders: int
     known_gmv_share_pct: float | None
     revenue: float  # buyer paid - output VAT (0 for an accepted refund)
@@ -150,7 +151,7 @@ def profit_bridge(view: Any) -> ProfitBridge:
         cogs_real_pct=cogs_real,
         packaging=float(sum((pb.packaging or ZERO for _, pb in known), ZERO)),
         packaging_real_pct=pack_real,
-        commission=float(sum((pb.commission or ZERO for _, pb in known), ZERO)),
+        commission=float(affiliate_cost(known) or ZERO),
         shipping_other=float(sum((a for _, pb in known for _, a in (pb.income_costs or ())), ZERO)),
         ads=_f(kp.ads_charged) if kp.profit is not None else None,
         ads_no_order_days=float(kp.ads_no_order_days),

@@ -44,7 +44,7 @@ describe("P98 W3-I · OptionCard", () => {
   it("shows exactly the d.5 lines, formatted vi-VN", () => {
     render(<OptionCard result={result()} />);
     // F7.8: one dự kiến amount per metric with hiện tại and the change under it; never a range, no Δ-only line
-    expect(screen.getByTestId("oc-fc-profit")).toHaveTextContent("Lợi nhuận dự kiến (7 ngày): 4.234.567 đ");
+    expect(screen.getByTestId("oc-fc-profit")).toHaveTextContent("Lợi nhuận đóng góp dự kiến (7 ngày): 4.234.567 đ");
     expect(screen.getByTestId("oc-fc-profit-sub")).toHaveTextContent("hiện tại: 3.000.000 đ · +1.234.567 đ (+41,2 %)");
     expect(screen.getByTestId("oc-forecast").textContent).not.toMatch(/…/);
     expect(screen.getByTestId("oc-buildup")).toHaveTextContent("+300.000đ từ đơn thêm. −50.000đ giảm giá.");
@@ -65,7 +65,7 @@ describe("P98 W3-I · OptionCard", () => {
     expect(screen.queryByTestId("oc-weak")).toBeNull();
     expect(screen.queryByTestId("oc-detail")).toBeNull();
     // F7.8: Dự kiến is the headline; no "Tác động", no "Quy đổi 30 ngày"
-    expect(screen.getAllByRole("term").map((t) => t.textContent)).toEqual(["Dự kiến", "Phễu", "Biên lợi nhuận", "ΔGMV / chi phí", "Chi phí", "Hoà vốn"]);
+    expect(screen.getAllByRole("term").map((t) => t.textContent)).toEqual(["Dự kiến", "Phễu", "Biên đóng góp", "ΔGMV / chi phí", "Chi phí", "Hoà vốn"]);
   });
 
   it("P100-C: one break-even line with orders or AOV; no ROI / margin without them", () => {

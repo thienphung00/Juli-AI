@@ -328,8 +328,9 @@ class TestTheMigrationMatchesTheModel:
         # Connector R7 `135_connector_multi_computer` (on 133); T5 `134_canonical_tables` (on 135).
         # Juli tab `137_juli_agent_chat` (on 134).
         # Juli tab spend 138_juli_agent_spend (on 137); T5 compat views dropped
-        # `136_drop_t5_compat_views` (on 138). Since 136 the head is no longer named
-        # here: exactly one head, and 136 is on the chain walked down from it.
+        # `136_drop_t5_compat_views` (on 140 since 2026-11-26, after 139 and 140). Since 136
+        # the head is no longer named here: exactly one head, and 136 is on the chain walked
+        # down from it.
         assert len(heads) == 1, heads
         chain, rev = set(), heads[0]
         while rev:

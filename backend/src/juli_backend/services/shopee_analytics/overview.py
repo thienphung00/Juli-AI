@@ -50,6 +50,7 @@ from juli_backend.services.shopee_profit.flows import (
     Flow,
     FlowMetrics,
 )
+from juli_backend.services.shopee_profit.ladder import affiliate_cost
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 from juli_backend.services.shopee_profit.sources import CellStats, PriceLever
@@ -301,6 +302,8 @@ def _profit_block(view: PeriodView) -> dict[str, Any]:
         "margin_pct": fig.json()["margin_pct"],
         "margin_basis": "profit ÷ doanh thu thực (sau voucher và combo)",
         "contribution_before_ads": num(p.contribution),
+        # decision #44: Lợi nhuận đóng góp (before ads AND affiliate), the ladder's
+        "contribution": num(p.organic_contribution),
         "net_revenue": num(p.buyer_paid),
         "orders": p.orders,
         "cost_coverage": cov.json(),
@@ -418,7 +421,7 @@ def _affiliate_block(view: PeriodView) -> dict[str, Any]:
         "order_lines": {
             "orders": len({ln.order_id for ln, _ in lines}),
             "gmv": num(sum((ln.order_value for ln, _ in lines), ZERO)),
-            "commission": num(sum((ln.commission or ZERO for ln, _ in lines), ZERO)),
+            "commission": num(affiliate_cost(lines) or ZERO),
         },
     }
 

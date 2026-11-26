@@ -1,4 +1,6 @@
 import { fmt } from "../shopee-analytics/format";
+import { METRIC_DEFS, type MetricId } from "./registry.generated";
+
 
 /**
  * P100 shared metric vocabulary for Tổng quan, Phân tích and Quyết định (Shopee seller, Ops, reviewer
@@ -57,5 +59,14 @@ export function shift(pct: number | null | undefined, good: 1 | -1 = 1): { reado
 
 /** ROI in points: 5.4 -> "5,4" (never a percent). */
 export function roiText(roi: number | null | undefined): string {
-  return num(roi) ? fmt(roi, 1) : "—";
+  return num(roi) ? fmt(roundHalfAway(roi * 10) / 10, 1) : "—";
 }
+
+/** The registry's Vietnamese name of a metric id (the one place screens take a label from). */
+export const metricLabel = (id: MetricId): string => METRIC_DEFS[id].label_vi;
+
+/**
+ * Half away from zero (2.5 -> 3, -2.5 -> -3), like the server's `round_count`; JS `Math.round(-1.5)` is -1.
+ * The one rounding of every figure a screen shows and every Δ it derives from shown figures.
+ */
+export const roundHalfAway = (n: number): number => (n < 0 ? -Math.round(-n) : Math.round(n));

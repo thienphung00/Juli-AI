@@ -126,7 +126,7 @@ describe("the side-by-side table", () => {
   it("has the artboard's rows, one cell per version, and flags the breaching column", () => {
     const card = versionedVoucher();
     const rows = versionTable(card, card.versions!);
-    expect(rows.map((r) => r.label)).toEqual(["Δ GMV", "Δ lợi nhuận", "Chi phí", "Δ đơn", "Biên lợi nhuận", "Hoà vốn", "Giá sàn"]);
+    expect(rows.map((r) => r.label)).toEqual(["Δ GMV", "Δ lợi nhuận", "Chi phí", "Δ đơn", "Biên đóng góp", "Hoà vốn", "Giá sàn"]);
     expect(rows.every((r) => r.cells.length === 3)).toBe(true);
     const floor = rows.find((r) => r.key === "floor")!;
     expect(floor.cells[0]!.v).toBe("✓ Trên giá sàn vận hành");

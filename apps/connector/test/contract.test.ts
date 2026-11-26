@@ -13,8 +13,16 @@ import shopHealthBody from "./fixtures/contract/shop_health_daily.body.json";
 import shopTrafficBody from "./fixtures/contract/shop_traffic.body.json";
 import overviewBody from "./fixtures/contract/traffic_overview.body.json";
 import voucherBody from "./fixtures/contract/voucher_settings.body.json";
+import comboBody from "./fixtures/contract/combo_settings.body.json";
+import orderLinesBody from "./fixtures/contract/order_lines.body.json";
+import orderIncomeBody from "./fixtures/contract/order_income.body.json";
+import { RAW_ORDER_ID } from "../src/platforms/shopee/affiliate-map";
+import { mapOrderIncome, mapOrderLines, trimOrderDetail, withPageSkus } from "../src/platforms/shopee/orders-map";
+import type { Mapped } from "../src/platforms/shopee/map";
 import type { ReaderResponse } from "../src/platforms/shopee/reader";
-import { mapAdsDaily, mapItemTraffic, mapProductList, mapShopHealth, mapVoucherList } from "../src/platforms/shopee/reader-map";
+import { mapAdsDaily, mapComboList, mapItemTraffic, mapProductList, mapShopHealth, mapVoucherList } from "../src/platforms/shopee/reader-map";
+import comboDetail from "./fixtures/readers/combo_detail.json";
+import comboList from "./fixtures/readers/combo_list.json";
 import adsHome from "./fixtures/readers/ads_homepage.json";
 import adsGraph from "./fixtures/readers/ads_time_graph.json";
 import campaignInfo from "./fixtures/readers/campaign_info.json";
@@ -91,6 +99,83 @@ describe("extension ↔ gateway contract", () => {
       expect(ingestBody(mapVoucherList([reply("voucher_list", vouchers, { page: 1 })], READ_AT), "0.3.0", READ_AT)).toEqual(
         voucherBody,
       ));
+    it("combo_settings (0.3.35)", () =>
+      expect(ingestBody(mapComboList([reply("combo_list", comboList), reply("combo_detail", comboDetail)], READ_AT), "0.3.35", READ_AT)).toEqual(comboBody));
+    // batch-1124-a S1: a combo + Mua Kèm order (get_one_order) and its order page income with the
+    // buyer-payment vouchers. The raw order id is replaced by a fixed synthetic order_ref (the
+    // service worker's keyed hash in the extension).
+    const REF = "0123456789abcdef0123456789abcdef";
+    const hashed = (mapped: Mapped): Mapped => ({
+      ...mapped,
+      rows: mapped.rows.map((row) => {
+        const { [RAW_ORDER_ID]: _id, ...rest } = row;
+        return { ...rest, order_ref: REF };
+      }),
+    });
+    const S1_CREATED = Date.UTC(2026, 10, 2, 2, 0, 0) / 1000;
+    // batch-1124-b CONN (P-CONN shape): the combo parent's sub-lines (item_list) named by
+    // bundle_deal_model, priced and discounted by its order page (list 100.000 + 100.000 -> 190.000)
+    const s1Detail = reply("order_detail", withPageSkus(trimOrderDetail({
+      code: 0,
+      data: {
+        order_id: 8001,
+        order_sn: "261102SYN801",
+        create_time: S1_CREATED,
+        complete_time: S1_CREATED + 86400,
+        status_info: { status: "Hoàn thành" },
+        total_price: "178000",
+        order_items: [
+          {
+            amount: 1,
+            item_id: 1,
+            model_id: 0,
+            item_model: { model_id: 0, sku: "" },
+            order_price: "190000",
+            bundle_deal_id: 77,
+            item_list: [
+              { item_id: 9001, model_id: 9101, amount: 1 },
+              { item_id: 9003, model_id: 9301, amount: 1 },
+            ],
+            bundle_deal_model: [
+              { item_id: 9001, model_id: 9101, sku: "SKU-A1", name: "Vị A" },
+              { item_id: 9003, model_id: 9301, sku: "SKU-C1", name: "Vị C" },
+            ],
+            bundle_deal_product: [
+              { item_id: 9001, model_id: 9101, sku: "" },
+              { item_id: 9003, model_id: 9301, sku: "" },
+            ],
+          },
+          { item_id: 9011, model_id: 9211, amount: 1, order_price: "30000", item_model: { sku: "SKU-ADD", model_id: 9211 }, add_on_deal_id: 55, is_add_on_sub_item: true },
+        ],
+      },
+    }), [
+      { sku: "SKU-A1", variationName: "Vị A", qty: 1, listPrice: 100000, lineTotal: 100000 },
+      { sku: "SKU-C1", variationName: "Vị C", qty: 1, listPrice: 100000, lineTotal: 100000 },
+      { sku: "SKU-ADD", qty: 1, lineTotal: 30000 },
+    ]));
+    const s1Income = reply(
+      "order_income_components",
+      {
+        code: 0,
+        data: {
+          items: [
+            { name: "Giá sản phẩm", amount: 178000 },
+            { name: "Phí cố định", amount: -26700 },
+            { name: "Voucher Xtra", amount: -5500 },
+            { name: "Doanh Thu Đơn Hàng", amount: 145800 },
+          ],
+          buyer_items: [
+            { name: "Shopee Voucher", amount: -20000 },
+            { name: "Mã giảm giá của Shop", amount: -10000 },
+          ],
+        },
+      },
+      { source: "page", orderId: "8001", orderSn: "261102SYN801" },
+    );
+    it("order_lines (S1: combo amount, Mua Kèm)", () =>
+      expect(ingestBody(hashed(mapOrderLines([s1Detail], READ_AT)), "0.3.35", READ_AT)).toEqual(orderLinesBody));
+    it("order_income (S1: buyer-payment vouchers apart from the seller's costs)", () =>
+      expect(ingestBody(hashed(mapOrderIncome([s1Income], READ_AT)), "0.3.35", READ_AT)).toEqual(orderIncomeBody));
     it("shop_health_daily (reserved until its table exists)", () =>
       expect(
         ingestBody(

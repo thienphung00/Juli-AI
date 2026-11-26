@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import copy
 import uuid
-from datetime import timedelta
+from datetime import date, timedelta
 
 import pytest
 
@@ -67,19 +67,39 @@ async def _assert_agree(session, seeded):
         for c in g["cards"]
         if (c.get("result") or {}).get("estimable")
     ]
-    assert len(est) == 1  # the voucher is estimable, the combo is not (stays listed)
-    only = est[0]["delta"]["p50"]
+    # batch-1124-a R (#27 / #29): the combo is estimable too now (the combo prior), so both
+    # cards are in the total -- was "the voucher is estimable, the combo is not"
+    assert len(est) == 2
+    assert agg["not_estimable_cards"] == []
+    dgmv = sum(r["delta"]["p50"]["dgmv"] for r in est)
+    dprofit = sum(r["delta"]["p50"]["dprofit"] for r in est)
     total = agg["dgmv_month"]["total"]
-    assert total["p50"] == pytest.approx(only["dgmv"])
-    assert agg["dprofit_month"]["total"]["p50"] == pytest.approx(only["dprofit"])
-    assert agg["deltas_p50"]["gmv"] == pytest.approx(only["dgmv"])
-    assert agg["after"]["gmv_30d"] == pytest.approx(agg["today"]["gmv_30d"] + only["dgmv"])
-    assert len(agg["not_estimable_cards"]) == 1
-    # the month view is the same card, the same Dự kiến (the voucher lies inside the month)
+    assert total["p50"] == pytest.approx(dgmv)
+    assert agg["dprofit_month"]["total"]["p50"] == pytest.approx(dprofit)
+    assert agg["deltas_p50"]["gmv"] == pytest.approx(dgmv)
+    assert agg["after"]["gmv_30d"] == pytest.approx(agg["today"]["gmv_30d"] + dgmv)
+    # the month view is the same cards, the same Dự kiến per day: each card's own Δ x its days
+    # inside the month (the voucher lies inside it; the undated combo runs 30 days from today,
+    # so only its days up to the month's end count there)
     month = out["month"]["with_draft"]
-    assert month["cards"] == 1
-    assert month["uplift_gmv"] == pytest.approx(total["p50"], abs=1.0)
-    assert month["uplift_profit"] == pytest.approx(agg["dprofit_month"]["total"]["p50"], abs=1.0)
+    assert month["cards"] == 2
+    first = date.fromisoformat(f"{month['month']}-01")
+    last = first.replace(day=month["days_in_month"])
+
+    def in_month(r) -> float:
+        d = r["own"]["dates"]
+        lo, hi = max(date.fromisoformat(d["from"]), first), min(date.fromisoformat(d["to"]), last)
+        return max((hi - lo).days + 1, 0) / r["own"]["days"]
+
+    assert any(in_month(r) < 1 for r in est)  # the month is not the 30-day plan horizon
+    want_gmv = sum(r["own"]["delta"]["p50"]["dgmv"] * in_month(r) for r in est)
+    want_profit = sum(r["own"]["delta"]["p50"]["dprofit"] * in_month(r) for r in est)
+    assert month["uplift_gmv"] == pytest.approx(want_gmv, abs=1.0)
+    assert month["uplift_profit"] == pytest.approx(want_profit, abs=1.0)
+    # and the plan's own rows: the own Δ of a card whose dates are the horizon is its plan Δ
+    for r in est:
+        if r["own"]["days"] == agg["horizon"]["days"]:
+            assert r["own"]["delta"]["p50"]["dgmv"] == pytest.approx(r["delta"]["p50"]["dgmv"])
 
 
 async def test_k_rows_aggregate_and_month_agree_for_an_ungrouped_draft(session, shop):

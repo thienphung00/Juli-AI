@@ -84,7 +84,7 @@ RESULT_BASIS = "option_result"
 NOT_ESTIMABLE_TEXT = "chưa ước tính được"
 HORIZON_DAYS = 30
 RESULT_QUANTILES = ("p10", "p50", "p90")
-RESULT_METRICS = ("dgmv", "dorders", "dprofit", "dviews", "dclicks")
+RESULT_METRICS = ("dgmv", "dorders", "dprofit", "dviews", "dclicks", "drevoffer")
 
 QUANTILES = ("p10", "p25", "p50", "p75", "p90")
 METRICS = ("dgmv", "dorders", "dprofit")
@@ -306,6 +306,9 @@ RESULT_FIELDS = {
     "dprofit": "profit",
     "dviews": "views",
     "dclicks": "clicks",
+    # the offers that lower doanh thu thực (voucher, combo, add-on price): the plan margin's
+    # denominator (Biên lợi nhuận after = profit ÷ doanh thu thực after)
+    "drevoffer": "revenue_offer_cost",
 }
 COLUMNS = (("p10", "low"), ("p50", "likely"), ("p90", "high"))
 
@@ -449,6 +452,10 @@ def ads_shares(results: Sequence[CardResult], h: Horizon, data: AdsData | None =
             "campaign": campaign,
             "cost_horizon": total,
             "days": len(days),
+            #: the counted days and the per-day cost, so a plan's groups count the campaign once
+            #: (``merge_groups``: the lowest per-day cost x the union of the days)
+            "dates": sorted(d.isoformat() for d in days),
+            "cost_per_day": per_day,
             "spend": data.spend(campaign, None),
             "cost_per_order": data.cost_per_order(campaign),
             "cards": [
@@ -857,6 +864,57 @@ def resolve_product_conflicts(pairs: Sequence[tuple[Evaluated, CardResult]], dat
                 leaf.replaced_by = str(winner[0].entry.code or winner[0].entry.card_id)
 
 
+#: decision #47: programmes that cannot run on the same SKU at the same time -- Mua Kèm Deal Sốc,
+#: Flash Sale Của Shop, Chương Trình Của Shop, Combo Khuyến Mãi. Two of them on one product with
+#: overlapping dates: only the better card (higher P50 Δ lợi nhuận đóng góp) counts.
+EXCLUSIVE_KINDS = frozenset(
+    {"add_on", "flash_sale", "product_discount", "program_registration", "bundle_deal"}
+)
+#: the reason code of a card the exclusivity check leaves out of the plan's total
+EXCLUSIVE_REASON = "exclusive_programme"
+
+
+def _p50_profit(r: CardResult) -> float:
+    own = r.delta_own("likely") or {}
+    v = own.get("dprofit")
+    return float("-inf") if v is None else float(v)
+
+
+def resolve_exclusive(
+    results: Mapping[str, CardResult], evs: Sequence[Evaluated], h: Horizon
+) -> None:
+    """Decision #47: a small check on the SEPARATE card results (no joint evaluation). Of the
+    cards whose programmes cannot share a SKU (``EXCLUSIVE_KINDS``), on one product and with
+    overlapping own dates, only the one with the higher P50 Δ profit counts (ties: the smaller
+    card id); the other carries ``replaced_by`` (the winner's code) and ``reason``
+    ``EXCLUSIVE_REASON`` and adds nothing to the plan's Δ or cost. Cards whose dates do not
+    overlap both count."""
+    cands: list[tuple[Evaluated, CardResult, tuple[date, date]]] = []
+    for e in flatten(evs):
+        leaf = results.get(e.entry.card_id)
+        if leaf is None or not leaf.ok or leaf.replaced_by or e.cand.kind not in EXCLUSIVE_KINDS:
+            continue
+        span = leaf.own_span(h)
+        if span is not None and e.product:
+            cands.append((e, leaf, span))
+    ranked = sorted(cands, key=lambda t: (-_p50_profit(t[1]), t[0].entry.card_id))
+    kept: list[tuple[Evaluated, CardResult, tuple[date, date]]] = []
+    for e, leaf, span in ranked:
+        winner = next(
+            (
+                w
+                for w in kept
+                if w[0].product == e.product and w[2][0] <= span[1] and span[0] <= w[2][1]
+            ),
+            None,
+        )
+        if winner is None:
+            kept.append((e, leaf, span))
+            continue
+        leaf.replaced_by = str(winner[0].entry.code or winner[0].entry.card_id)
+        leaf.reason = EXCLUSIVE_REASON
+
+
 def _version_row(e: Evaluated) -> Mapping[str, Any] | None:
     vlist = versions.versions_of(e.card)
     return vlist[e.entry.version - 1] if 0 < e.entry.version <= len(vlist) else None
@@ -1158,6 +1216,10 @@ class Joint:
     outside_horizon: list[str] = field(default_factory=list)
     #: A2.2: campaign key -> its cost once in the horizon, the cards' shares, cost per order
     ads_campaigns: dict[str, Mapping[str, Any]] = field(default_factory=dict)
+    #: card id -> its share of its campaign's cost inside the horizon
+    ads_cost: dict[str, float] = field(default_factory=dict)
+    #: the leaf results this joint counted (P7's channel attribution)
+    leaves: list[CardResult] = field(default_factory=list)
 
     @property
     def floor_ok(self) -> bool:
@@ -1268,6 +1330,7 @@ def joint(
     ads_blocks: dict[str, Mapping[str, Any]] = {}
     cost_unknown: list[str] = []
     outside: list[str] = []
+    ads_cost: dict[str, float] = {}
     h = horizon or Horizon(env.as_of + timedelta(days=1))
     if results is not None:
         # P99b one cost: a card's cost is its OptionResult's on its own days inside the horizon
@@ -1281,6 +1344,7 @@ def joint(
         certain["dchi"] = sum((c for c in costs if c is not None), 0.0)
         counted = count_in_horizon(mine, h, ads)
         ads_blocks = dict(ads.campaigns)
+        ads_cost = dict(ads.cost)
         predicted = combine_counted(list(counted.values()))
         total = predicted  # an option result's Δ already holds the cost: nothing is added to it
         not_estimable = [r.card_id for r in mine if not r.ok]
@@ -1320,6 +1384,8 @@ def joint(
         outside_horizon=_parents(outside),
         none_estimable=none_estimable,
         ads_campaigns=ads_blocks,
+        ads_cost=ads_cost,
+        leaves=[] if results is None else [results[i] for i in sorted(counted)],
     )
 
 
@@ -1487,6 +1553,7 @@ def result_deltas(env: RecoEnv, total: Mapping[str, Mapping[str, float | None]])
     p50 = total["p50"]
     gmv, orders = float(env.shop_gmv_30d), float(env.shop_orders_30d)
     d_gmv, d_orders, d_profit = p50["dgmv"], p50["dorders"], p50["dprofit"]
+    d_offer = p50.get("drevoffer") or 0.0
     d_aov: float | None = None
     if d_gmv is not None and d_orders is not None and orders > 0 and orders + d_orders > 0:
         d_aov = (gmv + d_gmv) / (orders + d_orders) - gmv / orders
@@ -1495,7 +1562,8 @@ def result_deltas(env: RecoEnv, total: Mapping[str, Mapping[str, float | None]])
     m0, base_paid = sp.margin_rate, float(sp.buyer_paid_covered)
     if d_profit is not None and d_gmv is not None and m0 is not None and base_paid > 0 and gmv:
         scale = base_paid / gmv
-        paid_after = base_paid + d_gmv * scale
+        # doanh thu thực after: today's + ΔGMV x net/GMV − the new offers that lower it
+        paid_after = base_paid + d_gmv * scale - d_offer
         if paid_after > 0:
             d_bien = ((float(m0) * base_paid + d_profit) / paid_after - float(m0)) * 100
     return {"gmv": d_gmv, "orders": d_orders, "aov": d_aov, "bien": d_bien}
@@ -1556,6 +1624,10 @@ def _card_result_json(
         "counted_days": counted_days if have else None,
         "outside_horizon": outside,
         "replaced_by": next((r.replaced_by for r in leaves if r.replaced_by), None),
+        #: decision #47: why the card is not counted (``exclusive_programme``), else None
+        "not_counted_reason": next(
+            (r.reason for r in leaves if r.replaced_by and r.reason == EXCLUSIVE_REASON), None
+        ),
         "cost_total": cost_own,
         "cost_horizon": cost_horizon,
         #: A2.2: the card's share of its campaign's budget and the platform's cost per order
@@ -1605,11 +1677,27 @@ def _card_result_json(
             "days": common["own_days"],
             "delta": _rounded(own),
             "cost_total": cost_own,
+            # P4: the share of the card's own cost the plan counts (an ads card's campaign is
+            # counted once: its share of the campaign; 1.0 otherwise). The month goal reads it
+            # (``month_plan.uplift_in_month``), so the goal equals the plan total.
+            "cost_counted_share": _cost_share(full, ok, h),
         },
         "delta": _rounded(inside),
         "after": _after_of(common["before"], inside["p50"]),
         **common,
     }
+
+
+def _cost_share(full: Joint, leaves: Sequence[CardResult], h: Horizon) -> float:
+    """The counted share of the leaves' own cost inside the horizon (1.0 without an ads share)."""
+    own = shared = 0.0
+    for r in leaves:
+        c = r.cost_in(h)
+        if c is None:
+            continue
+        own += c
+        shared += full.ads_cost.get(r.card_id, c)
+    return 1.0 if own <= 0 else shared / own
 
 
 def _card_ads(full: Joint, leaf_ids: Sequence[str]) -> list[dict[str, Any]] | None:
@@ -1658,6 +1746,93 @@ def _after_of(
     }
 
 
+#: P7: the plan's split channels and the Δ fields a channel carries
+SPLIT_FIELDS = ("dgmv", "dorders", "dprofit")
+AFFILIATE_SOURCE = "lien_ket"
+
+
+def _channel_of(r: CardResult) -> str | None:
+    """The channel a card's own Δ belongs to as a whole: an ads card (it spends a campaign) ->
+    Quảng cáo, an affiliate / KOL card -> TTLK; ``None`` = a lever on the shop's own funnel
+    (Organic, its Tiếp thị liên kết source's part -> TTLK)."""
+    kind = "" if r.result is None else r.result.kind
+    if r.campaign:
+        return "ads"
+    if kind.startswith("affiliate") or kind.startswith("kol"):
+        return "affiliate"
+    return None
+
+
+def _ttlk_share(r: CardResult, name: str) -> float:
+    """The part of a lever card's P50 Δ ``name`` that lands on the Tiếp thị liên kết source."""
+    res = r.result
+    if res is None or res.likely is None:
+        return 0.0
+    field = RESULT_FIELDS[name]
+    total_a, total_b = getattr(res.likely, field), getattr(res.before, field)
+    a = (res.likely.by_source.get(AFFILIATE_SOURCE) or {}).get(field)
+    b = (res.before.by_source.get(AFFILIATE_SOURCE) or {}).get(field)
+    if total_a is None or total_b is None or a is None or b is None or total_a == total_b:
+        return 0.0
+    return float((a - b) / (total_a - total_b))
+
+
+def split_delta(
+    counted: Mapping[str, Counted], results: Mapping[str, CardResult]
+) -> dict[str, dict[str, float | None]]:
+    """P7: the plan's P50 Δ per channel (Organic / Quảng cáo / TTLK) from the SEPARATE card
+    results as the plan counts them (an ads card's campaign share, #47's exclusions): an ads card
+    -> Quảng cáo, an affiliate card -> TTLK, a lever card -> Organic but the part of its Δ on the
+    Tiếp thị liên kết source -> TTLK. The channels add up to the plan's P50 exactly; an unknown
+    Δ stays unknown."""
+    out: dict[str, dict[str, float | None]] = {
+        ch: dict.fromkeys(SPLIT_FIELDS, 0.0) for ch in ("organic", "ads", "affiliate")
+    }
+    for cid, c in counted.items():
+        r = results.get(cid)
+        if r is None:
+            continue
+        whole = _channel_of(r)
+        for name in SPLIT_FIELDS:
+            v = c.cols["p50"].get(name)
+            if v is None:
+                for ch in out:
+                    out[ch][name] = None
+                continue
+            if whole is not None:
+                if out[whole][name] is not None:
+                    out[whole][name] = float(out[whole][name] or 0.0) + v
+                continue
+            share = _ttlk_share(r, name)
+            for ch, part in (("affiliate", v * share), ("organic", v * (1 - share))):
+                if out[ch][name] is not None:
+                    out[ch][name] = float(out[ch][name] or 0.0) + part
+    return out
+
+
+def _split_block(env: RecoEnv, j: Joint, product_id: str | None) -> dict[str, Any] | None:
+    """P7: today's Organic / Quảng cáo / TTLK of the scope (Tổng quan's split, 30 days) and the
+    plan's Δ per channel; ``None`` without results (the legacy path)."""
+    from juli_backend.services.shopee_analytics.channel_split import profit_split
+
+    if j.result_basis is None or j.horizon is None or not hasattr(env.view, "pairs"):
+        return None
+    results = {r.card_id: r for r in j.leaves}
+    metrics = getattr(env.view, "metrics", None)
+    kpi_gmv = kpi_orders = None
+    if metrics is not None:
+        # the Tổng quan totals of the scope (decision #55 Q1): the shop's, or the product's
+        # share of them; the split's GMV / đơn add up to these
+        part = metrics if product_id is None else metrics.split(product_id)
+        if part is not None:
+            kpi_gmv = None if part.gmv is None else Decimal(part.gmv)
+            kpi_orders = None if part.orders is None else Decimal(part.orders)
+    return {
+        "today": profit_split(env.view, product_id, kpi_gmv=kpi_gmv, kpi_orders=kpi_orders),
+        "delta_p50": split_delta(j.counted, results),
+    }
+
+
 def _product_block(env: RecoEnv, pid: str, evs: Sequence[Evaluated], memo: _Memo) -> dict[str, Any]:
     j = memo.of([e.entry.card_id for e in evs])
     base = float(sum((ln.order_value for ln in env.lines_for([pid]) if counts_in_sales(ln)), ZERO))
@@ -1678,6 +1853,7 @@ def _product_block(env: RecoEnv, pid: str, evs: Sequence[Evaluated], memo: _Memo
         "joint": j.brief(),
         "predicted_rel_gmv": rel,
         "base_gmv_30d": base,
+        "split": _split_block(env, j, pid),
         "orders_per_day": stats.orders_per_day,
         "window": plan.window_options("orders", stats),
         "steps": plan_steps.build_steps(
@@ -1777,6 +1953,7 @@ def aggregate(
         for r in results.values():
             r.end = default_end
     assign_campaigns(results, evs, ads_data_of(env))
+    resolve_exclusive(results, evs, horizon)  # decision #47
     memo = _Memo(env, evs, results, horizon)
     ids = [e.entry.card_id for e in evs]
     full = memo.of(ids)
@@ -1876,6 +2053,16 @@ def aggregate(
             "total": {q: full.total[q]["dgmv"] for q in ("p10", "p50", "p90")},
         },
         "dorders_month": {q: full.total[q]["dorders"] for q in ("p10", "p50", "p90")},
+        "drevoffer_month": {q: full.total[q]["drevoffer"] for q in ("p10", "p50", "p90")},
+        # P7: Organic / Quảng cáo / TTLK today (Tổng quan's split) and the plan's Δ per channel
+        "split": _split_block(env, full, None),
+        # P4: the plan's ONE "Biên lợi nhuận" (registry ``margin``: lợi nhuận ròng ÷ doanh thu
+        # thực) before and after; ``after.margin_pct`` and the steps summary read the same figure
+        "margin": {
+            "metric_id": "margin",
+            "before_pct": today_block["margin_pct"],
+            "after_pct": _after(today_block, deltas)["margin_pct"],
+        },
         "cost": cost,
         "floor": {"ok": not floor_breaches, "breaches": floor_breaches},
         "breaches": breaches,
@@ -1980,6 +2167,9 @@ def _side_totals(side: Mapping[str, Any]) -> dict[str, dict[str, float | None]]:
         "dprofit": {q: dprofit.get(q) for q in ("p10", "p50", "p90")},
         "dviews": own("views_30d"),
         "dclicks": own("clicks_30d"),
+        "drevoffer": {
+            q: (side.get("drevoffer_month") or {}).get(q, 0.0) for q in ("p10", "p50", "p90")
+        },
     }
 
 
@@ -2012,6 +2202,14 @@ def merge_groups(
     out["empty_note"] = None
     live = [s for s in sides if s.get("totals_estimable", True)]
     totals = {m: _sum_range([_side_totals(s)[m] for s in live]) for m in RESULT_METRICS}
+    # P4: a campaign on two sides is counted once across the plan (its cost was in each side's Δ)
+    twice = campaign_overlap(sides)
+    back = sum(twice.values())
+    if back:
+        totals["dprofit"] = {
+            q: None if v is None else v + back for q, v in totals["dprofit"].items()
+        }
+        _once_shares(sides, twice)
     estimable = bool(live)
     out["totals_estimable"] = estimable
 
@@ -2046,8 +2244,85 @@ def merge_groups(
             **after_funnel(today_block, {"p50": p50}),
             "label": "Dự kiến (P50)",
         }
+        out["margin"] = {
+            "metric_id": "margin",
+            "before_pct": today_block["margin_pct"],
+            "after_pct": out["after"]["margin_pct"],
+        }
+    out["drevoffer_month"] = totals["drevoffer"]
+    out["split"] = _merge_split(sides, twice)
     out["cost"] = _merge_cost(agg, groups)
+    if back and out["cost"] is not None:
+        cost = dict(out["cost"])
+        cost["ads_counted_once"] = {k: -v for k, v in twice.items()}
+        for key in ("delta_per_month", "horizon_spend_delta"):
+            if cost.get(key) is not None:
+                cost[key] = float(cost[key]) - back
+        out["cost"] = cost
     out["totals_note"] = _merge_note(out, estimable)
+    return out
+
+
+def _merge_split(
+    sides: Sequence[Mapping[str, Any]], twice: Mapping[str, float]
+) -> dict[str, Any] | None:
+    """P7: the plan's channel Δ over its own cards and every group's (the campaign counted twice
+    across sides goes back to Quảng cáo, as in the total)."""
+    blocks = [s["split"] for s in sides if s.get("split")]
+    if not blocks:
+        return None
+    delta: dict[str, dict[str, float | None]] = {
+        ch: dict.fromkeys(SPLIT_FIELDS, 0.0) for ch in ("organic", "ads", "affiliate")
+    }
+    for b in blocks:
+        for ch, row in b["delta_p50"].items():
+            for name, v in row.items():
+                cur = delta[ch][name]
+                delta[ch][name] = None if v is None or cur is None else cur + v
+    if delta["ads"]["dprofit"] is not None:
+        delta["ads"]["dprofit"] = float(delta["ads"]["dprofit"] or 0.0) + sum(twice.values())
+    return {"today": blocks[0]["today"], "delta_p50": delta}
+
+
+def _once_shares(sides: Sequence[Mapping[str, Any]], twice: Mapping[str, float]) -> None:
+    """Scale the counted cost share of the cards of a campaign counted twice, so the month goal
+    (``month_plan.uplift_in_month``) counts it once too."""
+    total: dict[str, float] = {}
+    for s in sides:
+        for block in ((s.get("cost") or {}).get("ads_campaigns")) or []:
+            k = str(block["campaign"])
+            total[k] = total.get(k, 0.0) + float(block.get("cost_horizon") or 0.0)
+    for s in sides:
+        for card in s.get("cards") or []:
+            res = card.get("result") or {}
+            own = res.get("own")
+            ads = res.get("ads") or []
+            keys = [str(a["campaign"]) for a in ads if str(a["campaign"]) in twice]
+            if not own or not keys or total.get(keys[0], 0.0) <= 0:
+                continue
+            k = keys[0]
+            factor = (total[k] - twice[k]) / total[k]
+            own["cost_counted_share"] = float(own.get("cost_counted_share", 1.0)) * factor
+
+
+def campaign_overlap(sides: Sequence[Mapping[str, Any]]) -> dict[str, float]:
+    """P4 (audit P6): a campaign the plan's own cards AND a group's (or two groups') cards spend
+    is counted once across the plan: its lowest per-day cost x the union of the days, the
+    owner's rule inside one aggregate (``ads_shares``). Returns campaign -> the cost the sides
+    counted twice (Σ sides − once); only campaigns on two sides or more."""
+    seen: dict[str, list[Mapping[str, Any]]] = {}
+    for s in sides:
+        for block in ((s.get("cost") or {}).get("ads_campaigns")) or []:
+            seen.setdefault(str(block["campaign"]), []).append(block)
+    out: dict[str, float] = {}
+    for key, blocks in seen.items():
+        if len(blocks) < 2:
+            continue
+        days = {d for b in blocks for d in b.get("dates") or []}
+        per_day = min(float(b.get("cost_per_day") or 0.0) for b in blocks)
+        twice = sum(float(b.get("cost_horizon") or 0.0) for b in blocks) - per_day * len(days)
+        if twice > 0:
+            out[key] = twice
     return out
 
 

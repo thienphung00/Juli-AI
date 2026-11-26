@@ -88,13 +88,16 @@ def test_a_voucher_without_an_id_is_read_back_by_its_code_then_its_name():
     assert revert_fill._readback_of_change("voucher", {}) is None
 
 
-def test_a_combo_and_a_programme_have_no_readback_job_but_keep_their_k1_target():
-    for kind in ("bundle_deal", "product_discount", "flash_sale", "add_on", "gift"):
+def test_a_programme_has_no_readback_job_but_keeps_its_k1_target():
+    for kind in ("product_discount", "flash_sale", "add_on", "gift"):
         assert revert_fill._readback_of_change(kind, {"combo_id": "9", "name": "x"}) is None
+    # batch-1124-a C4: a combo is read back from the combos reader's list (Connector 0.3.35)
+    combo = revert_fill._readback_of_change("bundle_deal", {"combo_id": "9", "name": "x"})
+    assert combo is not None and combo["datasets"] == ["combo_list"]
 
 
-def test_a_saved_combo_or_programme_says_it_was_not_read_back():
-    for kind in ("combo", "product_discount", "add_on"):
+def test_a_saved_programme_says_it_was_not_read_back():
+    for kind in ("product_discount", "add_on"):
         saved = job_view.view(_job(kind, status="saved"), {})
         assert saved["status_label"] == "Đã lưu trên Shopee · chưa đọc lại"
         assert saved["readback"] == {"result": None, "diffs": []}
@@ -103,9 +106,10 @@ def test_a_saved_combo_or_programme_says_it_was_not_read_back():
     assert job_view.view(_job("combo", status="filled"), {})["status_label"] == (
         "Đã điền · chờ bạn lưu"
     )
-    assert job_view.view(_job("voucher", status="saved"), {})["status_label"] == (
-        "Đã lưu · chờ xác minh"
-    )  # a voucher keeps its read-back
+    for kind in ("voucher", "combo"):  # C4: a combo has its read-back now, like a voucher
+        assert job_view.view(_job(kind, status="saved"), {})["status_label"] == (
+            "Đã lưu · chờ xác minh"
+        )
 
 
 # --------------------------------------------------------------------------- S-E110
@@ -213,7 +217,7 @@ def test_a_saved_combo_never_reads_0_of_8():
     j = _job("combo", status="saved", payload={"progress": {"filled": 0, "total": 8}})
     v = job_view.view(j, {})
     assert (v["filled"], v["total"]) == (8, 8) and v["status_label"] == (
-        "Đã lưu trên Shopee · chưa đọc lại"
+        "Đã lưu · chờ xác minh"  # batch-1124-a C4: a combo is read back now
     )
     queued = job_view.view(_job("combo", payload={"progress": {"filled": 2, "total": 8}}), {})
     assert (queued["filled"], queued["total"]) == (2, 8)

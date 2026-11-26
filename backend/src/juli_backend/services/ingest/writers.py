@@ -38,7 +38,7 @@ from typing import Any
 from sqlalchemy import and_, case, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.ingest import SOURCE_RANK
+from juli_backend.models.ingest import SOURCE_EXTENSION, SOURCE_RANK
 from juli_backend.models.platform_data import ITEM_LEVEL_VARIATION, PlatformItem
 from juli_backend.models.shopee_profit import (
     ORDER_LINE_STATUSES,
@@ -51,6 +51,8 @@ from juli_backend.models.shopee_profit import (
     vn_day,
 )
 from juli_backend.services.ingest.affiliate_commission import seller_commission
+from juli_backend.services.ingest.combo_discount_check import log_combo_discount_mismatches
+from juli_backend.services.ingest.income import resplit_order_vouchers
 from juli_backend.services.ingest.kol_key import kol_key
 from juli_backend.services.ingest.precedence import count_gap_fills, log_gap_fills
 from juli_backend.services.ingest.rank_guard import (
@@ -115,7 +117,28 @@ def _ranked_set(stmt: Any, table: Any, columns: Iterable[str]) -> dict[str, Any]
         stored_captured=payload_captured_at(table),
         incoming_captured=excluded_payload_captured_at(),
     )
-    return _fill_unresolved_item(stmt, table, out)
+    return _keep_split_vouchers(stmt, table, _fill_unresolved_item(stmt, table, out))
+
+
+#: batch-1124-a S1: the line columns the Connector's income fills (``split_order_vouchers``).
+_SPLIT_VOUCHERS = ("shop_voucher_share", "platform_voucher_share")
+
+
+def _keep_split_vouchers(stmt: Any, table: Any, out: dict[str, Any]) -> dict[str, Any]:
+    """A Connector line post states 0 for a voucher it cannot see (get_one_order has none): over a
+    Connector line whose voucher the income split filled, that 0 keeps the stored amount (owner
+    2026-11-24, rule B). Any other post, or a non-zero value, follows the ranked rule."""
+    for column in _SPLIT_VOUCHERS:
+        if column not in out:
+            continue
+        keep = and_(
+            stmt.excluded.source == SOURCE_EXTENSION,
+            table.c.source == SOURCE_EXTENSION,
+            stmt.excluded[column] == 0,
+            table.c[column] != 0,
+        )
+        out[column] = case((keep, table.c[column]), else_=out[column])
+    return out
 
 
 def _fill_unresolved_item(stmt: Any, table: Any, out: dict[str, Any]) -> dict[str, Any]:
@@ -285,6 +308,10 @@ async def write_order_lines(
             extra={"shop_id": str(shop_id), "lines": unresolved},
         )
     await upsert_line_values(session, values)
+    # batch-1124-b CONN (owner Q4): a combo discount that misses its percent tier is logged only
+    await log_combo_discount_mismatches(session, shop_id, platform, rows)
+    # batch-1124-b CONN (verifier): an order whose line set changed keeps its voucher totals
+    await resplit_order_vouchers(session, shop_id, platform, {row.order_ref for row in rows})
 
 
 async def upsert_line_values(session: AsyncSession, values: list[dict[str, Any]]) -> None:

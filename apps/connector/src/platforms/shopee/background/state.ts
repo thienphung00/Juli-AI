@@ -118,6 +118,8 @@ export interface PlannedJob {
   history?: { start: string; end: string }[];
   /** orders (0.3.19): read back to orders placed on this GMT+7 day (catch-up by date). */
   sinceDay?: string;
+  /** orders (batch-1124-a S1): `sinceDay` reaches back into the server's order_lines_backfill days. */
+  orderBackfill?: boolean;
   /** ads (0.3.19): older days of the once-per-shop ads history, newest first, after `days`. */
   historyDays?: string[];
   /** 0.3.32: a page read again in this run after its section answered (F4.3); its outcome replaces the block. */

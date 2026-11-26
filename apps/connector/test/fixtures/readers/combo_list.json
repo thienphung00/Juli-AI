@@ -1,0 +1,4 @@
+{"code":0,"data":{"discounts":[
+ {"discount_type":3,"seller_discount":null,"add_on_deal":null,"bundle_deal":{"discount_id":7001,"name":"Combo mua 2 giảm 5%","time_status":2,"start_time":1795000000,"end_time":1795600000,"item_preview":{"item_count":2,"images":[]},"source":2}},
+ {"discount_type":3,"seller_discount":null,"add_on_deal":null,"bundle_deal":{"discount_id":7000,"name":"Combo cũ","time_status":3,"start_time":1790000000,"end_time":1790600000,"item_preview":{"item_count":1,"images":[]},"source":2}}
+]}}

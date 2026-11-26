@@ -58,6 +58,17 @@ class LLMPort(Protocol):
 
     async def text(self, system: str, user: str) -> tuple[str, Usage]: ...
 
+    async def agent(
+        self,
+        system: str,
+        tools: list[dict[str, Any]],
+        messages: list[dict[str, Any]],
+        *,
+        force_tool: str | None = None,
+    ) -> tuple[list[dict[str, Any]], Usage]:
+        """One turn of a tool loop: the assistant's content blocks (text / tool_use)."""
+        ...
+
 
 class JevPort(Protocol):
     async def ask(
@@ -100,6 +111,7 @@ class DataPort(Protocol):
     ) -> tuple[dict[str, Any], dict[str, Any]]: ...
     async def critical(self, a: date, b: date) -> dict[str, Any]: ...
     async def product_profit(self, item: str, a: date, b: date) -> dict[str, Any] | None: ...
+    async def product_profit_rows(self, a: date, b: date) -> list[dict[str, Any]]: ...
     async def entity_totals(
         self, kind: str, a: date, b: date, item: str | None = None
     ) -> dict[str, Any]: ...

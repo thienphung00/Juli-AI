@@ -55,7 +55,8 @@ def _done(summary: str, note: str) -> ReaderStatus:
         for key, _, value in (pair.partition("=") for pair in summary.split(",") if pair)
         if not key.startswith("ads_entries_skipped") and value != _HELD
     ]
-    if any(v in _REFUSED for v in results):
+    # Connector 0.3.34: a refusal may carry its reason ("rejected:period_too_long")
+    if any(v.partition(":")[0] in _REFUSED for v in results):
         return {"status": "error", "reason": summary[:160]}
     if any(v in _ACCEPTED for v in results):
         return {"status": "ok", "reason": None}

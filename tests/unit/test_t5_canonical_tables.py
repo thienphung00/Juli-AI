@@ -522,10 +522,10 @@ def _part_136(fn: str) -> str:
     return source.split("def downgrade")[1]
 
 
-def test_136_fits_alembic_and_follows_138():
+def test_136_fits_alembic_and_follows_140():
     mod = _module_136()
     assert mod.revision == "136_drop_t5_compat_views" and len(mod.revision) <= 32
-    assert mod.down_revision == "138_juli_agent_spend"
+    assert mod.down_revision == "140_data_layer_facts_opps"
 
 
 def test_136_sql_is_literal():

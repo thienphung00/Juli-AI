@@ -214,7 +214,9 @@ async def test_lookup_renders_data_answer_without_llm_text_or_card() -> None:
         and da["fresh_vi"].startswith("Số liệu đến hết")
         and da["delta"]["dir"] in ("up", "down", "flat")
     )
-    assert res.stop_reasons == ["data_answer"] and not sink.of("text_delta") and not sink.of("card")
+    assert res.stop_reasons == ["data_answer"] and not sink.of("card")
+    # J-H1: the stubbed LLM wrote nothing, so the code template summarises the structured answer
+    assert sink.of("text_replace") and da["fresh_vi"] in sink.of("text_replace")[-1]["text"]
 
 
 async def test_tiktok_before_w3_says_data_missing_and_no_card() -> None:

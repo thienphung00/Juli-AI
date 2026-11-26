@@ -3,6 +3,7 @@
 import { DASH, pp, sv } from "../../lib/shopee-analytics/format";
 import type { PlanApi, PlanResponse, PlanStep, ProductBlock } from "../../lib/shopee-decisions/plan-types";
 import { TextChip } from "../shopee-analytics/ui";
+import { PlanSplitTable } from "./plan-split";
 
 /**
  * P92 B-10 "Kế hoạch gối nhau": per product the draft is a sequence price, giảm giá, voucher,
@@ -113,18 +114,19 @@ export function PlanSteps({ plan, api, busy, done, onAct }: { readonly plan: Pla
                   <td />
                   <td data-testid="kh-steps-total-p50">
                     <b>{num(steps.total.dprofit_p50, sv)}</b>
-                    <span className="sa-hint"> · chắc chắn {num(steps.total.dprofit_certain, sv)}</span>
+                    {typeof steps.total.dprofit_certain === "number" ? <span className="sa-hint"> · chắc chắn {sv(steps.total.dprofit_certain)}</span> : null}
                   </td>
                   <td />
                 </tr>
               </tfoot>
             </table>
+            {p.split ? <PlanSplitTable split={p.split} testId={`kh-split-${p.product_id}`} /> : null}
           </section>
         );
       })}
       {shop ? (
         <p data-testid="kh-steps-shop">
-          <b>Cả shop ({shop.products} sản phẩm):</b> Δ lợi nhuận {num(shop.dprofit_p50, sv)} · chắc chắn {num(shop.dprofit_certain, sv)} · biên sau {shop.margin_pct_after === null ? DASH : pp(shop.margin_pct_after)}
+          <b>Cả shop ({shop.products} sản phẩm):</b> Δ lợi nhuận {num(shop.dprofit_p50, sv)} {typeof shop.dprofit_certain === "number" ? `· chắc chắn ${sv(shop.dprofit_certain)} ` : ""}· biên sau {shop.margin_pct_after === null ? DASH : pp(shop.margin_pct_after)}
         </p>
       ) : null}
     </div>

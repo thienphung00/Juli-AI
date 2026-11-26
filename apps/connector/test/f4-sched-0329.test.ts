@@ -19,7 +19,7 @@ import { problemLabel, problemLines } from "../src/platforms/shopee/popup/guide"
 import { mapCapturedAll } from "../src/platforms/shopee/map";
 import { buildBackfillDayPlan, buildSyncPlan } from "../src/platforms/shopee/sync";
 import { classify } from "../src/platforms/shopee/reader";
-import { gmt7DateStart } from "../src/core/time";
+import { gmt7Date, gmt7DateStart } from "../src/core/time";
 import { CATCHUP_BACKFILL_DATASETS, isDatacenterPath } from "../src/platforms/shopee/config";
 import { isNoCampaign } from "../src/platforms/shopee/promotion-map";
 import { mapTrafficJob } from "../src/platforms/shopee/reader-map";
@@ -451,6 +451,38 @@ describe("F4.9: order income", () => {
     expect(queued({ incomeSince: T0 - 1000 })).toEqual(["SN0001", "SN0002"]);
     // a brand-new install: the last 3 days only
     expect(queued({})).toEqual(["SN0002"]);
+  });
+
+  it("S1 #48: a backfill read queues its completed orders' page again, read before or not; a plain read does not", () => {
+    const day = 86_400_000;
+    const ctx = setup(["orders"]);
+    const detail = (sn: string, completedMs: number): ReaderResponse => ({
+      endpoint: "order_detail",
+      url: "u",
+      status: 200,
+      capturedAt: T0,
+      source: "replay",
+      body: { code: 0, data: { order_sn: sn, order_id: sn.replace("SN", "9"), complete_time: Math.floor(completedMs / 1000), status: 4 } },
+    });
+    const responses = [detail("SN0001", T0 - 20 * day), detail("SN0002", T0 - 2 * day)];
+    const queued = (job: Record<string, unknown>, sched: Record<string, unknown> = {}) => {
+      const out = (ctx.scheduler as unknown as { shopReaderState: (...a: unknown[]) => { incomeQueue?: { id: string }[] } }).shopReaderState(
+        { adsDone: [], incomeSince: T0 - day, incomeReadAt: T0 - 3 * day, ...sched },
+        { day: "2026-11-19" },
+        { id: "orders", ...job },
+        { order_lines: "posted" },
+        responses,
+        SHOP,
+        true,
+        "",
+      );
+      return (out.incomeQueue ?? []).map((o) => o.id);
+    };
+    const backfillSince = gmt7Date(Math.floor((T0 - 25 * day) / 1000));
+    expect(queued({ sinceDay: backfillSince })).toEqual(["SN0002"]);
+    expect(queued({ sinceDay: backfillSince, orderBackfill: true })).toEqual(["SN0001", "SN0002"]);
+    // an order already waiting in the queue is not queued twice
+    expect(queued({ sinceDay: backfillSince, orderBackfill: true }, { incomeQueue: [{ id: "SN0001", completedAt: T0 - 20 * day }] })).toEqual(["SN0001", "SN0002"]);
   });
 });
 

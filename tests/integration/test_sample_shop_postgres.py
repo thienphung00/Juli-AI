@@ -32,7 +32,8 @@ from scripts.sample_shop import loader
 from scripts.sample_shop.generator import DAYS, generate
 from tests.support.postgres import requires_postgres
 
-pytestmark = [requires_postgres]
+#: these load a whole sample shop into Postgres: slower than pytest.ini's 30 s on a busy runner
+pytestmark = [requires_postgres, pytest.mark.timeout(300)]
 
 
 @pytest.fixture(scope="module", autouse=True)

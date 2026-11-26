@@ -36,6 +36,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from typing import Any, TypeVar
 
 from pydantic import ValidationError
@@ -97,6 +98,7 @@ from juli_backend.services.ingest.schemas import (
     RowBase,
     ShopeeAdsChangeLogRow,
     ShopeeAffiliateOrderLineRow,
+    ShopeeComboSettingRow,
     ShopeeItemBySourcePeriodRow,
     ShopeeItemCatalogRow,
     ShopeeItemSnapshotRow,
@@ -726,6 +728,60 @@ def _voucher_values(
     return values
 
 
+def _combo_extra(row: ShopeeComboSettingRow) -> dict[str, Any]:
+    """What the combo read-back compares (``readback_compare.observed_of``): the id, the tiers
+    ``[{qty, value}]`` with their one ``discount_type`` (a fixed code, never seller text), the
+    product count and the per-buyer limit."""
+
+    def number(value: Decimal) -> int | float:
+        return float(value) if value != value.to_integral_value() else int(value)
+
+    extra: dict[str, Any] = {"combo_id": int(row.combo_id)}
+    if row.tiers is not None and row.discount_type is not None:
+        extra["discount_type"] = row.discount_type
+        extra["tiers"] = [{"qty": t.qty, "value": number(t.value)} for t in row.tiers]
+    if row.product_count is not None:
+        extra["product_count"] = number(row.product_count)
+    if row.usage_limit is not None:
+        extra["usage_limit"] = number(row.usage_limit)
+    return extra
+
+
+def _combo_values(
+    rows: list[ShopeeComboSettingRow], body: IngestBody, provenance: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """``platform_promotions`` rows (``bundle``) for the combo list. Twins (same name and start)
+    get an ``ordinal`` by combo id, so the key is stable between snapshots."""
+    ordinals: dict[tuple[str, datetime], int] = {}
+    values = []
+    for row in sorted(rows, key=lambda r: int(r.combo_id)):
+        starts_at = row.starts_at.replace(tzinfo=None)
+        twin = (row.program_name, starts_at)
+        ordinal = ordinals.get(twin, 0)
+        ordinals[twin] = ordinal + 1
+        values.append(
+            {
+                "id": uuid.uuid4(),
+                **provenance,
+                "promo_type": SHOPEE_PROMO_TYPES["Combo Khuyến Mãi"],
+                "program_name": row.program_name,
+                "starts_at": starts_at,
+                "ends_at": row.ends_at.replace(tzinfo=None) if row.ends_at else None,
+                "ordinal": ordinal,
+                "period_start": body.period.start,
+                "period_end": body.period.end,
+                "status": row.status,
+                "order_type": ORDER_TYPE_NONE,
+                "gmv": None,
+                "orders": None,
+                "units": None,
+                "buyers": None,
+                "extra": _combo_extra(row),
+            }
+        )
+    return values
+
+
 def _typed(rows: list[DatasetRow], model: type[_Row]) -> list[_Row]:
     """The rows of a dataset whose writer needs its own row type (the spec made them)."""
     return [row for row in rows if isinstance(row, model)]
@@ -803,6 +859,7 @@ async def _write(
         promotions += _voucher_values(
             [row for row in rows if isinstance(row, ShopeeVoucherSettingRow)], body, provenance
         )
+        promotions += _combo_values(_typed(rows, ShopeeComboSettingRow), body, provenance)
         await _upsert(session, PlatformPromotion, _PROMOTION_KEY_COLUMNS, promotions)
         await _verify_now(
             session,

@@ -22,6 +22,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from juli_backend.services.ingest import order_ref as order_ref_mod
+from juli_backend.services.shopee_profit.fees import INFRASTRUCTURE_FEE
 from scripts.sample_shop.catalog import (
     AFFILIATE_RATE,
     CAMPAIGNS,
@@ -1061,6 +1062,10 @@ def _affiliate_period_rows(lines: list[dict[str, Any]]) -> dict[str, list[dict[s
 def _income_row(o: _Order, day: date) -> dict[str, Any]:
     fees = [_fees(ln) for ln in o.lines]
     fixed, service, payment = (sum(f[i] for f in fees) for i in range(3))
+    # Batch 1123-e5: like a real Shopee income file, phí hạ tầng is its own line per order and
+    # Phí Dịch Vụ states it inside (7,9 % of the basis + 3.000đ); the payout deducts it once.
+    infra = int(INFRASTRUCTURE_FEE)
+    service += infra
     ship_buyer = sum(ln.ship for ln in o.lines)
     ship_actual, subsidy = 26_000, 11_000
     net_ship = max(ship_actual - subsidy - ship_buyer, 0)
@@ -1072,6 +1077,7 @@ def _income_row(o: _Order, day: date) -> dict[str, Any]:
         "product_price": sum(ln.value for ln in o.lines),
         "fee_fixed": fixed,
         "fee_service": service,
+        "fee_infra": infra,
         "fee_payment": payment,
         "transaction_fee_rate": PAYMENT_FEE,
         "ship_actual_cost": ship_actual,

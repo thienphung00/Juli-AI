@@ -70,7 +70,8 @@ describe("C-A10: the order page's income never trips drift", () => {
   it("a page that never shows the final row posts nothing for the income, says so, and is not drift", async () => {
     document.body.innerHTML = LINE + FEES + "</div>";
     const outcome = await runReaderJob(job, envFor(document));
-    expect(outcome.detail).toBe(INCOME_NOT_SHOWN);
+    // 0.3.34 C-H4: the note carries the row count and the first three labels, never an amount
+    expect(outcome.detail).toBe(`${INCOME_NOT_SHOWN}:3:gia san pham/phi co dinh/phi dich vu`);
     expect(outcome.responses.filter((r) => r.endpoint === "order_income_components")).toEqual([]);
     const [income] = mapReaderJob(job, outcome.responses, NOW);
     expect(income!.drift).toBeNull();

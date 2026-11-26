@@ -115,6 +115,8 @@ const ITEM_KEEP = new Set([
   "line_item_id",
   "add_on_deal_id",
   "bundle_deal_id",
+  // batch-1124-a S1 (P-S2, 24/11): the Mua Kèm Deal Sốc add-on line's own flag
+  "is_add_on_sub_item",
 ]);
 const ITEM_LISTS = ["order_items", "items", "item_list", "model_list", "order_item_list"] as const;
 /** A combo line's own lines (get_one_order): empty for a plain item. */
@@ -145,15 +147,48 @@ function trimItem(item: Record<string, unknown>, depth = 0): Record<string, unkn
   const product = isRecord(item.product) ? item.product : undefined;
   if (product && typeof product.sku === "string" && out.item_sku === undefined) out.item_sku = product.sku;
   if (depth === 0) {
-    for (const key of SUB_ITEM_LISTS) {
-      const list = item[key];
-      if (Array.isArray(list) && list.some(isRecord)) {
-        out.sub_items = list.filter(isRecord).map((sub) => trimItem(sub, depth + 1));
-        break;
-      }
+    // batch-1124-b CONN (P-CONN capture, 24/11): a combo's own lines are `item_list[]` (item id,
+    // model id, quantity; no price, no SKU). Their SKUs are on `bundle_deal_model[]` (the variation
+    // SKU + Phân loại, like `item_model`) and `bundle_deal_product[]` (the product SKU, like
+    // `product`), joined by model id. An answer without `item_list` keeps the first list (0.3.20).
+    const key = Array.isArray(item.item_list) && item.item_list.some(isRecord) ? "item_list" : SUB_ITEM_LISTS.find((k) => Array.isArray(item[k]) && (item[k] as unknown[]).some(isRecord));
+    if (key) {
+      const subs = (item[key] as unknown[]).filter(isRecord).map((sub) => trimItem(sub, depth + 1));
+      if (key === "item_list") for (const sub of subs) withComboSkus(sub, item);
+      out.sub_items = subs;
     }
   }
   return out;
+}
+
+/** A positive id as text (0 is Shopee's "none"), for the model-id join of a combo's lists. */
+const joinId = (value: unknown): string | undefined => {
+  const id = idOf(value);
+  return id !== undefined && id !== "0" ? id : undefined;
+};
+
+/**
+ * One combo sub-line (`item_list` entry, trimmed) with the SKUs the combo's lists give it: the
+ * variation SKU by model id (`bundle_deal_model`), the product SKU by model id, or by item id for
+ * an item with no variation (model id 0), from `bundle_deal_product`.
+ */
+function withComboSkus(sub: Record<string, unknown>, parent: Record<string, unknown>): void {
+  const modelId = joinId(sub.model_id);
+  const itemId = joinId(sub.item_id);
+  const records = (list: unknown) => (Array.isArray(list) ? list.filter(isRecord) : []);
+  const model = modelId === undefined ? undefined : records(parent.bundle_deal_model).find((m) => joinId(m.model_id) === modelId);
+  if (model) {
+    if (typeof model.sku === "string" && model.sku.trim() !== "" && sub.model_sku === undefined) sub.model_sku = model.sku;
+    if (typeof model.name === "string" && model.name.trim() !== "" && sub.model_name === undefined) sub.model_name = model.name;
+  }
+  const products = records(parent.bundle_deal_product);
+  const product =
+    modelId !== undefined
+      ? products.find((m) => joinId(m.model_id) === modelId)
+      : itemId !== undefined
+        ? products.find((m) => joinId(m.item_id) === itemId && joinId(m.model_id) === undefined)
+        : undefined;
+  if (product && typeof product.sku === "string" && product.sku.trim() !== "" && sub.item_sku === undefined) sub.item_sku = product.sku;
 }
 
 /** One order record (flattened from its wrappers) with only allowlisted keys. */
@@ -272,9 +307,18 @@ function collectOrders(responses: ReaderResponse[]): Map<string, CollectedOrder>
       }
     }
   }
-  // a card keyed by order_id only and its detail keyed by order_sn are one order: the detail stays
-  const detailed = new Set([...orders.values()].filter((o) => o.__detail && o.__api !== undefined).map((o) => o.__api));
-  for (const [key, order] of orders) if (!order.__detail && order.__api !== undefined && detailed.has(order.__api)) orders.delete(key);
+  // a card keyed by order_id only and its detail keyed by order_sn are one order. 0.3.34 (C-H3): the
+  // detail's lines REPLACE the card's under the card's key, so the order keeps the order_ref its
+  // card lines were (or will be) posted with: one set of lines, never the card's beside the detail's.
+  const detailKeyOf = new Map<string, string>();
+  for (const [key, order] of orders) if (order.__detail && order.__api !== undefined) detailKeyOf.set(order.__api, key);
+  for (const [key, order] of [...orders]) {
+    if (order.__detail || order.__api === undefined) continue;
+    const detailKey = detailKeyOf.get(order.__api);
+    if (detailKey === undefined || detailKey === key) continue;
+    orders.set(key, orders.get(detailKey) as CollectedOrder);
+    orders.delete(detailKey);
+  }
   return orders;
 }
 
@@ -364,9 +408,14 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       // gives it, else the line's paid price (no seller subsidy claimed).
       const single = items.length === 1 && qty !== undefined && qty > 0 ? money(order.price_before_discount) : undefined;
       const singleUnit = single !== undefined && qty ? Math.round((single / qty) * 100) / 100 : undefined;
+      const isCombo = (num(item.bundle_deal_id) ?? 0) > 0;
+      // batch-1124-b CONN (owner Q4): a combo line's price is its share of the combo price, and
+      // its original price the same (the combo discount is bundle_discount, never seller_subsidy)
       const original =
-        money(item.original_price ?? item.price_before_discount ?? item.item_price) ??
-        (order.__detail ? (singleUnit !== undefined && deal !== undefined && singleUnit >= deal ? singleUnit : deal) : undefined);
+        order.__detail && isCombo
+          ? deal
+          : (money(item.original_price ?? item.price_before_discount ?? item.item_price) ??
+            (order.__detail ? (singleUnit !== undefined && deal !== undefined && singleUnit >= deal ? singleUnit : deal) : undefined));
       if (qty === undefined || qty < 0 || original === undefined || deal === undefined) {
         miss("orders[].items[].price_or_qty");
         return;
@@ -392,9 +441,19 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       const modelId = idOf(item.model_id);
       if (itemId) extra.item_id = itemId;
       if (modelId) extra.model_id = modelId;
+      if (isCombo) {
+        row.promo_kind = "bundle";
+        const bundleId = num(item.bundle_deal_id);
+        if (bundleId !== undefined && Number.isSafeInteger(bundleId)) extra.bundle_deal_id = bundleId;
+      }
+      else if ((num(item.add_on_deal_id) ?? 0) > 0 || item.is_add_on_sub_item === true) row.promo_kind = "add_on";
+      // owner Q4: the combo discount of a line = (the page's list price − its combo price) x qty;
+      // unknown (not posted) until the order page has been read
+      const listUnit = isCombo ? num(item[PAGE_LIST_PRICE]) : undefined;
+      if (listUnit !== undefined && listUnit > 0) extra.list_price = listUnit;
+      const pageQty = isCombo ? num(item[PAGE_QTY]) : undefined;
+      if (pageQty !== undefined) extra.page_qty = pageQty;
       if (Object.keys(extra).length > 0) row.extra = extra;
-      if ((num(item.bundle_deal_id) ?? 0) > 0) row.promo_kind = "bundle";
-      else if ((num(item.add_on_deal_id) ?? 0) > 0) row.promo_kind = "add_on";
       const returned = num(item.returned_qty);
       if (returned !== undefined && returned >= 0) row.returned_qty = returned;
       const shopVoucher = split(order.shop_voucher_amount ?? order.seller_voucher, item);
@@ -404,7 +463,8 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       const bank = split(order.bank_promo_amount, item);
       if (shopVoucher !== undefined) row.shop_voucher_share = shopVoucher;
       if (platformVoucher !== undefined) row.platform_voucher_share = platformVoucher;
-      if (bundle !== undefined) row.bundle_discount = bundle;
+      if (listUnit !== undefined && listUnit > 0) row.bundle_discount = Math.round(Math.max(0, listUnit - deal) * qty * 100) / 100;
+      else if (bundle !== undefined) row.bundle_discount = bundle;
       if (shipping !== undefined) row.buyer_shipping_fee = shipping;
       if (bank !== undefined) row.bank_promo = bank;
       if (completedAt) row.completed_at = completedAt;
@@ -491,6 +551,8 @@ const INCOME_LABELS: [RegExp, string][] = [
   // 0.3.29 (F4.9): the two fee columns inside Phí Dịch Vụ (the backend never adds them to fee_service)
   [/^phi ha tang/, "fee_infra"],
   [/^phi (chuong trinh )?voucher xtra/, "fee_voucher_xtra"],
+  // batch-1124-a S1 (P-S3 capture 24/11): the order page names the row "Voucher Xtra" (under Phụ phí)
+  [/^voucher xtra$/, "fee_voucher_xtra"],
   [/^phi (xu ly giao dich|thanh toan)/, "fee_payment"],
   [/^phi van chuyen.*(nguoi mua tra|nguoi mua)/, "ship_buyer_paid"],
   [/^phi van chuyen.*(tro gia|shopee tro)/, "ship_shopee_subsidy"],
@@ -507,7 +569,7 @@ const FINAL_AMOUNT = /^(so tien cuoi cung|doanh thu don hang)$/;
 export function incomeNotFinal(responses: ReaderResponse[]): boolean {
   return responses.some((r) => {
     if (r.endpoint !== "order_income_components" || classify(r.status, r.body) !== "ok") return false;
-    const found = pairs(payloadOf(r.body));
+    const found = pairs(incomePayload(r.body));
     return found.length > 0 && !found.some((p) => FINAL_AMOUNT.test(plain(p.label)));
   });
 }
@@ -519,6 +581,11 @@ export function pageIncomeFinal(items: readonly { name: string }[]): boolean {
 /** A cost is stored as a positive amount the seller bore; these are signed as sent. */
 const SIGNED = new Set(["payout", "product_price"]);
 
+/** A label without diacritics, lower case, single-spaced (what the income labels are matched on). */
+export function plainLabel(label: string): string {
+  return plain(label);
+}
+
 function plain(label: string): string {
   return label
     .normalize("NFD")
@@ -528,6 +595,30 @@ function plain(label: string): string {
     .replace(/[:*]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * batch-1124-a S1 (P-S3): the order page's buyer-payment rows travel as `data.buyer_items`, apart
+ * from the income rows: its "Mã giảm giá của Shop" is what the buyer saved, NOT the seller's cost,
+ * so it must never meet INCOME_LABELS (where that label is the seller-borne voucher).
+ */
+const BUYER_ITEMS = "buyer_items";
+/** Buyer-payment labels -> the order_income wire field (split onto the order's lines by Juli). */
+const BUYER_LABELS: [RegExp, string][] = [
+  [/^ma giam gia cua shop$/, "order_shop_voucher"],
+  [/^shopee voucher$/, "order_platform_voucher"],
+];
+
+function incomePayload(body: unknown): unknown {
+  const data = payloadOf(body);
+  if (!isRecord(data) || !(BUYER_ITEMS in data)) return data;
+  const { [BUYER_ITEMS]: _buyer, ...rest } = data;
+  return rest;
+}
+
+function buyerPayload(body: unknown): unknown {
+  const data = payloadOf(body);
+  return isRecord(data) ? data[BUYER_ITEMS] : undefined;
 }
 
 /** Every {label, amount} pair in an income answer, whatever the nesting (a few levels deep). */
@@ -556,7 +647,7 @@ export function incomeReadIds(responses: ReaderResponse[]): Set<string> {
   const out = new Set<string>();
   for (const r of responses) {
     if (r.endpoint !== "order_income_components" || !r.orderId || classify(r.status, r.body) !== "ok") continue;
-    if (pairs(payloadOf(r.body)).some((p) => FINAL_AMOUNT.test(plain(p.label)))) out.add(r.orderId);
+    if (pairs(incomePayload(r.body)).some((p) => FINAL_AMOUNT.test(plain(p.label)))) out.add(r.orderId);
   }
   return out;
 }
@@ -568,7 +659,7 @@ export function mapOrderIncome(responses: ReaderResponse[], capturedAt: number):
   if (answers.length === 0) return { ...base, date: today, rows: [], drift: null };
   // One scale for the whole job, read from the sizes of the product prices and payouts.
   const sample = answers.flatMap((r) =>
-    pairs(payloadOf(r.body))
+    pairs(incomePayload(r.body))
       .filter((p) => /^(gia san pham|so tien cuoi cung|doanh thu don hang)$/.test(plain(p.label)))
       .map((p) => ({ v: Math.abs(p.amount) })),
   );
@@ -578,19 +669,24 @@ export function mapOrderIncome(responses: ReaderResponse[], capturedAt: number):
   for (const response of answers) {
     // The hashed id is the order number when the queue knew it (joins the export and the affiliate lines).
     const row: Row = { [RAW_ORDER_ID]: response.orderSn ?? response.orderId };
-    for (const { label, amount } of pairs(payloadOf(response.body))) {
+    for (const { label, amount } of pairs(incomePayload(response.body))) {
       const key = plain(label);
       const field = INCOME_LABELS.find(([re]) => re.test(key))?.[1];
       if (field === undefined || field in row) continue;
       const vnd = Math.round((amount / divisor) * 100) / 100;
       row[field] = SIGNED.has(field) ? vnd : Math.abs(vnd);
     }
+    for (const { label, amount } of pairs(buyerPayload(response.body))) {
+      const field = BUYER_LABELS.find(([re]) => re.test(plain(label)))?.[1];
+      if (field === undefined || field in row) continue;
+      row[field] = Math.abs(Math.round((amount / divisor) * 100) / 100);
+    }
     if (!("payout" in row)) {
       // a2 C-A10 (prod 23/11: drift "components.final_amount" from 0.3.32's income CALL): an answer
       // that has its income lines but no final amount is an order not final yet (in transit, not
       // settled): skipped, the reader says `income_not_final`. Drift stops order_income for the
       // whole version, so it is kept for an answer of another shape: no income line at all.
-      const structural = response.source !== "page" && pairs(payloadOf(response.body)).length === 0;
+      const structural = response.source !== "page" && pairs(incomePayload(response.body)).length === 0;
       if (structural && !drift.missing.includes("components")) drift.missing.push("components");
       continue;
     }
@@ -617,7 +713,14 @@ export interface PageItem {
   lineTotal?: number;
   /** The line's quantity as the page shows it. */
   qty?: number;
+  /** batch-1124-b CONN: a combo sub-line's unit list price (before the combo discount). */
+  listPrice?: number;
 }
+
+/** The line key a combo line carries its page list price under (never sent: the mapper reads it). */
+export const PAGE_LIST_PRICE = "page_list_price";
+/** D4: the page's quantity of a combo line when it differs from the API's (posted in `extra`). */
+export const PAGE_QTY = "page_qty";
 
 const hasSku = (item: Record<string, unknown>): boolean =>
   [item.item_sku, item.sku, item.model_sku, item.variation_sku].some((v) => typeof v === "string" && v.trim() !== "");
@@ -739,17 +842,112 @@ export function withPageSkus(body: unknown, page: readonly PageItem[]): unknown 
     delete out.sub_items;
     if (at.sku) out.model_sku = at.sku;
     if (at.variationName) out.model_name = at.variationName;
+    if (at.listPrice !== undefined) out[PAGE_LIST_PRICE] = at.listPrice;
     return out;
   };
   let fixed: Record<string, unknown>[] | null = null;
-  if (items.length === page.length) {
+  const subsOf = (item: Record<string, unknown>) => (Array.isArray(item.sub_items) ? item.sub_items.filter(isRecord) : []);
+  // batch-1124-b CONN: the page shows a combo as one line per sub-line (`.bundle-deal-item`). Each
+  // SKU-less combo parent is one slot per sub-line, every other line one slot; slots and page lines
+  // are paired by SKU where both name one, else in order (pairSlots). Each combo is then split
+  // exactly over its own page lines with the API's quantities.
+  const combo = (item: Record<string, unknown>) => (num(item.bundle_deal_id) ?? 0) > 0 && !hasSku(item) && subsOf(item).length > 0;
+  const slots: Record<string, unknown>[] = items.flatMap((item) => (combo(item) ? subsOf(item) : [item]));
+  if (items.some(combo) && slots.length === page.length) {
+    const paired = pairSlots(slots, page);
+    if (!paired) return null;
+    fixed = [];
+    let at = 0;
+    for (const item of items) {
+      if (!combo(item)) {
+        fixed.push(hasSku(item) ? item : named(item, paired[at] as PageItem));
+        at += 1;
+        continue;
+      }
+      const subs = subsOf(item);
+      const parentQty = num(item.amount ?? item.quantity ?? item.qty) ?? 1;
+      // D4: the API's quantity (sub-line amount x combo amount); the page's only cross-checks it
+      const own = paired.slice(at, at + subs.length).map((p, i) => {
+        const apiQty = num((subs[i] as Record<string, unknown>).amount);
+        const qty = apiQty !== undefined && apiQty > 0 ? apiQty * parentQty : p.qty;
+        return { ...p, ...(qty !== undefined ? { qty } : {}), ...(p.listPrice !== undefined && qty !== undefined ? { lineTotal: p.listPrice * qty } : {}) };
+      });
+      const pageQtys = paired.slice(at, at + subs.length).map((p) => p.qty);
+      at += subs.length;
+      const lines = splitCombo(item, own);
+      if (!lines) return null;
+      fixed.push(
+        ...lines.map((line, i) => {
+          const out = fromSub(named(line, own[i] as PageItem), subs[i]);
+          const shown = pageQtys[i];
+          if (shown !== undefined && shown !== own[i]!.qty) out[PAGE_QTY] = shown;
+          return out;
+        }),
+      );
+    }
+  } else if (items.length === page.length) {
     fixed = items.map((item, i) => (hasSku(item) ? item : named(item, page[i] as PageItem)));
   } else if (items.length === 1 && page.length > 1 && !hasSku(items[0] as Record<string, unknown>)) {
-    const lines = splitCombo(items[0] as Record<string, unknown>, page);
-    fixed = lines ? lines.map((line, i) => named(line, page[i] as PageItem)) : null;
+    const parent = items[0] as Record<string, unknown>;
+    const lines = splitCombo(parent, page);
+    const subs = subsOf(parent);
+    fixed = lines ? lines.map((line, i) => (subs.length === page.length ? fromSub(named(line, page[i] as PageItem), subs[i] as Record<string, unknown>) : named(line, page[i] as PageItem))) : null;
   }
   if (!fixed || !fixed.every(hasSku)) return null;
   return { ...body, data: { ...order, items: fixed } };
+}
+
+/** The SKUs an answer line names (variation first, then product). */
+function skusOf(line: Record<string, unknown>): string[] {
+  return [line.model_sku, line.variation_sku, line.item_sku, line.sku].flatMap((v) => (typeof v === "string" && v.trim() !== "" ? [v.trim()] : []));
+}
+
+/**
+ * batch-1124-b CONN (D1): the page line of each answer line (a plain line or a combo's sub-line),
+ * or null. A line whose SKU the page shows takes that page line, wherever it is on the page; the
+ * other lines take the page lines left, in order. A line that names a SKU paired with a page line
+ * that shows another SKU is a contradiction: null (the order is read again), never one line's SKU
+ * with another's price or quantity.
+ */
+function pairSlots(slots: Record<string, unknown>[], page: readonly PageItem[]): PageItem[] | null {
+  if (slots.length !== page.length) return null;
+  const out: (PageItem | undefined)[] = slots.map(() => undefined);
+  const used = new Set<number>();
+  slots.forEach((slot, i) => {
+    const skus = skusOf(slot);
+    if (skus.length === 0) return;
+    const j = page.findIndex((p, k) => !used.has(k) && p.sku !== undefined && skus.includes(p.sku));
+    if (j >= 0) {
+      out[i] = page[j];
+      used.add(j);
+    }
+  });
+  const rest = page.map((_, k) => k).filter((k) => !used.has(k));
+  let r = 0;
+  for (let i = 0; i < slots.length; i += 1) {
+    if (out[i]) continue;
+    const p = page[rest[r] as number] as PageItem;
+    r += 1;
+    if (p.sku !== undefined && skusOf(slots[i] as Record<string, unknown>).length > 0) return null;
+    out[i] = p;
+  }
+  return out as PageItem[];
+}
+
+/**
+ * A combo line split from its parent, with its own sub-line's ids and the SKUs the answer gives it
+ * (`bundle_deal_model` / `bundle_deal_product`, joined in the page by model id): the same fields a
+ * plain line takes from `item_model` / `product`. The page's "SKU phân loại" stays only where the
+ * answer names none.
+ */
+function fromSub(line: Record<string, unknown>, sub: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!sub) return line;
+  const out: Record<string, unknown> = { ...line };
+  for (const key of ["item_id", "model_id", "line_item_id"] as const) if (sub[key] !== undefined) out[key] = sub[key];
+  for (const key of ["model_sku", "item_sku", "model_name"] as const) {
+    if (typeof sub[key] === "string" && (sub[key] as string).trim() !== "") out[key] = sub[key];
+  }
+  return out;
 }
 
 

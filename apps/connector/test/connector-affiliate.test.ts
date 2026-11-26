@@ -98,7 +98,7 @@ describe("affiliate order lines in the service worker", () => {
       throw new GatewayError(503, "order_ref_key_not_configured");
     };
     const outcomes = await connector.postReader({ id: "affiliate" }, [conversion()]);
-    expect(outcomes).toEqual({ "affiliate_order_lines:2026-11-05": "rejected" });
+    expect(outcomes).toEqual({ "affiliate_order_lines:2026-11-05": "rejected:order_ref_key" }); // 0.3.34 C-H1: the reason
     expect(client.posts).toEqual([]);
     expect((await loadState(storage)).lastError?.code).toBe("order_ref_key_unavailable");
   });
@@ -109,7 +109,7 @@ describe("affiliate order lines in the service worker", () => {
       { dataset: "affiliate_order_lines", endpoint: "x", date: "2026-11-05", orderType: null, granularity: "period", rows: [{ __order_id__: "X1", item_id: "1" }], drift: null },
       NOW,
     );
-    expect(outcome).toBe("rejected");
+    expect(outcome).toBe("rejected:raw_order_id"); // 0.3.34 C-H1: the reason
     expect(client.posts).toEqual([]);
   });
 });

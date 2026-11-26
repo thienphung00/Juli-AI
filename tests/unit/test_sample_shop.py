@@ -970,8 +970,21 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # changes each draw's profit, so a different draw is the middle one, exactly as in
             # the 437bea66 note above (350_716 vs 669_480 for a service fee on / off): 341_945 and
             # 2,79 orders here. Only the choice of draw moved, not the combo's reach or take-up.
-            assert cd["gmv"] == pytest.approx(341_945, rel=0.02)
-            assert round(cd["orders"]) == 3  # 2,79 rounded (was 1,65: the middle draw moved, above)
+            # Batch 1123-e5: hạ tầng is its own line inside Phí Dịch Vụ (learned rate 7,71 %), and
+            # batch 1124-a (decision #39): each product's ad cost is the campaign's Connector day
+            # spend x its share in the ads report by product. Both shift the draws' profits, so a
+            # different draw is the middle one. The combo's reach and take-up are unchanged.
+            # Track P (#42-#44): every draw's extra orders are now valued at Lợi nhuận đóng góp (one
+            # rate, before ads and affiliate) instead of the after-ads profit per order, so a
+            # different draw is the middle-PROFIT one: 389_340 on 3,17 orders (was 336_249 /
+            # 2,74). The combo's reach and take-up are unchanged.
+            assert cd["gmv"] == pytest.approx(389_340, rel=0.02)
+            assert round(cd["orders"]) == 3
+            # the combo's only lever here is the badge's CTOR prior: the middle draw's ΔGMV is its
+            # Δ orders at today's AOV -- never a GMV with almost no orders (445.900đ on 0,31 đơn)
+            aov = c["detail"]["before"]["aov"]
+            assert c["detail"]["likely"]["aov"] == pytest.approx(aov)
+            assert cd["gmv"] == pytest.approx(cd["orders"] * aov, rel=1e-6)
             assert cd["profit"] < 0
             ctx = await builder.build_context(session, report.shop_id, [set2], as_of=END, now=NOW)
             base = integrate.base_for(ctx.env, [nrc], "")
@@ -984,9 +997,9 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             set_done, _ = integrate.evaluate(ctx, set2)
             sd = _own_delta(s, set_done.result)
             # F2: the base is the adaptive window's level (was 791_214 on the fixed 30 days)
-            assert sd["gmv"] == pytest.approx(
-                808_002, rel=0.02
-            )  # was 859_189 at a 7,9 % service fee (middle draw)
+            # Track P (#42-#44): the middle-profit draw on the contribution basis (one rate for
+            # the extra orders and the AOV effect): 806_567 (was 856_463 on the after-ads basis)
+            assert sd["gmv"] == pytest.approx(806_567, rel=0.02)
             assert s["cost"]["total"] > 0 and sd["profit"] < 0
 
 
@@ -1022,3 +1035,39 @@ async def test_the_affiliate_programme_has_three_kols_and_a_known_commission(eng
     rows = [r for p in lines for r in p.body["rows"]]
     # the commission is on what the buyer paid (after the shop's combo / voucher)
     assert rows and all(0 < r["cost"] <= round(r["order_value"] * AFFILIATE_RATE) for r in rows)
+
+
+def _income_rows() -> list[dict]:
+    posts = [p for p in generate(END).posts if p.dataset == "order_income"]
+    return [r for p in posts for r in p.body["rows"]]
+
+
+def test_income_rows_carry_phi_ha_tang_as_their_own_line_inside_phi_dich_vu():
+    """Batch 1123-e5 (owner #25/#33/#34): like a real Shopee income file, every order has
+    phí hạ tầng (3.000đ) as its own field, and Phí Dịch Vụ states it inside (7,9 % + 3.000đ)."""
+    from juli_backend.services.shopee_profit.fees import INFRASTRUCTURE_FEE
+
+    rows = _income_rows()
+    assert rows
+    for r in rows:
+        assert r["fee_infra"] == int(INFRASTRUCTURE_FEE)
+        assert r["fee_service"] >= r["fee_infra"]
+        # the payout's gross (payout + every fee + net shipping) is what the buyer paid: never
+        # more than the price plus the shipping the buyer paid, so hạ tầng is deducted once
+        gross = r["payout"] + r["fee_fixed"] + r["fee_service"] + r["fee_payment"]
+        assert gross + r["net_shipping_cost"] <= r["product_price"] + r["ship_buyer_paid"]
+
+
+def test_the_fee_learner_reads_7_9_percent_on_the_sample_income():
+    """Batch 1123-e5: Phí Dịch Vụ minus the own hạ tầng line is the generator's 7,9 % basis
+    (it was 5,86 % when the sample had no hạ tầng part inside Phí Dịch Vụ)."""
+    from juli_backend.services.shopee_analytics.fee_table import learn_service_rate
+
+    rows = [
+        (Decimal(r["product_price"]), Decimal(r["fee_service"]), Decimal(r["fee_infra"]), None)
+        for r in _income_rows()
+    ]
+    rate = learn_service_rate(rows)
+    # 7,71 % not 7,90 %: the 7,9 % is taken on the buyer-paid value (after vouchers) while the
+    # learner divides by the product price (before them), so vouchers pull it down by 0,19 pt
+    assert rate is not None and abs(rate - Decimal("0.079")) <= Decimal("0.0025")

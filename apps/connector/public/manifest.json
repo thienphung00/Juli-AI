@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Juli Connector",
-  "version": "0.3.33",
+  "version": "0.3.36",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt7scPjMdLbGtrUKE/tulAhKhVpfy9poeuMtJHw8+Uf/OWDwhD/HkR10h8WquCwATRjCA0v2b+s9qwJY2CEYjXtgb0KbRv4SWX/3UljWWVHZqr9J4VWJUUCPlrtwnsP4UOEHqMlHlSnZrc7RB4088mpjT5fkzUU/51SgBAyHpwAKMKqSLe9GLWXZqavTSqIVOkSUjOx/13AxZ/ILJ0P6mkX84q6p0uf2wS86HeAt8ydZyOvg4JZgmWMRgRMfI612jmovM8ab32sbri7CmL4HlBbt2375XZeWXEBfF7etTkDaIDEcpyHQna6uMInjkjhgd3SihTKRv4k7HDbMqyvG4dQIDAQAB",
   "description": "Gửi số liệu Seller Centre của chính shop bạn (Shopee) sang Juli để Juli phân tích và đề xuất.",
   "minimum_chrome_version": "111",
   "permissions": ["storage", "alarms", "scripting"],

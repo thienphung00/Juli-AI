@@ -74,6 +74,8 @@ export type ReaderDataset =
   | "ads_campaign_settings"
   | "ads_campaign_detail"
   | "voucher_settings"
+  /** 0.3.35 (batch-1124-a C4): the shop's combos with their tiers (Combo Khuyến Mãi read-back). */
+  | "combo_settings"
   | "shop_health_daily"
   | "market_search"
   | "shop_overview"
@@ -106,6 +108,8 @@ export type ReaderId =
   | "ads"
   | "ads_detail"
   | "vouchers"
+  /** 0.3.35: the Combo Khuyến Mãi list, read only when Juli asks for a read-back (not daily). */
+  | "combos"
   | "health"
   | "shop_totals"
   | "product_period"
@@ -173,6 +177,7 @@ export const READERS_ACTIVE: Record<ReaderId, boolean> = {
   ads: true,
   ads_detail: true,
   vouchers: true,
+  combos: true,
   health: true,
   shop_totals: true,
   product_period: true,
@@ -212,6 +217,7 @@ export const READER_DATASETS: Record<ReaderId, readonly Dataset[]> = {
   products: ["item_catalog", "item_snapshot"],
   item_traffic: ["item_traffic_sources"],
   vouchers: ["voucher_settings"],
+  combos: ["combo_settings"],
   ads: ["ads_campaign_daily", "ads_campaign_settings"],
   ads_detail: ["ads_campaign_detail"],
   health: ["shop_health_daily"],
@@ -280,6 +286,16 @@ export const ORDER_LIST_MAX_PAGES_PER_RUN = 40;
 export const ORDER_CATCHUP_FIRST_DAYS = 14;
 export const ORDER_CATCHUP_OVERLAP_DAYS = 3;
 export const ORDER_CATCHUP_MAX_DAYS = 30;
+/**
+ * batch-1124-a S1 (owner decision #48): the server's `order_lines_backfill` hole set names the order
+ * days read by a Connector older than the server's ORDER_DISCOUNTS_VERSION (0.3.36 since batch-1124-b CONN:
+ * combo SKUs and combo discount from the order page). The orders job
+ * reads back to the oldest of them it can afford from the backfill's part of the budget, at about
+ * this many requests per day of orders (a list page per ~40 orders, one get_one_order per order);
+ * the rest waits for a later day.
+ */
+export const ORDER_LINES_BACKFILL = "order_lines_backfill";
+export const ORDER_BACKFILL_DAY_COST = 15;
 /** 40 pages x (20-45 s gap + 2 calls) can take ~30 min: the orders job has its own timeout. */
 export const ORDERS_JOB_TIMEOUT_MS = 45 * 60_000;
 /** Extra wait before an order-list page after the first (ms, plus jitter): 20-45 s like page gaps. */
@@ -393,6 +409,11 @@ export const TRAFFIC_MAX_CONSECUTIVE_ERRORS = 5;
 export const PRODUCT_MAX_PAGES = 40;
 export const VOUCHER_MAX_ROWS = 600;
 export const VOUCHER_PAGE_LIMIT_DEFAULT = 20;
+/** 0.3.35: the combo list's pages (its own call asks 10) and the combos whose detail is read. */
+export const COMBO_MAX_ROWS = 200;
+export const COMBO_PAGE_LIMIT_DEFAULT = 10;
+/** Only upcoming / running combos are read in detail (a read-back targets a new one), newest first. */
+export const COMBO_DETAIL_MAX = 15;
 /**
  * Affiliate conversion report (Báo cáo chuyển đổi): the last this-many finished GMT+7 days by
  * purchase time, re-read every day (orders change status and commission for weeks). One post's
@@ -418,6 +439,13 @@ export const AFFILIATE_MIN_PLAUSIBLE_VND = 100;
 
 /** Rows per ingest post (the gateway takes 2 000 rows and ~1 MB). */
 export const MAX_ROWS_PER_POST = 400;
+
+/**
+ * 0.3.34 (C-H2): the longest period one post may span, the gateway's `MAX_PERIOD_DAYS`
+ * (`period_too_long` above it). Only `ads_campaign_period` is allowed more (100 days), and its
+ * rows are period totals with no day of their own, so it is never split: 31 is the ceiling.
+ */
+export const MAX_POST_PERIOD_DAYS = 31;
 
 /**
  * Checked on the first live run (2026-11-04): the ads service (`/api/pas`) sends money AND the

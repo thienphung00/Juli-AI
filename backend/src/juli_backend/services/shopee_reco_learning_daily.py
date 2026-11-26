@@ -34,6 +34,7 @@ from juli_backend.models.ops import STAGE_PILOT, OpsShopSettings
 from juli_backend.models.shop_proposals import STATUS_EXECUTED, ShopProposal
 from juli_backend.services.ops import ops_role
 from juli_backend.services.ops.overview import list_shops
+from juli_backend.services.shopee_analytics import materialize
 from juli_backend.services.shopee_recommendations import measure
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ class DailyLearningSummary:
     failed: int = 0
     observations: int = 0
     calibration_rows: int = 0
+    rebuilt_days: int = 0
 
 
 def _extra_ids() -> set[uuid.UUID]:
@@ -101,6 +103,30 @@ async def pilot_shop_ids(session: Any) -> list[uuid.UUID]:
     return sorted(shopee & (staged | executed | _extra_ids()), key=str)
 
 
+async def shopee_shop_ids(session: Any) -> list[uuid.UUID]:
+    """Every Shopee shop (the stored-day rebuild reaches all of them, not only the pilots)."""
+    return sorted({s.shop_id for s in await list_shops(session) if s.platform == SHOPEE}, key=str)
+
+
+async def _rebuild_outdated_days(factory: SessionFactory, shop_ids: list[uuid.UUID]) -> int:
+    """Decision #39 / F7.10: a rule change rebuilds every Shopee shop's stored days, a day budget
+    per run (``materialize.OUTDATED_DAYS_PER_RUN``, newest first). The pilot shops' learning run
+    does the same first; a day it rebuilt is current here and costs nothing."""
+    days = 0
+    for shop_id in shop_ids:
+        try:
+            async with factory() as session:
+                async with with_shop_scope(session, shop_id):
+                    days += await materialize.rebuild_outdated(session, shop_id)
+                    await session.commit()
+        except Exception as exc:
+            logger.error(
+                "shopee_outdated_rebuild_shop_failed",
+                extra={"shop_id": str(shop_id), "error_type": type(exc).__name__},
+            )
+    return days
+
+
 async def run_daily_learning(
     factory: SessionFactory, *, now: datetime | None = None
 ) -> DailyLearningSummary:
@@ -125,12 +151,16 @@ async def run_daily_learning(
             continue
         observations += report.observations_total
         rows += report.states
-    summary = DailyLearningSummary(len(shop_ids), failed, observations, rows)
+    async with factory() as session:
+        every_shop = await shopee_shop_ids(session)
+    rebuilt = await _rebuild_outdated_days(factory, every_shop)
+    summary = DailyLearningSummary(len(shop_ids), failed, observations, rows, rebuilt)
     logger.info(
         "shopee_reco_learning_daily",
         extra={
             "shops": summary.shops,
             "failed": summary.failed,
+            "rebuilt_days": summary.rebuilt_days,
             "observations": summary.observations,
             "calibration_rows": summary.calibration_rows,
         },

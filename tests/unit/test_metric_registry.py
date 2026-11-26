@@ -151,7 +151,7 @@ def test_comparisons_are_an_enum_not_metrics() -> None:
 
 
 def test_derivation_version_is_dated() -> None:
-    assert DERIVATION_VERSION == "2026-11-23.1"
+    assert DERIVATION_VERSION == "2026-11-24.2"
 
 
 @pytest.mark.parametrize("metric_id", sorted(METRICS))
@@ -281,8 +281,13 @@ def test_profit_carries_coverage_and_is_partial_below_full() -> None:
     assert profit.value == D(350)
     assert profit.coverage == D("0.9")
     assert profit.partial is True
-    assert evaluate("contribution", comps).value == D(550)
+    # decision #44: the ladder -- gộp (− giá vốn − đóng gói), đóng góp (− phí − vận chuyển ròng,
+    # before ads and affiliate), ròng (− QC − AFF − marketing khác)
+    assert evaluate("gross_profit", comps).value == D(700)
+    assert evaluate("contribution", comps).value == D(600)
     assert evaluate("margin", comps).value == D("35.0")
+    assert evaluate("margin_gross", comps).value == D("70.0")
+    assert evaluate("margin_contribution", comps).value == D("60.0")
     full = evaluate("profit", {**comps, "cogs_known_gmv": D(1000)})
     assert (full.coverage, full.partial) == (D(1), False)
 
@@ -563,3 +568,26 @@ def test_card_return_is_its_own_metric_and_roi_keeps_one_meaning() -> None:
 
     assert METRICS[CARD_RETURN_ID].label_vi == CARD_RETURN_LABEL == "ΔGMV / chi phí"
     assert METRICS["roi"].label_vi == "ROI"
+
+
+def test_roi_is_net_profit_over_total_cost() -> None:
+    """Decision #44 (P8): ROI = lợi nhuận ròng ÷ cost_total (giá vốn + đóng gói + phí + vận chuyển
+    + QC + AFF + Ưu đãi + khác), never ÷ the marketing costs only."""
+    comps = ones(
+        net_revenue_known=D(1000),
+        cogs=D(300),
+        packaging=D(0),
+        fees=D(100),
+        shipping_net=D(0),
+        affiliate_commission=D(50),
+        ads_spend=D(200),
+        other_marketing=D(0),
+        offer_promo=D(40),
+        offer_voucher=D(10),
+        offer_combo=D(0),
+        cogs_known_gmv=D(1000),
+        line_gmv=D(1000),
+    )
+    assert evaluate("cost_total", comps).value == D(700)
+    assert METRICS["roi"].formula == ("div", "profit", "cost_total")
+    assert evaluate("roi", comps).value == D("0.5")

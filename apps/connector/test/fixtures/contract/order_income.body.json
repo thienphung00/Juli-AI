@@ -1,0 +1,22 @@
+{
+  "source": "extension",
+  "source_version": "0.3.35",
+  "captured_at": "2026-11-03T03:00:00.000Z",
+  "period": {
+    "start": "2026-11-03",
+    "end": "2026-11-03",
+    "granularity": "period"
+  },
+  "order_type": null,
+  "rows": [
+    {
+      "product_price": 178000,
+      "fee_fixed": 26700,
+      "fee_voucher_xtra": 5500,
+      "payout": 145800,
+      "order_platform_voucher": 20000,
+      "order_shop_voucher": 10000,
+      "order_ref": "0123456789abcdef0123456789abcdef"
+    }
+  ]
+}

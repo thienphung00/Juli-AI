@@ -63,6 +63,10 @@ class IncomeOrder:
     seller_coin_borne: Decimal | None = None
     trade_in_bonus_seller: Decimal | None = None
     payout: Decimal | None = None
+    #: the shop voucher the SELLER bore (settlement ``seller_voucher_borne``; Track S, 24/11): the
+    #: voucher's cost, never the buyer-side ``shop_voucher_share`` (a Voucher Xtra order shows the
+    #: buyer a shop voucher the seller pays only the Phí Dịch Vụ for)
+    seller_voucher_borne: Decimal | None = None
 
     def fee(self, code: str) -> Decimal:
         return {
@@ -102,6 +106,9 @@ class LineIncome:
     seller_coin: Decimal
     trade_in: Decimal
     payout: Decimal | None
+    seller_voucher: Decimal = ZERO  # this line's share of ``seller_voucher_borne``
+    #: the settlement STATES the seller-borne voucher (``seller_voucher_borne`` not NULL)
+    seller_voucher_known: bool = False
 
     @property
     def fees_total(self) -> Decimal:
@@ -166,6 +173,7 @@ def split_income(income: IncomeOrder, weights: Sequence[Decimal]) -> list[LineIn
     tax = cut(income.tax_withheld)
     coin = cut(income.seller_coin_borne)
     trade_in = cut(income.trade_in_bonus_seller)
+    voucher = cut(income.seller_voucher_borne)
     payout = split_amount(income.payout, weights) if income.payout is not None and count else None
     return [
         LineIncome(
@@ -179,6 +187,8 @@ def split_income(income: IncomeOrder, weights: Sequence[Decimal]) -> list[LineIn
             seller_coin=coin[i],
             trade_in=trade_in[i],
             payout=payout[i] if payout is not None else None,
+            seller_voucher=voucher[i],
+            seller_voucher_known=income.seller_voucher_borne is not None,
         )
         for i in range(count)
     ]

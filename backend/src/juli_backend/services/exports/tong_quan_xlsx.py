@@ -7,7 +7,9 @@ baseline or goal: those are in the Kế hoạch export (UI grill G21).
 
 Every number is an input; the ratios (AOV, CTR, CTOR, % GMV, ROI, Thay đổi, % đạt) and the
 totals are Excel formulas over the cells of the sheet, so the file recomputes when a figure is
-edited. ``fullCalcOnLoad`` is set (no cached values are stored). Only Excel-2007 functions.
+edited. ``fullCalcOnLoad`` is set and ``save_bytes`` caches each formula's computed result beside
+it, so the figures show in a viewer that does not calculate. Only Excel-2007 functions. The last
+sheet, "Ghi chú" (``notes_sheet``), says how each core metric is computed.
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from datetime import date
 
 from openpyxl import Workbook
 
+from juli_backend.services.exports import notes_sheet
 from juli_backend.services.exports import report_sheets as rs
 from juli_backend.services.exports._style import (
     DATE,
@@ -55,8 +58,17 @@ SHOP_ROW_NAME = "Cả shop — quảng cáo và chi phí chưa gán sản phẩm
 ROI_LABEL = METRICS["roi"].label_vi
 COST_LABEL = METRICS["cost_marketing"].label_vi
 MARGIN_LABEL = METRICS["margin"].label_vi
+#: decision #44: ROI = Lợi nhuận ÷ Tổng chi phí (giá vốn + đóng gói + phí + vận chuyển + QC + AFF
+#: + Ưu đãi + khác), one row below the notes; Chi phí marketing stays the combined cost row
+COST_TOTAL_LABEL = METRICS["cost_total"].label_vi
+#: decision #51: the ladder's subtotals are EXPORT-ONLY (the screen shows Lợi nhuận ròng)
+PROFIT_LABEL = METRICS["profit"].label_vi
+GROSS_LABEL = METRICS["gross_profit"].label_vi
+CONTRIBUTION_LABEL = METRICS["contribution"].label_vi
+MARGIN_GROSS_LABEL = METRICS["margin_gross"].label_vi
+MARGIN_CONTRIBUTION_LABEL = METRICS["margin_contribution"].label_vi
 #: the margin's base is a component, which has no label of its own in the registry
-BASE_LABEL = "Doanh thu thực của đơn đủ chi phí"
+BASE_LABEL = notes_sheet.COMPONENT_LABELS["net_revenue_known"]
 
 SHEET_OVERVIEW = "Tổng quan"
 SHEET_CHANNEL = "Theo kênh"
@@ -77,6 +89,9 @@ class Channel:
     orders: float | None = None
     gmv: float | None = None
     cost: float | None = None
+    #: P7 (#46 / #49): the channel's Lợi nhuận ròng from the profit split (``channel_split.
+    #: profit_split``); ``None`` = no split (the sheet then uses the shop-margin formula)
+    profit: float | None = None
 
 
 @dataclass
@@ -96,6 +111,16 @@ class Figures:
     #: "overlay" (Seller Centre's ads overlay) | "report" (ads report): the basis of the Quảng cáo
     #: GMV; periods on different bases do not compare ("—")
     ads_basis: str | None = None
+    #: decision #44: Tổng chi phí of the scope (registry ``cost_total``, ``channel_split.kpis_of``);
+    #: ``None`` = unknown (the ROI is then "—", never ÷ the marketing cost alone)
+    cost_total: float | None = None
+    #: decision #51: Lợi nhuận gộp / đóng góp of the scope (registry ladder, export-only)
+    gross_profit: float | None = None
+    contribution: float | None = None
+    #: P7: the shop's remainder no product owns (ads of no product + other marketing): its cost
+    #: and its profit (−cost); ``None`` = no profit split
+    rest_cost: float | None = None
+    rest_profit: float | None = None
 
     def channel(self, key: str) -> Channel:
         return self.channels.get(key) or Channel()
@@ -237,6 +262,9 @@ OVERVIEW_HEADER = [
 OV = {  # row of each metric on the "Tổng quan" sheet
     "gmv": 4, "orders": 5, "aov": 6, "profit": 7, "ads": 8, "aff": 9, "offer": 10, "cost": 11,
     "roi": 12, "margin": 13, "base": 14,
+    "cost_total": 19,  # decision #44: below the notes; the ROI's denominator
+    # decision #51: the ladder's subtotals and their margins (÷ doanh thu thực), export-only
+    "gross": 20, "margin_gross": 21, "contribution": 22, "margin_contribution": 23,
 }  # fmt: skip
 #: rows that are costs / profit: shown as a % of the revenue (GMV)
 SHARE_ROWS = ("profit", "ads", "aff", "offer", "cost")
@@ -249,7 +277,11 @@ def _overview_values(fig: Figures) -> dict[str, float | None]:
     return {
         "gmv": fig.gmv, "orders": fig.orders, "aov": _div(fig.gmv, fig.orders),
         "profit": fig.profit, "ads": fig.ads_cost, "aff": fig.aff_cost, "offer": fig.offer_cost,
-        "cost": cost or 0.0, "roi": None if fig.profit is None else _div(fig.profit, cost),
+        "cost": cost, "cost_total": fig.cost_total,
+        "gross": fig.gross_profit, "contribution": fig.contribution,
+        "margin_gross": _div(fig.gross_profit, fig.net_revenue_known),
+        "margin_contribution": _div(fig.contribution, fig.net_revenue_known),
+        "roi": None if fig.profit is None else _div(fig.profit, fig.cost_total),
         "margin": None if fig.profit is None else _div(fig.profit, fig.net_revenue_known),
         "base": fig.net_revenue_known,
     }  # fmt: skip
@@ -265,12 +297,16 @@ def _overview(wb: Workbook, data: TongQuanData) -> None:
     header(ws, 3, [*OVERVIEW_HEADER[:3], prev_label(data), *OVERVIEW_HEADER[4:]])
     rows = [
         ("gmv", "GMV — doanh thu (đ)", MONEY), ("orders", "Đơn", INT), ("aov", "AOV (đ)", MONEY),
-        ("profit", "Lợi nhuận (đ)", MONEY),
+        ("profit", f"{PROFIT_LABEL} (đ)", MONEY),
         ("ads", "Chi phí quảng cáo (Báo cáo DVHT) (đ)", MONEY),
         ("aff", "Chi phí tiếp thị liên kết (đ)", MONEY), ("offer", OFFER_LABEL, MONEY),
         ("cost", f"{COST_LABEL} (đ)", MONEY),
         ("roi", f"{ROI_LABEL} (lần)", POINTS), ("margin", MARGIN_LABEL, PCT),
         ("base", f"{BASE_LABEL} (đ)", MONEY),
+        ("cost_total", f"{COST_TOTAL_LABEL} (đ)", MONEY),
+        ("gross", f"{GROSS_LABEL} (đ)", MONEY), ("margin_gross", MARGIN_GROSS_LABEL, PCT),
+        ("contribution", f"{CONTRIBUTION_LABEL} (đ)", MONEY),
+        ("margin_contribution", MARGIN_CONTRIBUTION_LABEL, PCT),
     ]  # fmt: skip
     prev = _overview_values(data.prev)
     now = _overview_values(data.now)
@@ -283,9 +319,15 @@ def _overview(wb: Workbook, data: TongQuanData) -> None:
         if key == "aov":
             v: object = f'=IFERROR(B{OV["gmv"]}/B{OV["orders"]},"{DASH}")'
         elif key == "cost":
-            v = f"=SUM(B{OV['ads']}:B{OV['offer']})"
+            v = DASH if now[key] is None else f"=SUM(B{OV['ads']}:B{OV['offer']})"
         elif key == "roi":
-            v = f'=IFERROR(B{OV["profit"]}/B{OV["cost"]},"{DASH}")'
+            v = f'=IFERROR(B{OV["profit"]}/B{OV["cost_total"]},"{DASH}")'
+        elif key in ("margin_gross", "margin_contribution"):
+            src = OV["gross" if key == "margin_gross" else "contribution"]
+            v = (
+                f"=IF(AND(ISNUMBER(B{src}),ISNUMBER(B{OV['base']})),"
+                f'IFERROR(B{src}/B{OV["base"]},"{DASH}"),"{DASH}")'
+            )
         elif key == "margin":
             b = OV["base"]
             v = (
@@ -300,7 +342,7 @@ def _overview(wb: Workbook, data: TongQuanData) -> None:
         elif key == "gmv":
             put(ws, r, 3, 1.0, PCT)
         put(ws, r, 4, _dash(prev[key]), fmt)
-        if key == "margin":  # a rate: the change is in points
+        if key in ("margin", "margin_gross", "margin_contribution"):  # a rate: change in points
             put(ws, r, 5, f'=IF(AND(ISNUMBER(B{r}),ISNUMBER(D{r})),B{r}-D{r},"{DASH}")', PCT)
         else:
             put(
@@ -351,6 +393,14 @@ PROFIT_COSTS = (
     ("ads", "− Quảng cáo (mọi ngày, cả ngày không có đơn)", None, "Báo cáo DVHT / Connector"),
     ("other_marketing", "− Chi phí marketing khác", None, "Thông số shop"),
 )
+#: decision #44 / #51: the bridge in ladder order -- each group's costs, then its subtotal:
+#: Lợi nhuận gộp (− giá vốn − đóng gói), Lợi nhuận đóng góp (− phí − vận chuyển ròng), Lợi
+#: nhuận ròng (− QC − AFF − marketing khác = the screen's profit)
+PROFIT_LADDER = (
+    (("cogs", "packaging"), "gross"),
+    (("fees", "shipping_other"), "contribution"),
+    (("ads", "commission", "other_marketing"), "profit"),
+)
 
 
 def _source(real_pct: float | None, what: str) -> str:
@@ -364,7 +414,8 @@ def _source(real_pct: float | None, what: str) -> str:
 
 
 def _profit(wb: Workbook, data: TongQuanData, b: ProfitBridge) -> None:
-    """Doanh thu, then Lợi nhuận bán hàng trên sàn line by line (see ``profit_bridge``)."""
+    """Doanh thu, then the profit ladder line by line (see ``profit_bridge``): Lợi nhuận gộp,
+    Lợi nhuận đóng góp, Lợi nhuận ròng (= the screen's profit), each a subtotal."""
     ws = wb.create_sheet(SHEET_PROFIT)
     put(ws, 1, 1, title_of(data)).font = TITLE
     header(ws, 3, PROFIT_HEADER)
@@ -401,9 +452,7 @@ def _profit(wb: Workbook, data: TongQuanData, b: ProfitBridge) -> None:
         "" if b.known_gmv_share_pct is None
         else f", {b.known_gmv_share_pct:.1f} % GMV".replace(".", ",")
     )  # fmt: skip
-    put(
-        ws, r, 1, f"LỢI NHUẬN BÁN HÀNG TRÊN SÀN ({b.known_orders} đơn đủ chi phí{share})", bold=True
-    )
+    put(ws, r, 1, f"LỢI NHUẬN ({b.known_orders} đơn đủ chi phí{share})", bold=True)
     r += 1
     base = r
     put(ws, r, 1, "Doanh thu tính lợi nhuận (sau VAT đầu ra)")
@@ -411,31 +460,44 @@ def _profit(wb: Workbook, data: TongQuanData, b: ProfitBridge) -> None:
     put(ws, r, 3, 1.0, PCT)
     put(ws, r, 4, b.known_orders, INT)
     put(ws, r, 5, f"đã trừ VAT đầu ra {b.vat_output:,.0f}đ".replace(",", "."))
-    for key, label, pct_key, what in PROFIT_COSTS:
-        value = getattr(b, key)
-        if key == "other_marketing" and not value:
-            continue
-        r += 1
-        put(ws, r, 1, label)
-        put(ws, r, 2, _dash(None if value is None else -value if value else 0.0), MONEY)
-        put(ws, r, 3, f'=IFERROR(-B{r}/B${base},"{DASH}")', PCT)
-        src = _source(getattr(b, pct_key) if pct_key else None, what)
-        if key == "ads" and b.ads_no_order_days:
-            src += f"; gồm {b.ads_no_order_days:,.0f}đ ngày không có đơn".replace(",", ".")
-        put(ws, r, 5, src)
-    last_cost = r
-    r += 1
-    profit = r
-    put(ws, r, 1, "Lợi nhuận bán hàng trên sàn", bold=True)
+    costs = {key: (label, pct_key, what) for key, label, pct_key, what in PROFIT_COSTS}
     ok = b.profit is not None and b.ads is not None
-    put(ws, r, 2, f"=SUM(B{base}:B{last_cost})" if ok else DASH, MONEY, bold=True)
+    subtotal_label = {"gross": GROSS_LABEL, "contribution": CONTRIBUTION_LABEL,
+                      "profit": PROFIT_LABEL}  # fmt: skip
+    prev_total = base  # the row the next subtotal starts from (revenue, then each subtotal)
+    profit = base
+    for keys, total_key in PROFIT_LADDER:
+        first = r + 1
+        for key in keys:
+            label, pct_key, what = costs[key]
+            value = getattr(b, key)
+            if key == "other_marketing" and not value:
+                continue
+            r += 1
+            put(ws, r, 1, label)
+            put(ws, r, 2, _dash(None if value is None else -value if value else 0.0), MONEY)
+            put(ws, r, 3, f'=IFERROR(-B{r}/B${base},"{DASH}")', PCT)
+            src = _source(getattr(b, pct_key) if pct_key else None, what)
+            if key == "ads" and b.ads_no_order_days:
+                src += f"; gồm {b.ads_no_order_days:,.0f}đ ngày không có đơn".replace(",", ".")
+            put(ws, r, 5, src)
+        r += 1
+        # a subtotal = the previous subtotal (or the revenue) + this group's (negative) costs
+        formula = f"=B{prev_total}+SUM(B{first}:B{r - 1})" if r - 1 >= first else f"=B{prev_total}"
+        ladder_ok = ok or total_key != "profit"
+        put(ws, r, 1, f"{subtotal_label[total_key]}", bold=True)
+        put(ws, r, 2, formula if ladder_ok else DASH, MONEY, bold=True)
+        put(ws, r, 3, f'=IFERROR(B{r}/B${base},"{DASH}")' if ladder_ok else DASH, PCT, bold=True)
+        prev_total = r
+        profit = r
     r += 1
     put(ws, r, 1, MARGIN_LABEL, bold=True)
     put(ws, r, 2, f'=IFERROR(B{profit}/B{base},"{DASH}")' if ok else DASH, PCT, bold=True)
     r += 2
     notes = (
-        "Lợi nhuận bán hàng trên sàn = doanh thu − các chi phí trên; bằng lợi nhuận trên màn hình "
-        "Tổng quan. Lợi nhuận ròng (chi phí ngoài sàn) do shop tự quản lý.",
+        f"{GROSS_LABEL} = doanh thu − giá vốn − đóng gói; {CONTRIBUTION_LABEL} = {GROSS_LABEL} "
+        f"− phí sàn − vận chuyển; {PROFIT_LABEL} = {CONTRIBUTION_LABEL} − quảng cáo − hoa hồng "
+        "tiếp thị liên kết − marketing khác, bằng lợi nhuận trên màn hình Tổng quan.",
         "Chỉ tính đơn đã giao có đủ chi phí; đơn hủy, đơn đang hoàn và đơn chưa có kết quả "
         "không vào lợi nhuận.",
         "Giá bán và giá vốn đã gồm VAT: doanh thu trừ VAT đầu ra, giá vốn trừ VAT đầu vào.",
@@ -454,6 +516,13 @@ CH_HEADER = [
     "Chi phí / doanh thu", "Lợi nhuận kênh (đ)",
 ]  # fmt: skip
 CH_LABELS = {**CHANNEL_LABELS, "ads": "Quảng cáo (Lưu lượng / Báo cáo DVHT)"}
+REST_LABEL = "Cả shop — quảng cáo chưa gán sản phẩm và marketing khác"
+CH_SPLIT_NOTE = (
+    "Chi phí kênh = quảng cáo / hoa hồng của kênh + ưu đãi của kênh. TTLK = các dòng đơn tiếp thị "
+    "liên kết; Quảng cáo = phần còn lại × (GMV báo cáo DVHT ÷ GMV còn lại, tối đa 1); Organic = "
+    "phần còn lại. Lợi nhuận kênh = lợi nhuận đóng góp − quảng cáo − hoa hồng; các dòng cộng lại "
+    "bằng lợi nhuận của shop."
+)
 CH_NOTE = (
     "Lợi nhuận kênh = GMV kênh × biên lợi nhuận của shop trước chi phí marketing "
     "((lợi nhuận + chi phí marketing) ÷ GMV) − chi phí của kênh; dòng Ưu đãi nhận phần ưu đãi "
@@ -477,6 +546,7 @@ def _channels(wb: Workbook, data: TongQuanData) -> None:
     put(ws, 1, 1, title_of(data)).font = TITLE
     header(ws, 3, CH_HEADER)
     prev_total = _sum(*(data.prev.channel(k).gmv for k in CHANNELS))
+    split = data.now.rest_cost is not None
     differs = basis_differs(data.now, data.prev)
     ov = f"'{SHEET_OVERVIEW}'!"
     margin0 = f"({ov}$B${OV['profit']}+{ov}$B${OV['cost']})/{ov}$B${OV['gmv']}"
@@ -491,12 +561,15 @@ def _channels(wb: Workbook, data: TongQuanData) -> None:
         put(
             ws, r, 7, ch.cost if ch.cost is not None else (0.0 if key == "organic" else DASH), MONEY
         )
-        put(
-            ws, r, 10,
-            f'=IF(AND(ISNUMBER({ov}$B${OV["profit"]}),ISNUMBER(B{r})),'
-            f'IFERROR(B{r}*{margin0}-N(G{r}),"{DASH}"),"{DASH}")',
-            MONEY,
-        )  # fmt: skip
+        if split:  # P7: the channel's own lợi nhuận ròng (đóng góp − QC/AFF of the channel)
+            put(ws, r, 10, _dash(ch.profit), MONEY)
+        else:
+            put(
+                ws, r, 10,
+                f'=IF(AND(ISNUMBER({ov}$B${OV["profit"]}),ISNUMBER(B{r})),'
+                f'IFERROR(B{r}*{margin0}-N(G{r}),"{DASH}"),"{DASH}")',
+                MONEY,
+            )  # fmt: skip
         has_cost = key != "organic"
         put(
             ws,
@@ -505,10 +578,18 @@ def _channels(wb: Workbook, data: TongQuanData) -> None:
             f'=IF(ISNUMBER(G{r}),IFERROR(J{r}/G{r},"{DASH}"),"{DASH}")' if has_cost else DASH,
             POINTS,
         )
-    put(ws, CH_OFFER, 1, "Ưu đãi của shop (thuộc chi phí marketing)")
-    put(ws, CH_OFFER, 2, DASH)
-    put(ws, CH_OFFER, 7, _dash(data.now.offer_cost), MONEY)
-    put(ws, CH_OFFER, 10, f'=IF(ISNUMBER(G{CH_OFFER}),-G{CH_OFFER},"{DASH}")', MONEY)
+    if split:
+        # P7: each channel's cost holds its own Ưu đãi (one combined Chi phí marketing); the row
+        # below is what no product owns (ads of no product, other marketing), never dropped
+        put(ws, CH_OFFER, 1, REST_LABEL)
+        put(ws, CH_OFFER, 2, DASH)
+        put(ws, CH_OFFER, 7, _dash(data.now.rest_cost), MONEY)
+        put(ws, CH_OFFER, 10, _dash(data.now.rest_profit), MONEY)
+    else:
+        put(ws, CH_OFFER, 1, "Ưu đãi của shop (thuộc chi phí marketing)")
+        put(ws, CH_OFFER, 2, DASH)
+        put(ws, CH_OFFER, 7, _dash(data.now.offer_cost), MONEY)
+        put(ws, CH_OFFER, 10, f'=IF(ISNUMBER(G{CH_OFFER}),-G{CH_OFFER},"{DASH}")', MONEY)
     put(ws, CH_TOTAL, 1, "Tổng", bold=True)
     for c, fmt in ((2, MONEY), (5, INT), (7, MONEY), (10, MONEY)):
         L = col(c)
@@ -523,7 +604,7 @@ def _channels(wb: Workbook, data: TongQuanData) -> None:
         put(ws, r, 6, f'=IFERROR(B{r}/E{r},"{DASH}")', MONEY)
     for r in (*range(CH_FIRST, CH_OFFER + 1), CH_TOTAL):
         put(ws, r, 9, f'=IFERROR(G{r}/{ov}$B${OV["gmv"]},"{DASH}")', PCT)
-    put(ws, CH_TOTAL + 2, 1, CH_NOTE)
+    put(ws, CH_TOTAL + 2, 1, CH_SPLIT_NOTE if split else CH_NOTE)
     widths(ws, {1: 38}, 14)
     finish(ws, "B4")
 
@@ -553,10 +634,10 @@ def _days(wb: Workbook, data: TongQuanData) -> None:
         put(ws, r, 8, _dash(d.profit), MONEY)
     total = r + 1
     put(ws, total, 1, "Tổng", bold=True)
-    first, last = DAY_FIRST, max(r, DAY_FIRST)
     for c in range(2, 9):
         L = col(c)
-        put(ws, total, c, f"=SUM({L}{first}:{L}{last})", INT if c == 6 else MONEY, bold=True)
+        v = f"=SUM({L}{DAY_FIRST}:{L}{r})" if data.days else DASH  # no rows: never its own cell
+        put(ws, total, c, v, INT if c == 6 else MONEY, bold=True)
     widths(ws, {1: 12}, 15)
     finish(ws, "B4")
 
@@ -611,16 +692,16 @@ def _products(wb: Workbook, data: TongQuanData) -> None:
         put(ws, r, P_ISSUE_COL, p.cause)
         put(ws, r, P_ISSUE_COL + 1, p.fix)
         _product_formulas(ws, r, total, p.now.gmv)
-    last = max(r, P_FIRST)
     put(ws, total, 1, "Tổng", bold=True)
     for c in (5, 15, 16, 17, 18):
         L = col(c)
-        put(ws, total, c, f"=SUM({L}{P_FIRST}:{L}{last})", MONEY, bold=True)
+        v = f"=SUM({L}{P_FIRST}:{L}{r})" if data.products else DASH  # no rows: never its own cell
+        put(ws, total, c, v, MONEY, bold=True)
     prev_total = _sum(
         *((p.prev.gmv if p.prev.gmv is not None else gmv_of(p.prev)) for p in data.products)
     )
     put(ws, total, 4, _change_vs(f"C{total}", prev_total), PCT)
-    _product_formulas(ws, total, total, f"=SUM(C{P_FIRST}:C{last})")
+    _product_formulas(ws, total, total, f"=SUM(C{P_FIRST}:C{r})" if data.products else DASH)
     widths(ws, {1: 16, 2: 44, 19: 44, 20: 36}, 15)
     _hide(ws, *P_HELP)
     finish(ws, "C4")
@@ -657,12 +738,16 @@ def _skus(wb: Workbook, data: TongQuanData) -> None:
         r += 1
         put(ws, r, 1, SKU_GAP_LABEL)
         put(ws, r, 5, f"='{SHEET_OVERVIEW}'!B{OV['gmv']}-SUM(E{SKU_FIRST}:E{r - 1})", MONEY)
-    total, last = r + 1, max(r, SKU_FIRST)
+    total = r + 1
     put(ws, total, 1, "Tổng", bold=True)
     for c, fmt in ((4, INT), (5, MONEY), (6, MONEY), (8, INT)):
         L = col(c)
-        put(ws, total, c, f"=SUM({L}{SKU_FIRST}:{L}{last})", fmt, bold=True)
-    _sku_formulas(ws, total, need=False)
+        # no rows: the total is "—" (a SUM over its own cell is circular, and missing is not 0)
+        put(ws, total, c, f"=SUM({L}{SKU_FIRST}:{L}{r})" if data.skus else DASH, fmt, bold=True)
+    if data.skus:
+        _sku_formulas(ws, total, need=False)
+    else:
+        put(ws, total, 7, DASH, PCT)
     widths(ws, {1: 18, 2: 22, 3: 38, 12: 30}, 15)
     finish(ws, "D4")
 
@@ -685,10 +770,12 @@ def _sku_formulas(ws, r: int, need: bool = True) -> None:
 ROW_METRIC = {
     "gmv": "gmv", "orders": "orders", "profit": "profit", "ads": "cost_ads",
     "aff": "cost_affiliate", "offer": "cost_offers", "cost": "cost_marketing", "aov": "aov",
-    "roi": "roi", "margin": "margin",
+    "roi": "roi", "margin": "margin", "cost_total": "cost_total",
+    "gross": "gross_profit", "contribution": "contribution",
+    "margin_gross": "margin_gross", "margin_contribution": "margin_contribution",
 }  # fmt: skip
 #: ratio rows: never summed or averaged; the Tổng column recomputes them from its own parts
-RATIO_ROWS = ("aov", "roi", "margin")
+RATIO_ROWS = ("aov", "roi", "margin", "margin_gross", "margin_contribution")
 MULTI_FIRST = 4  # first metric row of the all-shops sheet
 
 
@@ -718,12 +805,16 @@ def _multi(wb: Workbook, datas: list[TongQuanData]) -> None:
     header(ws, 3, ["Chỉ số", *(f"{d.shop_name} ({d.platform})" for d in datas), "Tổng"])
     labels = {
         "gmv": ("GMV (đ)", MONEY), "orders": ("Đơn", INT), "aov": ("AOV (đ)", MONEY),
-        "profit": ("Lợi nhuận (đ)", MONEY),
+        "profit": (f"{PROFIT_LABEL} (đ)", MONEY),
         "ads": ("Chi phí quảng cáo (Báo cáo DVHT) (đ)", MONEY),
         "aff": ("Chi phí tiếp thị liên kết (đ)", MONEY), "offer": (OFFER_LABEL, MONEY),
         "cost": (f"{COST_LABEL} (đ)", MONEY),
         "roi": (f"{ROI_LABEL} (lần)", POINTS), "margin": (MARGIN_LABEL, PCT),
         "base": (f"{BASE_LABEL} (đ)", MONEY),
+        "cost_total": (f"{COST_TOTAL_LABEL} (đ)", MONEY),
+        "gross": (f"{GROSS_LABEL} (đ)", MONEY), "margin_gross": (MARGIN_GROSS_LABEL, PCT),
+        "contribution": (f"{CONTRIBUTION_LABEL} (đ)", MONEY),
+        "margin_contribution": (MARGIN_CONTRIBUTION_LABEL, PCT),
     }  # fmt: skip
     values = [_overview_values(d.now) for d in datas]
     row = {k: OV[k] for k in OV}  # the single-shop layout: same rows
@@ -735,11 +826,15 @@ def _multi(wb: Workbook, datas: list[TongQuanData]) -> None:
             if key == "aov":
                 v: object = f'=IFERROR({L}{row["gmv"]}/{L}{row["orders"]},"")'
             elif key == "cost":
-                v = f"=SUM({L}{row['ads']}:{L}{row['offer']})"
+                parts = f"=SUM({L}{row['ads']}:{L}{row['offer']})"
+                v = DASH if values[j][key] is None else parts
             elif key == "roi":
-                v = f'=IFERROR({L}{row["profit"]}/{L}{row["cost"]},"")'
+                v = f'=IFERROR({L}{row["profit"]}/{L}{row["cost_total"]},"")'
             elif key == "margin":
                 v = f'=IFERROR({L}{row["profit"]}/{L}{row["base"]},"")'
+            elif key in ("margin_gross", "margin_contribution"):
+                src = row["gross" if key == "margin_gross" else "contribution"]
+                v = f'=IFERROR({L}{src}/{L}{row["base"]},"")'
             else:
                 v = values[j][key]
             put(ws, r, 2 + j, v, fmt)
@@ -747,9 +842,12 @@ def _multi(wb: Workbook, datas: list[TongQuanData]) -> None:
         if key == "aov":
             total: object = f'=IFERROR({T}{row["gmv"]}/{T}{row["orders"]},"")'
         elif key == "roi":
-            total = f'=IFERROR({T}{row["profit"]}/{T}{row["cost"]},"")'
+            total = f'=IFERROR({T}{row["profit"]}/{T}{row["cost_total"]},"")'
         elif key == "margin":
             total = f'=IFERROR({T}{row["profit"]}/{T}{row["base"]},"")'
+        elif key in ("margin_gross", "margin_contribution"):
+            src = row["gross" if key == "margin_gross" else "contribution"]
+            total = f'=IFERROR({T}{src}/{T}{row["base"]},"")'
         elif summable_row(key):
             total = f"=SUM({first}{r}:{last}{r})"
         else:
@@ -769,6 +867,7 @@ def _multi(wb: Workbook, datas: list[TongQuanData]) -> None:
 def build_multi(datas: list[TongQuanData]) -> Workbook:
     wb = new_workbook()
     _multi(wb, datas)
+    notes_sheet.notes_sheet(wb)
     for ws in wb.worksheets:
         for r in ws.iter_rows():
             for c in r:
@@ -794,6 +893,7 @@ def build(data: TongQuanData) -> Workbook:
     rs.months_sheet(wb, title, data.months)
     rs.koc_sheet(wb, title, data.koc, data.affiliate_share or rs.AffiliateShare())
     rs.analysis_sheet(wb, title, data.analysis)
+    notes_sheet.notes_sheet(wb)
     for ws in wb.worksheets:
         for row in ws.iter_rows():
             for c in row:

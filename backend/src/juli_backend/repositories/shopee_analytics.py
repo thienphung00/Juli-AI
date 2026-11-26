@@ -255,13 +255,17 @@ class PlatformItemSnapshotsRepo(ShopScopedRepo[PlatformItemSnapshot]):
     async def latest_per_item(
         self, shop_id: uuid.UUID, item_ids: Collection[str] | None = None
     ) -> list[PlatformItemSnapshot]:
-        """The newest snapshot of every (item, variation)."""
+        """The newest snapshot of every (item, variation). ``item_ids`` narrows the grouping
+        subquery too, so asking for a few items reads only their rows, not the shop's whole
+        history (batch-1125-idx)."""
+        grouped = self._scoped(
+            shop_id,
+            PlatformItemSnapshot.platform == own_platform(shop_id, PlatformItemSnapshot),
+        )
+        if item_ids is not None:
+            grouped = grouped.where(PlatformItemSnapshot.item_id.in_(list(item_ids)))
         newest = (
-            self._scoped(
-                shop_id,
-                PlatformItemSnapshot.platform == own_platform(shop_id, PlatformItemSnapshot),
-            )
-            .with_only_columns(
+            grouped.with_only_columns(
                 PlatformItemSnapshot.item_id.label("item_id"),
                 PlatformItemSnapshot.variation_id.label("variation_id"),
                 func.max(PlatformItemSnapshot.captured_at).label("captured_at"),

@@ -104,10 +104,10 @@ class StaleMarker:
 
 @dataclass(frozen=True)
 class MarginBasis:
-    """The dashboard's margin inputs for one scope and window (T1, A1.1-A1.3): ``profit`` and
-    ``net_revenue`` (doanh thu thực = covered ``buyer_paid``) are the numerator and denominator of
-    ``shop_profit.scope_margin_pct``; ``gmv`` is the same window's GMV, so ``net_revenue / gmv`` is
-    the scope's net/GMV ratio. The card's margin is built only from these."""
+    """The scope's margin inputs for one window (T1, A1.1-A1.3; #42 / #44): ``profit`` = the
+    covered lines' Lợi nhuận đóng góp (before ads and affiliate) and ``net_revenue`` (doanh thu
+    thực = covered ``buyer_paid``); ``gmv`` is the same lines' GMV, so ``net_revenue / gmv`` is
+    the scope's net/GMV ratio. The card's Biên đóng góp is built only from these."""
 
     profit: Decimal | None
     net_revenue: Decimal
@@ -224,6 +224,9 @@ class OfferCost:
     use_share: Band
     use_cap: Decimal | None = None
     label: str = ""  # "voucher", "giảm giá combo", "hoa hồng" ...
+    #: a discount the buyer gets (voucher, combo, add-on price) lowers doanh thu thực; a
+    #: commission does not
+    reduces_revenue: bool = True
 
 
 @dataclass(frozen=True)
@@ -302,6 +305,9 @@ class Scenario:
     profit: Decimal | None
     offer_cost: Decimal
     by_source: dict[str, dict[str, Decimal | None]] = field(default_factory=dict)
+    #: the part of ``offer_cost`` that lowers doanh thu thực (vouchers, combo, add-on prices;
+    #: never a commission): the card margin's denominator
+    revenue_offer_cost: Decimal = Decimal(0)
 
 
 @dataclass(frozen=True)
@@ -369,7 +375,8 @@ WIRE_KEYS = {
     "within_noise": "list['gmv'|'orders'|'profit']  # F5: those delta values are null",
     "stale": "{dataset: 'orders'|'traffic', through: 'YYYY-MM-DD'} | None  # F2: no numbers",
     "delta": {
-        "profit": "{value, pct, low, high} | None (None = chưa tính / chưa ước tính được)",
+        "profit": "{value, pct, low, high, basis: 'contribution'} | None (None = chưa tính / "
+        "chưa ước tính được); #42: Δ Lợi nhuận đóng góp, unrounded đồng",
         "gmv": "{value, pct}",
         "orders": "{value, pct, note}  # note e.g. 'voucher tăng giá trị đơn, không tăng số đơn'",
     },
@@ -381,7 +388,8 @@ WIRE_KEYS = {
     "per_30d": "{profit, gmv, orders, secondary: True, label}  # P99b: secondary, labelled "
     "'Quy đổi 30 ngày (tham khảo)'; the comparison's sort key (profit)",
     "roi": "{value, text}  # P100-C: ΔGMV ÷ cost ('ROI 3,2'); None = no cost / not estimable",
-    "margin": "{before_pct, after_pct, shift_pts}  # P100-C: profit ÷ GMV; shift in points",
+    "margin": "{metric_id: 'margin_contribution', before_pct, after_pct, shift_pts}  # #42/#44: "
+    "Biên đóng góp = Lợi nhuận đóng góp ÷ doanh thu thực on the card's days; shift in points",
     "detail": "{before, low, likely, high: "
     "{views, ctr, ctor, orders, aov, gmv, profit, by_source}}",
     "notes": "list[str]",

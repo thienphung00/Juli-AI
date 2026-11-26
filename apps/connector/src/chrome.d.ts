@@ -70,6 +70,7 @@ declare namespace chrome {
     ): Promise<void>;
     function get(name: string): Promise<Alarm | undefined>;
     function clear(name: string): Promise<boolean>;
+    function clearAll(): Promise<boolean>;
     const onAlarm: { addListener(callback: (alarm: Alarm) => void): void };
   }
 

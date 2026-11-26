@@ -2,7 +2,9 @@
 // ("dự kiến") plus the baseline ("hiện tại") and the change against it; the P10 / P90 band is never shown.
 // Pure: no components.
 
+import { metricLabel, roundHalfAway } from "../metrics";
 import { DASH, dayMonth, fmt } from "../shopee-analytics/format";
+import { NOISE_TAG } from "./card-rows";
 import type { OptionResult } from "./option-result";
 
 type N = number | null;
@@ -24,6 +26,8 @@ export interface ForecastMetric {
 
 export interface ForecastBlock {
   readonly metrics?: Partial<Record<MetricKey | "margin_pct", ForecastMetric>> | null;
+  /** F5 / D4: the metrics whose change is inside the normal swing; their amount is not printed as a certain number. */
+  readonly noise?: readonly MetricKey[];
   readonly data_through?: string | null;
   readonly days?: N;
   readonly reason_code?: string | null;
@@ -68,16 +72,16 @@ const ok = (n: unknown): n is number => typeof n === "number" && Number.isFinite
 
 export function amountText(key: MetricKey, n: N | undefined): string {
   if (!ok(n)) return DASH;
-  const r = Math.round(n);
+  const r = roundHalfAway(n);
   return key === "orders" ? `${fmt(r, 0)} đơn` : `${fmt(r, 0)} đ`;
 }
 
-const signed = (n: number, text: string): string => `${n < 0 && Math.round(n) !== 0 ? MINUS : "+"}${text}`;
+const signed = (n: number, text: string): string => `${n < 0 && roundHalfAway(n) !== 0 ? MINUS : "+"}${text}`;
 
 /** "−3.000 đ" / "+4 đơn" (the unit follows the metric). */
 export function deltaText(key: MetricKey, d: N | undefined): string {
   if (!ok(d)) return DASH;
-  const body = key === "orders" ? `${fmt(Math.abs(Math.round(d)), 0)}` : `${fmt(Math.abs(Math.round(d)), 0)} đ`;
+  const body = key === "orders" ? `${fmt(Math.abs(roundHalfAway(d)), 0)}` : `${fmt(Math.abs(roundHalfAway(d)), 0)} đ`;
   return signed(d, body);
 }
 
@@ -94,12 +98,18 @@ export function changeText(key: MetricKey, d: N | undefined, p: N | undefined): 
   return ok(p) ? `${deltaText(key, d)} (${pctText(p)})` : deltaText(key, d);
 }
 
-/** The grey line under a headline: "hiện tại: Y đ · −Z đ (−p %)". */
-export function baselineLine(key: MetricKey, m: ForecastMetric): string {
-  return `hiện tại: ${amountText(key, m.hien_tai)} · ${changeText(key, m.delta, m.delta_pct)}`;
+/** D1: the change is the difference of the two SHOWN (rounded) figures, so 52 → 53 reads "+1", never "+2". */
+export function shownDelta(hien: N | undefined, du: N | undefined, fallback: N | undefined): N {
+  return ok(hien) && ok(du) ? roundHalfAway(du) - roundHalfAway(hien) : ok(fallback) ? fallback : null;
 }
 
-const LABEL: Record<MetricKey, string> = { profit: "Lợi nhuận dự kiến", gmv: "GMV dự kiến", orders: "Đơn dự kiến", aov: "AOV dự kiến" };
+/** The grey line under a headline: "hiện tại: Y đ · −Z đ (−p %)". */
+export function baselineLine(key: MetricKey, m: ForecastMetric): string {
+  return `hiện tại: ${amountText(key, m.hien_tai)} · ${changeText(key, shownDelta(m.hien_tai, m.du_kien, m.delta), m.delta_pct)}`;
+}
+
+/** D2: the card's profit is Lợi nhuận đóng góp (registry label); the other lines keep their short names. */
+const LABEL: Record<MetricKey, string> = { profit: `${metricLabel("contribution")} dự kiến`, gmv: "GMV dự kiến", orders: "Đơn dự kiến", aov: "AOV dự kiến" };
 
 export interface MetricView {
   readonly key: MetricKey;
@@ -115,12 +125,14 @@ export interface MetricView {
   readonly why: string | undefined;
 }
 
-export function metricView(key: MetricKey, m: ForecastMetric | null | undefined, opts: { readonly days?: N; readonly why?: string | null } = {}): MetricView {
+export function metricView(key: MetricKey, m: ForecastMetric | null | undefined, opts: { readonly days?: N; readonly why?: string | null; readonly noise?: boolean } = {}): MetricView {
   const days = m?.days ?? opts.days ?? null;
   const label = key === "profit" && ok(days) && days > 0 ? `${LABEL.profit} (${fmt(days, 0)} ngày)` : LABEL[key];
   if (!m || !ok(m.du_kien)) return { key, label, value: DASH, sub: null, loss: false, why: opts.why ?? undefined };
   const loss = key === "profit" && m.du_kien < 0;
-  const value = loss ? `Lỗ ${amountText(key, Math.abs(m.du_kien))}` : amountText(key, m.du_kien);
+  const amount = loss ? `Lỗ ${amountText(key, Math.abs(m.du_kien))}` : amountText(key, m.du_kien);
+  // D4 (F5): inside the normal swing the amount is followed by the tag, never printed as a certain number
+  const value = opts.noise ? `${amount} ${NOISE_TAG}` : amount;
   return { key, label, value, sub: ok(m.hien_tai) ? baselineLine(key, m) : null, loss, why: undefined };
 }
 
@@ -132,12 +144,16 @@ export function forecastOfResult(r: OptionResult | null | undefined): ForecastBl
   const l = r.estimable ? r.detail.likely : null;
   const block = (hien: N, du: N, relative = true): ForecastMetric => {
     if (du === null || hien === null) return { hien_tai: hien, du_kien: null, delta: null, delta_pct: null, days };
-    const delta = du - hien;
-    return { hien_tai: hien, du_kien: du, delta, delta_pct: relative && hien > 0 ? (delta / hien) * 100 : null, days };
+    // D1: the change is the difference of the shown figures; the percent stays on the unrounded pair
+    const delta = roundHalfAway(du) - roundHalfAway(hien);
+    return { hien_tai: hien, du_kien: du, delta, delta_pct: relative && hien > 0 ? ((du - hien) / hien) * 100 : null, days };
   };
   const aov = (g: N, o: N): N => (g !== null && o !== null && o > 0 ? g / o : null);
+  // D4: only the profit is tagged (the F5 design keeps GMV / đơn plain on the result card)
+  const noise = r.estimable ? (r.within_noise ?? []).filter((m) => m === "profit") : [];
   return {
     days,
+    noise,
     reason_code: r.reason_code ?? null,
     reason_text: r.reason_text ?? null,
     metrics: {
@@ -151,7 +167,9 @@ export function forecastOfResult(r: OptionResult | null | undefined): ForecastBl
 
 /** The forecast a screen shows: the server's `forecast`, else the one built from the stored result. */
 export function forecastOf(card: { readonly forecast?: ForecastBlock | null; readonly result?: { readonly option?: OptionResult | null } | null }): ForecastBlock | null {
-  return card.forecast ?? forecastOfResult(card.result?.option ?? null);
+  const own = forecastOfResult(card.result?.option ?? null);
+  if (!card.forecast) return own;
+  return own?.noise?.length && !card.forecast.noise ? { ...card.forecast, noise: own.noise } : card.forecast;
 }
 
 /** "Số liệu đến 18/11" (null without a day). */

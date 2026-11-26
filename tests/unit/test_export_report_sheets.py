@@ -93,7 +93,8 @@ def test_excel_labels_come_from_the_registry():
     assert f"{tq.ROI_LABEL} (lần)" in labels and tq.COST_LABEL + " (đ)" in labels
     assert tq.ROI_LABEL in {c.value for c in wb[tq.SHEET_CHANNEL][3]}
     assert tq.COST_LABEL in {c.value for c in wb[tq.SHEET_DAY][3]}
-    assert not any(v.startswith("Tổng chi phí") for v in labels)
+    # decision #44: ROI is ÷ Tổng chi phí (the registry's cost_total), its own labelled row
+    assert f"{METRICS['cost_total'].label_vi} (đ)" in labels
     assert not any("QC + AFF" in v or "không tính là chi phí" in v for v in labels)
     assert f"{METRICS['cost_marketing'].label_vi} (đ)" in rs.MONTH_HEADER
 
@@ -112,9 +113,10 @@ def test_roi_and_margin_cells_reproduce_the_registry_values():
     profit = evaluate("profit", comp).value
     roi = evaluate("roi", comp).value
     margin = evaluate("margin", comp).value
+    cost_total = evaluate("cost_total", comp).value
     fig = tq.Figures(
         gmv=9_000_000, orders=30, profit=float(profit), ads_cost=700_000, aff_cost=300_000,
-        offer_cost=400_000, net_revenue_known=8_000_000,
+        offer_cost=400_000, net_revenue_known=8_000_000, cost_total=float(cost_total),
     )  # fmt: skip
     d = _data()
     d.now = fig
@@ -122,9 +124,10 @@ def test_roi_and_margin_cells_reproduce_the_registry_values():
     assert ws["B8"].value + ws["B9"].value + ws["B10"].value == float(
         evaluate("cost_marketing", comp).value
     )
-    cost = ws["B8"].value + ws["B9"].value + ws["B10"].value  # B11 = SUM(B8:B10)
-    assert ws["B12"].value == '=IFERROR(B7/B11,"—")' and ws["B11"].value == "=SUM(B8:B10)"
-    assert ws["B7"].value / cost == pytest.approx(float(roi), abs=0.05)
+    assert ws["B11"].value == "=SUM(B8:B10)"
+    # decision #44: ROI = Lợi nhuận ròng ÷ Tổng chi phí (row 19)
+    assert ws["B12"].value == '=IFERROR(B7/B19,"—")'
+    assert ws["B7"].value / ws["B19"].value == pytest.approx(float(roi), abs=0.05)
     assert ws["B7"].value / ws["B14"].value * 100 == pytest.approx(float(margin), abs=0.05)
     assert ws["B13"].value.count("B14") == 2  # the base is the known-cost net revenue, not GMV
 
@@ -140,7 +143,7 @@ def test_all_shops_total_recomputes_the_ratios_from_the_summed_parts():
     assert ws.cell(r["cost"], 2).value == f"=SUM(B{r['ads']}:B{r['offer']})"
     assert ws.cell(r["base"], 4).value == f"=SUM(B{r['base']}:C{r['base']})"
     assert ws.cell(r["margin"], 4).value == f'=IFERROR(D{r["profit"]}/D{r["base"]},"")'
-    assert ws.cell(r["roi"], 4).value == f'=IFERROR(D{r["profit"]}/D{r["cost"]},"")'
+    assert ws.cell(r["roi"], 4).value == f'=IFERROR(D{r["profit"]}/D{r["cost_total"]},"")'
     assert not tq.summable_row("margin")
 
 

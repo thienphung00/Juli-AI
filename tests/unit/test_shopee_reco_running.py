@@ -8,6 +8,8 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal as D
 from types import SimpleNamespace
 
+import pytest
+
 from juli_backend.models.shopee_metrics import ShopeeProductMetricsDaily, ShopeeShopMetricsDaily
 from juli_backend.models.shopee_plans import ShopRecoChangeSet
 from juli_backend.services.shopee_recommendations import change_sets, measure, running
@@ -136,7 +138,8 @@ async def _seed_rows(session, sid, first: date, last: date, *, item_profit=10_00
             ShopeeProductMetricsDaily(
                 shop_id=sid, day=d, order_type="confirmed", item_id=ITEM,
                 gmv=D(100_000), orders=2 if not after else 1,
-                profit=D(30_000 if not after else 10_000), ads_spend=D(5_000),
+                profit=D(25_000 if not after else 5_000),  # profit is already after ads
+                ads_spend=D(5_000),
                 source="order_lines",
             )
         )  # fmt: skip
@@ -181,7 +184,9 @@ async def test_daily_job_rereads_a_cut_set_as_a_group_and_writes_running_thuc_te
     assert actual == second.result["actual"]  # one result for the group
     assert actual["days"] == 14 and actual["days_measured"] == 7
     assert actual["label"] == "Đã đo 7/14 ngày" and first.result["label"] == actual["label"]
-    p = actual["metrics"]["profit"]  # product profit after ads: (30k - 5k) x7 -> (10k - 5k) x7
+    p = actual["metrics"][
+        "profit"
+    ]  # the stored product profit is already after ads: 25k x7 -> 5k x7
     assert p["hien_tai"] == 175_000 and p["thuc_te"] == 35_000 and p["delta"] == -140_000
     assert (
         actual["metrics"]["orders"]["hien_tai"] == 14
@@ -271,3 +276,15 @@ async def test_a_group_result_is_read_but_feeds_no_calibration(session):
     obs = await measure.read_groups(session, sid, date(2026, 11, 1), report, grouping)
     assert obs == []
     assert change_sets.SET_MEASURING == a.status
+
+
+def test_thuc_te_margin_is_profit_over_doanh_thu_thuc_never_gmv():
+    """P9 (#44): Thực tế's margin is on the forecast's basis, lợi nhuận ÷ doanh thu thực; a day
+    without doanh thu thực leaves it unknown (never ÷ GMV)."""
+    from juli_backend.services.shopee_recommendations.running import totals
+
+    keys = [START + timedelta(days=i) for i in range(2)]
+    days = {d: Day(100_000.0, 2.0, 18_000.0, 90_000.0) for d in keys}
+    assert totals(days, keys)["margin_pct"] == pytest.approx(20.0)  # 36.000 ÷ 180.000
+    days[keys[1]] = Day(100_000.0, 2.0, 18_000.0)
+    assert totals(days, keys)["margin_pct"] is None

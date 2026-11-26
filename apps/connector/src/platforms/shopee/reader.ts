@@ -29,11 +29,14 @@ import {
   PRODUCT_PERIOD_MAX_PAGES,
   PRODUCT_PERIOD_PAGE_SIZE,
   VOUCHER_PAGE_LIMIT_DEFAULT,
+  COMBO_DETAIL_MAX,
+  COMBO_MAX_ROWS,
+  COMBO_PAGE_LIMIT_DEFAULT,
 } from "./config";
 import { isDatacenterPath, isMydataPath } from "./config";
 import { isReadOnlyOrderDetailPath, isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, READER_PAGES, type ReaderEndpoint } from "./endpoints";
 import { isNoCampaign } from "./promotion-map";
-import { cardOrdersWithoutSku, incomeNotFinal, type PageItem, pageIncomeFinal, trimOrderCards, trimOrderDetail, trimOrderIndex, withPageSkus, withUnresolvedSkus } from "./orders-map";
+import { cardOrdersWithoutSku, incomeNotFinal, type PageItem, pageIncomeFinal, plainLabel, trimOrderCards, trimOrderDetail, trimOrderIndex, withPageSkus, withUnresolvedSkus } from "./orders-map";
 import type { Pacer } from "./runner";
 import { buildBackfillDayPlan } from "./sync";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "../../core/time";
@@ -202,6 +205,8 @@ export interface ReaderEnv {
   contentEmptyVisible?: () => boolean;
   /** order page (0.3.32): the "Doanh thu" rows it shows, `{name, amount}` (order-page-dom.ts). */
   orderPageIncome?: () => { name: string; amount: number }[];
+  /** batch-1124-a S1: the order page's buyer-payment voucher rows (Shopee Voucher, Mã giảm giá của Shop). */
+  orderPageBuyer?: () => { name: string; amount: number }[];
   /** order page (0.3.32): its product lines ("Phân loại", "SKU phân loại", line total). */
   orderPageItems?: () => PageItem[];
 }
@@ -378,6 +383,12 @@ export const isProduct = (o: Record<string, unknown>) =>
   "model_list" in o || "price_detail" in o || ("id" in o && "stock_detail" in o);
 export const isAdsEntry = (o: Record<string, unknown>) => isRecord(o.campaign) || isRecord(o.report);
 export const isVoucher = (o: Record<string, unknown>) => "voucher_id" in o;
+/** 0.3.35: one row of the discount list's Combo tab (`discounts[].bundle_deal`). */
+export const isComboEntry = (o: Record<string, unknown>) => isRecord(o.bundle_deal);
+/** The discount list's code for a combo (`discount_type`, P-C2 capture). */
+export const COMBO_DISCOUNT_TYPE = 3;
+/** The list's `time_status` of a combo not ended yet: 1 upcoming (assumed, not seen), 2 running. */
+const COMBO_LIVE_STATUSES = new Set([1, 2]);
 
 /** The /datacenter re-confirmation modal's text (any dialog text is passed in). */
 export function isPasswordPrompt(text: string): boolean {
@@ -783,6 +794,51 @@ async function readVouchers(env: ReaderEnv, collected: ReaderResponse[]): Promis
     const total = totalOf(response.body, found.parent);
     if (fresh.length === 0 || found.list.length < limit) break;
     if (total !== undefined && seen.size >= total) break;
+  }
+}
+
+/**
+ * 0.3.35 (batch-1124-a C4): the Combo tab's list (the page's own POST, replayed page by page with
+ * only discount_type / offset / limit set), then each upcoming or running combo's detail (its
+ * tiers, buyer limit and products; newest first, at most COMBO_DETAIL_MAX). Reads only.
+ */
+async function readCombos(env: ReaderEnv, collected: ReaderResponse[]): Promise<void> {
+  await waitForPage(env, ["combo_list"], collected);
+  const template = env.template("combo_list") as Template;
+  const learned = isRecord(template.body) && Number(template.body.limit) > 0 ? Number(template.body.limit) : COMBO_PAGE_LIMIT_DEFAULT;
+  const limit = Math.min(Math.max(1, Math.floor(learned)), 50);
+  const seen = new Map<string, number>();
+  for (let offset = 0; offset < COMBO_MAX_ROWS; offset += limit) {
+    const request = buildReaderRequest(
+      env.origin,
+      "combo_list",
+      template,
+      { body: { discount_type: COMBO_DISCOUNT_TYPE, time_status: 0, offset, limit } },
+      env.session(),
+    );
+    const response = await send(env, request, collected, { page: offset / limit + 1 });
+    const found = findList(payloadOf(response.body), isComboEntry);
+    if (!found) break;
+    let fresh = 0;
+    for (const entry of found.list) {
+      const deal = entry.bundle_deal as Record<string, unknown>;
+      const id = String(deal.discount_id ?? "");
+      if (!/^\d{1,20}$/.test(id) || seen.has(id)) continue;
+      seen.set(id, Number(deal.time_status));
+      fresh += 1;
+    }
+    if (fresh === 0 || found.list.length < limit) break;
+  }
+  const live = [...seen.entries()]
+    .filter(([, status]) => COMBO_LIVE_STATUSES.has(status))
+    .map(([id]) => id)
+    .sort((a, b) => (BigInt(b) > BigInt(a) ? 1 : BigInt(b) < BigInt(a) ? -1 : 0))
+    .slice(0, COMBO_DETAIL_MAX);
+  // the detail is not called by the list page: the list's headers, the session, the combo's id only
+  const detail: Template = { query: {}, headers: template.headers };
+  for (const id of live) {
+    const request = buildReaderRequest(env.origin, "combo_detail", detail, { query: { bundle_deal_id: id } }, env.session());
+    await send(env, request, collected, {}, true);
   }
 }
 
@@ -1382,11 +1438,12 @@ function readOrderPage(
   const sn = sns[0] ? { orderSn: sns[0] } : {};
   const at = env.now();
   const income = env.orderPageIncome?.() ?? [];
+  const buyer = env.orderPageBuyer?.() ?? [];
   const wantIncome = job.incomeFor?.[0] !== false;
   // a2 C-A10: only a page that shows the final amount is posted as the order's income
-  const incomeNote = wantIncome && income.length > 0 && !pageIncomeFinal(income) ? INCOME_NOT_SHOWN : undefined;
+  const incomeNote = wantIncome && !pageIncomeFinal(income) ? incomeMissNote(income) : undefined;
   if (wantIncome && pageIncomeFinal(income)) {
-    collected.push({ endpoint: "order_income_components", url: `${env.origin}${READER_PAGES.order_income.path}${opened}`, status: 200, body: { code: 0, data: { items: income } }, capturedAt: at, source: "page", orderId: opened, ...sn });
+    collected.push({ endpoint: "order_income_components", url: `${env.origin}${READER_PAGES.order_income.path}${opened}`, status: 200, body: { code: 0, data: { items: income, ...(buyer.length > 0 ? { buyer_items: buyer } : {}) } }, capturedAt: at, source: "page", orderId: opened, ...sn });
   }
   const stored = job.fixBodies?.[0];
   let note: string | undefined;
@@ -1396,13 +1453,44 @@ function readOrderPage(
     // "unresolved_item": the order is not read again for them (Juli keeps the day as a hole)
     const fixed = matched ?? (job.fixLast?.[0] ? withUnresolvedSkus(stored) : null);
     if (fixed) collected.push({ endpoint: "order_detail", url: `${env.origin}${READER_PAGES.order_income.path}${opened}`, status: 200, body: fixed, capturedAt: at, source: "page", orderId: opened, ...sn });
-    note = matched ? undefined : fixed ? "unresolved_item" : "page_lines_unmatched";
+    note = matched ? undefined : fixed ? "unresolved_item" : linesMissNote(env.orderPageItems?.() ?? [], stored);
   }
   return ids.length > 1 ? "partial:one_order_per_page" : (note ?? incomeNote);
 }
 
 /** a2 C-A10: the order page showed its income rows but not "Doanh Thu Đơn Hàng" within the wait: nothing posted for it. */
 export const INCOME_NOT_SHOWN = "income_final_not_shown";
+/** The order page's lines could not be matched to the order's answer lines: nothing posted for them. */
+export const PAGE_LINES_UNMATCHED = "page_lines_unmatched";
+
+/** Outcome-safe text: no separators the outcome uses ("|", ",", "=", ":"). */
+const noteSafe = (t: string) => t.replace(/[|,=:/]/g, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * 0.3.34 (C-H4): "income_final_not_shown:<rows>:<label 1>/<label 2>/<label 3>": how many income rows
+ * the page showed and its first three labels (plain, cut), never an amount.
+ */
+export function incomeMissNote(income: readonly { name: string }[]): string {
+  const labels = income.slice(0, 3).map((i) => noteSafe(plainLabel(i.name)).slice(0, 24));
+  return `${INCOME_NOT_SHOWN}:${income.length}${labels.length > 0 ? `:${labels.join("/")}` : ""}`;
+}
+
+/** The order answer's lines: top-level lines and their combo sub-lines (`sub_items`). */
+function answerLineCounts(body: unknown): { lines: number; subs: number } {
+  const order = isRecord(body) ? payloadOf(body) : undefined;
+  const items = isRecord(order) && Array.isArray(order.items) ? order.items.filter(isRecord) : [];
+  const subs = items.reduce((n, item) => n + (Array.isArray(item.sub_items) ? item.sub_items.length : 0), 0);
+  return { lines: items.length, subs };
+}
+
+/**
+ * 0.3.34 (C-H5): "page_lines_unmatched:page_<n>:answer_<lines>[+<sub-lines>]": the page's product
+ * lines against the order answer's lines (a combo's parent and its children), counts only.
+ */
+export function linesMissNote(page: readonly PageItem[], stored: unknown): string {
+  const { lines, subs } = answerLineCounts(stored);
+  return `${PAGE_LINES_UNMATCHED}:page_${page.length}:answer_${lines}${subs > 0 ? `+${subs}` : ""}`;
+}
 /** How long the reader waits for the order page's "Doanh Thu Đơn Hàng" row once the page shows its lines. */
 export const PAGE_INCOME_WAIT_MS = 15_000;
 
@@ -1437,8 +1525,13 @@ async function readOrderIncome(
   if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_password_recheck", collected, "password_modal"));
   if (env.captchaVisible?.()) throw new Stop(fail("blocked_captcha", collected, "page"));
   if (shown() && !called()) {
-    // a2 C-A10: the lines can draw before the "Doanh thu" block: wait for its final amount
-    if (job.incomeFor?.[0] !== false) await env.waitFor(() => pageIncomeFinal(env.orderPageIncome?.() ?? []), PAGE_INCOME_WAIT_MS);
+    // a2 C-A10: the lines can draw before the "Doanh thu" block: wait for its final amount.
+    // 0.3.34 (C-H5): and the block before the lines: an order read for its lines also waits until
+    // the page's product lines match its answer (same wait), so a half-drawn page is not "unmatched".
+    const incomeReady = () => job.incomeFor?.[0] === false || pageIncomeFinal(env.orderPageIncome?.() ?? []);
+    const stored = job.fixBodies?.[0];
+    const linesReady = () => !stored || withPageSkus(stored, env.orderPageItems?.() ?? []) !== null;
+    if (!(incomeReady() && linesReady())) await env.waitFor(() => incomeReady() && linesReady(), PAGE_INCOME_WAIT_MS);
     return readOrderPage(env, ids, collected, sns, job);
   }
   // 0.3.31 waited for the page's detail call too, but the order page makes it before the hook is
@@ -1787,6 +1880,9 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         break;
       case "vouchers":
         await readVouchers(env, collected);
+        break;
+      case "combos":
+        await readCombos(env, collected);
         break;
       case "product_period":
         await readProductPeriod(env, collected);

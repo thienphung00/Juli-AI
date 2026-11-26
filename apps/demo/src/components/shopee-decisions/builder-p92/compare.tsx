@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { ShopeeApiError } from "../../../lib/shopee-analytics/client";
+import { metricLabel } from "../../../lib/metrics";
 import { DASH, fmt, pp, vnCount, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderApi, BuilderEvaluation, BuilderToday, BuilderOutcome, BuilderVersion, ChooseResult, GroupResult } from "../../../lib/shopee-decisions/builder-api";
 import { aggRows } from "../../../lib/shopee-decisions/plan-model";
@@ -136,7 +137,7 @@ function rowsFor(names: VersionNames): RowDef[] {
     },
     { key: "dgmv", label: "GMV dự kiến", cell: (o) => money(o, "gmv") },
     { key: "dorders", label: "Đơn dự kiến", cell: (o) => money(o, "orders") },
-    { key: "dprofit", label: "Lợi nhuận dự kiến", cell: (o) => money(o, "profit") },
+    { key: "dprofit", label: `${metricLabel("contribution")} dự kiến`, cell: (o) => money(o, "profit") },
     { key: "daov", label: "AOV dự kiến", cell: (o) => (o.result ? <MetricCell fallbackWhy={o.result.reason_text} forecast={forecastOfResult(o.result)} metric="aov" /> : <span className="sd-muted">{DASH}</span>) },
     {
       key: "units",
@@ -169,7 +170,6 @@ function rowsFor(names: VersionNames): RowDef[] {
     {
       key: "margin",
       label: "Biên sau",
-      sub: "trên GMV",
       cell: (o) =>
         chuaTinh(o) ? (
           <b>chưa tính</b>
