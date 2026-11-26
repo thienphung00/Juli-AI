@@ -157,14 +157,14 @@ describe("P92 · voucher 5k/100k và 10k/100k", () => {
     expect(screen.getByTestId("p4-row-2")).toBeInTheDocument();
   });
 
-  it("chips from the shop AOV fill the value and minimum", async () => {
+  it("chips from the AOV fill the value and minimum", async () => {
     const builder = fakeBuilder();
     open(builder);
     await toKinds(builder);
     chooseKind("voucher");
     await screen.findByTestId("p2-panel-voucher");
     await waitFor(() => expect(calls(builder, "evaluate").length).toBeGreaterThan(0));
-    await screen.findByText("Gợi ý từ AOV của shop (124.143đ)");
+    await screen.findByText("Gợi ý từ AOV của sản phẩm (124.143đ)");
     fireEvent.click(screen.getByRole("button", { name: "10k / 150k" }));
     expect(screen.getByRole("textbox", { name: "Giá trị" })).toHaveValue("10000");
     expect(screen.getByRole("textbox", { name: "Đơn tối thiểu" })).toHaveValue("150000");

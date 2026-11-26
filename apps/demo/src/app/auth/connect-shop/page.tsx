@@ -8,7 +8,7 @@ import { readReviewerRecord } from "../../../lib/reviewer/session";
 import { readAuthSession, type AuthSession } from "../../../lib/supabase-auth";
 
 /**
- * "Kết nối TikTok Shop" — the centre of this slice (ADR-094 decision 3). Only
+ * "Kết nối shop" — the centre of this slice (ADR-094 decision 3). Only
  * reachable with a real Supabase session; a visitor with none is sent back to
  * the landing honestly rather than shown a broken or fixture screen.
  */
@@ -37,7 +37,7 @@ export default function ConnectShopPage() {
   if (session === null) {
     return (
       <section aria-labelledby="connect-shop-no-session-title" className="demo-placeholder">
-        <p className="demo-kicker">Kết nối TikTok Shop</p>
+        <p className="demo-kicker">Kết nối shop</p>
         <h1 id="connect-shop-no-session-title">Bạn chưa đăng nhập</h1>
         <p role="alert" aria-live="assertive">
           Bạn chưa đăng nhập (bằng Google hoặc email) nên chưa thể xem màn

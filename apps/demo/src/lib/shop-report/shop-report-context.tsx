@@ -14,8 +14,10 @@ import { fetchShopAnalysis } from "../shop-analysis/api-client";
 import type { ShopAnalysisEnvelope } from "../shop-analysis/types";
 import { probeShopPlatform } from "../shopee-analytics/platform";
 import { tiktokLegacyScreens } from "../tiktok-screens";
-import { readActiveShop } from "../shop-session";
+import { readActiveShop, storeActiveShop } from "../shop-session";
+import { fetchShops, type Shop } from "../shops-client";
 import { ensureFreshSession } from "../auth-refresh";
+import { readReviewerRecord } from "../reviewer/session";
 
 /**
  * Who the app is showing, and that shop's latest ADR-108 report — resolved
@@ -25,8 +27,9 @@ import { ensureFreshSession } from "../auth-refresh";
  * - No stored Supabase session → `anonymous`: the bundled synthetic sample
  *   (the invented cosmetics shop of `phan-tich/sample-data.ts`), loaded lazily so the layout chunk stays small; no
  *   request leaves the origin.
- * - Session but no acting shop → `no-shop`: Home, Phân tích and Quyết định
- *   show the same bundled sample under a "Kết nối TikTok Shop ›" strip (P13).
+ * - Session but no saved acting shop → the first shop `GET /v1/shops` returns, saved (owner #104).
+ * - Session and no shop at all → `no-shop`: Home, Phân tích and Quyết định
+ *   show the same bundled sample under a "Kết nối shop ›" strip (P13).
  * - Session + shop → `GET /v1/demo/analysis` (default ranking) through the
  *   one authenticated client; 404 → `empty`, failure → `error` (never the
  *   sample standing in for the seller's shop).
@@ -76,11 +79,14 @@ interface ShopReportProviderProps {
   readonly children: ReactNode;
   /** Injectable for tests; defaults to the real authenticated client. */
   readonly loadAnalysis?: typeof fetchShopAnalysis;
+  /** Injectable for tests; defaults to the real `GET /v1/shops` client. */
+  readonly loadShops?: (accessToken: string) => Promise<Shop[]>;
 }
 
 export function ShopReportProvider({
   children,
   loadAnalysis = fetchShopAnalysis,
+  loadShops = fetchShops,
 }: ShopReportProviderProps) {
   const [state, setState] = useState<ShopReportState>({ status: "resolving" });
   const [reloadKey, setReloadKey] = useState(0);
@@ -104,7 +110,17 @@ export function ShopReportProvider({
         return;
       }
       const token = session.accessToken;
-      const active = readActiveShop();
+      // Owner #104: no saved shop is not "no shop": act as the first one the account has, as Kết nối shop does.
+      let active = readActiveShop();
+      // A partner reviewer's shops come from the reviewer door (GET /v1/reviewer/me), never this list.
+      if (!active && readReviewerRecord() === null) {
+        const first = (await loadShops(token).catch(() => null))?.[0];
+        if (cancelled) return;
+        if (first) {
+          active = { id: first.id, name: first.shop_name };
+          storeActiveShop(active);
+        }
+      }
       if (!active) {
         setState({ status: "no-shop", token, envelope: null });
         loadSample()
@@ -144,7 +160,7 @@ export function ShopReportProvider({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [loadAnalysis, reloadKey]);
+  }, [loadAnalysis, loadShops, reloadKey]);
 
   const reload = useCallback(() => setReloadKey((key) => key + 1), []);
   const value = useMemo(() => ({ state, reload }), [state, reload]);
