@@ -320,7 +320,8 @@ async def collect_tong_quan(
     or ``product_id``). Every figure is the screen's: ``channel_split`` for the channels and KPIs,
     ``month_plan.range_plan`` for the baseline / goal of the shop, of each product and of each
     day."""
-    window = await service.resolve(
+    # owner #85/#94: ``auto`` (the screen's default) is the same default period as the screen
+    window = await queries.resolve_window(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     if window is None:
@@ -954,6 +955,10 @@ async def collect_tong_quan_shops(
     TODO(TikTok session): a TikTok shop has no collector here yet; it is a column of "—" until its
     Tổng quan figures are wired in (a shop with no figures also means no Tổng for the metric it
     lacks only because SUM skips empty cells: the Tổng column is the Shopee shops' sum then)."""
+    if window.get("period") == "auto":
+        # one date range for every column: the default period's search is per shop, so the
+        # all-shops file keeps the 30 days ending on each shop's newest day
+        window = {**window, "period": "30d"}
     out: list[tq.TongQuanData] = []
     for shop in shops:
         if shop.platform != "shopee":

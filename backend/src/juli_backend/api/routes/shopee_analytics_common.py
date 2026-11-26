@@ -24,17 +24,28 @@ from juli_backend.services.shopee_analytics import (
     RowsNotMaterialized,
 )
 
+#: ``auto`` (also what a request without ``period`` gets): the screen's default period, the newest
+#: 30 days whose known-cost share passes the profit gate (``shopee_analytics.default_period``);
+#: the payload names its dates in ``default_period``. Any other value is the seller's choice.
 PeriodQ = Annotated[
-    str, Query(pattern="^(7d|30d|90d|month|custom)$", description="7d | 30d | 90d | month | custom")
+    str,
+    Query(
+        pattern="^(auto|7d|30d|90d|month|custom)$",
+        description="auto | 7d | 30d | 90d | month | custom",
+    ),
 ]
 #: Tổng quan's "Cả kế hoạch" adds ``plan``: the running cards' span (channel-split only)
 PlanPeriodQ = Annotated[
     str,
     Query(
-        pattern="^(7d|30d|90d|month|custom|plan)$",
-        description="7d | 30d | 90d | month | custom | plan",
+        pattern="^(auto|7d|30d|90d|month|custom|plan)$",
+        description="auto | 7d | 30d | 90d | month | custom | plan",
     ),
 ]
+#: the product page: its three periods, or ``auto`` (the default 30 days)
+ProductPeriodQ = Annotated[str, Query(pattern="^(auto|7d|30d|90d)$")]
+#: the period a request without ``period`` opens on
+DEFAULT_PERIOD = "auto"
 MonthQ = Annotated[
     str | None, Query(pattern=r"^\d{4}-\d{2}$", description="YYYY-MM with period=month")
 ]

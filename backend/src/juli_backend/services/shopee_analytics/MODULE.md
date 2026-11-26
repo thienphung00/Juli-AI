@@ -185,3 +185,21 @@ rows. A shop with no raw anchor anchors on its newest complete layer-4 day (`que
 Thẻ sản phẩm + Video + LIVE, Quảng cáo is `None`, and a row / luồng whose cell is missing carries
 `unavailable` (metric -> registry reason code). Shopee payloads gain no field. No data answers 409
 `no_tiktok_data` (Shopee: `no_shopee_data`).
+
+## Default period, ad-type rows, one GMV (batch-1126 r2-ana, owner #85/#94/#99)
+
+- `default_period`: a request with `period=auto` (what the seller / Ops routes get when no
+  `period` is sent) opens on the newest 30-day window whose known-cost share of GMV passes the
+  profit gate (`shop_profit.share_passes`, 70-100 %), stepping the end back one day at a time, at
+  most `MAX_STEP_BACK_DAYS` = 30; none passing keeps the newest window. One stored-row query
+  (`shop_metrics_daily.gmv` + `detail.known_cost_gmv`, ROWS_VERSION 5); a row without the key
+  makes its windows unknown. `queries.resolve_screen_window` is the one entry point; overview,
+  matrix, critical, ranking, product page, channel split (+ products), metric view and the
+  Tổng quan export call it, and the payload names the window in `default_period`
+  (`from` / `to` / `days` / `moved_days` / `max_back_days` / `profit_shown`). The whole view
+  uses that window. A chosen period (7d / 30d / 90d / month / custom) is never moved.
+- Tổng quan's channel rows (shop level): `ads_livestream` ("Livestream") and `ads_other` ("Khác":
+  unknown types + the spend no type explains) after DVHT Sản phẩm / DVHT Shop+, only when their
+  spend > 0. Every ads-report row carries `spend`; the four add up to `kpis.cost_ads`.
+- `overview.kpi_strip.gmv` / `.orders` and `gmv.shopee_gmv` / `.shopee_orders` are ShopMetrics
+  (`shop_metrics.gmv`), never the raw window total `PeriodView.shop_gmv`.

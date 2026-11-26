@@ -695,10 +695,27 @@ async def _load(
     start: date | None,
     end: date | None,
     as_of: date | None,
-) -> tuple[Any, PeriodView, Window] | None:
-    from juli_backend.services.shopee_analytics.queries import NoShopeeData, resolve_window
+) -> tuple[Any, PeriodView, Window]:
+    ctx, view, window, _ = await _load_pick(
+        session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
+    )
+    return ctx, view, window
 
-    window = await resolve_window(
+
+async def _load_pick(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    period: str,
+    month: str | None,
+    start: date | None,
+    end: date | None,
+    as_of: date | None,
+) -> tuple[Any, PeriodView, Window, Any]:
+    """The window's view; the fourth item is the default period's pick (``period`` ``auto``)."""
+    from juli_backend.services.shopee_analytics.queries import NoShopeeData, resolve_screen_window
+
+    window, pick = await resolve_screen_window(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     if window is None:
@@ -706,7 +723,7 @@ async def _load(
     ctx = await loaders.load_context(session, shop_id)
     ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
     view = await service.load_view(session, shop_id, ctx, window, funnel=True)
-    return ctx, view, window
+    return ctx, view, window, pick
 
 
 def _product_ads(
@@ -1161,11 +1178,10 @@ async def channel_split(
             period, start, end, plan_last = "custom", span[0], min(span[1], anchor), span[1]
         else:
             period = "30d"
-    loaded = await _load(
+    loaded = await _load_pick(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
-    assert loaded is not None
-    ctx, view, window = loaded
+    ctx, view, window, pick = loaded
     body_rows, kpis = await _figures(session, shop_id, view, window, product_id, platform)
     prev_rows: dict[str, dict[str, Any]] = {}
     prev_kpis: dict[str, Any] | None = None
@@ -1187,7 +1203,7 @@ async def channel_split(
         window.end,
         ads_last=ads_last_day(view.data.ads_daily.source_by_day),
     )
-    return {
+    body: dict[str, Any] = {
         "level": "product" if product_id else "shop",
         "product_id": product_id,
         "from": window.start.isoformat(),
@@ -1207,6 +1223,9 @@ async def channel_split(
         # QC, AFF and lợi nhuận ròng; None where the platform has no profit (D23)
         "profit_split": _split_of(view, product_id, kpis, platform),
     }
+    if pick is not None:  # owner #85/#94: the screen opened on the default period names it
+        body["default_period"] = pick.json()
+    return body
 
 
 async def channel_split_products(
@@ -1222,11 +1241,10 @@ async def channel_split_products(
 ) -> dict[str, Any]:
     """The product picker: each product with GMV, margin, its GMV by channel and the weakest
     funnel metric (:func:`weakest_metric`), biggest GMV first."""
-    loaded = await _load(
+    loaded = await _load_pick(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
-    assert loaded is not None
-    _ctx, view, window = loaded
+    _ctx, view, window, pick = loaded
     rows = view.data.funnel
     if rows is None:
         rows = await funnel.load_rows(session, shop_id, window)
@@ -1308,7 +1326,7 @@ async def channel_split_products(
         for i in unmatched_ids
         if (t := funnel.base_from_rows(rows, str(shop_id), item_ids=(i,)).total("gmv")) is not None
     ]
-    return {
+    out: dict[str, Any] = {
         "from": window.start.isoformat(),
         "to": window.end.isoformat(),
         "products": products[:MAX_PRODUCTS],
@@ -1319,3 +1337,6 @@ async def channel_split_products(
             "selectable": False,
         },
     }
+    if pick is not None:
+        out["default_period"] = pick.json()
+    return out
