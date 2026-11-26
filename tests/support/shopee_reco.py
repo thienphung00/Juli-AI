@@ -83,7 +83,14 @@ async def seed_reco_shop(
                 clicks=Decimal(30),
                 orders=Decimal(2),
                 gmv=Decimal(100_000),
-                extra={"daily_budget": 30_000, "roi_two_target": 3.0, "cost": 14_000},
+                # direct_gmv: the Connector's day carries the campaign's direct GMV (C2); since
+                # owner #99 1a the report's product GMV of another period no longer stands in
+                extra={
+                    "daily_budget": 30_000,
+                    "roi_two_target": 3.0,
+                    "cost": 14_000,
+                    "direct_gmv": 80_000,
+                },
                 confidence="high",
                 **_src(),
             )

@@ -196,3 +196,39 @@ def test_the_five_numbers_show_no_profit_without_ad_data():
     assert all(
         gated[k] is None for k in ("profit_before", "profit_after", "pct_before", "pct_after")
     )
+
+
+def test_a_campaign_with_connector_days_keeps_its_break_even_without_a_same_window_report():
+    """#99 1a blanks a product's report GMV off the report's own period; the ads cards still read
+    the campaign's Connector days (C2): ROAS from the campaign's own direct GMV, the break-even
+    from its products' contribution rates weighted by their share of its spend (decision #39)."""
+    from juli_backend.services.shopee_analytics.compute import AdsFigures, CampaignAlloc
+    from juli_backend.services.shopee_recommendations.evaluate import campaign_profile
+
+    alloc = CampaignAlloc(
+        "c1",
+        "Nhóm",
+        D(30_000),
+        D(150_000),
+        D(120_000),
+        D(4),
+        D(90),
+        D(3000),
+        True,
+        {"A": D(20_000), "B": D(10_000)},
+        "daily",
+    )
+    figures = {"A": AdsFigures(D(20_000), None, None), "B": AdsFigures(D(10_000), None, None)}
+    products = {
+        "A": SimpleNamespace(contribution=D(50_000), buyer_paid_covered=D(100_000)),  # 50 %
+        "B": SimpleNamespace(contribution=D(20_000), buyer_paid_covered=D(100_000)),  # 20 %
+    }
+    ads = SimpleNamespace(
+        campaigns=[alloc], product_figures=figures, product_spend={"A": D(20_000), "B": D(10_000)}
+    )
+    env = SimpleNamespace(view=SimpleNamespace(ads=ads), window_days=30, product=products.get)
+    prof = campaign_profile(env, "c1")
+    assert prof is not None and prof["roas_direct"] == D(4)
+    rate = (D("0.5") * 2 + D("0.2")) / 3  # spend-weighted 40 %
+    assert prof["rate"] == rate and prof["break_even_roas"] == 1 / rate
+    assert prof["profit_before_ads_per_day"] == D(120_000) * rate / 30
