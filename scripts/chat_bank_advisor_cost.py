@@ -3,7 +3,8 @@ estimated $ and wait for a yes). Reads `tests/unit/analytics_agent/bank/advisor_
 prices each question with the current price table (`juli_agent_api.config`) and models
 (`juli_agent_api.ports` defaults, or the env overrides): one parse, one router request per
 expected intent, one written summary per intent, and the advisor up to its per-answer cap for an
-advice question. Prints a per-case line, a typical total and an upper bound. Calls nothing.
+advice question (hand-written set + generated sample). Prints a per-case line, a typical total
+and an upper bound. Calls nothing.
 
     PYTHONPATH=backend/src:. python scripts/chat_bank_advisor_cost.py
 """
@@ -20,7 +21,9 @@ from juli_backend.services.analytics_agent.summary import SUMMARY_SYSTEM
 from juli_backend.services.analytics_agent.writer import WRITER_SYSTEM
 from juli_backend.services.juli_agent_api import config, ports
 
-CASES = Path(__file__).resolve().parents[1] / "tests/unit/analytics_agent/bank/advisor_cases.json"
+BANK = Path(__file__).resolve().parents[1] / "tests/unit/analytics_agent/bank"
+CASES = BANK / "advisor_cases.json"
+SAMPLE = BANK / "paid_sample.json"  # the stratified sample of the generated combinations
 CHARS_PER_TOKEN = 3.0  # Vietnamese with diacritics tokenises denser than English
 PARSE_OUT, WRITE_IN_DATA, WRITE_OUT = 600, 1_500, 400
 ADVICE_WORDS = ("nên", "làm sao", "lam sao", "ưu tiên", "kế hoạch", "xử lý", "có nên")
@@ -41,7 +44,8 @@ def estimate(case: dict) -> tuple[float, float]:
     write_m = model(ports.WRITE_MODEL_ENV, ports.DEFAULT_WRITE_MODEL)
     parse_in = tokens(routing.PARSE_SYSTEM) + tokens(json.dumps(routing.INTENT_TOOL)) + tokens(q)
     parse = 2 * config.llm_cost_usd(parse_m, parse_in, PARSE_OUT)  # one retry at worst
-    n = max(1, len((case.get("expect") or {}).get("stop") or [None]))
+    exp = case.get("expect") or {}
+    n = max(1, len(exp.get("stop") or [None]), exp.get("n_answers_min") or 1)
     route_in = tokens(json.dumps(routing.routing_questions({}))) + 200
     route = n * config.jev_cost_usd(route_in)
     write_in = max(tokens(WRITER_SYSTEM), tokens(SUMMARY_SYSTEM)) + WRITE_IN_DATA
@@ -53,6 +57,7 @@ def estimate(case: dict) -> tuple[float, float]:
 
 def main() -> None:
     cases = json.loads(CASES.read_text(encoding="utf-8"))["cases"]
+    cases += json.loads(SAMPLE.read_text(encoding="utf-8"))["cases"]
     tot = up = 0.0
     for c in cases:
         t, u = estimate(c)

@@ -54,3 +54,31 @@ Estimate first and ask the owner before running:
 
     PYTHONPATH=backend/src:. python scripts/chat_bank_advisor_cost.py
     JULI_CHAT_BANK_PAID=1 fasttrack/bin/pg-test.sh tests/integration/analytics_agent/test_chat_bank_advisor.py -m live
+
+## The generated bank (every combination)
+
+`dimensions.py` enumerates the dimensions from the code (windows, scopes / entity words,
+every registry metric key, outputs, card kinds, goals, advisor tools, draft kinds, templates,
+1..5 intents); `combos.py` builds every combination at the structured-intent level (the parse
+is given), the ORACLE (`data_expect` and the family tables: what a correct Chat answers, each
+rule written once) and the GAP RULES (one per known gap, a predicate over the dimensions plus
+the problem lines it explains). `test_chat_bank_combos.py` runs them:
+
+- default = the deploy gate: a covering array (every pair of every two data dimensions and every
+  period x metric x scope triple) plus every non-data combination;
+- `-m bank_full` (or `JULI_BANK_FULL=1`) = the full cross product, nightly / before a tag.
+
+A combination passes, or xfails with the gap rules that explain all its problems, or FAILS (a
+problem no rule explains). Mismatch cases (a scope that cannot carry the metric, a card kind
+that does not move it; `combos.MISMATCH_RULE`) are pinned to their CURRENT outcome bucket.
+`combo_record.json` holds each rule's footprint (count + hash) and each mismatch bucket; the
+last test compares them, so a fix or a regression inside a rule moves the record. Re-record
+after a change (one process at a time):
+
+    PYTHONPATH=backend/src:. python -m tests.unit.analytics_agent.bank.combo_eval --gate
+    PYTHONPATH=backend/src:. python -m tests.unit.analytics_agent.bank.combo_eval --full
+
+New dimension value: add it to `dimensions.py` (with its code constant), its words to
+`text_variants.py`, then regenerate `text_variants.json` and `paid_sample.json`
+(`python -m tests.unit.analytics_agent.bank.text_variants` / `.paid_sample`) and re-record.
+A fixed gap: narrow or delete its rule, then re-record.
