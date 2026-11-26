@@ -157,14 +157,22 @@ class _Line:
     product: Product
     variation: Variation
     qty: int
+    #: the goods total at the deal price (after the combo, like the Connector's deal_price x qty)
     value: int = 0
+    #: the unit deal price: a combo line's share of the combo price (owner #119), else the list
+    deal: int = 0
+    #: (list - combo price) x qty: information only, already inside ``deal`` (owner #102)
     bundle: int = 0
     voucher: int = 0
     ship: int = 0
 
     @property
+    def list_value(self) -> int:
+        return self.variation.price * self.qty
+
+    @property
     def buyer_paid(self) -> int:
-        return self.value - self.bundle - self.voucher
+        return self.value - self.voucher
 
 
 @dataclass
@@ -293,16 +301,22 @@ def _new_line(rng: random.Random, p: Product) -> _Line:
 def _price_order(rng: random.Random, order: _Order, combo_on: bool) -> None:
     """Fill value, combo discount, shop voucher and buyer shipping on the lines."""
     for ln in order.lines:
-        ln.value = ln.variation.price * ln.qty
+        ln.deal = ln.variation.price
         if combo_on and ln.product.in_combo:
             pct = max((d for q, d in COMBO_TIERS if ln.qty >= q), default=0)
-            ln.bundle = round(ln.value * pct / 100)
-    total = sum(ln.value for ln in order.lines)
+            # owner #119: like Connector 0.3.36, the deal price is the line's share of the combo
+            # price; the combo discount rides along as information (#102)
+            ln.deal = round(ln.variation.price * (100 - pct) / 100)
+        ln.value = ln.deal * ln.qty
+        ln.bundle = ln.list_value - ln.value
+    # the voucher draw and the free-shipping threshold read the list total, as before #119, so
+    # what every buyer pays is unchanged
+    total = sum(ln.list_value for ln in order.lines)
     if rng.random() < 0.10:
         voucher = min(10_000, round(total * 0.05 / 1000) * 1000)
         left = voucher
         for i, ln in enumerate(order.lines):
-            share = left if i == len(order.lines) - 1 else round(voucher * ln.value / total)
+            share = left if i == len(order.lines) - 1 else round(voucher * ln.list_value / total)
             ln.voucher, left = share, left - share
     order.lines[0].ship = 0 if total >= 150_000 else rng.choice((10_000, 12_000, 15_000))
 
@@ -342,7 +356,7 @@ def _use_voucher(vrng: random.Random, orders: list[_Order], v: VoucherRun) -> No
     for o in orders:
         if not any(ln.product.item_id == v.item_id for ln in o.lines):
             continue
-        total = sum(ln.value for ln in o.lines)
+        total = sum(ln.list_value for ln in o.lines)  # the list total, as before #119
         if total < v.min_spend:
             continue
         v.qualifying_orders += 1
@@ -355,7 +369,7 @@ def _use_voucher(vrng: random.Random, orders: list[_Order], v: VoucherRun) -> No
         v.used_sales += total
         left = v.value
         for i, ln in enumerate(o.lines):
-            share = left if i == len(o.lines) - 1 else round(v.value * ln.value / total)
+            share = left if i == len(o.lines) - 1 else round(v.value * ln.list_value / total)
             ln.voucher, left = share, left - share
 
 
@@ -968,7 +982,7 @@ def _line_rows(o: _Order) -> list[dict[str, Any]]:
                 "variation_name": ln.variation.name,
                 "qty": ln.qty,
                 "original_price": ln.variation.price,
-                "deal_price": ln.variation.price,
+                "deal_price": ln.deal,
                 "shop_voucher_share": ln.voucher,
                 "bundle_discount": ln.bundle,
                 "promo_kind": promo,
@@ -1074,7 +1088,7 @@ def _income_row(o: _Order, day: date) -> dict[str, Any]:
         "order_ref": o.ref,
         "ordered_on": _iso(day),
         "paid_on": _iso(day + timedelta(days=3)),
-        "product_price": sum(ln.value for ln in o.lines),
+        "product_price": sum(ln.list_value for ln in o.lines),
         "fee_fixed": fixed,
         "fee_service": service,
         "fee_infra": infra,

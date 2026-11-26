@@ -208,7 +208,8 @@ class RecoEnv:
         for ln, _ in self.view.pairs:
             if ln.sku == sku and (newest is None or ln.order_date >= newest.order_date):
                 newest = ln
-        return None if newest is None else newest.deal_price
+        # owner #119: a Connector combo line's deal price is after its combo; the price is before
+        return None if newest is None else newest.price_before_combo
 
     def setting_for(self, campaign_key: str | None) -> CampaignSetting | None:
         """Live settings of a report campaign: by its key, else by its title."""

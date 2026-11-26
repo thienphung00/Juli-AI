@@ -224,7 +224,8 @@ def evaluate_mega(
     free_lines: list[OrderLine] = []
     for ln in base_lines:
         new = price_by_sku.get(ln.sku)
-        cur = replace(ln, deal_price=min(new, ln.deal_price)) if new is not None else ln
+        # owner #119: a Connector combo line is priced before its combo, the combo on top
+        cur = ln.at_price(min(new, ln.price_before_combo)) if new is not None else ln
         t = tiers.get(ln.sku)
         if t:
             eligible = [q for q in t if q <= cur.qty]

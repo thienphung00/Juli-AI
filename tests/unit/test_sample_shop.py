@@ -981,8 +981,12 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # owner #102 (4c): higher combo profit picks another middle draw (307_112 on 1,13
             # orders, was 389_340 on 3,17); GMV comes from orders and a bounded basket lift; the
             # single-draw middle is replaced in tag 2 (5a)
-            assert cd["gmv"] == pytest.approx(307_112, rel=0.02)
-            assert round(cd["orders"]) == 1
+            # owner #119: the generator's combo lines are Connector lines (deal price after the
+            # combo), so the base AOV is the combo price and the draws' profits move again: the
+            # middle draw is 312_363 on 2,69 orders at today's AOV, no basket lift (was 307_112 on
+            # 1,13). The combo's reach and take-up are unchanged.
+            assert cd["gmv"] == pytest.approx(312_363, rel=0.02)
+            assert round(cd["orders"]) == 3
             # the combo's only lever here is the badge's CTOR prior: the middle draw's ΔGMV is its
             # Δ orders at today's AOV -- never a GMV with almost no orders (445.900đ on 0,31 đơn)
             aov = c["detail"]["before"]["aov"]
@@ -995,7 +999,7 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             )
             # ... and what Δorders x before_aov does not explain is a basket lift of at most 2 %
             unexplained = cd["gmv"] - cd["orders"] * aov
-            assert 0 <= unexplained <= 0.02 * aov * likely["orders"]
+            assert -1e-6 <= unexplained <= 0.02 * aov * likely["orders"]  # float rounding at 0
             assert cd["profit"] < 0
             ctx = await builder.build_context(session, report.shop_id, [set2], as_of=END, now=NOW)
             base = integrate.base_for(ctx.env, [nrc], "")

@@ -568,10 +568,12 @@ def eval_price(
         )
         for ln in lines:
             if ln.sku == sku and ln.product_id == item:
+                # owner #119: before a Connector combo, the combo on top
+                before = ln.price_before_combo
                 if cand.kind == "price":
-                    repriced[id(ln)] = replace(ln, deal_price=to_dong(ln.deal_price * factor))
+                    repriced[id(ln)] = ln.at_price(to_dong(before * factor))
                 else:
-                    repriced[id(ln)] = replace(ln, deal_price=min(ln.deal_price, new))
+                    repriced[id(ln)] = ln.at_price(min(before, new))
     if not results:
         return _refuse("no_price")
     after_lines = [repriced.get(id(ln), ln) for ln in lines]
