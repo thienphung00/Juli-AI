@@ -1,0 +1,317 @@
+{
+ "version": 1,
+ "note": "Opt-in paid path: real parser, router and advisor. Not run by default; estimate first with scripts/chat_bank_advisor_cost.py.",
+ "cases": [
+  {
+   "id": "paid-sa12-next-week-plan",
+   "area": "advice",
+   "question": "Dựa trên kết quả tuần này và tuần trước, tuần sau shop nên làm gì để tăng GMV và lợi nhuận? Ưu tiên 3 việc quan trọng nhất",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ],
+    "stop": [
+     "data_answer"
+    ]
+   },
+   "note": "Session A #12: today the parse gives 'unsupported'",
+   "paid": true
+  },
+  {
+   "id": "paid-sa13-create-voucher",
+   "area": "create",
+   "question": "Tôi muốn lập voucher cho ngày 24 và ngày 25 tháng 11.",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   },
+   "note": "Session A #13",
+   "paid": true
+  },
+  {
+   "id": "paid-sa06-ads-three-asks",
+   "area": "multi",
+   "question": "Quảng cáo tuần trước: chi phí, ROAS và chiến dịch nào lỗ?",
+   "expect": {
+    "stop": [
+     "data_answer",
+     "data_answer",
+     "data_answer"
+    ],
+    "n_intent_blocks": 3
+   },
+   "note": "Session A #6",
+   "paid": true
+  },
+  {
+   "id": "paid-sa07-ads-this-vs-last",
+   "area": "multi",
+   "question": "Quảng cáo tuần này so với tuần trước: chi phí, ROAS, chiến dịch nào đang lỗ?",
+   "expect": {
+    "stop": [
+     "data_answer",
+     "data_answer",
+     "data_answer"
+    ],
+    "n_intent_blocks": 3
+   },
+   "note": "Session A #7",
+   "paid": true
+  },
+  {
+   "id": "paid-sa08-affiliate",
+   "area": "multi",
+   "question": "Tiếp thị liên kết tuần trước mang về bao nhiêu đơn và tốn bao nhiêu hoa hồng?",
+   "expect": {
+    "no_events": [
+     "needs_choice",
+     "unsupported",
+     "error"
+    ]
+   },
+   "note": "Session A #8",
+   "paid": true
+  },
+  {
+   "id": "paid-sa09-best-and-worst",
+   "area": "multi",
+   "question": "Tuần này sản phẩm nào bán tốt nhất và sản phẩm nào giảm mạnh nhất so với tuần trước?",
+   "expect": {
+    "no_events": [
+     "needs_choice",
+     "unsupported",
+     "error"
+    ]
+   },
+   "note": "Session A #9",
+   "paid": true
+  },
+  {
+   "id": "paid-sa10-voucher-this-week",
+   "area": "vouchers",
+   "question": "Tuần này có bao nhiêu đơn dùng voucher?",
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_vi": "Đơn dùng voucher"
+     }
+    ]
+   },
+   "note": "Session A #10 (asked mid-week)",
+   "paid": true
+  },
+  {
+   "id": "paid-sa11-voucher-last-week",
+   "area": "vouchers",
+   "question": "Tuần trước có bao nhiêu đơn dùng voucher?",
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_vi": "Đơn dùng voucher"
+     }
+    ]
+   },
+   "note": "Session A #11",
+   "paid": true
+  },
+  {
+   "id": "paid-sa14-card-pasted",
+   "area": "cards",
+   "question": "P1 · 8k / 179k Lợi nhuận đóng góp dự kiến (3 ngày): +8k hiện tại: 179k GMV dự kiến: +250k",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   },
+   "status": "xfail",
+   "reason": "no card-explain path (Session A #14)",
+   "paid": true
+  },
+  {
+   "id": "paid-sa15-card-explain",
+   "area": "cards",
+   "question": "P1 · 8k / 179k Lợi nhuận đóng góp dự kiến (3 ngày): +8k hiện tại: 179k GMV dự kiến: +250k giải thích các chỉ số này, cách tính chỉ số dựa vào đâu? căn cứ như thế nào?",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   },
+   "status": "xfail",
+   "reason": "no card-explain path (Session A #15)",
+   "paid": true
+  },
+  {
+   "id": "paid-what-first",
+   "area": "advice",
+   "question": "Tuần này mình nên làm gì trước?",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ],
+    "stop": [
+     "data_answer"
+    ]
+   },
+   "paid": true
+  },
+  {
+   "id": "paid-stop-ads-product",
+   "area": "advice",
+   "question": "Có nên tắt quảng cáo cho găng tay không?",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ],
+    "stop": [
+     "data_answer"
+    ]
+   },
+   "paid": true
+  },
+  {
+   "id": "paid-raise-budget",
+   "area": "advice",
+   "question": "Có nên tăng ngân sách quảng cáo tuần sau không?",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ],
+    "stop": [
+     "data_answer"
+    ]
+   },
+   "paid": true
+  },
+  {
+   "id": "paid-which-discount",
+   "area": "advice",
+   "question": "Nên giảm giá sản phẩm nào để tăng đơn?",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ],
+    "stop": [
+     "data_answer"
+    ]
+   },
+   "paid": true
+  },
+  {
+   "id": "paid-profit-top3",
+   "area": "advice",
+   "question": "Làm sao tăng lợi nhuận? Cho mình 3 việc cụ thể.",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ],
+    "stop": [
+     "data_answer"
+    ]
+   },
+   "paid": true
+  },
+  {
+   "id": "paid-fix-title",
+   "area": "advice",
+   "question": "Sản phẩm nào nên sửa tiêu đề?",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ],
+    "stop": [
+     "data_answer"
+    ]
+   },
+   "paid": true
+  },
+  {
+   "id": "paid-raise-ctr",
+   "area": "advice",
+   "question": "lam sao tang CTR cho shop",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ],
+    "stop": [
+     "data_answer"
+    ]
+   },
+   "paid": true
+  },
+  {
+   "id": "paid-weekend-voucher",
+   "area": "advice",
+   "question": "Cuối tuần nên chạy voucher thế nào?",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ],
+    "stop": [
+     "data_answer"
+    ]
+   },
+   "paid": true
+  },
+  {
+   "id": "paid-which-card",
+   "area": "advice",
+   "question": "Nên mở thẻ đề xuất nào trước?",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ],
+    "stop": [
+     "data_answer"
+    ]
+   },
+   "paid": true
+  },
+  {
+   "id": "paid-losing-products",
+   "area": "advice",
+   "question": "Sản phẩm lỗ sau quảng cáo thì nên xử lý sao?",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ],
+    "stop": [
+     "data_answer"
+    ]
+   },
+   "paid": true
+  },
+  {
+   "id": "paid-create-flash-sale",
+   "area": "create",
+   "question": "Tạo flash sale cho găng tay ngày 10/10 lúc 12 giờ",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   },
+   "paid": true
+  }
+ ]
+}
