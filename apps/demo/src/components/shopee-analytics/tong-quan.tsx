@@ -159,6 +159,7 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
               Cập nhật {updatedText(ready)}
             </span>
           ) : null}
+          {ready ? <UnsettledChip split={ready} /> : null}
           {ready && host.api.exportTongQuan ? (
             <button
               className="sa-btn sa-btn--s"
@@ -245,6 +246,17 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
         )}
       </ResourceState>
     </div>
+  );
+}
+
+/** Owner #101: completed orders with no settlement after 2 days, so their profit is not final yet. */
+function UnsettledChip({ split }: { readonly split: ChannelSplit }) {
+  const u = split.freshness?.unsettled_orders;
+  if (!u || u.count <= 0) return null;
+  return (
+    <span className="sa-chip sa-chip--warn" data-testid="sa-unsettled" title={u.oldest_completed_on ? `Đơn sớm nhất hoàn thành ${dayMonth(u.oldest_completed_on)}` : undefined}>
+      {vnCount(u.count)} đơn chưa đối soát
+    </span>
   );
 }
 
