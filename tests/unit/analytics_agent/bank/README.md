@@ -70,7 +70,8 @@ the problem lines it explains). `test_chat_bank_combos.py` runs them:
 
 A combination passes, or xfails with the gap rules that explain all its problems, or FAILS (a
 problem no rule explains). Mismatch cases (a scope that cannot carry the metric, a card kind
-that does not move it; `combos.MISMATCH_RULE`) are pinned to their CURRENT outcome bucket.
+that does not move it, both read from `metrics.capabilities`; `combos.MISMATCH_RULE`) must be
+correct refusals (owner #115): one line naming what applies, and its buttons.
 `combo_record.json` holds each rule's footprint (count + hash) and each mismatch bucket; the
 last test compares them, so a fix or a regression inside a rule moves the record. Re-record
 after a change (one process at a time):

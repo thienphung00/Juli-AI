@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from juli_backend.services.metrics import capabilities as cap
 from tests.unit.analytics_agent.bank import dimensions as D
 
 #: the seller's text of a generated case: no word any code regex reads (the parse is given)
@@ -81,6 +82,16 @@ def _overlaps(w: tuple[str, str] | None, days: tuple[str, str]) -> bool:
 
 
 NO_DATA_VI = "Juli chưa có số liệu này"
+NOT_APPLICABLE = "not_applicable"  # applies.STOP: the pairing does not apply (owner #115)
+#: the bank's scope -> the capability table's scope (metrics.capabilities.SCOPES)
+CAP_SCOPE = {
+    "product_name": "product",
+    "product_id": "product",
+    "product_sku": "product",
+    "channel_organic": "organic",
+    "channel_ads": "ads",
+    **{s: s for s in cap.SCOPES},
+}
 PERIOD = {p.id: p for p in D.PERIODS}
 SCOPE = {s.id: s for s in D.SCOPES}
 
@@ -156,9 +167,22 @@ def data_expect(p: D.Period, s: D.Scope, m: str, o: str) -> dict[str, Any]:
     that matches decides."""
     a = D.AGENT_OF.get(m)
     honest = {"stop_in": NO_FIGURE, "no_events": ["data_answer"], "no_numbers": True}
-    # R1: a period Chat has no window for -> it asks which period (never a guessed window)
+    # R0 (owner #115): a metric the scope cannot carry -> the one line from the capability table
+    # (a ranking lists products: its metric is read per product)
+    where = "product" if s.kind == "shop" and o in ("top", "decline") else CAP_SCOPE[s.id]
+    if m != "none" and not cap.measurable(where, m):
+        return {  # the buttons may name the period ("30 ngày qua"): no number check
+            "stop": [NOT_APPLICABLE],
+            "no_events": ["data_answer"],
+            "require": [cap.scope_line(where, m)],
+        }
+    # R1: a period Chat has no window for, or none named (owner #113) -> it asks which period
+    # (never a guessed window); the period buttons carry day counts ("30 ngày qua")
     if p.preset is None and p.id not in D.EXPLICIT:
-        return {**honest, "needs_choice_item": "window", "stop_in": ["needs_choice"]}
+        ask: dict[str, Any] = {"no_events": ["data_answer"], "stop_in": ["needs_choice"]}
+        if a is not None:  # no metric (or one Chat lacks) may be asked first: one at a time
+            ask["needs_choice_item"] = "window"
+        return ask
     # R2: a month that has not begun has no figure
     if p.cur is None:
         return honest
@@ -625,10 +649,10 @@ def small_families() -> Iterator[dict[str, Any]]:
                 "stop": ["data_answer"] * shown,
                 "n_answers_min": shown,
                 "no_events": ["unsupported", "error"],
-                "more_items": max(0, n - 3),
             }
-            if n > 1:
+            if n > 1:  # one intent: its next steps are buttons (#110 rule 8), not overflow
                 exp["n_intent_blocks"] = shown
+                exp["more_items"] = max(0, n - 3)
             jevs = [
                 {"metric": i.get("metric_key", "gmv"), "window": "last_full_week_vs_week_before"}
                 for i in its[:n]
@@ -796,20 +820,6 @@ def R(
 
 GAP_RULES: tuple[GapRule, ...] = (
     R(
-        "not_started_month",
-        "a month that has not begun (tháng 11 asked on 07/10) runs an inverted "
-        "window: October's figures, or InvalidWindow from the tabs' service",
-        lambda p, s, m, o: p == "named_not_started",
-        (*ANY, CRASH),
-    ),
-    R(
-        "no_window_ask",
-        "a period with no preset (14 / 90 ngày) is not asked on the entity, "
-        "ranking and programme paths: decide() takes the router's top window without the ratio "
-        "check, or the programme refusal comes first",
-        lambda p, s, m, o: p in ("14d", "90d"),
-    ),
-    R(
         "phrase_safety_net",
         "a registry metric Chat lacks is read through routing.METRIC_WORDS "
         "('net revenue' -> GMV, 'gross profit' -> profit, 'roas direct' -> ROAS ...): another "
@@ -884,12 +894,6 @@ GAP_RULES: tuple[GapRule, ...] = (
         (*ANY, CRASH),
     ),
     R(
-        "profit_dash",
-        "profit / margin below 70 % known shows 'chưa có dữ liệu' where Tổng quan shows '—'",
-        lambda p, s, m, o: _resolved(m) in ("profit", "margin"),
-        (r"missing shown",),
-    ),
-    R(
         "affiliate_flow",
         "Chat's affiliate đơn / GMV are order lines flagged affiliate; Tổng quan "
         "and the KOL cell show the Tiếp thị liên kết flow",
@@ -946,13 +950,6 @@ GAP_RULES: tuple[GapRule, ...] = (
         (r"Chat has no figure", r"stop "),
     ),
     R(
-        "why_card_estimate_word",
-        "the why chain's card note on one product says 'Juli chưa ước tính được…' (a forbidden "
-        "word on a screen)",
-        lambda p, s, m, o: o == "why" and SCOPE[s].kind == "product",
-        (r"ước tính",),
-    ),
-    R(
         "top_list_vs_screen",
         "the top-products list ranks every product with a row in the window (a product with no "
         "sale included) while Phân tích lists only the products that sold",
@@ -980,13 +977,16 @@ def _rule(
 
 GAP_RULES = GAP_RULES + (
     _rule(
-        "create_estimate_word",
-        "a card kind the engine cannot estimate says 'Juli chưa ước "
-        "tính được…' (a forbidden word on a screen)",
+        "create_not_estimable_silent",
+        "a card kind the engine cannot estimate (or a title / cover / description / price display "
+        "card, no measured uplift) ends in a no_card box that #110 rule 7 hides: the seller gets "
+        "nothing at all",
         lambda c: (
-            _is(c, "create") and _d(c)["card_type"] in ("combo", "add_on", "gift", "variation_set")
+            _is(c, "create")
+            and "events_any" in c["expect"]
+            and _d(c)["card_type"] in NOT_ESTIMABLE_CREATE
         ),
-        (r"ước tính", r"internal keys"),
+        (r"none of \[",),
     ),
     _rule(
         "create_discount_error",
@@ -1000,17 +1000,18 @@ GAP_RULES = GAP_RULES + (
         "no card-explain path: a pasted card or a card code is unsupported",
         lambda c: _is(c, "explain"),
     ),
-    _rule(
-        "template_needs_router",
-        "the margin / cost templates' card stage asks Jev, so with the "
-        "router down the run raises JevUnavailable (prod: router_unavailable)",
-        lambda c: (
-            _is(c, "template")
-            and _d(c)["router"] == "down"
-            and _d(c)["template"] in ("improve_margin", "reduce_cost")
-        ),
-        (*ANY, CRASH),
-    ),
+)
+
+
+NOT_ESTIMABLE_CREATE = (
+    "combo",
+    "add_on",
+    "gift",
+    "variation_set",
+    "title",
+    "cover_image",
+    "description_first_line",
+    "price_display",
 )
 
 
@@ -1061,16 +1062,9 @@ SCOPE_MISMATCH: tuple[tuple[str, dict[str, Any], tuple[str, ...]], ...] = (
         ("channel_share_organic", "kol_share", "cost_offer_voucher", "cost_total_pct"),
     ),
 )
-#: the metric a WIRING key means (shopee_recommendations.kinds.WIRING); "sale" is a calendar
-WIRING_METRIC = {
-    "views": "views",
-    "ctr": "ctr",
-    "ctor": "ctor",
-    "aov": "aov",
-    "bien": "margin",
-    "roas": "roas",
-    "lien_ket": "channel_gmv_affiliate",
-}
+#: section 8's critical metric -> the registry metric (the capability table's own map); "sale"
+#: is the calendar, no metric of its own
+WIRING_METRIC = {w: m for w, m in cap.CRITICAL_METRIC.items() if w != "sale"}
 #: a draft kind -> the create_card kind that builds it (the rest have no free create path)
 CREATE_OF = {
     "product_discount": "product_discount",
@@ -1098,47 +1092,68 @@ BUCKETS = (
 )
 MISMATCH_RULE = (
     "a mismatch (a scope the metric cannot be measured on, or a card kind that does not move "
-    "the metric) gets no figure for another scope / metric under the asked label, no silent "
-    "switch to shop figures, and an answer that says the pairing does not apply"
+    "the metric: metrics.capabilities) gets ONE line naming what applies (owner #115): no figure "
+    "for another scope / metric under the asked label, no silent switch to shop figures, no "
+    "'chưa có số liệu'"
 )
+#: the outcome every mismatch must have
+EXPECTED_BUCKET = "correct_refusal"
+
+
+def _cap_scope(slots: dict[str, Any]) -> str:
+    """The named scope of the slots (a channel / entity wins over the product beside it)."""
+    hit = [x for x in D.SCOPES if x.intent and set(x.intent.items()) <= set(slots.items())]
+    return CAP_SCOPE[next((x for x in hit if x.kind != "product"), hit[0]).id]
+
+
+def scope_mismatches() -> list[tuple[str, dict[str, Any], str]]:
+    """(label, slots, metric) of SCOPE_MISMATCH that the capability table refuses: the metric is
+    not measurable on the scope, or the scope has no per-product split and a product is named.
+    A listed pairing the table has (the registry measures it) is not a mismatch."""
+    out = []
+    for label, slots, metrics in SCOPE_MISMATCH:
+        sc = _cap_scope(slots)
+        per_product = "product_phrase" in slots and sc != "product"
+        for m in metrics:
+            if (per_product and not cap.SCOPES[sc].per_product) or not cap.measurable(sc, m):
+                out.append((label, slots, m))
+    return out
 
 
 def _kind_mismatches() -> list[tuple[str, str]]:
-    from juli_backend.services.shopee_recommendations.kinds import WIRING
-
-    return [(w, k) for w in WIRING_METRIC for k in D.DRAFT_KINDS if k not in WIRING[w]]
+    """(critical metric, kind): a draftable kind the capability table says does not move it."""
+    return [(w, k) for w, m in WIRING_METRIC.items() for k in D.DRAFT_KINDS if not cap.moves(k, m)]
 
 
 def mismatch_family() -> Iterator[dict[str, Any]]:
-    for label, slots, metrics in SCOPE_MISMATCH:
-        for m in metrics:
-            for mode in ("answer", "analysis"):
-                it = {
-                    **slots,
-                    "metric_key": m,
-                    "metric_phrase": D.phrase_of(m),
-                    "time_phrase": "last 7 days",
-                }
-                if mode == "analysis":
-                    it.update(question_type="why_changed", claimed_direction="down")
-                yield {
-                    "id": f"mismatch.scope.{label}.{m}.{mode}",
-                    "family": "mismatch",
-                    "dims": {"mismatch": label, "metric": m, "mode": mode, "kind": "scope"},
-                    "question": "Câu hỏi không khớp",
-                    "intents": [it],
-                    "writer": WRITER,
-                    "jev": {
-                        "metric": D.AGENT_OF.get(m) or [["gmv", 0.4], ["orders", 0.35]],
-                        "fits": 0.95 if m in D.AGENT_OF else 0.5,
-                        "mode": "why" if mode == "analysis" else "lookup",
-                        "window": "last_7d_vs_prev_7d",
-                        "scope": "product" if "product_phrase" in slots else "shop",
-                        "product_named": 0.95 if "product_phrase" in slots else 0.05,
-                    },
-                    "scope_words": _SCOPE_WORDS[label],
-                    "expect": {"mismatch": True},
-                }
+    for label, slots, m in scope_mismatches():
+        for mode in ("answer", "analysis"):
+            it = {
+                **slots,
+                "metric_key": m,
+                "metric_phrase": D.phrase_of(m),
+                "time_phrase": "last 7 days",
+            }
+            if mode == "analysis":
+                it.update(question_type="why_changed", claimed_direction="down")
+            yield {
+                "id": f"mismatch.scope.{label}.{m}.{mode}",
+                "family": "mismatch",
+                "dims": {"mismatch": label, "metric": m, "mode": mode, "kind": "scope"},
+                "question": "Câu hỏi không khớp",
+                "intents": [it],
+                "writer": WRITER,
+                "jev": {
+                    "metric": D.AGENT_OF.get(m) or [["gmv", 0.4], ["orders", 0.35]],
+                    "fits": 0.95 if m in D.AGENT_OF else 0.5,
+                    "mode": "why" if mode == "analysis" else "lookup",
+                    "window": "last_7d_vs_prev_7d",
+                    "scope": "product" if "product_phrase" in slots else "shop",
+                    "product_named": 0.95 if "product_phrase" in slots else 0.05,
+                },
+                "scope_words": _SCOPE_WORDS[label],
+                "expect": {"mismatch": True},
+            }
     for w, k in _kind_mismatches():
         m = WIRING_METRIC[w]
         for mode in MODES:
@@ -1163,7 +1178,12 @@ def mismatch_family() -> Iterator[dict[str, Any]]:
             if mode == "answer":
                 base.update(
                     intents=[
-                        {"metric_key": m, "metric_phrase": words, "time_phrase": "last 7 days"}
+                        {
+                            "metric_key": m,
+                            "metric_phrase": words,
+                            "time_phrase": "last 7 days",
+                            "card_kind": k,
+                        }
                     ],
                     jev={"metric": D.AGENT_OF.get(m) or "gmv"},
                 )
@@ -1176,6 +1196,8 @@ def mismatch_family() -> Iterator[dict[str, Any]]:
                             "needs_advice": True,
                             "goal": goal.get(m, "pricing_promo"),
                             "metric_phrase": words,
+                            "metric_key": m,
+                            "card_kind": k,
                         }
                     ],
                     jev=None,
@@ -1225,6 +1247,7 @@ def mismatch_family() -> Iterator[dict[str, Any]]:
                             "question_type": "create_card",
                             "product_phrase": "găng tay",
                             "metric_phrase": words,
+                            "metric_key": m,
                             "card": card,
                         }
                     ],
@@ -1245,7 +1268,7 @@ _SCOPE_WORDS = {
 }
 PAIRING_WORDS = re.compile(
     r"không áp dụng|không đo|không tính .* cho|không có .* cho|không làm "
-    r"tăng|không ảnh hưởng",
+    r"tăng|không ảnh hưởng|không tác động|không tính theo",
     re.I,
 )
 

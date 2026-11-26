@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo
 
 from juli_backend.services.analytics_agent import (
     advisor,
+    applies,
     create_card,
     entities,
     lookup,
@@ -336,9 +337,19 @@ async def _run(
             for i in intents:
                 i["msg_text"] = req.text or ""
         more = parsed["more"] + parsed["intents"][max_intents or routing.MAX_INTENTS :]
+        # owner #115: a pairing the capability table does not have is refused before routing
+        refused = {id(i): r for i in intents if (r := applies.refusal(i, labels)) is not None}
+        asked = [i for i in intents if id(i) not in refused]
         # one Jev routing request per intent, in parallel
-        replies = await asyncio.gather(*(routing.route(jev, i) for i in intents))
-        for intent, (answers, u) in zip(intents, replies, strict=True):
+        replies = iter(await asyncio.gather(*(routing.route(jev, i) for i in asked)))
+        for intent in intents:
+            if (no := refused.get(id(intent))) is not None:
+                result.routing.append(
+                    {"intent": routing.jev_state(intent)["intent"], "outcome": applies.STOP}
+                )
+                blocks.append((intent, {"outcome": applies.STOP, "refusal": no}))
+                continue
+            answers, u = next(replies)
             result.cost_usd += u.cost_usd
             dec = routing.decide(intent, answers)
             result.routing.append(
@@ -365,6 +376,11 @@ async def _run(
                     + (f" · {labels.metric(str(dec['metric']))}" if dec.get("metric") else ""),
                 }
             )
+        if dec["outcome"] == applies.STOP:  # one line + what applies (owner #115)
+            for ev in applies.events(dec["refusal"]):
+                await out.emit(ev)
+            result.stop_reasons.append(applies.STOP)
+            continue
         if dec["outcome"] == "unsupported":
             await _unsupported(
                 out,

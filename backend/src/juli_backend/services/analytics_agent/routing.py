@@ -14,6 +14,7 @@ import re
 from datetime import date
 from typing import Any
 
+from juli_backend.services.analytics_agent import levers
 from juli_backend.services.analytics_agent.chains import CHAIN_METRIC
 from juli_backend.services.analytics_agent.create_card import CARD_TYPES
 from juli_backend.services.analytics_agent.types import (
@@ -358,6 +359,7 @@ INTENT_TOOL: dict[str, Any] = {
                         "needs_advice",
                         "goal",
                         "card",
+                        "card_kind",
                     ],
                     "properties": {
                         "question_type": {
@@ -432,6 +434,13 @@ INTENT_TOOL: dict[str, Any] = {
                             ],
                             "description": "what the advice is for; none when needs_advice is "
                             "false",
+                        },
+                        "card_kind": {
+                            "type": "string",
+                            "enum": [*levers.card_kinds(None), "none"],
+                            "description": "the card / change kind the seller asks about (can a "
+                            "new title raise AOV, will a combo lift CTR); none when no kind is "
+                            "named",
                         },
                         "card": {
                             "type": "object",
@@ -510,6 +519,8 @@ PARSE_SYSTEM = (
     "'create_card': fill the `card` object with only the slots the seller said (dates as "
     "YYYY-MM-DD in the year of today, amount with amount_unit vnd or pct) and leave every other "
     "field at its empty value (none, empty text, -1); never invent a value. "
+    "card_kind is the change kind the seller names when asking what it moves (can a new title "
+    "raise AOV) or asking for one by a goal; none otherwise. "
     "An order to change the ads budget, a ROAS target or an "
     "affiliate commission (not a question whether to), a how-to or knowledge question (how to "
     "get more views, how a Shopee fee is calculated) and a question about competitors are "

@@ -90,14 +90,14 @@
    "text_kind": "shorthand",
    "question": "dt thực đơn dùng voucher 7 ng qua theo từng kênh?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing",
-     "data_answer"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
+    ],
+    "require": [
+     "Voucher không có Doanh thu thực. Doanh thu thực chỉ có cho Shop, Sản phẩm, Tiếp thị liên kết, Organic, Quảng cáo."
     ]
    },
    "paid": true,
@@ -109,14 +109,15 @@
    "text_kind": "accent",
    "question": "độ phủ giá vốn tiếp thị liên kết 14 ngày qua theo từng ngày?",
    "expect": {
-    "stop_in": [
-     "needs_choice"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
-    "needs_choice_item": "window"
+    "require": [
+     "Tiếp thị liên kết không có Độ phủ giá vốn. Độ phủ giá vốn chỉ có cho Shop, Sản phẩm."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -127,14 +128,14 @@
    "text_kind": "no_accent",
    "question": "loi nhuan gop KOL 30 ngay qua vi sao thay doi?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing",
-     "data_answer"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
+    ],
+    "require": [
+     "KOL không có Lợi nhuận gộp. Lợi nhuận gộp chỉ có cho Shop, Sản phẩm."
     ]
    },
    "paid": true,
@@ -146,14 +147,15 @@
    "text_kind": "typo",
    "question": "lợi nhuậnn đóngg góp chiếnn dịchh quảngg cáo 90 ngàyy qua đangg lãi hay lỗ?",
    "expect": {
-    "stop_in": [
-     "needs_choice"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
-    "needs_choice_item": "window"
+    "require": [
+     "Chiến dịch quảng cáo không có Lợi nhuận đóng góp. Lợi nhuận đóng góp chỉ có cho Shop, Sản phẩm."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -164,15 +166,14 @@
    "text_kind": "english_mix",
    "question": "lợi profit combo combo deal tháng this month bao how much?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Combo Khuyến Mãi không có Lợi nhuận ròng. Lợi nhuận ròng chỉ có cho Shop, Sản phẩm, Tiếp thị liên kết, Organic, Quảng cáo."
     ]
    },
    "paid": true,
@@ -184,15 +185,14 @@
    "text_kind": "shorthand",
    "question": "biên gộp mua kèm deal sốc tháng trước so với kỳ trước thế nào?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Mua Kèm Deal Sốc không có Biên gộp. Biên gộp chỉ có cho Shop, Sản phẩm."
     ]
    },
    "paid": true,
@@ -204,15 +204,14 @@
    "text_kind": "accent",
    "question": "biên đóng góp flash sale của shop tháng 9 sản phẩm nào cao nhất?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Flash Sale Của Shop không có Biên đóng góp. Biên đóng góp chỉ có cho Shop, Sản phẩm."
     ]
    },
    "paid": true,
@@ -224,15 +223,14 @@
    "text_kind": "no_accent",
    "question": "bien loi nhuan chuong trinh cua shop thang 10 san pham nao giam manh nhat?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Chương Trình Của Shop không có Biên lợi nhuận. Biên lợi nhuận chỉ có cho Shop, Sản phẩm."
     ]
    },
    "paid": true,
@@ -244,15 +242,15 @@
    "text_kind": "typo",
    "question": "biênn ở giá bán mua để nhậnn quà thángg 11 theoo từngg kênhh?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Mua Để Nhận Quà không có Biên ở giá bán. Biên ở giá bán chỉ có cho Sản phẩm."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -263,15 +261,15 @@
    "text_kind": "english_mix",
    "question": "tỷ lệ contribution rate tự organic từ 2/10 from 2/10 to 5/10 theo per day?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Organic không có Tỷ lệ đóng góp. Tỷ lệ đóng góp chỉ có cho Shop, Sản phẩm."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -282,15 +280,15 @@
    "text_kind": "shorthand",
    "question": "giá vốn từ qc ng 3/10 vì sao thay đổi?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Quảng cáo không có Giá vốn. Giá vốn chỉ có cho Shop, Sản phẩm."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -301,15 +299,15 @@
    "text_kind": "accent",
    "question": "đóng gói dịch vụ hiển thị sản phẩm ngày 25/9 đang lãi hay lỗ?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Dịch vụ hiển thị Sản phẩm không có Đóng gói. Đóng gói chỉ có cho Shop, Sản phẩm."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -320,15 +318,15 @@
    "text_kind": "no_accent",
    "question": "phi san dich vu hien thi shop+ bao nhieu?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Dịch vụ hiển thị Shop+ không có Phí sàn. Phí sàn chỉ có cho Shop, Sản phẩm."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -339,15 +337,15 @@
    "text_kind": "typo",
    "question": "vận chuyểnn quảngg cáo livestreamm hôm qua so với kỳ trướcc thế nào?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Quảng cáo Livestream không có Vận chuyển. Vận chuyển chỉ có cho Shop, Sản phẩm."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -435,14 +433,12 @@
    "text_kind": "typo",
    "question": "comboo mã T1 14 ngàyy qua vì sao thayy đổi?",
    "expect": {
-    "stop_in": [
-     "needs_choice"
-    ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
-    "needs_choice_item": "window"
+    "stop_in": [
+     "needs_choice"
+    ]
    },
    "paid": true,
    "area": "data"
@@ -453,14 +449,14 @@
    "text_kind": "english_mix",
    "question": "chi phí cost other đơn voucher orders 30 last 30 days đang lãi profit or loss?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing",
-     "data_answer"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
+    ],
+    "require": [
+     "Voucher không có Chi phí marketing khác. Chi phí marketing khác chỉ có cho Shop, Sản phẩm."
     ]
    },
    "paid": true,
@@ -472,14 +468,15 @@
    "text_kind": "shorthand",
    "question": "cp qc của sp ttlk 90 ng qua bn?",
    "expect": {
-    "stop_in": [
-     "needs_choice"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
-    "needs_choice_item": "window"
+    "require": [
+     "Tiếp thị liên kết không có Chi phí quảng cáo của sản phẩm. Chi phí quảng cáo của sản phẩm chỉ có cho Sản phẩm."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -490,14 +487,15 @@
    "text_kind": "accent",
    "question": "ưu đãi KOL tháng này so với kỳ trước thế nào?",
    "expect": {
-    "stop_in": [
-     "data_missing",
-     "needs_choice"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "KOL không có Ưu đãi. Ưu đãi chỉ có cho Shop, Sản phẩm, Combo Khuyến Mãi, Mua Kèm Deal Sốc, Flash Sale Của Shop, Chương Trình Của Shop, Mua Để Nhận Quà."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -509,12 +507,14 @@
    "question": "chi phi marketing chien dich quang cao thang truoc san pham nao cao nhat?",
    "expect": {
     "stop": [
-     "data_missing"
+     "not_applicable"
+    ],
+    "no_events": [
+     "data_answer"
     ],
     "require": [
-     "Juli chưa có số liệu này"
-    ],
-    "no_numbers": true
+     "Chiến dịch quảng cáo không có Chi phí marketing. Chi phí marketing chỉ có cho Shop, Sản phẩm."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -525,15 +525,14 @@
    "text_kind": "typo",
    "question": "tổngg chi phí comboo khuyếnn mãi thángg 9 sản phẩmm nào giảmm mạnhh nhấtt?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Combo Khuyến Mãi không có Tổng chi phí. Tổng chi phí chỉ có cho Shop, Sản phẩm."
     ]
    },
    "paid": true,
@@ -545,15 +544,14 @@
    "text_kind": "english_mix",
    "question": "giá vốn (% cost cogs pct mua kèm add-on deal tháng October theo by channel?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Mua Kèm Deal Sốc không có Giá vốn (% doanh thu thực). Giá vốn (% doanh thu thực) chỉ có cho Shop, Sản phẩm."
     ]
    },
    "paid": true,
@@ -565,15 +563,15 @@
    "text_kind": "shorthand",
    "question": "đóng gói (% dt thực) flash sale của shop tháng 11 theo từng ng?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Flash Sale Của Shop không có Đóng gói (% doanh thu thực). Đóng gói (% doanh thu thực) chỉ có cho Shop, Sản phẩm."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -584,15 +582,14 @@
    "text_kind": "accent",
    "question": "phí sàn (% doanh thu thực) chương trình của shop từ 2/10 đến 5/10 vì sao thay đổi?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Chương Trình Của Shop không có Phí sàn (% doanh thu thực). Phí sàn (% doanh thu thực) chỉ có cho Shop, Sản phẩm."
     ]
    },
    "paid": true,
@@ -604,15 +601,14 @@
    "text_kind": "no_accent",
    "question": "van chuyen (% doanh thu thuc) mua de nhan qua ngay 3/10 dang lai hay lo?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Mua Để Nhận Quà không có Vận chuyển (% doanh thu thực). Vận chuyển (% doanh thu thực) chỉ có cho Shop, Sản phẩm."
     ]
    },
    "paid": true,
@@ -624,15 +620,15 @@
    "text_kind": "typo",
    "question": "quảngg cáo (% doanhh thu thực) tự nhiênn (organic) ngàyy 25/9 bao nhiêuu?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Organic không có Quảng cáo (% doanh thu thực). Quảng cáo (% doanh thu thực) chỉ có cho Shop, Sản phẩm, Quảng cáo."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -643,15 +639,15 @@
    "text_kind": "english_mix",
    "question": "hoa hồng tiếp thị liên cost affiliate pct từ from ads so với kỳ vs before?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Quảng cáo không có Hoa hồng tiếp thị liên kết (% doanh thu thực). Hoa hồng tiếp thị liên kết (% doanh thu thực) chỉ có cho Shop, Sản phẩm."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -662,15 +658,15 @@
    "text_kind": "shorthand",
    "question": "ưu đãi (% dt thực) dịch vụ hiển thị sp hôm qua sp nào cao nhất?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Dịch vụ hiển thị Sản phẩm không có Ưu đãi (% doanh thu thực). Ưu đãi (% doanh thu thực) chỉ có cho Shop, Sản phẩm."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -681,15 +677,15 @@
    "text_kind": "accent",
    "question": "chi phí marketing khác (% doanh thu thực) dịch vụ hiển thị shop+ tuần này sản phẩm nào giảm mạnh nhất?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Dịch vụ hiển thị Shop+ không có Chi phí marketing khác (% doanh thu thực). Chi phí marketing khác (% doanh thu thực) chỉ có cho Shop, Sản phẩm."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -700,15 +696,15 @@
    "text_kind": "no_accent",
    "question": "tong chi phi (% doanh thu thuc) quang cao livestream tuan truoc theo tung kenh?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Quảng cáo Livestream không có Tổng chi phí (% doanh thu thực). Tổng chi phí (% doanh thu thực) chỉ có cho Shop, Sản phẩm, Tiếp thị liên kết, Organic, Quảng cáo."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -719,15 +715,15 @@
    "text_kind": "typo",
    "question": "chi phí marketingg (% doanhh thu thực) quảngg cáo khácc tuầnn này so với tuầnn trướcc theoo từngg ngàyy?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Quảng cáo Khác không có Chi phí marketing (% doanh thu thực). Chi phí marketing (% doanh thu thực) chỉ có cho Shop, Sản phẩm."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -757,13 +753,12 @@
    "text_kind": "shorthand",
    "question": "roas găng tay 14 ng qua đang lãi hay lỗ?",
    "expect": {
-    "stop_in": [
-     "needs_choice"
-    ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
+    "stop_in": [
+     "needs_choice"
+    ],
     "needs_choice_item": "window"
    },
    "paid": true,
@@ -794,13 +789,12 @@
    "text_kind": "no_accent",
    "question": "roas hoa von ma T1 90 ngay qua so voi ky truoc the nao?",
    "expect": {
-    "stop_in": [
-     "needs_choice"
-    ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
+    "stop_in": [
+     "needs_choice"
+    ],
     "needs_choice_item": "window"
    },
    "paid": true,
@@ -812,14 +806,14 @@
    "text_kind": "typo",
    "question": "roi kol đơn dùngg voucherr thángg này sản phẩmm nào cao nhấtt?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing",
-     "data_answer"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
+    ],
+    "require": [
+     "Voucher không có ROI KOL. ROI KOL chỉ có cho Shop, Tiếp thị liên kết."
     ]
    },
    "paid": true,
@@ -831,14 +825,14 @@
    "text_kind": "english_mix",
    "question": "δgmv / card return tiếp thị affiliate tháng last month sản phẩm nào biggest drop?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing",
-     "data_answer"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
+    ],
+    "require": [
+     "Tiếp thị liên kết không có ΔGMV / chi phí. ΔGMV / chi phí chỉ có cho Shop, Sản phẩm."
     ]
    },
    "paid": true,
@@ -850,14 +844,14 @@
    "text_kind": "shorthand",
    "question": "lượt xem KOL tháng 9 theo từng kênh?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing",
-     "data_answer"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
+    ],
+    "require": [
+     "KOL không có Lượt xem. Lượt xem chỉ có cho Shop, Sản phẩm, Tiếp thị liên kết, Organic, Quảng cáo."
     ]
    },
    "paid": true,
@@ -888,15 +882,15 @@
    "text_kind": "no_accent",
    "question": "ctr combo khuyen mai thang 11 vi sao thay doi?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Combo Khuyến Mãi không có CTR. CTR chỉ có cho Shop, Sản phẩm, Tiếp thị liên kết, Organic, Quảng cáo."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -907,15 +901,14 @@
    "text_kind": "typo",
    "question": "ctorr mua kèm deall sốc từ 2/10 đến 5/10 đangg lãi hay lỗ?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Mua Kèm Deal Sốc không có CTOR. CTOR chỉ có cho Shop, Sản phẩm, Tiếp thị liên kết, Organic, Quảng cáo."
     ]
    },
    "paid": true,
@@ -927,15 +920,14 @@
    "text_kind": "english_mix",
    "question": "ctr ctr ads flash sale shop flash sale ngày on 3/10 bao how much?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Flash Sale Của Shop không có CTR quảng cáo. CTR quảng cáo chỉ có cho Shop, Sản phẩm, Quảng cáo."
     ]
    },
    "paid": true,
@@ -947,15 +939,14 @@
    "text_kind": "shorthand",
    "question": "ctor qc chương trình của shop ng 25/9 so với kỳ trước thế nào?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Chương Trình Của Shop không có CTOR quảng cáo. CTOR quảng cáo chỉ có cho Shop, Sản phẩm, Quảng cáo."
     ]
    },
    "paid": true,
@@ -967,15 +958,14 @@
    "text_kind": "accent",
    "question": "gmv tiếp thị liên kết mua để nhận quà sản phẩm nào cao nhất?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Mua Để Nhận Quà không có GMV Tiếp thị liên kết. GMV Tiếp thị liên kết chỉ có cho Shop, Tiếp thị liên kết."
     ]
    },
    "paid": true,
@@ -987,15 +977,15 @@
    "text_kind": "no_accent",
    "question": "gmv quang cao tu nhien (organic) hom qua san pham nao giam manh nhat?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Organic không có GMV Quảng cáo. GMV Quảng cáo chỉ có cho Shop, Quảng cáo."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -1006,15 +996,15 @@
    "text_kind": "typo",
    "question": "gmv organicc từ quảngg cáo tuầnn này theoo từngg kênhh?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Quảng cáo không có GMV Organic. GMV Organic chỉ có cho Shop, Organic."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -1025,15 +1015,15 @@
    "text_kind": "english_mix",
    "question": "tỷ channel share organic dịch vụ hiển DVHT product ads tuần last week theo per day?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Dịch vụ hiển thị Sản phẩm không có Tỷ trọng Organic. Tỷ trọng Organic chỉ có cho Shop, Organic."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -1044,15 +1034,15 @@
    "text_kind": "shorthand",
    "question": "dt thực organic dịch vụ hiển thị shop+ tuần này so với tuần trc vì sao thay đổi?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Dịch vụ hiển thị Shop+ không có Doanh thu thực Organic. Doanh thu thực Organic chỉ có cho Shop, Organic."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -1063,15 +1053,15 @@
    "text_kind": "accent",
    "question": "lợi nhuận organic quảng cáo livestream 7 ngày qua đang lãi hay lỗ?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Quảng cáo Livestream không có Lợi nhuận Organic. Lợi nhuận Organic chỉ có cho Shop, Organic."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -1082,14 +1072,15 @@
    "text_kind": "no_accent",
    "question": "chi phi organic (%) quang cao khac 14 ngay qua bao nhieu?",
    "expect": {
-    "stop_in": [
-     "needs_choice"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
-    "needs_choice_item": "window"
+    "require": [
+     "Quảng cáo Khác không có Chi phí Organic (%). Chi phí Organic (%) chỉ có cho Shop, Organic."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -1119,14 +1110,15 @@
    "text_kind": "english_mix",
    "question": "doanh thu channel net revenue ads găng găng tay product 90 last 90 days sản phẩm top products?",
    "expect": {
-    "stop_in": [
-     "needs_choice"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
-    "needs_choice_item": "window"
+    "require": [
+     "Sản phẩm không có Doanh thu thực Quảng cáo. Doanh thu thực Quảng cáo chỉ có cho Shop, Quảng cáo."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -1138,13 +1130,13 @@
    "question": "ln qc sp 1002 tháng này sp nào giảm mạnh nhất?",
    "expect": {
     "stop": [
+     "not_applicable"
+    ],
+    "no_events": [
      "data_answer"
     ],
-    "answers": [
-     {
-      "window": "01/10–07/10",
-      "kind": "top_products"
-     }
+    "require": [
+     "Sản phẩm không có Lợi nhuận Quảng cáo. Lợi nhuận Quảng cáo chỉ có cho Shop, Quảng cáo."
     ]
    },
    "paid": true,
@@ -1156,15 +1148,15 @@
    "text_kind": "accent",
    "question": "chi phí quảng cáo (%) mã T1 tháng trước theo từng kênh?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Sản phẩm không có Chi phí Quảng cáo (%). Chi phí Quảng cáo (%) chỉ có cho Shop, Quảng cáo."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -1175,14 +1167,14 @@
    "text_kind": "no_accent",
    "question": "ty trong tiep thi lien ket don dung voucher thang 9 theo tung ngay?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing",
-     "data_answer"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
+    ],
+    "require": [
+     "Voucher không có Tỷ trọng Tiếp thị liên kết. Tỷ trọng Tiếp thị liên kết chỉ có cho Shop, Tiếp thị liên kết."
     ]
    },
    "paid": true,
@@ -1213,15 +1205,15 @@
    "text_kind": "english_mix",
    "question": "lợi nhuận tiếp channel profit affiliate KOL KOL tháng November đang lãi profit or loss?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "KOL không có Lợi nhuận Tiếp thị liên kết. Lợi nhuận Tiếp thị liên kết chỉ có cho Shop, Tiếp thị liên kết."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -1233,16 +1225,13 @@
    "question": "cp ttlk (%) chiến dịch qc từ 2/10 đến 5/10 bn?",
    "expect": {
     "stop": [
+     "not_applicable"
+    ],
+    "no_events": [
      "data_answer"
     ],
-    "answers": [
-     {
-      "window": "02/10–05/10",
-      "kind": "top_products",
-      "rows_have": [
-       "Chiến dịch nhóm"
-      ]
-     }
+    "require": [
+     "Chiến dịch quảng cáo không có Chi phí Tiếp thị liên kết (%). Chi phí Tiếp thị liên kết (%) chỉ có cho Shop, Tiếp thị liên kết."
     ]
    },
    "paid": true,
@@ -1254,15 +1243,14 @@
    "text_kind": "accent",
    "question": "bán / ngày combo khuyến mãi ngày 3/10 so với kỳ trước thế nào?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Combo Khuyến Mãi không có Bán / ngày. Bán / ngày chỉ có cho Sản phẩm."
     ]
    },
    "paid": true,
@@ -1274,15 +1262,14 @@
    "text_kind": "no_accent",
    "question": "con ban duoc (ngay) mua kem deal soc ngay 25/9 san pham nao cao nhat?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Mua Kèm Deal Sốc không có Còn bán được (ngày). Còn bán được (ngày) chỉ có cho Sản phẩm."
     ]
    },
    "paid": true,
@@ -1294,15 +1281,14 @@
    "text_kind": "typo",
    "question": "hết hàngg khoảngg flashh salee của shopp sản phẩmm nào giảmm mạnhh nhấtt?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Flash Sale Của Shop không có Hết hàng khoảng. Hết hàng khoảng chỉ có cho Sản phẩm."
     ]
    },
    "paid": true,
@@ -1314,15 +1300,14 @@
    "text_kind": "english_mix",
    "question": "cần restock units chương trình shop programme hôm yesterday theo by channel?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Chương Trình Của Shop không có Cần nhập thêm. Cần nhập thêm chỉ có cho Sản phẩm."
     ]
    },
    "paid": true,
@@ -1334,15 +1319,14 @@
    "text_kind": "shorthand",
    "question": "gmv kol mua để nhận quà tuần này theo từng ng?",
    "expect": {
-    "stop_in": [
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
     "require": [
-     "Juli chưa có số liệu này"
+     "Mua Để Nhận Quà không có GMV KOL. GMV KOL chỉ có cho Shop, Tiếp thị liên kết."
     ]
    },
    "paid": true,
@@ -1354,15 +1338,15 @@
    "text_kind": "accent",
    "question": "tỷ trọng kol tự nhiên (organic) tuần trước vì sao thay đổi?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Organic không có Tỷ trọng KOL. Tỷ trọng KOL chỉ có cho Shop, Tiếp thị liên kết."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -1373,15 +1357,15 @@
    "text_kind": "no_accent",
    "question": "hoa hong kol tu quang cao tuan nay so voi tuan truoc dang lai hay lo?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Quảng cáo không có Hoa hồng KOL. Hoa hồng KOL chỉ có cho Shop, Tiếp thị liên kết."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -1392,15 +1376,15 @@
    "text_kind": "typo",
    "question": "lợi nhuậnn ròngg kol dịchh vụ hiểnn thị sản phẩmm 7 ngàyy qua bao nhiêuu?",
    "expect": {
-    "stop_in": [
-     "needs_choice",
-     "unsupported",
-     "data_missing"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true
+    "require": [
+     "Dịch vụ hiển thị Sản phẩm không có Lợi nhuận ròng KOL. Lợi nhuận ròng KOL chỉ có cho Shop, Tiếp thị liên kết."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -1411,14 +1395,15 @@
    "text_kind": "english_mix",
    "question": "hiệu kol status dịch vụ DVHT Shop+ ads 14 last 14 days so với kỳ vs before?",
    "expect": {
-    "stop_in": [
-     "needs_choice"
+    "stop": [
+     "not_applicable"
     ],
     "no_events": [
      "data_answer"
     ],
-    "no_numbers": true,
-    "needs_choice_item": "window"
+    "require": [
+     "Dịch vụ hiển thị Shop+ không có Hiệu quả KOL. Hiệu quả KOL chỉ có cho Shop, Tiếp thị liên kết."
+    ]
    },
    "paid": true,
    "area": "data"
@@ -1977,8 +1962,7 @@
     "no_events": [
      "unsupported",
      "error"
-    ],
-    "more_items": 0
+    ]
    },
    "paid": true,
    "area": "intents"
@@ -1998,8 +1982,8 @@
      "unsupported",
      "error"
     ],
-    "more_items": 0,
-    "n_intent_blocks": 2
+    "n_intent_blocks": 2,
+    "more_items": 0
    },
    "paid": true,
    "area": "intents"
@@ -2020,8 +2004,8 @@
      "unsupported",
      "error"
     ],
-    "more_items": 0,
-    "n_intent_blocks": 3
+    "n_intent_blocks": 3,
+    "more_items": 0
    },
    "paid": true,
    "area": "intents"
@@ -2042,8 +2026,8 @@
      "unsupported",
      "error"
     ],
-    "more_items": 1,
-    "n_intent_blocks": 3
+    "n_intent_blocks": 3,
+    "more_items": 1
    },
    "paid": true,
    "area": "intents"
@@ -2064,8 +2048,8 @@
      "unsupported",
      "error"
     ],
-    "more_items": 2,
-    "n_intent_blocks": 3
+    "n_intent_blocks": 3,
+    "more_items": 2
    },
    "paid": true,
    "area": "intents"
@@ -2082,10 +2066,10 @@
    "area": "mismatch"
   },
   {
-   "id": "paid.mismatch.scope.affiliate_ads.days_left.answer.no_accent",
-   "combo_id": "mismatch.scope.affiliate_ads.days_left.answer",
+   "id": "paid.mismatch.scope.affiliate_ads.ctr_ads.answer.no_accent",
+   "combo_id": "mismatch.scope.affiliate_ads.ctr_ads.answer",
    "text_kind": "no_accent",
-   "question": "con ban duoc (ngay) của Tiếp thị liên kết?",
+   "question": "ctr quang cao của Tiếp thị liên kết?",
    "expect": {
     "mismatch": true
    },
@@ -2093,10 +2077,10 @@
    "area": "mismatch"
   },
   {
-   "id": "paid.mismatch.kind.price.views.analysis.typo",
-   "combo_id": "mismatch.kind.price.views.analysis",
+   "id": "paid.mismatch.kind.min_spend_voucher.views.answer.typo",
+   "combo_id": "mismatch.kind.min_spend_voucher.views.answer",
    "text_kind": "typo",
-   "question": "Thẻ price có làm tăng lượtt xem không?",
+   "question": "Thẻ min spend voucher có làm tăng lượtt xem không?",
    "expect": {
     "mismatch": true
    },
@@ -2104,10 +2088,10 @@
    "area": "mismatch"
   },
   {
-   "id": "paid.mismatch.kind.mega_sale.views.analysis.english_mix",
-   "combo_id": "mismatch.kind.mega_sale.views.analysis",
+   "id": "paid.mismatch.kind.ads_budget.ctr.analysis.english_mix",
+   "combo_id": "mismatch.kind.ads_budget.ctr.analysis",
    "text_kind": "english_mix",
-   "question": "Thẻ mega sale có làm tăng lượt views không?",
+   "question": "Thẻ ads budget có làm tăng ctr ctr không?",
    "expect": {
     "mismatch": true
    },
@@ -2126,10 +2110,10 @@
    "area": "mismatch"
   },
   {
-   "id": "paid.mismatch.kind.flash_sale.ctor.build.accent",
-   "combo_id": "mismatch.kind.flash_sale.ctor.build",
+   "id": "paid.mismatch.kind.voucher_cap.ctor.answer.accent",
+   "combo_id": "mismatch.kind.voucher_cap.ctor.answer",
    "text_kind": "accent",
-   "question": "Thẻ flash sale có làm tăng ctor không?",
+   "question": "Thẻ voucher cap có làm tăng ctor không?",
    "expect": {
     "mismatch": true
    },
@@ -2137,10 +2121,10 @@
    "area": "mismatch"
   },
   {
-   "id": "paid.mismatch.kind.ads_budget.aov.analysis.no_accent",
-   "combo_id": "mismatch.kind.ads_budget.aov.analysis",
+   "id": "paid.mismatch.kind.ads_new_campaign.aov.answer.no_accent",
+   "combo_id": "mismatch.kind.ads_new_campaign.aov.answer",
    "text_kind": "no_accent",
-   "question": "Thẻ ads budget có làm tăng aov không?",
+   "question": "Thẻ ads new campaign có làm tăng aov không?",
    "expect": {
     "mismatch": true
    },
@@ -2148,10 +2132,10 @@
    "area": "mismatch"
   },
   {
-   "id": "paid.mismatch.kind.keyword.aov.answer.typo",
-   "combo_id": "mismatch.kind.keyword.aov.answer",
+   "id": "paid.mismatch.kind.description_first_line.aov.answer.typo",
+   "combo_id": "mismatch.kind.description_first_line.aov.answer",
    "text_kind": "typo",
-   "question": "Thẻ keyword có làm tăng aov không?",
+   "question": "Thẻ description first line có làm tăng aov không?",
    "expect": {
     "mismatch": true
    },
@@ -2159,10 +2143,10 @@
    "area": "mismatch"
   },
   {
-   "id": "paid.mismatch.kind.bundle_deal.bien.build.english_mix",
-   "combo_id": "mismatch.kind.bundle_deal.bien.build",
+   "id": "paid.mismatch.kind.gift.bien.build.english_mix",
+   "combo_id": "mismatch.kind.gift.bien.build",
    "text_kind": "english_mix",
-   "question": "Thẻ bundle deal có làm tăng biên margin không?",
+   "question": "Thẻ gift có làm tăng biên margin không?",
    "expect": {
     "mismatch": true
    },
@@ -2170,10 +2154,10 @@
    "area": "mismatch"
   },
   {
-   "id": "paid.mismatch.kind.ads_add_product.roas.answer.shorthand",
-   "combo_id": "mismatch.kind.ads_add_product.roas.answer",
+   "id": "paid.mismatch.kind.product_discount.roas.answer.shorthand",
+   "combo_id": "mismatch.kind.product_discount.roas.answer",
    "text_kind": "shorthand",
-   "question": "Thẻ ads add product có làm tăng roas không?",
+   "question": "Thẻ product discount có làm tăng roas không?",
    "expect": {
     "mismatch": true
    },
@@ -2192,10 +2176,10 @@
    "area": "mismatch"
   },
   {
-   "id": "paid.mismatch.kind.review_voucher.lien_ket.analysis.no_accent",
-   "combo_id": "mismatch.kind.review_voucher.lien_ket.analysis",
+   "id": "paid.mismatch.kind.min_spend_voucher.lien_ket.answer.no_accent",
+   "combo_id": "mismatch.kind.min_spend_voucher.lien_ket.answer",
    "text_kind": "no_accent",
-   "question": "Thẻ review voucher có làm tăng gmv tiep thi lien ket không?",
+   "question": "Thẻ min spend voucher có làm tăng gmv tiep thi lien ket không?",
    "expect": {
     "mismatch": true
    },
