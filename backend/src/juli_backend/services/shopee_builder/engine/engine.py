@@ -17,7 +17,10 @@ Method (pure; the only randomness is a ``random.Random(seed)`` -- stdlib, no new
   (change in AOV x orders x contribution rate) - offers - fixed cost. Offers and the fixed cost are
   allocated to the sources by order share, so the sources add up to the total.
 * **Ranking.** All ``n`` scenarios are ranked by delta profit (by delta GMV when profit is unknown);
-  low / likely / high are whole scenarios at P10 / P50 / P90.
+  low / likely / high (5a, owner #99) are each the field-by-field MEAN of the scenarios ranked
+  within +-5 % of n around P10 / P50 / P90 (ranks 5-15 %, 45-55 %, 85-95 %): one drawn scenario
+  made the shown Δ GMV near-random when profit barely varies. Ratios come from the averaged sums
+  (AOV = mean GMV / mean orders). Build-up, cost, break-even and the noise check read these.
 """
 
 from __future__ import annotations
@@ -52,6 +55,8 @@ from juli_backend.services.shopee_builder.engine.vn import (
 
 Z90 = 1.2815515655446004  # standard normal quantile at 0.90 (config.Z_P90)
 DEFAULT_DAYS = 30
+#: 5a (owner #99): a column is the mean of the scenarios ranked within +-WINDOW of its quantile
+WINDOW = 0.05
 _BASIS_ORDER: tuple[Basis, ...] = (
     "measured",
     "product_history",
@@ -293,6 +298,51 @@ def _scenario(
         aov_term,
         aov_orders,
         rev_offer,
+    )
+
+
+def _mean(xs: list[float]) -> float:
+    return sum(xs) / len(xs)
+
+
+def _mean_opt(xs: list[float | None]) -> float | None:
+    return None if any(x is None for x in xs) else _mean([x for x in xs if x is not None])
+
+
+def _mean_draw(window: list[_Draw]) -> _Draw:
+    """5a: one column = the field-by-field mean of ``window``'s scenarios. Every additive field
+    (per source views, clicks, orders, GMV, profit; offer uses and costs; the build-up terms) is
+    averaged; ratios are never averaged -- ``_to_scenario`` derives CTR, CTOR and AOV from the
+    averaged sums (AOV = mean GMV / mean orders), so the funnel and Orders x AOV = GMV still hold
+    exactly and the sources still add up to the total."""
+    if len(window) == 1:
+        return window[0]
+    n_src = len(window[0].rows)
+    rows = []
+    for i in range(n_src):
+        col = [w.rows[i] for w in window]
+        rows.append(
+            (
+                _mean_opt([r[0] for r in col]),
+                _mean_opt([r[1] for r in col]),
+                _mean([r[2] for r in col]),
+                _mean([r[3] for r in col]),
+                _mean_opt([r[4] for r in col]),
+            )
+        )
+    n_off = len(window[0].offer_uses)
+    return _Draw(
+        rows,
+        _mean([w.orders for w in window]),
+        _mean([w.gmv for w in window]),
+        _mean_opt([w.profit for w in window]),
+        _mean([w.offer_cost for w in window]),
+        [_mean([w.offer_uses[j] for w in window]) for j in range(n_off)],
+        _mean([w.orders_term for w in window]),
+        _mean([w.price_term for w in window]),
+        _mean([w.aov_term for w in window]),
+        _mean([w.aov_orders for w in window]),
+        _mean([w.revenue_offer_cost for w in window]),
     )
 
 
@@ -569,7 +619,10 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
     ranked = sorted(range(n), key=lambda i: keyed[i])
 
     def pick(q: float) -> _Draw:
-        return draws[ranked[int(round(q * (n - 1)))]]
+        # 5a (owner #99): the mean of the scenarios ranked within +-5 % of n around ``q``
+        lo = max(0, int(round((q - WINDOW) * (n - 1))))
+        hi = min(n - 1, int(round((q + WINDOW) * (n - 1))))
+        return _mean_draw([draws[ranked[j]] for j in range(lo, hi + 1)])
 
     d10, d50, d90 = pick(0.10), pick(0.50), pick(0.90)
     likely = d50

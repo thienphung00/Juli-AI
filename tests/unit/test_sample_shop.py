@@ -987,6 +987,7 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # tier's cost, -918k ± 0,3 % over any seed), so its ΔGMV is arbitrary: 254k .. 970k over
             # 60 seeds. A 1 % change of one source moves it 679k -> 292k. Pinned here: what is
             # stable (Δ profit, the median over seeds) and that before / after / Δ reconcile.
+            # 5a below: the middle is now a mean, so its ΔGMV is pinned as well.
             assert c["detail"]["before"]["orders"] == sum(
                 ctx.env.metrics.split(i).orders for i in (nrc, tdr)
             )
@@ -1000,7 +1001,12 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             )
             seeds = [engine_run(combo_done.base, option, seed=k) for k in range(15)]
             gmvs = [float(r.likely.gmv - r.before.gmv) for r in seeds if r.likely is not None]
-            assert median(gmvs) == pytest.approx(351_471, rel=0.15)
+            # 5a (owner #99): the middle column is the MEAN of the scenarios ranked 45-55 % by Δ
+            # profit, so the shown ΔGMV is stable: 419_334 on 2,63 orders at seed 0, 404k .. 449k
+            # over 15 seeds (was one draw: 254k .. 970k); the seed median 417_370 (was 351_471)
+            assert cd["gmv"] == pytest.approx(419_334, rel=0.02)
+            assert median(gmvs) == pytest.approx(417_370, rel=0.05)
+            assert max(gmvs) - min(gmvs) <= 0.15 * median(gmvs)
             # never a GMV with almost no orders (445.900đ on 0,31 đơn): reach is 0 at P50, so over
             # the seeds the typical gain is its extra orders at today's AOV
             aovs = [float(r.likely.gmv / r.likely.orders) for r in seeds if r.likely is not None]
