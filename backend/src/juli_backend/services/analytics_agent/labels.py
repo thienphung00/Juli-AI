@@ -15,6 +15,8 @@ SHOPEE_SOURCES = {
     "ads": "Quảng cáo",
     "ads_product": "Dịch vụ hiển thị Sản phẩm",
     "ads_shop": "Dịch vụ hiển thị Shop+",
+    "ads_livestream": "Livestream",
+    "ads_other": "Khác",
     "the_san_pham": "Thẻ sản phẩm",
 }
 METRICS_VI = {
