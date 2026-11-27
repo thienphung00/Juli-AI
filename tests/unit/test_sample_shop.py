@@ -1130,3 +1130,26 @@ def test_the_fee_learner_reads_7_9_percent_on_the_sample_income():
     # 7,71 % not 7,90 %: the 7,9 % is taken on the buyer-paid value (after vouchers) while the
     # learner divides by the product price (before them), so vouchers pull it down by 0,19 pt
     assert rate is not None and abs(rate - Decimal("0.079")) <= Decimal("0.0025")
+
+
+async def test_offers_are_the_vouchers_plus_the_combo_discounts_counted_once(engine, sample):
+    """#119 + #117(b), owner #122 (the loader is run by hand after tag 2 deploys): the generator's
+    combo lines are Connector lines (deal price after the combo, the combo also on
+    ``bundle_discount``), and the tag 2 profit engine reads them so that Ưu đãi on Tổng quan is
+    the shop vouchers plus the combo discounts, the combo counted ONCE (not again as a price cut).
+    Pinned for the 30 days ending END: 218.000 vouchers + 1.330.100 combo = 1.548.100."""
+    from scripts.sample_shop.catalog import PRODUCTS
+
+    rows = [r for p in sample.posts if p.dataset == "order_lines" for r in p.body["rows"]]
+    vouchers = sum(r["shop_voucher_share"] or 0 for r in rows)
+    combo = sum(r["bundle_discount"] or 0 for r in rows)
+    price_cut = sum((r["original_price"] - r["deal_price"]) * r["qty"] for r in rows)
+    assert (vouchers, combo) == (218_000, 1_330_100)
+    assert price_cut == combo  # the deal price already holds the combo: one discount, not two
+    factory, report = await _load(engine)
+    async with factory() as session:
+        body = await queries.overview(session, report.shop_id, period="30d")
+    assert body["five_numbers"]["discount"]["vnd_after"] == vouchers + combo == 1_548_100
+    # #117(b): Túi đựng rác's giá vốn is 40 % of each variation's price (was 47 %)
+    (tdr,) = [p for p in PRODUCTS if p.parent_sku == "HN-TDR"]
+    assert [(v.price, v.cost) for v in tdr.variations] == [(49_000, 19_500), (59_000, 23_500)]
