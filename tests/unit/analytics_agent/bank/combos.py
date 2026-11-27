@@ -977,18 +977,6 @@ def _rule(
 
 GAP_RULES = GAP_RULES + (
     _rule(
-        "create_not_estimable_silent",
-        "a card kind the engine cannot estimate (or a title / cover / description / price display "
-        "card, no measured uplift) ends in a no_card box that #110 rule 7 hides: the seller gets "
-        "nothing at all",
-        lambda c: (
-            _is(c, "create")
-            and "events_any" in c["expect"]
-            and _d(c)["card_type"] in NOT_ESTIMABLE_CREATE
-        ),
-        (r"none of \[",),
-    ),
-    _rule(
         "create_discount_error",
         "a product discount with every slot given fails with the "
         "card model's validation text ('Value error, discount_pct …') shown to the seller",
@@ -1000,18 +988,6 @@ GAP_RULES = GAP_RULES + (
         "no card-explain path: a pasted card or a card code is unsupported",
         lambda c: _is(c, "explain"),
     ),
-)
-
-
-NOT_ESTIMABLE_CREATE = (
-    "combo",
-    "add_on",
-    "gift",
-    "variation_set",
-    "title",
-    "cover_image",
-    "description_first_line",
-    "price_display",
 )
 
 
