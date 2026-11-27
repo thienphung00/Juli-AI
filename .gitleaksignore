@@ -38,3 +38,5 @@ c2bf2d0efaad846371a587bc49211f1f0fa6f9ed:apps/demo/src/lib/recommendations.ts:ge
 10a1f398a5bc5a74af7a79447b0b936e884a9aab:apps/demo/src/components/__tests__/accept-invite.test.tsx:generic-api-key:18
 10a1f398a5bc5a74af7a79447b0b936e884a9aab:apps/demo/src/components/__tests__/accept-invite.test.tsx:generic-api-key:26
 10a1f398a5bc5a74af7a79447b0b936e884a9aab:apps/demo/src/components/__tests__/accept-invite.test.tsx:generic-api-key:31
+# False positive (#112 1c): a made-up provider key in the redaction test (test_a_typesafe_400_keeps_a_short_redacted_error_text)
+be5016fc46c106a056af6b181cf93e7577bf0733:tests/unit/test_llm_gate_vendors.py:generic-api-key:960

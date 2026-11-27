@@ -96,14 +96,21 @@ async def test_voucher_list_gets_a_summary_via_the_template_when_the_llm_is_sile
     )
     da = sink.of("data_answer")[0]
     text = _body(sink)
-    assert da["fresh_vi"] in text and da["window_vi"].split(" so với ")[0] in text
+    # #110: the period and the data day once, in the top line; the text repeats neither
+    (meta,) = sink.of("meta")
+    assert meta["fresh_vi"] == da["fresh_vi"] and meta["window_vi"] == da["window_vi"]
+    assert da["fresh_vi"] not in text
+    assert sink.of("lead")[0]["text_vi"].startswith(da["title_vi"])
     assert res.routing[-1]["template"] is True  # the stub wrote nothing: code text, still shown
 
 
 async def test_weekly_plan_gets_a_summary_naming_window_freshness_and_the_card() -> None:
     sink, res = await _run_plan()
     text = _body(sink)
-    assert "Số liệu đến hết 22/11" in text and "16/11–22/11" in text
+    metas = sink.of("meta")
+    assert metas and metas[0]["fresh_vi"] == "Số liệu đến hết 22/11"
+    assert metas[0]["window_vi"].startswith("16/11–22/11")
+    assert "Số liệu đến hết" not in text  # #110 rule 2: not repeated in the text
     assert [r for r in res.routing if r.get("step") == "summary"]
     assert len([e for e in sink.of("text_replace")]) <= 1  # one writer pass, one fallback
 
@@ -144,7 +151,8 @@ async def test_guard_removes_a_number_that_is_not_in_the_result() -> None:
     llm = FakeLLM({"restated_vi": "q", "intents": [intent(metric_phrase="gmv")]}, text=bad)
     sink, res = await go(_REQ, llm=llm, jev=_lookup_jev("gmv"), data=data)
     final = _body(sink)
-    assert "99.999.999" not in final and "77%" not in final and da["value"] in final
+    assert "99.999.999" not in final and "77%" not in final
+    assert da["value"] in sink.of("lead")[0]["text_vi"]  # the figure is the answer's lead
     step = res.routing[-1]
     assert step["template"] is True and any(i.startswith("number:") for i in step["issues"])
 
@@ -171,7 +179,10 @@ async def test_unavailable_llm_falls_back_to_the_template() -> None:
 
     meta = await summary.write_summary(Down(None), noop, noop, events)
     assert meta is not None and meta["template"] is True
-    assert "14.000.000đ" in out[-1] and "Số liệu đến hết 22/11" in out[-1]
+    assert out[-1] == ""  # one figure: the lead says it, the period is the top line (#110)
+    second = {**events[0], "title_vi": "Đơn hàng", "value": "120"}
+    meta2 = await summary.write_summary(Down(None), noop, noop, [*events, second])
+    assert meta2 is not None and "Đơn hàng: 120" in out[-1] and "Số liệu đến hết" not in out[-1]
 
 
 async def test_summary_is_skipped_when_the_chain_already_wrote_text() -> None:

@@ -150,6 +150,8 @@ def _roi(r: OptionResult, d_gmv: Decimal | None) -> dict[str, Any]:
 
 
 def result_json(r: OptionResult) -> dict[str, Any]:
+    from juli_backend.services.shopee_recommendations.forecast import forecast_of
+
     d_profit, b_profit = _delta(r, "profit")
     d_gmv, b_gmv = _delta(r, "gmv")
     d_orders, b_orders = _delta(r, "orders")
@@ -246,6 +248,28 @@ def result_json(r: OptionResult) -> dict[str, Any]:
             ),
             "break_even_aov": _f(r.break_even_aov),
             "text": " · ".join(parts),
+            # #78 / #87: the offers the total is made of (the voucher panel reads these)
+            "offers": [
+                {
+                    "label": o.label,
+                    "expected_uses": float(o.expected_uses),
+                    "per_use": float(o.per_use),
+                    "total": float(o.total),
+                    "max_discount": None
+                    if o.max_discount is None
+                    else {
+                        "cap": float(o.max_discount.cap),
+                        "binding_orders": o.max_discount.binding_orders,
+                        "qualifying_orders": o.max_discount.qualifying_orders,
+                    },
+                    # owner #116: the take-up the uses stand on (measured | prior)
+                    "takeup": None
+                    if o.takeup is None
+                    else {"rate": float(o.takeup.rate), "basis": o.takeup.basis},
+                }
+                for o in r.offers
+            ],
+            "fixed": float(n_cost - sum((o.total for o in r.offers), Decimal(0))),
         },
         "after": {
             "days": r.days,
@@ -274,6 +298,8 @@ def result_json(r: OptionResult) -> dict[str, Any]:
         },
         "notes": list(r.notes) if r.estimable else [NOT_ESTIMABLE_NOTE],
         "ads": ads_json(r.ads),
+        # F2: the one forecast (the same block the stored card carries)
+        "forecast": forecast_of(r, reason=None, data_through=r.data_through),
     }
 
 

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { MarketPriceMarker } from "../../shopee-analytics/market-price-marker";
 import { fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { CoPurchase, VariationRow } from "../../../lib/shopee-decisions/builder-api";
-import { COMBO_DEFAULT_TYPE, DEAL_SOC_TYPES, FORM_DEFAULTS, MAX_ADDONS, comboTierDefault, belowPaidHint, belowPaidProblem, MAX_COMBO_NAME, MAX_COMBO_TIERS, MAX_PROGRAMME_NAME, MAX_TITLE, kmoney, marginText, newTier, num, voucherChips, type AddonRow, type ComboTierRow, type Forms, type GiftForm, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
+import { COMBO_DEFAULT_TYPE, DEAL_SOC_TYPES, FORM_DEFAULTS, MAX_ADDONS, comboTierDefault, belowPaidHint, belowPaidProblem, MAX_COMBO_NAME, MAX_COMBO_TIERS, MAX_DEAL_NAME, MAX_PROGRAMME_NAME, MAX_TITLE, kmoney, marginText, newTier, num, voucherChips, type AddonRow, type ComboTierRow, type Forms, type GiftForm, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
 import { HourIn, NumIn, Pills, ProductSelect, Seg, TextIn, VariationSelect, setAt, type PanelCtx } from "./shared";
 import { ProductTargets } from "./targets";
 
@@ -46,7 +46,8 @@ export function VoucherPanel({ form, set, ctx }: P<"voucher">) {
   const d = details(ctx);
   const q = dn(d, "qualifying_orders");
   const t = dn(d, "total_orders");
-  const chips = voucherChips(ctx.aov);
+  const aov = form.scope === "product" ? ctx.productAov : ctx.shopAov;
+  const chips = voucherChips(aov);
   return (
     <div className="p2-panel" data-testid="p2-panel-voucher">
       <Pills label="Loại voucher" onChange={(scope) => set({ scope })} options={SCOPES} value={form.scope} />
@@ -69,7 +70,7 @@ export function VoucherPanel({ form, set, ctx }: P<"voucher">) {
         <TextIn label="Kết thúc" onChange={(end) => set({ end })} type="date" value={form.end} />
       </div>
       <div className="p2-field">
-        <span className="sd-field__label">Gợi ý từ AOV của shop{ctx.aov ? ` (${vnd(ctx.aov)})` : ""}</span>
+        <span className="sd-field__label">Gợi ý từ AOV{aov ? ` của ${form.scope === "product" ? "sản phẩm" : "shop"} (${vnd(aov)})` : ""}</span>
         <div className="sb-chips">
           {chips.map((c) => (
             <button className="sb-pill" key={c.label} onClick={() => set({ dtype: "amount", value: String(c.value), min: String(c.min) })} type="button">
@@ -227,7 +228,7 @@ export function DealSocPanel({ form, set, ctx }: P<"deal_soc">) {
   return (
     <div className="p2-panel" data-testid="p2-panel-dealsoc">
       <Pills label="Loại Deal Sốc" onChange={(type) => set({ type })} options={DEAL_SOC_TYPES} value={form.type} />
-      <TextIn hint={`${[...form.name].length}/${MAX_PROGRAMME_NAME} ký tự`} label="Tên chương trình" onChange={(name) => set({ name })} value={form.name} />
+      <TextIn hint={`${[...form.name].length}/${MAX_DEAL_NAME} ký tự`} label="Tên chương trình" onChange={(name) => set({ name })} value={form.name} />
       <TimeWindow form={form} legend="Thời gian bắt đầu / kết thúc" set={(patch) => set(patch)} testId="p2-dealsoc-time" />
       {form.type === "add_on" ? <AddOnFields ctx={ctx} form={form} set={set} /> : <GiftFields ctx={ctx} form={gift} set={setGift} />}
     </div>
@@ -392,16 +393,6 @@ export function applyOwnPrices(version: Record<string, unknown>, variations: rea
   return { ...version, variations: prices.map((p) => ({ variation_id: p.variation_id, final_price: p.price })) };
 }
 
-/** The price a buyer sees after the typed row: the final price, or the list price moved by the percentage. */
-function draftPrice(selling: number | null, mode: "pct" | "final_price", raw: string, direction: "off" | "change"): number | null {
-  const n = num(raw);
-  if (n === null) return null;
-  if (mode === "final_price") return n > 0 ? n : null;
-  if (selling === null) return null;
-  const price = direction === "off" ? selling * (1 - n / 100) : selling * (1 + n / 100);
-  return price > 0 ? price : null;
-}
-
 /** "Giảm" only where the number is a decrease; a list-price change is ± (+ = price up). */
 export function pctLabel(mode: "pct" | "final_price", direction: "off" | "change"): string {
   if (mode !== "pct") return "Giá mới";
@@ -430,7 +421,7 @@ function VarRows({ ctx, rows, mode, direction, onRow, labels, bounded, variation
               <b>{v.name}</b>
               <span className="sa-hint">giá hiện tại {vnd(v.selling_price)}</span>
             </span>
-            <NumIn label={`${labels ? (mode === "pct" ? labels.pct : labels.final) : pctLabel(mode, direction)} · ${v.name}`} onChange={(x) => onRow(v.variation_id, x)} suffix={mode === "pct" ? "%" : "đ"} value={val} />
+            <NumIn disabled={v.selling_price == null && v.list_price == null} label={`${labels ? (mode === "pct" ? labels.pct : labels.final) : pctLabel(mode, direction)} · ${v.name}`} onChange={(x) => onRow(v.variation_id, x)} suffix={mode === "pct" ? "%" : "đ"} value={val} />
             {bound && (mode === "pct" ? bound.min !== null : bound.paid !== null) ? (
               <span className="sa-hint" data-testid={`p2-min-${i + 1}`}>
                 {mode === "pct" ? `Tối thiểu ${bound.min} % · đang bán ${vnd(bound.paid)}` : `Đang bán ${vnd(bound.paid)}`}
@@ -448,11 +439,11 @@ function VarRows({ ctx, rows, mode, direction, onRow, labels, bounded, variation
             ) : null}
             {sku ? (
               <span className="sa-hint" data-testid={`p2-sku-${rowId}`}>
-                {vnd(v.selling_price)} → {vnd(next ?? dn(sku, "price_after"))} · biên {marginText(dn(sku, "margin_pct_before"))} → {marginText(dn(sku, "margin_pct_after"))}
+                {vnd(v.selling_price)} → {vnd(dn(sku, "price_after") ?? next)} · biên {marginText(dn(sku, "margin_pct_before"))} → {marginText(dn(sku, "margin_pct_after"))}
               </span>
             ) : null}
             {ctx.market && val.trim() !== "" ? (
-              <MarketPriceMarker draftPrice={draftPrice(v.selling_price, mode, val, direction)} itemId={ctx.product.item_id} scope={ctx.market} variationId={v.variation_id || undefined} />
+              <MarketPriceMarker draftPrice={bounded && next !== null && next >= (bound?.paid ?? v.selling_price ?? Infinity) ? null : next} itemId={ctx.product.item_id} scope={ctx.market} variationId={v.variation_id || undefined} />
             ) : null}
           </div>
         );
@@ -502,7 +493,7 @@ export function PriceFlashPanel({ form, set, ctx }: P<"price_flash">) {
   const variations = ctx.catalogVariations && ctx.catalogVariations.length > 0 ? ctx.catalogVariations : ctx.variations;
   return (
     <div className="p2-panel" data-testid="p2-panel-flash">
-      <Pills label="Loại thay đổi" onChange={(what) => set({ what })} options={[["price", "Đổi giá niêm yết"], ["flash_sale", "Flash Sale Của Shop"]]} value={form.what} />
+      <Pills label="Loại thay đổi" onChange={(what) => set({ what, rows: what === form.what ? form.rows : [] })} options={[["price", "Đổi giá niêm yết"], ["flash_sale", "Flash Sale Của Shop"]]} value={form.what} />
       <Seg label={form.what === "price" ? "Nhập giá theo" : "Nhập giảm theo"} onChange={(mode) => set({ mode })} options={[["pct", form.what === "price" ? "Thay đổi (%)" : "Giảm (%)"], ["final_price", form.what === "price" ? "Giá bán mới (đ)" : "Giá flash sale (đ)"]]} value={form.mode} />
       <VarRows bounded={form.what === "flash_sale"} ctx={ctx} direction={form.what === "price" ? "change" : "off"} mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} variations={variations} />
       {form.what === "flash_sale" ? (

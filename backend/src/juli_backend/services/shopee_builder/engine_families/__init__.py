@@ -30,6 +30,7 @@ from juli_backend.services.shopee_builder.engine_families.facts import (
     PackEvidence,
     SimpleFacts,
 )
+from juli_backend.services.shopee_builder.engine_families.families import _SIMPLE as _SIMPLE_TABLE
 from juli_backend.services.shopee_builder.engine_families.families import (
     ads_option,
     affiliate_option,
@@ -221,9 +222,15 @@ def option_for(
                 units_per_order=units / Decimal(len(covered_orders)),
                 orders_per_day=Decimal(len(covered_orders)) / Decimal(env.window_days),
             )
+        if isinstance(spec, sp.FlashSaleSpec):
+            # owner #98: the slot's cost = the cut on each variation x its units
+            cut = adapters.flash_cut_per_order(covered, ev.certain.get("skus", []))
+            facts = replace(facts, flash_cut_per_order=cut if cut > 0 else None)
         return price_option(spec, facts)
     if isinstance(spec, sp.VariationSetSpec):
         return _variation_set(spec, ctx)
+    if isinstance(spec, sp.TitleSpec | sp.CoverSpec):
+        return _not_measured(spec)
     if spec.kind in _SIMPLE_KINDS:
         lead = adapters.lift_evidence(spec.kind, items, env)
         keyword_note: str | None = None
@@ -251,6 +258,22 @@ def option_for(
             return replace(option, note=OFFER_COST_UNKNOWN)
         return option if keyword_note is None else replace(option, note=keyword_note)
     raise FamilyRefused("kind_not_supported")
+
+
+def _not_measured(spec: sp.TitleSpec | sp.CoverSpec) -> OptionInput:
+    """F5 (owner): a title or a cover image shows no uplift (views, CTR, GMV, profit) until it is
+    measured, and a plan total adds nothing for it. Same drivers as before, none estimated."""
+    _, label, lead, co = _SIMPLE_TABLE[spec.kind]
+    metrics = [lead] + ([co] if co is not None else [])
+    return OptionInput(
+        kind=spec.kind,
+        label=spec.label or label,
+        drivers=tuple(
+            DriverEffect(m, sources, "not_estimable", note=common.NOTE_NOT_MEASURED)
+            for m, sources in metrics
+        ),
+        duration_days=None,
+    )
 
 
 def _variation_set(spec: sp.VariationSetSpec, ctx: BuilderContext) -> OptionInput:

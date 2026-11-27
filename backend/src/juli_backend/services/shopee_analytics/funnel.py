@@ -14,6 +14,10 @@ the engine's :class:`FunnelBase`:
   (``source_detail="all_sources"``, carried on ``the_san_pham_khac``) and the card says so.
 - **CTR = lượt nhấp ÷ lượt xem; CTOR = đơn (ShopMetrics) ÷ lượt nhấp**, so Lượt xem × CTR × CTOR =
   Đơn exactly. The residual has orders but never traffic (``FunnelBase.total`` counts it as 0).
+- **The totals are ShopMetrics' (F1, 2026-11-25; ``day_totals``).** đơn and GMV of a scope are
+  its stored shop / product day rows -- the figures of Tổng quan and the picker's table; the
+  source rows only split them. Source rows that add up to less leave the difference on the
+  residual; to more are scaled down (a stale source stamp), never shown as extra sales.
 - A non-residual source with no traffic rows and no đơn over the whole window, while the scope
   has traffic elsewhere, is a source with nothing in it: its views / clicks are 0, not unknown.
 - Ads (``AdShare``) sit on ``the_san_pham_khac`` only; a field Shopee never posted for the scope is
@@ -380,6 +384,44 @@ def _scope(rows: FunnelRows, item_ids: Sequence[str]) -> _Scope:
     return _Scope({ALL_SOURCES_KEY: one}, "all_sources")
 
 
+def _reconciled(
+    rows: FunnelRows, item_ids: Sequence[str], sources: tuple[SourceFunnel, ...]
+) -> tuple[SourceFunnel, ...]:
+    """The sources with đơn and GMV adding up to the scope's own day rows (module docstring)."""
+    wanted = set(item_ids)
+    held = rows.product_days if wanted else rows.shop_days
+    mine = [d for d in held if not wanted or d.item_id in wanted]
+    if not mine or all(s.source != RESIDUAL for s in sources):
+        return sources  # nothing to add up to, or the all-source funnel (the day rows themselves)
+    seen = {(d.item_id, d.day) for d in mine}
+    # a source row on a day without a day row has nothing to add up to: it counts as it is
+    loose = [
+        r
+        for r in rows.sources
+        if (r.item_id in wanted if wanted else r.item_id is None)
+        and r.source in SOURCES
+        and (r.item_id, r.day) not in seen
+    ]
+    out = sources
+    for name in ("orders", "gmv"):
+        want = sum((Decimal(getattr(d, name)) for d in mine), ZERO)
+        want += sum((Decimal(getattr(r, name)) for r in loose), ZERO)
+        got = sum((getattr(s, name) for s in out), ZERO)
+        if got > want:
+            k = want / got
+            # the last source takes the division's remainder, so the total is exact
+            scaled = [getattr(s, name) * k for s in out]
+            top = max(range(len(out)), key=lambda i: scaled[i])
+            scaled[top] += want - sum(scaled, ZERO)
+            out = tuple(replace(s, **{name: v}) for s, v in zip(out, scaled, strict=True))
+        elif got < want:
+            out = tuple(
+                replace(s, **{name: getattr(s, name) + want - got}) if s.source == RESIDUAL else s
+                for s in out
+            )
+    return out
+
+
 def _ads(acc: _Acc) -> AdShare | None:
     if all(acc.ads[f] is None for f in _ADS_FIELDS):
         return None
@@ -435,8 +477,13 @@ def base_from_rows(
     *,
     item_ids: Sequence[str] = (),
     contribution_rate: Decimal | None = None,
+    day_totals: bool = False,
 ) -> FunnelBase:
-    """The window's :class:`FunnelBase` for the shop (``item_ids`` empty) or those products.
+    """``day_totals`` (Shopee: hiện tại, the picker, the plan): đơn and GMV add up to the
+    scope's own day rows (module docstring). Never for TikTok: Tab cửa hàng
+    overlaps its other sources.
+
+    The window's :class:`FunnelBase` for the shop (``item_ids`` empty) or those products.
     Pure. A scope without traffic rows keeps views / clicks ``None`` ("chưa có dữ liệu")."""
     scope = _scope(rows, item_ids)
     profit_days, days = _days(scope)
@@ -448,7 +495,7 @@ def base_from_rows(
         item_ids=tuple(item_ids),
         window_start=rows.window.start,
         window_end=rows.window.end,
-        sources=_sources(scope),
+        sources=_reconciled(rows, item_ids, _sources(scope)) if day_totals else _sources(scope),
         contribution_rate=contribution_rate,
         source_detail=scope.detail,
         profit_days=profit_days,

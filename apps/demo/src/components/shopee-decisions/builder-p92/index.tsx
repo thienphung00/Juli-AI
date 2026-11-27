@@ -130,7 +130,7 @@ function Builder({ data, from, productId, kinds = KINDS_92, onNewCampaign, newCa
   const [result, setResult] = useState<{ readonly key: string; readonly state: ResultState } | null>(null);
   const [shopWide, setShopWide] = useState(false);
   const [channel, setChannel] = useState<ChannelMap | null>(null);
-  const [aov, setAov] = useState<number | null>(null);
+  const [aovs, setAovs] = useState<{ readonly of: string; readonly shop: number | null; readonly product: number | null } | null>(null);
   const nextId = useRef(1);
   const seq = useRef(0);
 
@@ -165,7 +165,9 @@ function Builder({ data, from, productId, kinds = KINDS_92, onNewCampaign, newCa
     return version === raw.version ? raw : { problem: null, version: version as typeof raw.version };
   }, [kind, forms, product, catalog]);
   const key = built.version ? JSON.stringify(built.version) : "";
-  const ctx: PanelCtx | null = product ? { api, product, variations: chosen, catalogVariations: catalog, products, aov, outcome: result?.state.status === "ready" && result.key === key ? result.state.outcome : null, narrow, costLink, market: host.market ?? null, ...(onNewCampaign ? { onNewCampaign } : {}), ...(newCampaign ? { newCampaign } : {}) } : null;
+  // Owner #87: the products' AOV belongs to one product choice; another product or list has none until it is evaluated.
+  const productsKey = JSON.stringify([product?.item_id ?? null, kind, forms.voucher.items, forms.combo.items]);
+  const ctx: PanelCtx | null = product ? { api, product, variations: chosen, catalogVariations: catalog, products, shopAov: aovs?.shop ?? null, productAov: aovs?.of === productsKey ? aovs.product : null, outcome: result?.state.status === "ready" && result.key === key ? result.state.outcome : null, narrow, costLink, market: host.market ?? null, ...(onNewCampaign ? { onNewCampaign } : {}), ...(newCampaign ? { newCampaign } : {}) } : null;
 
   useEffect(() => {
     if (step !== "phuong-an" || !built.version) return;
@@ -176,7 +178,7 @@ function Builder({ data, from, productId, kinds = KINDS_92, onNewCampaign, newCa
         (r) => {
           if (n !== seq.current) return;
           const o: BuilderOutcome | undefined = r.versions[0];
-          if (r.today.aov !== null) setAov(r.today.aov);
+          setAovs({ of: productsKey, shop: r.today.shop_aov ?? null, product: r.today.product_aov ?? null });
           setResult({ key, state: o ? { status: "ready", outcome: o } : { status: "error", message: "Chưa tính được." } });
         },
         (e: unknown) => n === seq.current && setResult({ key, state: { status: "error", message: errorText(e) } }),

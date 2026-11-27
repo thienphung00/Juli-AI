@@ -71,6 +71,7 @@ markers = [
     "migration_heavy: seeded Alembic round-trips (merge_group or migration-path PRs)",
     "phase_scaffold: completed Phase 2.5 deploy doc/scaffold contracts (merge_group only)",
     "schema_parity: ORM model vs migration-built schema parity guard (#943/#948; issue-tier and heavier)",
+    "bank_full: the Chat bank's full cross product (nightly / before a tag)",
 ]
 
 [tool.ruff]

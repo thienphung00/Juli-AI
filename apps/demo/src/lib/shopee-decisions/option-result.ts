@@ -2,6 +2,8 @@
 // backend/src/juli_backend/services/shopee_builder/engine/contract.py WIRE_KEYS exactly.
 // Money and counts are numbers (VND / count); pct are percent numbers (3.5 = +3,5 %); null = unknown.
 
+import type { ForecastBlock } from "./forecast-display";
+
 export type Driver = "views" | "ctr" | "ctor" | "aov";
 /** Forecast grill F2: the shop's data stops at `through` (no numbers then). */
 export interface DataStale {
@@ -76,6 +78,8 @@ export interface OptionResult {
   readonly stale?: DataStale | null;
   /** Forecast grill F3: metrics whose change is inside the noise band (their delta is null, shown "—"). */
   readonly within_noise?: readonly ("gmv" | "orders" | "profit")[];
+  /** F2 (forecast/2): the one forecast; absent on a result stored before it. */
+  readonly forecast?: ForecastBlock | null;
   readonly basis: Basis;
   readonly basis_weak: boolean;
   readonly delta: {
@@ -92,6 +96,9 @@ export interface OptionResult {
     readonly text: string;
     /** UI grill G8: a flash sale's money given to buyers ("Tiền giảm cho khách ~X đ"). */
     readonly discount_given?: { readonly amount: number | null; readonly text: string } | null;
+    /** #78 / #87: the offers the total is made of (total = Σ offers.total + fixed). Optional for results stored before them. */
+    readonly offers?: readonly { readonly label: string; readonly expected_uses: number; readonly per_use: number; readonly total: number; readonly max_discount?: { readonly cap: number; readonly binding_orders: number; readonly qualifying_orders: number } | null; readonly takeup?: { readonly rate: number; readonly basis: 'measured' | 'prior' } | null }[];
+    readonly fixed?: number;
   };
   readonly after: {
     readonly days: number;

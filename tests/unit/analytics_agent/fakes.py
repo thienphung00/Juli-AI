@@ -152,6 +152,9 @@ class FakeData:
     async def critical(self, a: date, b: date) -> dict[str, Any]:
         return self._critical
 
+    async def ad_lines(self, a: date, b: date) -> dict[str, dict[str, Any]] | None:
+        return None
+
 
 class FakeJev:
     """Answers from a script: `answers` maps a question id to its answer, or is a callable."""

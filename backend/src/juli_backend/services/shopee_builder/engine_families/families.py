@@ -23,6 +23,8 @@ from juli_backend.services.shopee_builder.engine.contract import (
     OfferCost,
     OptionInput,
     Source,
+    TakeUp,
+    Upgrade,
 )
 from juli_backend.services.shopee_builder.engine_families import common, measure
 from juli_backend.services.shopee_builder.engine_families.common import (
@@ -84,12 +86,17 @@ _VOUCHER_SOURCES: dict[str, tuple[Source, ...]] = {
 
 
 def voucher_option(spec: sp.VoucherSpec, facts: VoucherFacts) -> OptionInput:
+    """Owner #116. Uses = the orders already at / over the minimum × the shop's ONE take-up u
+    (measured, else the labelled prior) + the upgraders: a share rho of the near orders (within
+    20 % below the minimum; the 0 / 20 / 50 % prior until calibrated), who always use it. The
+    upgraders' AOV lift and their uses are one draw in the engine (``upgrade_of``)."""
     sources = _VOUCHER_SOURCES[spec.scope]
     reducing = facts.baseline_per_use is not None and facts.per_use < facts.baseline_per_use
     drivers: list[DriverEffect] = []
     notes: list[str] = []
     ppo_after: Decimal | None = None
-    use_lo = use_mid = use_hi = facts.qualifying_share * facts.usage_rate
+    use_now = clamp01(facts.qualifying_share * facts.usage_rate)
+    upgrade: Upgrade | None = None
     if reducing:
         drivers.append(
             DriverEffect(
@@ -98,24 +105,18 @@ def voucher_option(spec: sp.VoucherSpec, facts: VoucherFacts) -> OptionInput:
         )
         if facts.profit_per_order is not None and facts.baseline_per_use is not None:
             saving = facts.baseline_per_use - facts.per_use
-            ppo_after = facts.profit_per_order + saving * use_mid
+            ppo_after = facts.profit_per_order + saving * use_now
     elif spec.min_spend > 0:
-        # E2: the orders that reach the minimum, measured from the order lines (those within 20 %
-        # below it today) -- the 0 / 20 / 50 % prior only when there are too few orders
-        if facts.reach is not None:
-            moving: tuple[Decimal, ...] = (facts.reach.p10, facts.reach.p50, facts.reach.p90)
-            gaps = tuple(m * facts.reach_gap for m in moving)
-            reach_basis: Basis = "measured"
-        else:
-            # the prior moves a share of the same near orders (never baskets far below)
-            moving = tuple(r * facts.near_share for r in common.REACH)
-            gaps = tuple(m * facts.reach_gap for m in moving)
-            reach_basis = "prior"
-        if facts.aov_now:
-            lift = Band(*(g / facts.aov_now for g in gaps))
-            drivers.append(DriverEffect("aov", sources, reach_basis, lift=lift))
-        else:
-            notes.append("Chưa có đơn để tính giá trị đơn tăng lên.")
+        if facts.near_share > 0:
+            share = Band(*(r * facts.near_share for r in common.REACH))
+            upgrade = Upgrade(share, facts.near_share, facts.reach_gap)
+            if facts.aov_now:
+                # the band the card shows; the engine draws it with the uses (one draw)
+                per = facts.reach_gap / facts.aov_now
+                lift = Band(share.p10 * per, share.p50 * per, share.p90 * per)
+                drivers.append(DriverEffect("aov", sources, "prior", lift=lift, upgrade_of=0))
+            else:
+                notes.append("Chưa có đơn để tính giá trị đơn tăng lên.")
         if facts.qualifying_share + facts.near_share > 0:
             # the visible discount converts only buyers whose basket can reach the minimum
             drivers.append(
@@ -123,9 +124,6 @@ def voucher_option(spec: sp.VoucherSpec, facts: VoucherFacts) -> OptionInput:
             )
         elif not drivers:
             drivers.append(DriverEffect("aov", sources, "prior", lift=point(ZERO)))
-        use_lo, use_mid, use_hi = (
-            clamp01((facts.qualifying_share + m) * facts.usage_rate) for m in moving
-        )
     else:  # tri ân / đánh giá: no minimum, the visible discount converts more clicks
         drivers.append(
             DriverEffect("ctor", sources, "prior", lift=band3(common.CTOR_VISIBLE_OFFER))
@@ -143,9 +141,12 @@ def voucher_option(spec: sp.VoucherSpec, facts: VoucherFacts) -> OptionInput:
         offers=(
             OfferCost(
                 facts.per_use,
-                Band(use_lo, use_mid, use_hi),
+                point(use_now),
                 None if spec.usage_limit is None else Decimal(spec.usage_limit),
                 "voucher",
+                max_discount=facts.max_discount,
+                upgrade=upgrade,
+                takeup=TakeUp(facts.usage_rate, facts.takeup_basis),
             ),
         ),
         profit_per_order_after=ppo_after,
@@ -325,6 +326,20 @@ def price_option(
         offers = (OfferCost(cost, point(facts.coverage), cap_orders, "giảm giá chương trình"),)
         if ppo_after is not None:
             ppo_after = ppo_after + cost * facts.coverage
+    cut = facts.flash_cut_per_order
+    if isinstance(spec, sp.FlashSaleSpec) and cut is not None and cut > 0:
+        # owner #98: cost = Σ variations (today's price − flash price) x the units expected in
+        # the slot: the engine's after-orders x the priced variations' share x the slot's hours
+        # share, never more than the slot's units (``cap_orders`` = units ÷ units per order).
+        # The gross cut moves out of the per-order profit into the offer (it counts once; the
+        # fees the lower price saves stay in the profit per order).
+        slot_days = _price_days(spec) or 1
+        hours_share = min(ONE, Decimal(spec.slot_hours) / Decimal(common.HOURS_PER_DAY * slot_days))
+        offers = (
+            OfferCost(cut, point(facts.coverage * hours_share), cap_orders, "giảm giá Flash Sale"),
+        )
+        if ppo_after is not None:
+            ppo_after = ppo_after + cut * facts.coverage * reach
     kind = {"price": "price", "product_discount": "product_discount", "flash_sale": "flash_sale"}[
         spec.kind
     ]

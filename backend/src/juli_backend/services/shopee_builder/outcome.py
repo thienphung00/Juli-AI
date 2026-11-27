@@ -301,8 +301,18 @@ def with_discount_given(
     (the break-even part is kept), and ``{"amount", "text"}`` for the card; ``(result, None)``
     for any other kind or when the slot's discount is unknown."""
     out = None if result is None else dict(result)
-    given = (card.get("certain") or {}).get("discount_given")
-    if card.get("change_kind") != "flash_sale" or given is None:
+    if card.get("change_kind") != "flash_sale":
+        return out, None
+    # owner #98 (F2): the engine's own cost of the slot (``result.cost.offers``); the
+    # evaluator's ``discount_given`` only for a result stored before it carried offers
+    offers = (_result_cost(result).get("offers") or []) if result else []
+    from_result = sum(float(o.get("total") or 0) for o in offers) if offers else None
+    given = (
+        from_result
+        if from_result is not None
+        else (card.get("certain") or {}).get("discount_given")
+    )
+    if given is None:
         return out, None
     text = "Tiền giảm cho khách ~" + wire.vnd(given).replace("đ", " đ")
     info = {"amount": given, "text": text}
@@ -311,6 +321,9 @@ def with_discount_given(
         shown = str(cost.get("text") or "")
         if shown.startswith(NO_EXTRA_COST_TEXT):
             cost["text"] = text + shown[len(NO_EXTRA_COST_TEXT) :]
+        elif from_result is not None and shown.startswith("Chi phí "):
+            head, sep, rest = shown.partition(" · ")
+            cost["text"] = text + sep + rest
         cost["discount_given"] = given
         out["cost"] = cost
     return out, info
@@ -318,6 +331,73 @@ def with_discount_given(
 
 def _result_cost(result: Mapping[str, Any] | None) -> Mapping[str, Any]:
     return (result or {}).get("cost") or {}
+
+
+VOUCHER_KINDS = ("min_spend_voucher", "review_voucher")
+VOUCHER_OFFER_LABEL = "voucher"
+FLASH_OFFER_LABEL = "giảm giá Flash Sale"
+#: the card kinds whose cost line is one offer of ``result.cost.offers`` (#78 / #87, owner #98)
+_OFFER_OF_KIND = {
+    **dict.fromkeys(VOUCHER_KINDS, VOUCHER_OFFER_LABEL),
+    "flash_sale": FLASH_OFFER_LABEL,
+}
+
+
+def _offer(result: Mapping[str, Any] | None, label: str) -> Mapping[str, Any] | None:
+    """One line of ``result.cost.offers`` (the engine's own expected uses x cost per use)."""
+    for o in _result_cost(result).get("offers") or ():
+        if o.get("label") == label:
+            return o
+    return None
+
+
+def _voucher_offer(result: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
+    return _offer(result, VOUCHER_OFFER_LABEL)
+
+
+def voucher_cost_from_result(
+    kind: str, cost: Mapping[str, Any], result: Mapping[str, Any] | None
+) -> dict[str, Any]:
+    """#78 / #87 (F2): a voucher's (or a Flash Sale's, owner #98) cost line = the result's offer
+    (expected uses x cost per use = its total), not the evaluator's own usage / money-layer
+    formula. Unchanged without one (a result stored before ``cost.offers``)."""
+    out = dict(cost)
+    label = _OFFER_OF_KIND.get(kind)
+    offer = None if label is None else _offer(result, label)
+    if offer is None:
+        return out
+    out.update(
+        amount=offer["total"],
+        per_unit=offer["per_use"],
+        expected_units=offer["expected_uses"],
+        period_days=(result or {}).get("days") or out.get("period_days"),
+        source="result",
+    )
+    return out
+
+
+def voucher_detail_from_result(
+    detail: Mapping[str, Any] | None, result: Mapping[str, Any] | None
+) -> dict[str, Any] | None:
+    """#78 / #87: the voucher panel's "Dùng x / y lượt" and cost per use from the result's voucher
+    offer; the rest of the evaluator's detail (min spend, max discount, per-buyer) is kept."""
+    if detail is None:
+        return None
+    out = dict(detail)
+    offer = _voucher_offer(result)
+    if offer is None:
+        return out
+    usage = dict(out.get("usage") or {})
+    used = float(offer["expected_uses"])
+    limit = usage.get("limit")
+    usage.update(
+        used=used,
+        capped=limit is not None and used >= float(limit) - 1e-9,
+        headroom=None if limit is None else max(float(limit) - used, 0.0),
+        source_cost="result",
+    )
+    out.update(usage=usage, cost_per_used_order=offer["per_use"], cost=offer["total"])
+    return out
 
 
 def cost_on_days(
@@ -861,12 +941,18 @@ def shape(
             "certain_profit": certain_profit,
             "per_order": _per_order(numbers, cost_known),
         },
-        "voucher": (numbers.get("certain") or {}).get("voucher_detail"),
+        "voucher": voucher_detail_from_result(
+            (numbers.get("certain") or {}).get("voucher_detail"), result
+        ),
         "margin_before_pct": margin_before,
         "margin_after_pct": margin_after,
         "profit_status": "ok" if cost_known else "chua_tinh",
         "cost_known": cost_known,
-        "cost": cost_on_days(_cost(numbers, tr, p50_orders), result, own_days),
+        "cost": voucher_cost_from_result(
+            card["change_kind"],
+            cost_on_days(_cost(numbers, tr, p50_orders), result, own_days),
+            result,
+        ),
         "break_even": _break_even(numbers, ctx, items, days=own_days, result=result),
         "basis": result_basis(result, basis),
         "warnings": [

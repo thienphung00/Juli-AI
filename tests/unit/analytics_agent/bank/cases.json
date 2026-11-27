@@ -1,0 +1,6558 @@
+{
+ "version": 1,
+ "as_of_default": "2026-10-07",
+ "cases": [
+  {
+   "id": "gmv-yesterday",
+   "area": "periods",
+   "question": "Hôm qua doanh thu bao nhiêu?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "revenue",
+     "time_phrase": "yesterday",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "yesterday_vs_same_weekday"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv",
+      "window": "yesterday_vs_same_weekday"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "07/10",
+      "screen": "overview.gmv",
+      "from": "2026-10-07",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "gmv-yesterday-noaccent",
+   "area": "periods",
+   "question": "hom qua doanh thu bn",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "revenue",
+     "time_phrase": "yesterday",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "yesterday_vs_same_weekday"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv",
+      "window": "yesterday_vs_same_weekday"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "07/10",
+      "screen": "overview.gmv",
+      "from": "2026-10-07",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "gmv-7d",
+   "area": "periods",
+   "question": "GMV 7 ngày qua là bao nhiêu?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "GMV",
+     "time_phrase": "last 7 days",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.gmv",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "gmv-7d-typo",
+   "area": "periods",
+   "question": "doanh thuu 7 ngay qua dc bao nhiu vay",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "revenue",
+     "time_phrase": "last 7 days",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.gmv",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "gmv-this-week",
+   "area": "periods",
+   "question": "Tuần này GMV thế nào rồi?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "GMV",
+     "time_phrase": "this week",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "this_week_vs_same_days_last_week"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv",
+      "window": "this_week_vs_same_days_last_week"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "05/10–07/10",
+      "screen": "overview.gmv",
+      "from": "2026-10-05",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "gmv-last-week",
+   "area": "periods",
+   "question": "Tuần trước doanh thu bao nhiêu?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "revenue",
+     "time_phrase": "last week",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "last_full_week_vs_week_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv",
+      "window": "last_full_week_vs_week_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "28/09–04/10",
+      "screen": "overview.gmv",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "gmv-last-week-mixed",
+   "area": "periods",
+   "question": "GMV last week của shop bao nhiêu vậy?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "GMV",
+     "time_phrase": "last week",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "last_full_week_vs_week_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv",
+      "window": "last_full_week_vs_week_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "28/09–04/10",
+      "screen": "overview.gmv",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     }
+    ]
+   }
+  },
+  {
+   "id": "gmv-this-month",
+   "area": "periods",
+   "question": "Doanh thu tháng này được bao nhiêu?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "revenue",
+     "time_phrase": "this month",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "mtd_vs_same_days_last_month"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv",
+      "window": "mtd_vs_same_days_last_month"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.gmv",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "gmv-last-month",
+   "area": "periods",
+   "question": "tháng trước doanh số bao nhiêu",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "sales value",
+     "time_phrase": "last month",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "last_month_vs_month_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv",
+      "window": "last_month_vs_month_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/09–30/09",
+      "screen": "overview.gmv",
+      "from": "2026-09-01",
+      "to": "2026-09-30"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "gmv-30d",
+   "area": "periods",
+   "question": "Doanh thu 30 ngày gần nhất?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "revenue",
+     "time_phrase": "last 30 days",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "last_30d_vs_prev_30d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv",
+      "window": "last_30d_vs_prev_30d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "08/09–07/10",
+      "screen": "overview.gmv",
+      "from": "2026-09-08",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "gmv-named-month-unfinished",
+   "area": "periods",
+   "question": "Doanh thu tháng 10 tới giờ bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "revenue",
+     "time_phrase": "October",
+     "named_month": "2026-10",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "named_month_vs_previous"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv",
+      "window": "named_month_vs_previous"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.gmv",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "gmv-named-month-finished",
+   "area": "periods",
+   "question": "GMV thang 9 la bao nhieu",
+   "intents": [
+    {
+     "metric_phrase": "GMV",
+     "time_phrase": "September",
+     "named_month": "2026-09",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "named_month_vs_previous"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "metric": "gmv",
+      "window": "named_month_vs_previous"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/09–30/09",
+      "screen": "overview.gmv",
+      "from": "2026-09-01",
+      "to": "2026-09-30"
+     }
+    ]
+   }
+  },
+  {
+   "id": "gmv-named-range",
+   "area": "periods",
+   "question": "Doanh thu từ 2/10 đến 5/10 là bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "revenue",
+     "time_phrase": "from 2/10 to 5/10",
+     "explicit_from": "2026-10-02",
+     "explicit_to": "2026-10-05",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv"
+   },
+   "pg": true,
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "02/10–05/10",
+      "screen": "overview.gmv",
+      "from": "2026-10-02",
+      "to": "2026-10-05"
+     }
+    ]
+   }
+  },
+  {
+   "id": "gmv-future-month",
+   "area": "periods",
+   "question": "Doanh thu tháng 11 bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "revenue",
+     "time_phrase": "November",
+     "named_month": "2026-11",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "named_month_vs_previous"
+   },
+   "expect": {
+    "no_events": [
+     "data_answer"
+    ],
+    "no_numbers": true
+   }
+  },
+  {
+   "id": "gmv-this-week-on-monday",
+   "area": "periods",
+   "question": "Tuần này doanh thu sao rồi?",
+   "as_of": "2026-10-04",
+   "intents": [
+    {
+     "metric_phrase": "revenue",
+     "time_phrase": "this week",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "this_week_vs_same_days_last_week"
+   },
+   "then": {
+    "choice": {
+     "value": "last_full_week_vs_week_before"
+    }
+   },
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "needs_choice_item": "window",
+    "require": [
+     "Tuần này chưa có ngày nào đủ số liệu. Xem tuần trước?"
+    ],
+    "followup": {
+     "stop": [
+      "data_answer"
+     ],
+     "answers": [
+      {
+       "window": "28/09–04/10",
+       "screen": "overview.gmv",
+       "from": "2026-09-28",
+       "to": "2026-10-04"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "gmv-this-vs-last-week",
+   "area": "periods",
+   "question": "Tuần này so với tuần trước doanh thu thế nào?",
+   "intents": [
+    {
+     "metric_phrase": "revenue",
+     "time_phrase": "this week compared with last week",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "this_week_vs_same_days_last_week"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "window": "this_week_vs_same_days_last_week"
+     }
+    ],
+    "answers": [
+     {
+      "window": "05/10–07/10",
+      "screen": "overview.gmv",
+      "from": "2026-10-05",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "gmv-no-period-asks",
+   "area": "ambiguous",
+   "question": "doanh thu bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "revenue",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": [
+     [
+      "last_7d_vs_prev_7d",
+      0.4
+     ],
+     [
+      "last_30d_vs_prev_30d",
+      0.35
+     ]
+    ]
+   },
+   "then": {
+    "choice": {
+     "value": "last_7d_vs_prev_7d"
+    }
+   },
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "needs_choice_item": "window",
+    "followup": {
+     "stop": [
+      "data_answer"
+     ],
+     "answers": [
+      {
+       "window": "01/10–07/10",
+       "screen": "overview.gmv",
+       "from": "2026-10-01",
+       "to": "2026-10-07"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "orders-last-week",
+   "area": "orders",
+   "question": "Tuần trước shop có bao nhiêu đơn?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "number of orders",
+     "time_phrase": "last week",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders",
+    "window": "last_full_week_vs_week_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "orders",
+      "window": "last_full_week_vs_week_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "28/09–04/10",
+      "screen": "overview.orders",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "orders-7d-noaccent",
+   "area": "orders",
+   "question": "so don 7 ngay qua",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "orders",
+     "time_phrase": "last 7 days",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "orders",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.orders",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "orders-yesterday-mixed",
+   "area": "orders",
+   "question": "hôm qua bao nhiêu orders?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "orders",
+     "time_phrase": "yesterday",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders",
+    "window": "yesterday_vs_same_weekday"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "orders",
+      "window": "yesterday_vs_same_weekday"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "07/10",
+      "screen": "overview.orders",
+      "from": "2026-10-07",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "orders-this-month",
+   "area": "orders",
+   "question": "Tháng này được mấy đơn rồi?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "orders",
+     "time_phrase": "this month",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders",
+    "window": "mtd_vs_same_days_last_month"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "orders",
+      "window": "mtd_vs_same_days_last_month"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.orders",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "aov-this-month",
+   "area": "aov",
+   "question": "AOV tháng này bao nhiêu?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "AOV",
+     "time_phrase": "this month",
+     "metric_key": "aov"
+    }
+   ],
+   "jev": {
+    "metric": "aov",
+    "window": "mtd_vs_same_days_last_month"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "aov",
+      "window": "mtd_vs_same_days_last_month"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.aov",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "aov-vn-last-week",
+   "area": "aov",
+   "question": "Giá trị đơn trung bình tuần trước?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "average order value",
+     "time_phrase": "last week",
+     "metric_key": "aov"
+    }
+   ],
+   "jev": {
+    "metric": "aov",
+    "window": "last_full_week_vs_week_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "aov",
+      "window": "last_full_week_vs_week_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "28/09–04/10",
+      "screen": "overview.aov",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     }
+    ]
+   }
+  },
+  {
+   "id": "aov-noaccent",
+   "area": "aov",
+   "question": "gia tri don trung binh 7 ngay",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "average order value",
+     "time_phrase": "last 7 days",
+     "metric_key": "aov"
+    }
+   ],
+   "jev": {
+    "metric": "aov",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "aov",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.aov",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "units-7d",
+   "area": "units",
+   "question": "7 ngày qua bán được bao nhiêu sản phẩm?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "units sold",
+     "time_phrase": "last 7 days",
+     "metric_key": "units"
+    }
+   ],
+   "jev": {
+    "metric": "units",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "units",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.units",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "units-last-week",
+   "area": "units",
+   "question": "Tuần trước bán ra mấy món?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "items sold",
+     "time_phrase": "last week",
+     "metric_key": "units"
+    }
+   ],
+   "jev": {
+    "metric": "units",
+    "window": "last_full_week_vs_week_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "units",
+      "window": "last_full_week_vs_week_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "28/09–04/10",
+      "screen": "overview.units",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     }
+    ]
+   }
+  },
+  {
+   "id": "views-7d",
+   "area": "traffic",
+   "question": "Lượt xem 7 ngày qua?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "views",
+     "time_phrase": "last 7 days",
+     "metric_key": "views"
+    }
+   ],
+   "jev": {
+    "metric": "views",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "views",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.views",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "views-noaccent",
+   "area": "traffic",
+   "question": "luot xem tuan truoc bao nhieu",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "views",
+     "time_phrase": "last week",
+     "metric_key": "views"
+    }
+   ],
+   "jev": {
+    "metric": "views",
+    "window": "last_full_week_vs_week_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "views",
+      "window": "last_full_week_vs_week_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "28/09–04/10",
+      "screen": "overview.views",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     }
+    ]
+   }
+  },
+  {
+   "id": "clicks-7d",
+   "area": "traffic",
+   "question": "Lượt click sản phẩm 7 ngày qua?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "clicks",
+     "time_phrase": "last 7 days",
+     "metric_key": "clicks"
+    }
+   ],
+   "jev": {
+    "metric": "clicks",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "clicks",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.clicks",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "ctr-last-week",
+   "area": "funnel",
+   "question": "CTR tuần trước là bao nhiêu?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "CTR",
+     "time_phrase": "last week",
+     "metric_key": "ctr"
+    }
+   ],
+   "jev": {
+    "metric": "ctr",
+    "window": "last_full_week_vs_week_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "ctr",
+      "window": "last_full_week_vs_week_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "28/09–04/10",
+      "screen": "overview.ctr",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "ctr-vn",
+   "area": "funnel",
+   "question": "tỷ lệ click 7 ngày qua",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "click-through rate",
+     "time_phrase": "last 7 days",
+     "metric_key": "ctr"
+    }
+   ],
+   "jev": {
+    "metric": "ctr",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "ctr",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.ctr",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "ctor-7d",
+   "area": "funnel",
+   "question": "Tỷ lệ chuyển đổi 7 ngày qua?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "conversion",
+     "time_phrase": "last 7 days",
+     "metric_key": "ctor"
+    }
+   ],
+   "jev": {
+    "metric": "ctor",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "ctor",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.ctor",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "ctor-english",
+   "area": "funnel",
+   "question": "CTOR last 7 days?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "CTOR",
+     "time_phrase": "last 7 days",
+     "metric_key": "ctor"
+    }
+   ],
+   "jev": {
+    "metric": "ctor",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "ctor",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.ctor",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "ctor-this-week-noaccent",
+   "area": "funnel",
+   "question": "ty le chuyen doi tuan nay",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "conversion rate",
+     "time_phrase": "this week",
+     "metric_key": "ctor"
+    }
+   ],
+   "jev": {
+    "metric": "ctor",
+    "window": "this_week_vs_same_days_last_week"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "ctor",
+      "window": "this_week_vs_same_days_last_week"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "05/10–07/10",
+      "screen": "overview.ctor",
+      "from": "2026-10-05",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "gmv-by-channel-7d",
+   "area": "traffic",
+   "question": "GMV theo kênh 7 ngày qua?",
+   "intents": [
+    {
+     "metric_phrase": "GMV by channel",
+     "time_phrase": "last 7 days",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "lookup": "channel_breakdown",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "mode": "lookup",
+      "lookup": "channel_breakdown"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "channel_breakdown",
+      "window": "01/10–07/10",
+      "rows_have": [
+       "Video",
+       "Trang shop"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "orders-daily-trend",
+   "area": "orders",
+   "question": "Đơn hàng theo từng ngày tuần trước?",
+   "intents": [
+    {
+     "metric_phrase": "orders per day",
+     "time_phrase": "last week",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders",
+    "lookup": "daily_trend",
+    "window": "last_full_week_vs_week_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "lookup": "daily_trend"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "daily_trend",
+      "window": "28/09–04/10"
+     }
+    ]
+   }
+  },
+  {
+   "id": "views-by-channel-noaccent",
+   "area": "traffic",
+   "question": "luot xem theo kenh tuan nay",
+   "intents": [
+    {
+     "metric_phrase": "views by channel",
+     "time_phrase": "this week",
+     "metric_key": "views"
+    }
+   ],
+   "jev": {
+    "metric": "views",
+    "lookup": "channel_breakdown",
+    "window": "this_week_vs_same_days_last_week"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "kind": "channel_breakdown",
+      "window": "05/10–07/10"
+     }
+    ]
+   }
+  },
+  {
+   "id": "profit-7d-below-70",
+   "area": "profit",
+   "question": "Lợi nhuận 7 ngày qua?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "profit",
+     "time_phrase": "last 7 days",
+     "metric_key": "profit"
+    }
+   ],
+   "jev": {
+    "metric": "profit",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "profit",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.profit",
+      "from": "2026-10-01",
+      "to": "2026-10-07",
+      "missing_as": "—"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "profit-last-week-noaccent",
+   "area": "profit",
+   "question": "loi nhuan tuan truoc bao nhieu",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "profit",
+     "time_phrase": "last week",
+     "metric_key": "profit"
+    }
+   ],
+   "jev": {
+    "metric": "profit",
+    "window": "last_full_week_vs_week_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "profit",
+      "window": "last_full_week_vs_week_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "28/09–04/10",
+      "screen": "overview.profit",
+      "from": "2026-09-28",
+      "to": "2026-10-04",
+      "missing_as": "—"
+     }
+    ]
+   }
+  },
+  {
+   "id": "margin-7d-below-70",
+   "area": "profit",
+   "question": "Biên lợi nhuận 7 ngày qua?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "profit margin",
+     "time_phrase": "last 7 days",
+     "metric_key": "margin"
+    }
+   ],
+   "jev": {
+    "metric": "margin",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "margin",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.margin_pct",
+      "from": "2026-10-01",
+      "to": "2026-10-07",
+      "missing_as": "—"
+     }
+    ]
+   }
+  },
+  {
+   "id": "profit-7d-known",
+   "area": "profit",
+   "question": "Lãi ròng 7 ngày qua bao nhiêu?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "net profit",
+     "time_phrase": "last 7 days",
+     "metric_key": "profit"
+    }
+   ],
+   "jev": {
+    "metric": "profit",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "profit",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.profit",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "pg": true,
+   "ungated": true
+  },
+  {
+   "id": "margin-7d-known",
+   "area": "profit",
+   "question": "Biên lợi nhuận ròng 7 ngày?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "net profit margin",
+     "time_phrase": "last 7 days",
+     "metric_key": "margin"
+    }
+   ],
+   "jev": {
+    "metric": "margin",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "margin",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.margin_pct",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "ungated": true
+  },
+  {
+   "id": "profit-this-week-known",
+   "area": "profit",
+   "question": "Tuần này lời bao nhiêu?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "profit",
+     "time_phrase": "this week",
+     "metric_key": "profit"
+    }
+   ],
+   "jev": {
+    "metric": "profit",
+    "window": "this_week_vs_same_days_last_week"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "profit",
+      "window": "this_week_vs_same_days_last_week"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "05/10–07/10",
+      "screen": "overview.profit",
+      "from": "2026-10-05",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "ungated": true
+  },
+  {
+   "id": "margin-contribution",
+   "area": "profit",
+   "question": "Biên đóng góp tuần này bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "contribution margin",
+     "time_phrase": "this week",
+     "metric_key": "margin_contribution"
+    }
+   ],
+   "jev": {
+    "metric": "margin",
+    "window": "this_week_vs_same_days_last_week"
+   },
+   "ungated": true,
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_vi": "Biên đóng góp",
+      "window": "05/10–07/10"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "no Biên đóng góp (margin before ads) in Chat: metric_key margin_contribution falls back to the phrase 'margin' and the net margin is shown"
+  },
+  {
+   "id": "margin-gross",
+   "area": "profit",
+   "question": "Biên gộp 7 ngày qua?",
+   "intents": [
+    {
+     "metric_phrase": "gross margin",
+     "time_phrase": "last 7 days",
+     "metric_key": "margin_gross"
+    }
+   ],
+   "jev": {
+    "metric": "margin",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "ungated": true,
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_vi": "Biên gộp",
+      "window": "01/10–07/10"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "no Biên gộp in Chat: metric_key margin_gross falls back to the net margin"
+  },
+  {
+   "id": "roas-break-even-7d",
+   "area": "profit",
+   "question": "ROAS hoà vốn 7 ngày qua là bao nhiêu?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "break-even ROAS",
+     "time_phrase": "last 7 days",
+     "metric_key": "none"
+    }
+   ],
+   "jev": {
+    "metric": "roas",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "roas_break_even"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview_profit.break_even_roas",
+      "from": "2026-10-01",
+      "to": "2026-10-07",
+      "title_vi": "ROAS hoà vốn"
+     }
+    ]
+   }
+  },
+  {
+   "id": "profit-product-named",
+   "area": "products",
+   "question": "Lợi nhuận của găng tay 7 ngày qua?",
+   "intents": [
+    {
+     "metric_phrase": "profit",
+     "time_phrase": "last 7 days",
+     "product_phrase": "găng tay",
+     "metric_key": "profit"
+    }
+   ],
+   "jev": {
+    "metric": "profit",
+    "scope": "product",
+    "product_named": 0.95,
+    "window": "last_7d_vs_prev_7d"
+   },
+   "pg": true,
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_has": "Găng tay",
+      "window": "01/10–07/10",
+      "screen": "product.1001.profit",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "margin-product-noaccent",
+   "area": "products",
+   "question": "bien loi nhuan gang tay 7 ngay",
+   "intents": [
+    {
+     "metric_phrase": "profit margin",
+     "time_phrase": "last 7 days",
+     "product_phrase": "gang tay",
+     "metric_key": "margin"
+    }
+   ],
+   "jev": {
+    "metric": "margin",
+    "scope": "product",
+    "product_named": 0.95,
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_has": "Găng tay",
+      "screen": "product.1001.margin_pct",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "profit-tiktok-no-ads",
+   "area": "profit",
+   "question": "Lợi nhuận TikTok 7 ngày qua?",
+   "platform": "tiktok",
+   "intents": [
+    {
+     "metric_phrase": "profit",
+     "time_phrase": "last 7 days",
+     "metric_key": "profit"
+    }
+   ],
+   "jev": {
+    "metric": "profit"
+   },
+   "expect": {
+    "stop": [
+     "data_missing"
+    ],
+    "no_numbers": true
+   }
+  },
+  {
+   "id": "voucher-orders-7d",
+   "area": "vouchers",
+   "question": "7 ngày qua có bao nhiêu đơn dùng voucher?",
+   "intents": [
+    {
+     "metric_phrase": "orders",
+     "entity_phrase": "voucher",
+     "time_phrase": "last 7 days",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "entity": "voucher",
+      "metric": "orders",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "title_vi": "Đơn dùng voucher",
+      "window": "01/10–07/10",
+      "screen": "voucher.orders",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "voucher-orders-this-week",
+   "area": "vouchers",
+   "question": "Tuần này có bao nhiêu đơn dùng voucher?",
+   "intents": [
+    {
+     "metric_phrase": "orders",
+     "entity_phrase": "voucher",
+     "time_phrase": "this week",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "entity": "voucher",
+      "window": "this_week_vs_same_days_last_week"
+     }
+    ],
+    "answers": [
+     {
+      "title_vi": "Đơn dùng voucher",
+      "window": "05/10–07/10",
+      "screen": "voucher.orders",
+      "from": "2026-10-05",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "voucher-orders-this-week-monday",
+   "area": "vouchers",
+   "question": "Tuần này có bao nhiêu đơn dùng voucher?",
+   "intents": [
+    {
+     "metric_phrase": "orders",
+     "entity_phrase": "voucher",
+     "time_phrase": "this week",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders"
+   },
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "needs_choice_item": "window",
+    "require": [
+     "Tuần này chưa có ngày nào đủ số liệu. Xem tuần trước?"
+    ]
+   },
+   "as_of": "2026-10-04",
+   "note": "Session A #10: asked on a Monday this is the by-design 'Xem tuần trước?' offer, not a routing miss"
+  },
+  {
+   "id": "voucher-orders-last-week",
+   "area": "vouchers",
+   "question": "Tuần trước có bao nhiêu đơn dùng voucher?",
+   "intents": [
+    {
+     "metric_phrase": "orders",
+     "entity_phrase": "voucher",
+     "time_phrase": "last week",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_vi": "Đơn dùng voucher",
+      "window": "28/09–04/10",
+      "screen": "voucher.orders",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "voucher-gmv-this-week",
+   "area": "vouchers",
+   "question": "GMV từ đơn dùng mã giảm giá tuần này?",
+   "intents": [
+    {
+     "metric_phrase": "GMV",
+     "entity_phrase": "mã giảm giá",
+     "time_phrase": "this week",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_vi": "GMV đơn dùng voucher",
+      "screen": "voucher.gmv",
+      "from": "2026-10-05",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "voucher-cost-7d",
+   "area": "vouchers",
+   "question": "Chi phí voucher 7 ngày qua bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "voucher cost",
+     "entity_phrase": "voucher",
+     "time_phrase": "last 7 days"
+    }
+   ],
+   "jev": {
+    "metric": "cost_ratio"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_has": "Chi phí voucher (Ưu đãi)",
+      "screen": "voucher.cost",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "voucher-noaccent",
+   "area": "vouchers",
+   "question": "ma giam gia 7 ngay qua duoc bao nhieu don",
+   "intents": [
+    {
+     "metric_phrase": "orders",
+     "entity_phrase": "ma giam gia",
+     "time_phrase": "last 7 days",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "entity": "voucher"
+     }
+    ],
+    "answers": [
+     {
+      "title_vi": "Đơn dùng voucher",
+      "screen": "voucher.orders",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "voucher-analyse",
+   "area": "vouchers",
+   "question": "Phân tích hiệu quả voucher 7 ngày qua",
+   "intents": [
+    {
+     "metric_phrase": "voucher performance",
+     "entity_phrase": "voucher",
+     "time_phrase": "last 7 days"
+    }
+   ],
+   "jev": {
+    "metric": "orders"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "n_answers": 4,
+    "answers": [
+     {
+      "title_vi": "Đơn dùng voucher",
+      "screen": "voucher.orders",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     },
+     {
+      "title_vi": "GMV đơn dùng voucher",
+      "screen": "voucher.gmv",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     },
+     {
+      "title_has": "Chi phí voucher",
+      "screen": "voucher.cost",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     },
+     {
+      "title_vi": "Voucher của shop trong kỳ",
+      "rows_have": [
+       "SYN Giảm 5k",
+       "SYN Giảm 10k"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "voucher-list",
+   "area": "vouchers",
+   "question": "Shop đang chạy những voucher nào tuần này?",
+   "intents": [
+    {
+     "metric_phrase": "which vouchers are running",
+     "entity_phrase": "voucher",
+     "time_phrase": "this week"
+    }
+   ],
+   "jev": {
+    "metric": "orders"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "events": [
+     "data_answer"
+    ],
+    "require": [
+     "SYN Giảm 5k",
+     "SYN Giảm 10k"
+    ]
+   }
+  },
+  {
+   "id": "uu-dai-total-7d",
+   "area": "vouchers",
+   "question": "Ưu đãi 7 ngày qua tốn bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "offer cost (Ưu đãi)",
+     "time_phrase": "last 7 days"
+    }
+   ],
+   "jev": {
+    "metric": "cost_ratio",
+    "mode": "lookup"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_has": "Ưu đãi",
+      "screen": "channel_split.cost_offers",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "no Ưu đãi total in Chat: 'ưu đãi' maps to no entity and the cost_ratio lookup it falls to raises KeyError (cost_offers is read only inside the cost chain)"
+  },
+  {
+   "id": "combo-refused-honestly",
+   "area": "programmes",
+   "question": "Combo khuyến mãi 7 ngày qua tốn bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "cost",
+     "entity_phrase": "combo khuyến mãi",
+     "time_phrase": "last 7 days"
+    }
+   ],
+   "jev": {
+    "metric": "cost_ratio"
+   },
+   "expect": {
+    "stop": [
+     "data_missing"
+    ],
+    "no_events": [
+     "data_answer"
+    ],
+    "require": [
+     "Juli chưa có số liệu này"
+    ],
+    "no_numbers": true
+   }
+  },
+  {
+   "id": "combo-figure",
+   "area": "programmes",
+   "question": "Combo khuyến mãi 7 ngày qua tốn bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "cost",
+     "entity_phrase": "combo khuyến mãi",
+     "time_phrase": "last 7 days"
+    }
+   ],
+   "jev": {
+    "metric": "cost_ratio"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "screen": "offer.offer_combo",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "programme figures have no reader in Chat (entity 'program' -> 'Juli chưa có số liệu này') while Ưu đãi holds the part"
+  },
+  {
+   "id": "deal-soc-refused-honestly",
+   "area": "programmes",
+   "question": "Mua Kèm Deal Sốc 7 ngày qua hiệu quả không?",
+   "intents": [
+    {
+     "metric_phrase": "cost",
+     "entity_phrase": "mua kèm deal sốc",
+     "time_phrase": "last 7 days"
+    }
+   ],
+   "jev": {
+    "metric": "cost_ratio"
+   },
+   "expect": {
+    "stop": [
+     "data_missing"
+    ],
+    "no_events": [
+     "data_answer"
+    ],
+    "require": [
+     "Juli chưa có số liệu này"
+    ],
+    "no_numbers": true
+   }
+  },
+  {
+   "id": "deal-soc-figure",
+   "area": "programmes",
+   "question": "Mua Kèm Deal Sốc 7 ngày qua hiệu quả không?",
+   "intents": [
+    {
+     "metric_phrase": "cost",
+     "entity_phrase": "mua kèm deal sốc",
+     "time_phrase": "last 7 days"
+    }
+   ],
+   "jev": {
+    "metric": "cost_ratio"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "screen": "offer.offer_promo",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "programme figures have no reader in Chat (entity 'program' -> 'Juli chưa có số liệu này') while Ưu đãi holds the part"
+  },
+  {
+   "id": "flash-sale-refused-honestly",
+   "area": "programmes",
+   "question": "Flash Sale của shop 7 ngày qua bán được bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "cost",
+     "entity_phrase": "flash sale của shop",
+     "time_phrase": "last 7 days"
+    }
+   ],
+   "jev": {
+    "metric": "cost_ratio"
+   },
+   "expect": {
+    "stop": [
+     "data_missing"
+    ],
+    "no_events": [
+     "data_answer"
+    ],
+    "require": [
+     "Juli chưa có số liệu này"
+    ],
+    "no_numbers": true
+   }
+  },
+  {
+   "id": "flash-sale-figure",
+   "area": "programmes",
+   "question": "Flash Sale của shop 7 ngày qua bán được bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "cost",
+     "entity_phrase": "flash sale của shop",
+     "time_phrase": "last 7 days"
+    }
+   ],
+   "jev": {
+    "metric": "cost_ratio"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "screen": "offer.offer_promo",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "programme figures have no reader in Chat (entity 'program' -> 'Juli chưa có số liệu này') while Ưu đãi holds the part"
+  },
+  {
+   "id": "chuong-trinh-refused-honestly",
+   "area": "programmes",
+   "question": "Chương Trình Của Shop 7 ngày qua giảm bao nhiêu tiền?",
+   "intents": [
+    {
+     "metric_phrase": "cost",
+     "entity_phrase": "chương trình của shop",
+     "time_phrase": "last 7 days"
+    }
+   ],
+   "jev": {
+    "metric": "cost_ratio"
+   },
+   "expect": {
+    "stop": [
+     "data_missing"
+    ],
+    "no_events": [
+     "data_answer"
+    ],
+    "require": [
+     "Juli chưa có số liệu này"
+    ],
+    "no_numbers": true
+   }
+  },
+  {
+   "id": "chuong-trinh-figure",
+   "area": "programmes",
+   "question": "Chương Trình Của Shop 7 ngày qua giảm bao nhiêu tiền?",
+   "intents": [
+    {
+     "metric_phrase": "cost",
+     "entity_phrase": "chương trình của shop",
+     "time_phrase": "last 7 days"
+    }
+   ],
+   "jev": {
+    "metric": "cost_ratio"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "screen": "offer.offer_promo",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "programme figures have no reader in Chat (entity 'program' -> 'Juli chưa có số liệu này') while Ưu đãi holds the part"
+  },
+  {
+   "id": "combo-noaccent",
+   "area": "programmes",
+   "question": "combo khuyen mai tuan nay ban duoc bao nhieu",
+   "intents": [
+    {
+     "metric_phrase": "sales",
+     "entity_phrase": "combo khuyen mai",
+     "time_phrase": "this week",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv"
+   },
+   "expect": {
+    "no_events": [
+     "data_answer"
+    ],
+    "require": [
+     "Juli chưa có số liệu này"
+    ]
+   }
+  },
+  {
+   "id": "aff-orders-7d",
+   "area": "affiliate",
+   "question": "Đơn từ tiếp thị liên kết 7 ngày qua là bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "orders",
+     "source_phrase": "Tiếp thị liên kết",
+     "time_phrase": "last 7 days",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "entity": "affiliate",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "title_vi": "Đơn từ Tiếp thị liên kết",
+      "screen": "kol.orders",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "pg": true,
+   "status": "xfail",
+   "reason": "Chat affiliate đơn / GMV count the order lines flagged affiliate (order_lines), while the Tổng quan flow row and the Phân tích KOL cell show the Tiếp thị liên kết flow of the traffic report: the figures differ (1 vs 7 đơn on 7 days)"
+  },
+  {
+   "id": "aff-gmv-last-week",
+   "area": "affiliate",
+   "question": "GMV tiếp thị liên kết tuần trước?",
+   "intents": [
+    {
+     "metric_phrase": "GMV",
+     "source_phrase": "tiếp thị liên kết",
+     "time_phrase": "last week",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_vi": "GMV đơn từ Tiếp thị liên kết",
+      "screen": "kol.gmv",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "Chat affiliate đơn / GMV count the order lines flagged affiliate (order_lines), while the Tổng quan flow row and the Phân tích KOL cell show the Tiếp thị liên kết flow of the traffic report: the figures differ (1 vs 7 đơn on 7 days)"
+  },
+  {
+   "id": "aff-commission-7d-unknown",
+   "area": "affiliate",
+   "question": "Hoa hồng tiếp thị liên kết 7 ngày qua tốn bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "affiliate commission",
+     "source_phrase": "tiếp thị liên kết",
+     "time_phrase": "last 7 days"
+    }
+   ],
+   "jev": {
+    "metric": "cost_ratio"
+   },
+   "expect": {
+    "stop": [
+     "data_missing"
+    ],
+    "no_events": [
+     "data_answer"
+    ],
+    "require": [
+     "Juli chưa có số liệu này"
+    ],
+    "no_numbers": true
+   },
+   "note": "no commission rows and Kênh shows no affiliate cost either: missing, never 0"
+  },
+  {
+   "id": "aff-orders-route",
+   "area": "affiliate",
+   "question": "Đơn tiếp thị liên kết tuần này?",
+   "intents": [
+    {
+     "metric_phrase": "orders",
+     "source_phrase": "tiếp thị liên kết",
+     "time_phrase": "this week",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "entity": "affiliate",
+      "metric": "orders",
+      "window": "this_week_vs_same_days_last_week"
+     }
+    ],
+    "answers": [
+     {
+      "title_vi": "Đơn từ Tiếp thị liên kết",
+      "window": "05/10–07/10"
+     }
+    ]
+   }
+  },
+  {
+   "id": "kol-orders-last-week",
+   "area": "affiliate",
+   "question": "KOL mang về bao nhiêu đơn tuần trước?",
+   "intents": [
+    {
+     "metric_phrase": "orders",
+     "entity_phrase": "KOL",
+     "time_phrase": "last week",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "screen": "kol.orders",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "Chat affiliate đơn / GMV count the order lines flagged affiliate (order_lines), while the Tổng quan flow row and the Phân tích KOL cell show the Tiếp thị liên kết flow of the traffic report: the figures differ (1 vs 7 đơn on 7 days)"
+  },
+  {
+   "id": "aff-english",
+   "area": "affiliate",
+   "question": "affiliate orders last 7 days?",
+   "intents": [
+    {
+     "metric_phrase": "affiliate orders",
+     "time_phrase": "last 7 days",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "entity": "affiliate"
+     }
+    ],
+    "answers": [
+     {
+      "screen": "kol.orders",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "Chat affiliate đơn / GMV count the order lines flagged affiliate (order_lines), while the Tổng quan flow row and the Phân tích KOL cell show the Tiếp thị liên kết flow of the traffic report: the figures differ (1 vs 7 đơn on 7 days)"
+  },
+  {
+   "id": "aff-noaccent",
+   "area": "affiliate",
+   "question": "tiep thi lien ket 7 ngay qua duoc may don",
+   "intents": [
+    {
+     "metric_phrase": "orders",
+     "source_phrase": "tiep thi lien ket",
+     "time_phrase": "last 7 days",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "entity": "affiliate"
+     }
+    ],
+    "answers": [
+     {
+      "screen": "kol.orders",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "entity words are not accent-folded: 'tiep thi lien ket' is no affiliate, so the SHOP's orders answer"
+  },
+  {
+   "id": "aff-ttlk-short",
+   "area": "affiliate",
+   "question": "TTLK tuần này ra bao nhiêu đơn?",
+   "intents": [
+    {
+     "metric_phrase": "orders",
+     "source_phrase": "TTLK",
+     "time_phrase": "this week",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "entity": "affiliate"
+     }
+    ],
+    "answers": [
+     {
+      "screen": "kol.orders",
+      "from": "2026-10-05",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "Chat affiliate đơn / GMV count the order lines flagged affiliate (order_lines), while the Tổng quan flow row and the Phân tích KOL cell show the Tiếp thị liên kết flow of the traffic report: the figures differ (1 vs 7 đơn on 7 days)"
+  },
+  {
+   "id": "ads-spend-7d",
+   "area": "ads",
+   "question": "Chi phí quảng cáo 7 ngày qua?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "ad spend",
+     "time_phrase": "last 7 days",
+     "metric_key": "cost_ads"
+    }
+   ],
+   "jev": {
+    "metric": "ads_spend",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "ads_spend",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.ad_spend",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "ads-spend-noaccent",
+   "area": "ads",
+   "question": "chi phi quang cao tuan truoc",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "advertising cost",
+     "time_phrase": "last week",
+     "metric_key": "cost_ads"
+    }
+   ],
+   "jev": {
+    "metric": "ads_spend",
+    "window": "last_full_week_vs_week_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "ads_spend",
+      "window": "last_full_week_vs_week_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "28/09–04/10",
+      "screen": "overview.ad_spend",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     }
+    ]
+   }
+  },
+  {
+   "id": "ads-spend-slang",
+   "area": "ads",
+   "question": "tiền qc tuần này hết bao nhiêu",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "ad spend",
+     "time_phrase": "this week",
+     "metric_key": "cost_ads"
+    }
+   ],
+   "jev": {
+    "metric": "ads_spend",
+    "window": "this_week_vs_same_days_last_week"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "ads_spend",
+      "window": "this_week_vs_same_days_last_week"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "05/10–07/10",
+      "screen": "overview.ad_spend",
+      "from": "2026-10-05",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "roas-7d",
+   "area": "ads",
+   "question": "ROAS 7 ngày qua?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "ROAS",
+     "time_phrase": "last 7 days",
+     "metric_key": "roas"
+    }
+   ],
+   "jev": {
+    "metric": "roas",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "roas",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.ads_roas_placed",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "roas-last-week-mixed",
+   "area": "ads",
+   "question": "roas tuần trước ok ko",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "ROAS",
+     "time_phrase": "last week",
+     "metric_key": "roas"
+    }
+   ],
+   "jev": {
+    "metric": "roas",
+    "window": "last_full_week_vs_week_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "roas",
+      "window": "last_full_week_vs_week_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "28/09–04/10",
+      "screen": "overview.ads_roas_placed",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     }
+    ]
+   }
+  },
+  {
+   "id": "dvht-san-pham-spend",
+   "area": "ads",
+   "question": "Dịch vụ hiển thị Sản phẩm 7 ngày qua chi bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "ad spend",
+     "source_phrase": "Dịch vụ hiển thị Sản phẩm",
+     "time_phrase": "last 7 days",
+     "metric_key": "cost_ads"
+    }
+   ],
+   "jev": {
+    "metric": "ads_spend"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_has": "Sản phẩm"
+     }
+    ]
+   }
+  },
+  {
+   "id": "dvht-shop-plus-spend",
+   "area": "ads",
+   "question": "DVHT Shop+ tuần trước tốn bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "ad spend",
+     "source_phrase": "DVHT Shop+",
+     "time_phrase": "last week",
+     "metric_key": "cost_ads"
+    }
+   ],
+   "jev": {
+    "metric": "ads_spend"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_has": "Shop+"
+     }
+    ]
+   }
+  },
+  {
+   "id": "campaigns-7d",
+   "area": "ads",
+   "question": "Hiệu quả từng chiến dịch quảng cáo 7 ngày qua?",
+   "intents": [
+    {
+     "metric_phrase": "campaign performance",
+     "entity_phrase": "ad campaign",
+     "time_phrase": "last 7 days"
+    }
+   ],
+   "jev": {
+    "metric": "roas"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "entity": "campaign"
+     }
+    ],
+    "answers": [
+     {
+      "title_vi": "Hiệu quả từng chiến dịch",
+      "rows_have": [
+       "Chiến dịch nhóm"
+      ]
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "campaign-losing",
+   "area": "ads",
+   "question": "Chiến dịch quảng cáo nào đang lỗ?",
+   "intents": [
+    {
+     "metric_phrase": "which ad campaigns are losing money",
+     "entity_phrase": "ad campaign"
+    }
+   ],
+   "jev": {
+    "metric": "roas",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "needs_choice_item": "window",
+    "routes": [
+     {
+      "outcome": "needs_choice",
+      "entity": "campaign"
+     }
+    ],
+    "followup": {
+     "stop": [
+      "data_answer"
+     ],
+     "answers": [
+      {
+       "rows_have": [
+        "Chiến dịch nhóm"
+       ]
+      }
+     ]
+    }
+   },
+   "then": {
+    "choice": {
+     "value": "last_7d_vs_prev_7d"
+    }
+   }
+  },
+  {
+   "id": "campaign-losing-noaccent",
+   "area": "ads",
+   "question": "chien dich quang cao nao dang lo",
+   "intents": [
+    {
+     "metric_phrase": "which campaigns lose money",
+     "entity_phrase": "chien dich quang cao"
+    }
+   ],
+   "jev": {
+    "metric": "roas",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "needs_choice_item": "window",
+    "routes": [
+     {
+      "entity": "campaign"
+     }
+    ],
+    "followup": {
+     "stop": [
+      "data_answer"
+     ],
+     "answers": [
+      {
+       "rows_have": [
+        "Chiến dịch nhóm"
+       ]
+      }
+     ]
+    }
+   },
+   "then": {
+    "choice": {
+     "value": "last_7d_vs_prev_7d"
+    }
+   }
+  },
+  {
+   "id": "ads-livestream",
+   "area": "ads",
+   "question": "Quảng cáo Livestream 7 ngày qua chi bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "ad spend",
+     "source_phrase": "Livestream ads",
+     "time_phrase": "last 7 days",
+     "metric_key": "cost_ads"
+    }
+   ],
+   "jev": {
+    "metric": "ads_spend"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_has": "Livestream"
+     }
+    ]
+   }
+  },
+  {
+   "id": "ads-khac",
+   "area": "ads",
+   "question": "Quảng cáo Khác tuần trước tốn bao nhiêu?",
+   "intents": [
+    {
+     "metric_phrase": "ad spend",
+     "source_phrase": "other ads (Khác)",
+     "time_phrase": "last week",
+     "metric_key": "cost_ads"
+    }
+   ],
+   "jev": {
+    "metric": "ads_spend"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_has": "Khác"
+     }
+    ]
+   }
+  },
+  {
+   "id": "sa06-ads-week-three-asks",
+   "area": "multi",
+   "question": "Quảng cáo tuần trước: chi phí, ROAS và chiến dịch nào lỗ?",
+   "intents": [
+    {
+     "metric_phrase": "ad spend",
+     "time_phrase": "last week",
+     "metric_key": "cost_ads"
+    },
+    {
+     "metric_phrase": "ROAS",
+     "time_phrase": "last week",
+     "metric_key": "roas"
+    },
+    {
+     "metric_phrase": "which campaigns are losing money",
+     "time_phrase": "last week"
+    }
+   ],
+   "jev": [
+    {
+     "metric": "ads_spend",
+     "window": "last_full_week_vs_week_before"
+    },
+    {
+     "metric": "roas",
+     "window": "last_full_week_vs_week_before"
+    },
+    {
+     "metric": [
+      [
+       "roas",
+       0.4
+      ],
+      [
+       "ads_spend",
+       0.35
+      ]
+     ],
+     "fits": 0.55,
+     "metric_named": 0.25,
+     "mode": [
+      [
+       "lookup",
+       0.5
+      ],
+      [
+       "why",
+       0.45
+      ]
+     ],
+     "window": "last_full_week_vs_week_before"
+    }
+   ],
+   "expect": {
+    "stop": [
+     "data_answer",
+     "data_answer",
+     "data_answer"
+    ],
+    "n_intent_blocks": 3,
+    "answers": [
+     {
+      "screen": "overview.ad_spend",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     },
+     {
+      "screen": "overview.ads_roas_placed",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     },
+     {
+      "rows_have": [
+       "Chiến dịch nhóm"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "sa07-ads-this-vs-last-week",
+   "area": "multi",
+   "question": "Quảng cáo tuần này so với tuần trước: chi phí, ROAS, chiến dịch nào đang lỗ?",
+   "intents": [
+    {
+     "metric_phrase": "ad spend",
+     "time_phrase": "this week compared with last week",
+     "metric_key": "cost_ads"
+    },
+    {
+     "metric_phrase": "ROAS",
+     "time_phrase": "this week compared with last week",
+     "metric_key": "roas"
+    },
+    {
+     "metric_phrase": "which campaigns are losing money",
+     "time_phrase": "this week compared with last week"
+    }
+   ],
+   "jev": [
+    {
+     "metric": "ads_spend",
+     "window": "this_week_vs_same_days_last_week"
+    },
+    {
+     "metric": "roas",
+     "window": "this_week_vs_same_days_last_week"
+    },
+    {
+     "metric": [
+      [
+       "roas",
+       0.4
+      ],
+      [
+       "ads_spend",
+       0.35
+      ]
+     ],
+     "fits": 0.55,
+     "metric_named": 0.25,
+     "mode": [
+      [
+       "lookup",
+       0.5
+      ],
+      [
+       "why",
+       0.45
+      ]
+     ],
+     "window": "this_week_vs_same_days_last_week"
+    }
+   ],
+   "expect": {
+    "stop": [
+     "data_answer",
+     "data_answer",
+     "data_answer"
+    ],
+    "n_intent_blocks": 3,
+    "answers": [
+     {
+      "window": "05/10–07/10",
+      "screen": "overview.ad_spend",
+      "from": "2026-10-05",
+      "to": "2026-10-07"
+     },
+     {
+      "window": "05/10–07/10",
+      "screen": "overview.ads_roas_placed",
+      "from": "2026-10-05",
+      "to": "2026-10-07"
+     },
+     {
+      "rows_have": [
+       "Chiến dịch nhóm"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "top-products-7d",
+   "area": "products",
+   "question": "Top sản phẩm bán chạy 7 ngày qua?",
+   "intents": [
+    {
+     "metric_phrase": "best sellers",
+     "time_phrase": "last 7 days",
+     "ranking": "top"
+    }
+   ],
+   "jev": {
+    "metric": "gmv"
+   },
+   "pg": true,
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "lookup": "top_products",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "top_products",
+      "window": "01/10–07/10",
+      "screen": "metric_view.gmv",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "top-products-noaccent",
+   "area": "products",
+   "question": "sp ban chay nhat tuan nay",
+   "intents": [
+    {
+     "metric_phrase": "best selling products",
+     "time_phrase": "this week",
+     "ranking": "top"
+    }
+   ],
+   "jev": {
+    "metric": "gmv"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "kind": "top_products",
+      "window": "05/10–07/10",
+      "screen": "metric_view.gmv",
+      "from": "2026-10-05",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "top-products-orders-mixed",
+   "area": "products",
+   "question": "top 5 sản phẩm nhiều orders nhất tháng này",
+   "intents": [
+    {
+     "metric_phrase": "orders",
+     "time_phrase": "this month",
+     "ranking": "top",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "kind": "top_products",
+      "window": "01/10–07/10"
+     }
+    ]
+   }
+  },
+  {
+   "id": "worst-products-last-week",
+   "area": "products",
+   "question": "Sản phẩm nào giảm mạnh nhất tuần trước?",
+   "intents": [
+    {
+     "metric_phrase": "revenue decline",
+     "time_phrase": "last week",
+     "ranking": "decline"
+    }
+   ],
+   "jev": {
+    "metric": "gmv"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "lookup": "top_decliners",
+      "window": "last_full_week_vs_week_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "top_products",
+      "title_vi": "Sản phẩm giảm mạnh nhất (GMV)",
+      "window": "28/09–04/10"
+     }
+    ]
+   }
+  },
+  {
+   "id": "worst-products-raw-words",
+   "area": "products",
+   "question": "sản phẩm nào tụt mạnh 7 ngày qua",
+   "intents": [
+    {
+     "metric_phrase": "products",
+     "time_phrase": "last 7 days"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "lookup": "top_products",
+    "metric_named": 0.5
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "lookup": "top_decliners"
+     }
+    ],
+    "answers": [
+     {
+      "title_vi": "Sản phẩm giảm mạnh nhất (GMV)"
+     }
+    ]
+   }
+  },
+  {
+   "id": "product-gmv-named",
+   "area": "products",
+   "question": "Doanh thu găng tay 7 ngày qua?",
+   "intents": [
+    {
+     "metric_phrase": "revenue",
+     "time_phrase": "last 7 days",
+     "product_phrase": "găng tay",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "scope": "product",
+    "product_named": 0.95
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10"
+     }
+    ]
+   }
+  },
+  {
+   "id": "product-orders-noaccent",
+   "area": "products",
+   "question": "nuoc rua chen tuan truoc ban duoc may don",
+   "intents": [
+    {
+     "metric_phrase": "orders",
+     "time_phrase": "last week",
+     "product_phrase": "nuoc rua chen",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders",
+    "scope": "product",
+    "product_named": 0.95
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "28/09–04/10"
+     }
+    ]
+   }
+  },
+  {
+   "id": "product-ambiguous-asks",
+   "area": "ambiguous",
+   "question": "Sản phẩm tự hủy 7 ngày qua bán thế nào?",
+   "intents": [
+    {
+     "metric_phrase": "revenue",
+     "time_phrase": "last 7 days",
+     "product_phrase": "tự hủy",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "scope": "product",
+    "product_named": 0.9
+   },
+   "jev_product": {
+    "pick": [
+     [
+      "1001",
+      0.5
+     ],
+     [
+      "1003",
+      0.5
+     ]
+    ]
+   },
+   "then": {
+    "choice": {
+     "value": "1003"
+    }
+   },
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "needs_choice_item": "product",
+    "require": [
+     "Bạn muốn nói sản phẩm nào?"
+    ],
+    "followup": {
+     "stop": [
+      "data_answer"
+     ],
+     "answers": [
+      {
+       "window": "01/10–07/10"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "product-unknown-name",
+   "area": "products",
+   "question": "Doanh thu áo khoác 7 ngày qua?",
+   "intents": [
+    {
+     "metric_phrase": "revenue",
+     "time_phrase": "last 7 days",
+     "product_phrase": "áo khoác",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "scope": "product",
+    "product_named": 0.95
+   },
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "needs_choice_item": "product",
+    "no_events": [
+     "data_answer"
+    ]
+   }
+  },
+  {
+   "id": "products-losing-after-ads",
+   "area": "products",
+   "question": "Sản phẩm nào lỗ sau quảng cáo 7 ngày qua?",
+   "intents": [
+    {
+     "metric_phrase": "products losing money after ads",
+     "time_phrase": "last 7 days"
+    }
+   ],
+   "jev": {
+    "metric": "profit"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "entity": "product_loss"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "top_products",
+      "window": "01/10–07/10"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "products-losing-noaccent",
+   "area": "products",
+   "question": "sp nao lo sau quang cao",
+   "intents": [
+    {
+     "metric_phrase": "products losing after ads",
+     "time_phrase": null
+    }
+   ],
+   "jev": {
+    "metric": "profit"
+   },
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "needs_choice_item": "window",
+    "routes": [
+     {
+      "entity": "product_loss"
+     }
+    ],
+    "followup": {
+     "stop": [
+      "data_answer"
+     ]
+    }
+   },
+   "then": {
+    "choice": {
+     "value": "last_7d_vs_prev_7d"
+    }
+   }
+  },
+  {
+   "id": "cancelled-orders-this-week",
+   "area": "products",
+   "question": "Tuần này có bao nhiêu đơn bị hủy?",
+   "intents": [
+    {
+     "metric_phrase": "cancelled orders",
+     "time_phrase": "this week"
+    }
+   ],
+   "jev": {
+    "metric": "orders"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_has": "hủy",
+      "window": "05/10–07/10"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "no cancelled-orders figure in Chat: 'đơn hủy' answers the shop's confirmed orders (Tổng quan shows 'Đơn hủy sau xác nhận')"
+  },
+  {
+   "id": "sa09-best-and-worst-this-week",
+   "area": "multi",
+   "question": "Tuần này sản phẩm nào bán tốt nhất và sản phẩm nào giảm mạnh nhất so với tuần trước?",
+   "intents": [
+    {
+     "metric_phrase": "best selling product",
+     "time_phrase": "this week"
+    },
+    {
+     "metric_phrase": "product with the biggest decline",
+     "time_phrase": "this week compared with last week"
+    }
+   ],
+   "jev": [
+    {
+     "lookup": [
+      [
+       "top_products",
+       0.55
+      ],
+      [
+       "top_decliners",
+       0.4
+      ]
+     ],
+     "metric_named": 0.2,
+     "window": "this_week_vs_same_days_last_week"
+    },
+    {
+     "lookup": [
+      [
+       "top_decliners",
+       0.55
+      ],
+      [
+       "top_products",
+       0.4
+      ]
+     ],
+     "metric_named": 0.2,
+     "window": "this_week_vs_same_days_last_week"
+    }
+   ],
+   "expect": {
+    "stop": [
+     "data_answer",
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "kind": "top_products",
+      "window": "05/10–07/10"
+     },
+     {
+      "title_vi": "Sản phẩm giảm mạnh nhất (GMV)",
+      "window": "05/10–07/10"
+     }
+    ]
+   }
+  },
+  {
+   "id": "stock-running-out",
+   "area": "stock",
+   "question": "Sản phẩm nào sắp hết hàng?",
+   "intents": [
+    {
+     "metric_phrase": "stock running out",
+     "question_type": "status"
+    }
+   ],
+   "jev": {
+    "fits": 0.5,
+    "metric_named": 0.2
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "require": [
+     "Găng tay tự hủy sinh học STAHAUS"
+    ]
+   },
+   "status": "xfail",
+   "reason": "no stock reader in Chat: stock_events feed only the why-chains; a stock question has no lookup"
+  },
+  {
+   "id": "stock-one-product",
+   "area": "stock",
+   "question": "Găng tay còn bao nhiêu hàng?",
+   "intents": [
+    {
+     "metric_phrase": "stock left",
+     "product_phrase": "găng tay"
+    }
+   ],
+   "jev": {
+    "fits": 0.5,
+    "metric_named": 0.2
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "require": [
+     "Găng tay tự hủy sinh học STAHAUS"
+    ]
+   },
+   "status": "xfail",
+   "reason": "no stock reader in Chat: stock_events feed only the why-chains; a stock question has no lookup"
+  },
+  {
+   "id": "stock-noaccent",
+   "area": "stock",
+   "question": "sp nao het hang tuan nay",
+   "intents": [
+    {
+     "metric_phrase": "out of stock products",
+     "time_phrase": "this week"
+    }
+   ],
+   "jev": {
+    "fits": 0.5,
+    "metric_named": 0.2
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "require": [
+     "Găng tay tự hủy sinh học STAHAUS"
+    ]
+   },
+   "status": "xfail",
+   "reason": "no stock reader in Chat: stock_events feed only the why-chains; a stock question has no lookup"
+  },
+  {
+   "id": "sa14-card-pasted",
+   "area": "cards",
+   "question": "P1 · 8k / 179k Lợi nhuận đóng góp dự kiến (3 ngày): +8k hiện tại: 179k GMV dự kiến: +250k",
+   "intents": [
+    {
+     "question_type": "other",
+     "metric_phrase": "expected contribution profit and GMV of a card"
+    }
+   ],
+   "jev": {
+    "fits": 0.4
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "no_events": [
+     "unsupported"
+    ]
+   },
+   "status": "xfail",
+   "reason": "Session A #14: no card-explain path; a pasted card is question_type 'other' -> unsupported (should explain that card's inputs and arithmetic)"
+  },
+  {
+   "id": "sa15-card-pasted-explain",
+   "area": "cards",
+   "question": "P1 · 8k / 179k Lợi nhuận đóng góp dự kiến (3 ngày): +8k hiện tại: 179k GMV dự kiến: +250k giải thích các chỉ số này, cách tính chỉ số dựa vào đâu? căn cứ như thế nào?",
+   "intents": [
+    {
+     "question_type": "other",
+     "metric_phrase": "how the card's figures are calculated"
+    }
+   ],
+   "jev": {
+    "fits": 0.4
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "no_events": [
+     "unsupported"
+    ]
+   },
+   "status": "xfail",
+   "reason": "Session A #15: no card-explain path (unsupported); should give the card's inputs and arithmetic"
+  },
+  {
+   "id": "card-explain-by-code",
+   "area": "cards",
+   "question": "Thẻ JC-2610-0001 tính lợi nhuận dự kiến thế nào?",
+   "intents": [
+    {
+     "question_type": "other",
+     "metric_phrase": "how a card's expected profit is computed"
+    }
+   ],
+   "jev": {
+    "fits": 0.4
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "no_events": [
+     "unsupported"
+    ]
+   },
+   "status": "xfail",
+   "reason": "no card-explain path: a card code is not read (open_cards feeds only the card stage)"
+  },
+  {
+   "id": "forecast-month-gmv",
+   "area": "cards",
+   "question": "Dự báo GMV tháng này đạt bao nhiêu?",
+   "intents": [
+    {
+     "question_type": "other",
+     "metric_phrase": "forecast GMV",
+     "time_phrase": "this month"
+    }
+   ],
+   "jev": {
+    "fits": 0.45
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ]
+   },
+   "status": "xfail",
+   "reason": "no forecast reader in Chat (Kế hoạch's month forecast is not exposed)"
+  },
+  {
+   "id": "open-cards-list",
+   "area": "cards",
+   "question": "Đang có thẻ đề xuất nào chưa làm?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "open recommendation cards"
+    }
+   ],
+   "jev": {
+    "fits": 0.4,
+    "metric_named": 0.1
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ]
+   },
+   "status": "xfail",
+   "reason": "no open-cards lookup in Chat (open_cards feeds only the card stage)"
+  },
+  {
+   "id": "plan-next-week",
+   "area": "plan",
+   "question": "Kế hoạch tuần tới cho shop là gì?",
+   "intents": [
+    {
+     "question_type": "plan",
+     "needs_advice": true,
+     "goal": "plan_week",
+     "metric_phrase": null
+    }
+   ],
+   "jev": null,
+   "expect": {
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "advise",
+      "goal": "plan_week"
+     }
+    ],
+    "no_events": [
+     "unsupported"
+    ],
+    "max_jev_calls": 0
+   }
+  },
+  {
+   "id": "plan-priorities-noaccent",
+   "area": "plan",
+   "question": "nen uu tien lam gi truoc tuan nay",
+   "intents": [
+    {
+     "question_type": "plan",
+     "needs_advice": true,
+     "goal": "prioritise",
+     "metric_phrase": null
+    }
+   ],
+   "jev": null,
+   "expect": {
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "advise",
+      "goal": "prioritise"
+     }
+    ],
+    "no_events": [
+     "unsupported"
+    ],
+    "max_jev_calls": 0
+   }
+  },
+  {
+   "id": "sa12-what-to-do-next-week",
+   "area": "plan",
+   "question": "Dựa trên kết quả tuần này và tuần trước, tuần sau shop nên làm gì để tăng GMV và lợi nhuận? Ưu tiên 3 việc quan trọng nhất",
+   "intents": [
+    {
+     "question_type": "plan",
+     "needs_advice": true,
+     "goal": "prioritise",
+     "metric_phrase": null
+    }
+   ],
+   "jev": null,
+   "expect": {
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "advise",
+      "goal": "prioritise"
+     }
+    ],
+    "no_events": [
+     "unsupported"
+    ],
+    "max_jev_calls": 0
+   },
+   "note": "Session A #12: with the expected parse the advise route is taken; today's unsupported comes from the parser (checked in the advisor set)"
+  },
+  {
+   "id": "advice-ads-budget",
+   "area": "plan",
+   "question": "Có nên tăng ngân sách quảng cáo không?",
+   "intents": [
+    {
+     "question_type": "plan",
+     "needs_advice": true,
+     "goal": "ads",
+     "metric_phrase": null
+    }
+   ],
+   "jev": null,
+   "expect": {
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "advise",
+      "goal": "ads"
+     }
+    ],
+    "no_events": [
+     "unsupported"
+    ],
+    "max_jev_calls": 0
+   }
+  },
+  {
+   "id": "plan-month-target",
+   "area": "plan",
+   "question": "Tháng này shop có đạt mục tiêu GMV không?",
+   "intents": [
+    {
+     "metric_phrase": "GMV vs monthly target",
+     "time_phrase": "this month",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "require": [
+     "mục tiêu"
+    ]
+   },
+   "status": "xfail",
+   "reason": "no Kế hoạch (month target) reader in Chat: the target question answers the month's GMV without the target"
+  },
+  {
+   "id": "freshness",
+   "area": "freshness",
+   "question": "Số liệu đến ngày nào rồi?",
+   "intents": [
+    {
+     "metric_phrase": "data freshness"
+    }
+   ],
+   "jev": {
+    "fits": 0.5,
+    "metric_named": 0.1
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "require": [
+     "07/10"
+    ]
+   },
+   "status": "xfail",
+   "reason": "no freshness lookup: 'số liệu đến ngày nào' has no metric, so it asks which metric instead of naming the day"
+  },
+  {
+   "id": "freshness-noaccent",
+   "area": "freshness",
+   "question": "du lieu cap nhat toi hom nao",
+   "intents": [
+    {
+     "metric_phrase": "data freshness"
+    }
+   ],
+   "jev": {
+    "fits": 0.5,
+    "metric_named": 0.1
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "require": [
+     "07/10"
+    ]
+   },
+   "status": "xfail",
+   "reason": "no freshness lookup: 'số liệu đến ngày nào' has no metric, so it asks which metric instead of naming the day"
+  },
+  {
+   "id": "freshness-mixed",
+   "area": "freshness",
+   "question": "data mới nhất là ngày mấy?",
+   "intents": [
+    {
+     "metric_phrase": "data freshness"
+    }
+   ],
+   "jev": {
+    "fits": 0.5,
+    "metric_named": 0.1
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "require": [
+     "07/10"
+    ]
+   },
+   "status": "xfail",
+   "reason": "no freshness lookup: 'số liệu đến ngày nào' has no metric, so it asks which metric instead of naming the day"
+  },
+  {
+   "id": "freshness-line-on-answer",
+   "area": "freshness",
+   "question": "Đơn hàng hôm qua?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "orders",
+     "time_phrase": "yesterday",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders",
+    "window": "yesterday_vs_same_weekday"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "orders",
+      "window": "yesterday_vs_same_weekday"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "07/10",
+      "screen": "overview.orders",
+      "from": "2026-10-07",
+      "to": "2026-10-07"
+     }
+    ],
+    "require": [
+     "Số liệu đến hết 07/10"
+    ]
+   }
+  },
+  {
+   "id": "multi-five-asks-more",
+   "area": "multi",
+   "question": "Tuần trước GMV, số đơn, AOV, chi phí quảng cáo và ROAS?",
+   "intents": [
+    {
+     "metric_phrase": "GMV",
+     "time_phrase": "last week",
+     "metric_key": "gmv"
+    },
+    {
+     "metric_phrase": "orders",
+     "time_phrase": "last week",
+     "metric_key": "orders"
+    },
+    {
+     "metric_phrase": "AOV",
+     "time_phrase": "last week",
+     "metric_key": "aov"
+    },
+    {
+     "metric_phrase": "ad spend",
+     "time_phrase": "last week",
+     "metric_key": "cost_ads"
+    },
+    {
+     "metric_phrase": "ROAS",
+     "time_phrase": "last week",
+     "metric_key": "roas"
+    }
+   ],
+   "jev": [
+    {
+     "metric": "gmv",
+     "window": "last_full_week_vs_week_before"
+    },
+    {
+     "metric": "orders",
+     "window": "last_full_week_vs_week_before"
+    },
+    {
+     "metric": "aov",
+     "window": "last_full_week_vs_week_before"
+    },
+    {
+     "metric": "ads_spend",
+     "window": "last_full_week_vs_week_before"
+    },
+    {
+     "metric": "roas",
+     "window": "last_full_week_vs_week_before"
+    }
+   ],
+   "expect": {
+    "stop": [
+     "data_answer",
+     "data_answer",
+     "data_answer"
+    ],
+    "n_intent_blocks": 3,
+    "events": [
+     "more"
+    ],
+    "more_items": 2,
+    "answers": [
+     {
+      "screen": "overview.gmv",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     },
+     {
+      "screen": "overview.orders",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     },
+     {
+      "screen": "overview.aov",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     }
+    ]
+   },
+   "pg": true
+  },
+  {
+   "id": "multi-five-asks-more-vietnamese",
+   "area": "multi",
+   "question": "Tuần trước GMV, số đơn, AOV, chi phí quảng cáo và ROAS?",
+   "intents": [
+    {
+     "metric_phrase": "GMV",
+     "time_phrase": "last week",
+     "metric_key": "gmv"
+    },
+    {
+     "metric_phrase": "orders",
+     "time_phrase": "last week",
+     "metric_key": "orders"
+    },
+    {
+     "metric_phrase": "AOV",
+     "time_phrase": "last week",
+     "metric_key": "aov"
+    },
+    {
+     "metric_phrase": "ad spend",
+     "time_phrase": "last week",
+     "metric_key": "cost_ads"
+    },
+    {
+     "metric_phrase": "ROAS",
+     "time_phrase": "last week",
+     "metric_key": "roas"
+    }
+   ],
+   "jev": [
+    {
+     "metric": "gmv",
+     "window": "last_full_week_vs_week_before"
+    },
+    {
+     "metric": "orders",
+     "window": "last_full_week_vs_week_before"
+    },
+    {
+     "metric": "aov",
+     "window": "last_full_week_vs_week_before"
+    },
+    {
+     "metric": "ads_spend",
+     "window": "last_full_week_vs_week_before"
+    },
+    {
+     "metric": "roas",
+     "window": "last_full_week_vs_week_before"
+    }
+   ],
+   "expect": {
+    "events": [
+     "more"
+    ],
+    "more_items": 2,
+    "more_vietnamese": true
+   }
+  },
+  {
+   "id": "multi-four-asks-noaccent",
+   "area": "multi",
+   "question": "doanh thu, so don, luot xem va ctr 7 ngay qua",
+   "intents": [
+    {
+     "metric_phrase": "revenue",
+     "time_phrase": "last 7 days",
+     "metric_key": "gmv"
+    },
+    {
+     "metric_phrase": "orders",
+     "time_phrase": "last 7 days",
+     "metric_key": "orders"
+    },
+    {
+     "metric_phrase": "views",
+     "time_phrase": "last 7 days",
+     "metric_key": "views"
+    },
+    {
+     "metric_phrase": "CTR",
+     "time_phrase": "last 7 days",
+     "metric_key": "ctr"
+    }
+   ],
+   "jev": [
+    {
+     "metric": "gmv",
+     "window": "last_7d_vs_prev_7d"
+    },
+    {
+     "metric": "orders",
+     "window": "last_7d_vs_prev_7d"
+    },
+    {
+     "metric": "views",
+     "window": "last_7d_vs_prev_7d"
+    },
+    {
+     "metric": "ctr",
+     "window": "last_7d_vs_prev_7d"
+    }
+   ],
+   "expect": {
+    "stop": [
+     "data_answer",
+     "data_answer",
+     "data_answer"
+    ],
+    "n_intent_blocks": 3,
+    "more_items": 1,
+    "answers": [
+     {
+      "screen": "overview.gmv",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     },
+     {
+      "screen": "overview.orders",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     },
+     {
+      "screen": "overview.views",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "multi-three-asks-no-more",
+   "area": "multi",
+   "question": "Hôm qua doanh thu, số đơn và AOV?",
+   "intents": [
+    {
+     "metric_phrase": "revenue",
+     "time_phrase": "yesterday",
+     "metric_key": "gmv"
+    },
+    {
+     "metric_phrase": "orders",
+     "time_phrase": "yesterday",
+     "metric_key": "orders"
+    },
+    {
+     "metric_phrase": "AOV",
+     "time_phrase": "yesterday",
+     "metric_key": "aov"
+    }
+   ],
+   "jev": [
+    {
+     "metric": "gmv",
+     "window": "yesterday_vs_same_weekday"
+    },
+    {
+     "metric": "orders",
+     "window": "yesterday_vs_same_weekday"
+    },
+    {
+     "metric": "aov",
+     "window": "yesterday_vs_same_weekday"
+    }
+   ],
+   "expect": {
+    "stop": [
+     "data_answer",
+     "data_answer",
+     "data_answer"
+    ],
+    "n_intent_blocks": 3,
+    "no_events": [
+     "more"
+    ],
+    "answers": [
+     {
+      "screen": "overview.gmv",
+      "from": "2026-10-07",
+      "to": "2026-10-07"
+     },
+     {
+      "screen": "overview.orders",
+      "from": "2026-10-07",
+      "to": "2026-10-07"
+     },
+     {
+      "screen": "overview.aov",
+      "from": "2026-10-07",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "multi-two-asks",
+   "area": "multi",
+   "question": "GMV và số đơn tuần này?",
+   "intents": [
+    {
+     "metric_phrase": "GMV",
+     "time_phrase": "this week",
+     "metric_key": "gmv"
+    },
+    {
+     "metric_phrase": "orders",
+     "time_phrase": "this week",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": [
+    {
+     "metric": "gmv",
+     "window": "this_week_vs_same_days_last_week"
+    },
+    {
+     "metric": "orders",
+     "window": "this_week_vs_same_days_last_week"
+    }
+   ],
+   "expect": {
+    "stop": [
+     "data_answer",
+     "data_answer"
+    ],
+    "n_intent_blocks": 2,
+    "answers": [
+     {
+      "screen": "overview.gmv",
+      "from": "2026-10-05",
+      "to": "2026-10-07"
+     },
+     {
+      "screen": "overview.orders",
+      "from": "2026-10-05",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "id": "multi-what-and-why",
+   "area": "multi",
+   "question": "Sản phẩm nào giảm mạnh nhất tuần trước và vì sao?",
+   "intents": [
+    {
+     "metric_phrase": null,
+     "time_phrase": "last week",
+     "ranking": "decline"
+    },
+    {
+     "question_type": "why_changed",
+     "metric_phrase": "revenue",
+     "time_phrase": "last week",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": [
+    {
+     "metric": "gmv"
+    },
+    {
+     "mode": "why",
+     "metric": "gmv",
+     "window": "last_full_week_vs_week_before"
+    }
+   ],
+   "expect": {
+    "n_intent_blocks": 2,
+    "answers": [
+     {
+      "title_vi": "Sản phẩm giảm mạnh nhất (GMV)",
+      "window": "28/09–04/10"
+     }
+    ]
+   }
+  },
+  {
+   "id": "sa08-affiliate-orders-and-commission",
+   "area": "multi",
+   "question": "Tiếp thị liên kết tuần trước mang về bao nhiêu đơn và tốn bao nhiêu hoa hồng?",
+   "intents": [
+    {
+     "metric_phrase": "orders",
+     "source_phrase": "Tiếp thị liên kết",
+     "time_phrase": "last week",
+     "metric_key": "orders"
+    },
+    {
+     "metric_phrase": "commission cost",
+     "time_phrase": "last week"
+    }
+   ],
+   "jev": [
+    {
+     "metric": "orders",
+     "window": "last_full_week_vs_week_before"
+    },
+    {
+     "metric": [
+      [
+       "ads_spend",
+       0.45
+      ],
+      [
+       "cost_ratio",
+       0.4
+      ]
+     ],
+     "fits": 0.5,
+     "metric_named": 0.3,
+     "window": "last_full_week_vs_week_before"
+    }
+   ],
+   "expect": {
+    "stop": [
+     "data_answer",
+     "data_answer"
+    ],
+    "answers": [
+     {
+      "title_vi": "Đơn từ Tiếp thị liên kết",
+      "screen": "kol.orders",
+      "from": "2026-09-28",
+      "to": "2026-10-04"
+     },
+     {
+      "title_vi": "Hoa hồng Tiếp thị liên kết"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "Session A #8 (modelled parse): the 2nd intent ('commission cost') carries no source_phrase and no raw_text (multi-intent), so no affiliate entity; 'commission' names no metric, fits 0.5 < 0.7 -> needs_choice 'chain'"
+  },
+  {
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "id": "vague-how-is-shop",
+   "area": "ambiguous",
+   "question": "Shop dạo này sao rồi?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": null,
+     "time_phrase": "recently"
+    }
+   ],
+   "jev": {
+    "fits": 0.5,
+    "metric_named": 0.1,
+    "mode": "why"
+   },
+   "then": {
+    "choice": {
+     "value": "gmv_change"
+    }
+   },
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "needs_choice_item": "chain",
+    "no_events": [
+     "data_answer"
+    ],
+    "followup": {
+     "no_events": [
+      "needs_choice",
+      "unsupported"
+     ]
+    }
+   }
+  },
+  {
+   "id": "vague-why-down",
+   "area": "ambiguous",
+   "question": "Sao giảm vậy?",
+   "intents": [
+    {
+     "question_type": "why_changed",
+     "metric_phrase": null,
+     "claimed_direction": "down"
+    }
+   ],
+   "jev": {
+    "fits": 0.5,
+    "metric_named": 0.1,
+    "mode": "why"
+   },
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "needs_choice_item": "chain"
+   }
+  },
+  {
+   "id": "vague-noaccent",
+   "area": "ambiguous",
+   "question": "dao nay ban sao roi",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "sales"
+    }
+   ],
+   "jev": {
+    "fits": 0.5,
+    "metric_named": 0.2,
+    "mode": "why",
+    "window": [
+     [
+      "last_7d_vs_prev_7d",
+      0.4
+     ],
+     [
+      "last_30d_vs_prev_30d",
+      0.4
+     ]
+    ]
+   },
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "no_events": [
+     "data_answer"
+    ]
+   }
+  },
+  {
+   "id": "vague-which-number",
+   "area": "ambiguous",
+   "question": "Cho mình xem số liệu tuần trước",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "numbers",
+     "time_phrase": "last week"
+    }
+   ],
+   "jev": {
+    "metric_named": 0.1,
+    "fits": 0.75
+   },
+   "then": {
+    "choice": {
+     "value": "orders"
+    }
+   },
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "needs_choice_item": "metric",
+    "followup": {
+     "stop": [
+      "data_answer"
+     ],
+     "answers": [
+      {
+       "window": "28/09–04/10",
+       "screen": "overview.orders",
+       "from": "2026-09-28",
+       "to": "2026-10-04"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "refuse-competitor",
+   "area": "refuse",
+   "question": "Đối thủ của shop bán được bao nhiêu?",
+   "intents": [
+    {
+     "question_type": "other",
+     "metric_phrase": "competitor sales"
+    }
+   ],
+   "jev": {
+    "fits": 0.1,
+    "metric_named": 0.05
+   },
+   "expect": {
+    "stop": [
+     "unsupported"
+    ],
+    "events": [
+     "unsupported"
+    ],
+    "no_events": [
+     "data_answer"
+    ],
+    "no_numbers": true
+   }
+  },
+  {
+   "id": "refuse-write-description",
+   "area": "refuse",
+   "question": "Viết giúp mình mô tả sản phẩm găng tay",
+   "intents": [
+    {
+     "question_type": "other",
+     "metric_phrase": null,
+     "product_phrase": "găng tay"
+    }
+   ],
+   "jev": {
+    "fits": 0.1,
+    "metric_named": 0.05
+   },
+   "expect": {
+    "stop": [
+     "unsupported"
+    ],
+    "events": [
+     "unsupported"
+    ],
+    "no_events": [
+     "data_answer"
+    ],
+    "no_numbers": true
+   }
+  },
+  {
+   "id": "refuse-weather",
+   "area": "refuse",
+   "question": "thoi tiet hom nay the nao",
+   "intents": [
+    {
+     "question_type": "other",
+     "metric_phrase": null
+    }
+   ],
+   "jev": {
+    "fits": 0.1,
+    "metric_named": 0.05
+   },
+   "expect": {
+    "stop": [
+     "unsupported"
+    ],
+    "events": [
+     "unsupported"
+    ],
+    "no_events": [
+     "data_answer"
+    ],
+    "no_numbers": true
+   }
+  },
+  {
+   "id": "refuse-send-zalo",
+   "area": "refuse",
+   "question": "Gửi tin Zalo cho khách cũ giúp mình",
+   "intents": [
+    {
+     "question_type": "other",
+     "metric_phrase": null
+    }
+   ],
+   "jev": {
+    "fits": 0.1,
+    "metric_named": 0.05
+   },
+   "expect": {
+    "stop": [
+     "unsupported"
+    ],
+    "events": [
+     "unsupported"
+    ],
+    "no_events": [
+     "data_answer"
+    ],
+    "no_numbers": true
+   }
+  },
+  {
+   "id": "refuse-delete-product",
+   "area": "refuse",
+   "question": "Xóa sản phẩm nước rửa chén khỏi shop",
+   "intents": [
+    {
+     "question_type": "other",
+     "metric_phrase": null,
+     "product_phrase": "nước rửa chén"
+    }
+   ],
+   "jev": {
+    "fits": 0.1,
+    "metric_named": 0.05
+   },
+   "expect": {
+    "stop": [
+     "unsupported"
+    ],
+    "events": [
+     "unsupported"
+    ],
+    "no_events": [
+     "data_answer"
+    ],
+    "no_numbers": true
+   }
+  },
+  {
+   "id": "refuse-market-trend",
+   "area": "refuse",
+   "question": "Thị trường găng tay tháng này có hot không?",
+   "intents": [
+    {
+     "question_type": "other",
+     "metric_phrase": "market demand",
+     "time_phrase": "this month"
+    }
+   ],
+   "jev": {
+    "fits": 0.1,
+    "metric_named": 0.05
+   },
+   "expect": {
+    "stop": [
+     "unsupported"
+    ],
+    "events": [
+     "unsupported"
+    ],
+    "no_events": [
+     "data_answer"
+    ],
+    "no_numbers": true
+   }
+  },
+  {
+   "id": "refuse-tiktok-on-shopee",
+   "area": "refuse",
+   "question": "Doanh thu TikTok tuần trước?",
+   "intents": [
+    {
+     "question_type": "other",
+     "metric_phrase": "revenue",
+     "source_phrase": "TikTok",
+     "time_phrase": "last week"
+    }
+   ],
+   "jev": {
+    "fits": 0.2
+   },
+   "expect": {
+    "stop": [
+     "unsupported"
+    ],
+    "events": [
+     "unsupported"
+    ],
+    "no_events": [
+     "data_answer"
+    ]
+   }
+  },
+  {
+   "id": "tiktok-platform-gmv",
+   "area": "refuse",
+   "question": "GMV TikTok 7 ngày qua?",
+   "platform": "tiktok",
+   "intents": [
+    {
+     "metric_phrase": "GMV",
+     "time_phrase": "last 7 days",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv"
+   },
+   "expect": {
+    "stop": [
+     "data_missing"
+    ],
+    "no_events": [
+     "data_answer"
+    ],
+    "no_numbers": true
+   }
+  },
+  {
+   "id": "parse-failure-offers-templates",
+   "area": "refuse",
+   "question": "???",
+   "parse_fails": true,
+   "expect": {
+    "stop": [
+     "unsupported"
+    ],
+    "events": [
+     "unsupported"
+    ],
+    "no_events": [
+     "data_answer"
+    ]
+   }
+  },
+  {
+   "id": "refuse-metric-offer-named",
+   "area": "refuse",
+   "question": "Doanh thu của shop hàng xóm?",
+   "intents": [
+    {
+     "question_type": "other",
+     "metric_phrase": "revenue of another shop"
+    }
+   ],
+   "jev": {
+    "fits": 0.2
+   },
+   "expect": {
+    "stop": [
+     "unsupported"
+    ],
+    "require": [
+     "Juli có thể cho bạn xem GMV theo kỳ bạn chọn"
+    ]
+   }
+  },
+  {
+   "id": "followup-text-last-week",
+   "area": "thread",
+   "question": "Còn tuần trước thì sao?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": null,
+     "time_phrase": "last week"
+    }
+   ],
+   "jev": {
+    "metric_named": 0.1,
+    "fits": 0.6
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ]
+   },
+   "status": "xfail",
+   "reason": "no thread memory: AskRequest carries no earlier turn, so a follow-up without its metric asks which number"
+  },
+  {
+   "id": "followup-text-that-product",
+   "area": "thread",
+   "question": "Thế sản phẩm đó lợi nhuận bao nhiêu?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "profit",
+     "product_phrase": "sản phẩm đó",
+     "metric_key": "profit"
+    }
+   ],
+   "jev": {
+    "metric": "profit",
+    "scope": "product",
+    "product_named": 0.6
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ]
+   },
+   "status": "xfail",
+   "reason": "no thread memory: 'sản phẩm đó' refers to the previous answer's product, which the ask does not carry"
+  },
+  {
+   "id": "followup-choice-window",
+   "area": "thread",
+   "question": "đơn hàng",
+   "intents": [
+    {
+     "metric_phrase": "orders",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders",
+    "window": [
+     [
+      "last_7d_vs_prev_7d",
+      0.45
+     ],
+     [
+      "last_full_week_vs_week_before",
+      0.4
+     ]
+    ]
+   },
+   "then": {
+    "choice": {
+     "value": "last_full_week_vs_week_before"
+    }
+   },
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "needs_choice_item": "window",
+    "followup": {
+     "stop": [
+      "data_answer"
+     ],
+     "answers": [
+      {
+       "window": "28/09–04/10",
+       "screen": "overview.orders",
+       "from": "2026-09-28",
+       "to": "2026-10-04"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "followup-choice-product",
+   "area": "thread",
+   "question": "tự hủy tuần trước bán bao nhiêu đơn",
+   "intents": [
+    {
+     "metric_phrase": "orders",
+     "time_phrase": "last week",
+     "product_phrase": "tự hủy",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders",
+    "scope": "product",
+    "product_named": 0.9
+   },
+   "jev_product": {
+    "pick": [
+     [
+      "1001",
+      0.5
+     ],
+     [
+      "1003",
+      0.45
+     ]
+    ]
+   },
+   "then": {
+    "choice": {
+     "value": "1001"
+    }
+   },
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "needs_choice_item": "product",
+    "followup": {
+     "stop": [
+      "data_answer"
+     ],
+     "answers": [
+      {
+       "window": "28/09–04/10"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "id": "followup-choice-chain",
+   "area": "thread",
+   "question": "Vì sao tuần trước kém vậy?",
+   "intents": [
+    {
+     "question_type": "why_changed",
+     "metric_phrase": null,
+     "time_phrase": "last week",
+     "claimed_direction": "down"
+    }
+   ],
+   "jev": {
+    "fits": 0.5,
+    "metric_named": 0.1,
+    "mode": "why"
+   },
+   "then": {
+    "choice": {
+     "value": "orders_change"
+    }
+   },
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "needs_choice_item": "chain",
+    "followup": {
+     "no_events": [
+      "needs_choice",
+      "unsupported"
+     ]
+    }
+   }
+  },
+  {
+   "id": "template-improve_gmv",
+   "area": "templates",
+   "question": "[template improve_gmv]",
+   "template": "improve_gmv",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "sa-template-improve_gmv-router-down",
+   "area": "templates",
+   "question": "[template improve_gmv, router down]",
+   "template": "improve_gmv",
+   "jev_down": true,
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "template-improve_margin",
+   "area": "templates",
+   "question": "[template improve_margin]",
+   "template": "improve_margin",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "sa-template-improve_margin-router-down",
+   "area": "templates",
+   "question": "[template improve_margin, router down]",
+   "template": "improve_margin",
+   "jev_down": true,
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "template-improve_conversion",
+   "area": "templates",
+   "question": "[template improve_conversion]",
+   "template": "improve_conversion",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "sa-template-improve_conversion-router-down",
+   "area": "templates",
+   "question": "[template improve_conversion, router down]",
+   "template": "improve_conversion",
+   "jev_down": true,
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "template-reduce_cost",
+   "area": "templates",
+   "question": "[template reduce_cost]",
+   "template": "reduce_cost",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "sa-template-reduce_cost-router-down",
+   "area": "templates",
+   "question": "[template reduce_cost, router down]",
+   "template": "reduce_cost",
+   "jev_down": true,
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "template-increase_visibility",
+   "area": "templates",
+   "question": "[template increase_visibility]",
+   "template": "increase_visibility",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "sa-template-increase_visibility-router-down",
+   "area": "templates",
+   "question": "[template increase_visibility, router down]",
+   "template": "increase_visibility",
+   "jev_down": true,
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "expect": {
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "sa13-create-voucher-two-days",
+   "area": "create",
+   "question": "Tôi muốn lập voucher cho ngày 24 và ngày 25 tháng 11.",
+   "intents": [
+    {
+     "question_type": "create_card",
+     "card": {
+      "card_type": "voucher",
+      "from_date": "2026-11-24",
+      "to_date": "2026-11-25"
+     }
+    }
+   ],
+   "jev": null,
+   "expect": {
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "create",
+      "card_type": "voucher"
+     }
+    ],
+    "no_events": [
+     "unsupported"
+    ]
+   },
+   "note": "Session A #13: with the expected parse the create path is taken; today's unsupported comes from the parser (advisor set)"
+  },
+  {
+   "id": "create-card-type-asked",
+   "area": "create",
+   "question": "Tạo giúp mình một thẻ khuyến mãi",
+   "intents": [
+    {
+     "question_type": "create_card"
+    }
+   ],
+   "jev": null,
+   "expect": {
+    "stop": [
+     "needs_choice"
+    ],
+    "require": [
+     "Bạn muốn tạo loại thẻ nào?"
+    ]
+   }
+  },
+  {
+   "id": "create-flash-sale-noaccent",
+   "area": "create",
+   "question": "tao flash sale cho gang tay ngay 10/10",
+   "intents": [
+    {
+     "question_type": "create_card",
+     "product_phrase": "gang tay",
+     "card": {
+      "card_type": "flash_sale",
+      "from_date": "2026-10-10",
+      "to_date": "2026-10-10"
+     }
+    }
+   ],
+   "jev": null,
+   "expect": {
+    "routes": [
+     {
+      "mode": "create",
+      "card_type": "flash_sale"
+     }
+    ],
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "why-orders-last-week",
+   "area": "why",
+   "question": "Vì sao đơn hàng tuần trước giảm?",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "intents": [
+    {
+     "question_type": "why_changed",
+     "metric_phrase": "orders",
+     "time_phrase": "last week",
+     "metric_key": "orders",
+     "claimed_direction": "down"
+    }
+   ],
+   "jev": {
+    "mode": "why",
+    "chain": "orders_change"
+   },
+   "expect": {
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "why",
+      "chain": "orders_change"
+     }
+    ],
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "why-gmv-7d",
+   "area": "why",
+   "question": "Tại sao doanh thu 7 ngày qua giảm?",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "intents": [
+    {
+     "question_type": "why_changed",
+     "metric_phrase": "revenue",
+     "time_phrase": "last 7 days",
+     "metric_key": "gmv",
+     "claimed_direction": "down"
+    }
+   ],
+   "jev": {
+    "mode": "why",
+    "chain": "gmv_change"
+   },
+   "expect": {
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "why",
+      "chain": "gmv_change"
+     }
+    ],
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "why-gmv-noaccent",
+   "area": "why",
+   "question": "vi sao doanh thu giam 7 ngay qua",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "intents": [
+    {
+     "question_type": "why_changed",
+     "metric_phrase": "revenue",
+     "time_phrase": "last 7 days",
+     "metric_key": "gmv",
+     "claimed_direction": "down"
+    }
+   ],
+   "jev": {
+    "mode": "why",
+    "chain": "gmv_change"
+   },
+   "expect": {
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "why",
+      "chain": "gmv_change"
+     }
+    ],
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "why-ctr-7d",
+   "area": "why",
+   "question": "Vì sao CTR 7 ngày qua thấp?",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "intents": [
+    {
+     "question_type": "why_changed",
+     "metric_phrase": "CTR",
+     "time_phrase": "last 7 days",
+     "metric_key": "ctr",
+     "claimed_direction": "down"
+    }
+   ],
+   "jev": {
+    "mode": "why",
+    "chain": "ctr_change"
+   },
+   "expect": {
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "why",
+      "chain": "ctr_change"
+     }
+    ],
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "why-ctor-this-week",
+   "area": "why",
+   "question": "Tại sao tỷ lệ chuyển đổi tuần này giảm?",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "intents": [
+    {
+     "question_type": "why_changed",
+     "metric_phrase": "conversion",
+     "time_phrase": "this week",
+     "metric_key": "ctor",
+     "claimed_direction": "down"
+    }
+   ],
+   "jev": {
+    "mode": "why",
+    "chain": "ctor_change"
+   },
+   "expect": {
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "why",
+      "chain": "ctor_change"
+     }
+    ],
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "why-profit-7d",
+   "area": "why",
+   "question": "Vì sao lợi nhuận 7 ngày qua giảm?",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "intents": [
+    {
+     "question_type": "why_changed",
+     "metric_phrase": "profit",
+     "time_phrase": "last 7 days",
+     "metric_key": "profit",
+     "claimed_direction": "down"
+    }
+   ],
+   "jev": {
+    "mode": "why",
+    "chain": "profit_change"
+   },
+   "expect": {
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "why",
+      "chain": "profit_change"
+     }
+    ],
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "why-ads-7d",
+   "area": "why",
+   "question": "Sao chi phí quảng cáo 7 ngày qua tăng?",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "intents": [
+    {
+     "question_type": "why_changed",
+     "metric_phrase": "ad spend",
+     "time_phrase": "last 7 days",
+     "metric_key": "cost_ads",
+     "claimed_direction": "down"
+    }
+   ],
+   "jev": {
+    "mode": "why",
+    "chain": "ads_change"
+   },
+   "expect": {
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "why",
+      "chain": "ads_change"
+     }
+    ],
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "why-roas-mixed",
+   "area": "why",
+   "question": "why ROAS tuần này thấp vậy",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "intents": [
+    {
+     "question_type": "why_changed",
+     "metric_phrase": "ROAS",
+     "time_phrase": "this week",
+     "metric_key": "roas",
+     "claimed_direction": "down"
+    }
+   ],
+   "jev": {
+    "mode": "why",
+    "chain": "ads_change"
+   },
+   "expect": {
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "why",
+      "chain": "ads_change"
+     }
+    ],
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "why-views-7d",
+   "area": "why",
+   "question": "Lượt xem 7 ngày qua giảm vì sao?",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "intents": [
+    {
+     "question_type": "why_changed",
+     "metric_phrase": "views",
+     "time_phrase": "last 7 days",
+     "metric_key": "views",
+     "claimed_direction": "down"
+    }
+   ],
+   "jev": {
+    "mode": "why",
+    "chain": "ctr_change"
+   },
+   "expect": {
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "why",
+      "chain": "ctr_change"
+     }
+    ],
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "why-aov-7d",
+   "area": "why",
+   "question": "Vì sao AOV 7 ngày qua giảm?",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "intents": [
+    {
+     "question_type": "why_changed",
+     "metric_phrase": "AOV",
+     "time_phrase": "last 7 days",
+     "metric_key": "aov",
+     "claimed_direction": "down"
+    }
+   ],
+   "jev": {
+    "mode": "why",
+    "chain": "gmv_change"
+   },
+   "expect": {
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "why",
+      "chain": "gmv_change"
+     }
+    ],
+    "no_events": [
+     "unsupported",
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "why-orders-no-internal-keys",
+   "area": "why",
+   "question": "Vì sao đơn tuần trước giảm vậy?",
+   "intents": [
+    {
+     "question_type": "why_changed",
+     "metric_phrase": "orders",
+     "time_phrase": "last week",
+     "metric_key": "orders",
+     "claimed_direction": "down"
+    }
+   ],
+   "jev": {
+    "mode": "why",
+    "chain": "orders_change"
+   },
+   "expect": {
+    "stop": [
+     "data_missing"
+    ],
+    "events": [
+     "path"
+    ]
+   },
+   "status": "xfail",
+   "reason": "the chain's fallback text prints internal keys (e.g. 'coverage_orders: 0 → 1') when the comparison window has no rows"
+  },
+  {
+   "id": "why-weekly-template-no-router",
+   "area": "why",
+   "question": "[template improve_gmv, no parse]",
+   "template": "improve_gmv",
+   "writer": "Đang tìm hiểu: nguyên nhân.\nKỳ này chưa đủ số liệu để tìm nguyên nhân.",
+   "expect": {
+    "no_events": [
+     "unsupported"
+    ],
+    "max_jev_calls": 0
+   }
+  },
+  {
+   "id": "gmv-7d-before-matches-screen",
+   "area": "periods",
+   "question": "GMV 7 ngày qua so với 7 ngày trước đó?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "GMV",
+     "time_phrase": "last 7 days",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.gmv",
+      "from": "2026-10-01",
+      "to": "2026-10-07",
+      "before_screen": "overview_prev.gmv"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "the sale-aware baseline moves the comparison window off a sale day (25/09) to a window with no rows (17/09–23/09 / 31/08–06/09), so Chat shows 'chưa có dữ liệu' / '–' while Tổng quan compares with the adjacent window"
+  },
+  {
+   "id": "orders-7d-before-matches-screen",
+   "area": "orders",
+   "question": "Đơn 7 ngày qua so với tuần trước đó thế nào?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "orders",
+     "time_phrase": "last 7 days",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders",
+    "window": "last_7d_vs_prev_7d"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "orders",
+      "window": "last_7d_vs_prev_7d"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.orders",
+      "from": "2026-10-01",
+      "to": "2026-10-07",
+      "before_screen": "overview_prev.orders"
+     }
+    ]
+   },
+   "status": "xfail",
+   "reason": "the sale-aware baseline moves the comparison window off a sale day (25/09) to a window with no rows (17/09–23/09 / 31/08–06/09), so Chat shows 'chưa có dữ liệu' / '–' while Tổng quan compares with the adjacent window"
+  },
+  {
+   "id": "cost-ratio-lookup-7d",
+   "area": "profit",
+   "question": "Tổng chi phí chiếm bao nhiêu % doanh thu 7 ngày qua?",
+   "intents": [
+    {
+     "metric_phrase": "total cost as a share of net revenue",
+     "time_phrase": "last 7 days",
+     "metric_key": "cost_total_pct"
+    }
+   ],
+   "jev": {
+    "metric": "cost_ratio"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "no_events": [
+     "error"
+    ]
+   }
+  },
+  {
+   "id": "grid-gmv-yesterday",
+   "area": "grid",
+   "question": "doanh số hôm qua?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "sales value",
+     "time_phrase": "yesterday",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "yesterday_vs_same_weekday"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv",
+      "window": "yesterday_vs_same_weekday"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "07/10",
+      "screen": "overview.gmv",
+      "from": "2026-10-07",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-gmv-this-month",
+   "area": "grid",
+   "question": "doanh số tháng này?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "sales value",
+     "time_phrase": "this month",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "mtd_vs_same_days_last_month"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv",
+      "window": "mtd_vs_same_days_last_month"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.gmv",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-gmv-last-month",
+   "area": "grid",
+   "question": "doanh số tháng trước?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "sales value",
+     "time_phrase": "last month",
+     "metric_key": "gmv"
+    }
+   ],
+   "jev": {
+    "metric": "gmv",
+    "window": "last_month_vs_month_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "gmv",
+      "window": "last_month_vs_month_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/09–30/09",
+      "screen": "overview.gmv",
+      "from": "2026-09-01",
+      "to": "2026-09-30"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-orders-yesterday",
+   "area": "grid",
+   "question": "đơn hôm qua?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "orders",
+     "time_phrase": "yesterday",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders",
+    "window": "yesterday_vs_same_weekday"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "orders",
+      "window": "yesterday_vs_same_weekday"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "07/10",
+      "screen": "overview.orders",
+      "from": "2026-10-07",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-orders-this-month",
+   "area": "grid",
+   "question": "đơn tháng này?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "orders",
+     "time_phrase": "this month",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders",
+    "window": "mtd_vs_same_days_last_month"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "orders",
+      "window": "mtd_vs_same_days_last_month"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.orders",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-orders-last-month",
+   "area": "grid",
+   "question": "đơn tháng trước?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "orders",
+     "time_phrase": "last month",
+     "metric_key": "orders"
+    }
+   ],
+   "jev": {
+    "metric": "orders",
+    "window": "last_month_vs_month_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "orders",
+      "window": "last_month_vs_month_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/09–30/09",
+      "screen": "overview.orders",
+      "from": "2026-09-01",
+      "to": "2026-09-30"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-views-yesterday",
+   "area": "grid",
+   "question": "lượt xem hôm qua?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "views",
+     "time_phrase": "yesterday",
+     "metric_key": "views"
+    }
+   ],
+   "jev": {
+    "metric": "views",
+    "window": "yesterday_vs_same_weekday"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "views",
+      "window": "yesterday_vs_same_weekday"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "07/10",
+      "screen": "overview.views",
+      "from": "2026-10-07",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-views-this-month",
+   "area": "grid",
+   "question": "lượt xem tháng này?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "views",
+     "time_phrase": "this month",
+     "metric_key": "views"
+    }
+   ],
+   "jev": {
+    "metric": "views",
+    "window": "mtd_vs_same_days_last_month"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "views",
+      "window": "mtd_vs_same_days_last_month"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.views",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-views-last-month",
+   "area": "grid",
+   "question": "lượt xem tháng trước?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "views",
+     "time_phrase": "last month",
+     "metric_key": "views"
+    }
+   ],
+   "jev": {
+    "metric": "views",
+    "window": "last_month_vs_month_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "views",
+      "window": "last_month_vs_month_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/09–30/09",
+      "screen": "overview.views",
+      "from": "2026-09-01",
+      "to": "2026-09-30"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-ctr-yesterday",
+   "area": "grid",
+   "question": "CTR hôm qua?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "CTR",
+     "time_phrase": "yesterday",
+     "metric_key": "ctr"
+    }
+   ],
+   "jev": {
+    "metric": "ctr",
+    "window": "yesterday_vs_same_weekday"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "ctr",
+      "window": "yesterday_vs_same_weekday"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "07/10",
+      "screen": "overview.ctr",
+      "from": "2026-10-07",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-ctr-this-month",
+   "area": "grid",
+   "question": "CTR tháng này?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "CTR",
+     "time_phrase": "this month",
+     "metric_key": "ctr"
+    }
+   ],
+   "jev": {
+    "metric": "ctr",
+    "window": "mtd_vs_same_days_last_month"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "ctr",
+      "window": "mtd_vs_same_days_last_month"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.ctr",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-ctr-last-month",
+   "area": "grid",
+   "question": "CTR tháng trước?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "CTR",
+     "time_phrase": "last month",
+     "metric_key": "ctr"
+    }
+   ],
+   "jev": {
+    "metric": "ctr",
+    "window": "last_month_vs_month_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "ctr",
+      "window": "last_month_vs_month_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/09–30/09",
+      "screen": "overview.ctr",
+      "from": "2026-09-01",
+      "to": "2026-09-30"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-ads-spend-yesterday",
+   "area": "grid",
+   "question": "chi phí QC hôm qua?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "ad spend",
+     "time_phrase": "yesterday",
+     "metric_key": "cost_ads"
+    }
+   ],
+   "jev": {
+    "metric": "ads_spend",
+    "window": "yesterday_vs_same_weekday"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "ads_spend",
+      "window": "yesterday_vs_same_weekday"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "07/10",
+      "screen": "overview.ad_spend",
+      "from": "2026-10-07",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-ads-spend-this-month",
+   "area": "grid",
+   "question": "chi phí QC tháng này?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "ad spend",
+     "time_phrase": "this month",
+     "metric_key": "cost_ads"
+    }
+   ],
+   "jev": {
+    "metric": "ads_spend",
+    "window": "mtd_vs_same_days_last_month"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "ads_spend",
+      "window": "mtd_vs_same_days_last_month"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.ad_spend",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-ads-spend-last-month",
+   "area": "grid",
+   "question": "chi phí QC tháng trước?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "ad spend",
+     "time_phrase": "last month",
+     "metric_key": "cost_ads"
+    }
+   ],
+   "jev": {
+    "metric": "ads_spend",
+    "window": "last_month_vs_month_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "ads_spend",
+      "window": "last_month_vs_month_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/09–30/09",
+      "screen": "overview.ad_spend",
+      "from": "2026-09-01",
+      "to": "2026-09-30"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-aov-yesterday",
+   "area": "grid",
+   "question": "AOV hôm qua?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "AOV",
+     "time_phrase": "yesterday",
+     "metric_key": "aov"
+    }
+   ],
+   "jev": {
+    "metric": "aov",
+    "window": "yesterday_vs_same_weekday"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "aov",
+      "window": "yesterday_vs_same_weekday"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "07/10",
+      "screen": "overview.aov",
+      "from": "2026-10-07",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-aov-this-month",
+   "area": "grid",
+   "question": "AOV tháng này?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "AOV",
+     "time_phrase": "this month",
+     "metric_key": "aov"
+    }
+   ],
+   "jev": {
+    "metric": "aov",
+    "window": "mtd_vs_same_days_last_month"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "aov",
+      "window": "mtd_vs_same_days_last_month"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/10–07/10",
+      "screen": "overview.aov",
+      "from": "2026-10-01",
+      "to": "2026-10-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "grid-aov-last-month",
+   "area": "grid",
+   "question": "AOV tháng trước?",
+   "intents": [
+    {
+     "question_type": "status",
+     "metric_phrase": "AOV",
+     "time_phrase": "last month",
+     "metric_key": "aov"
+    }
+   ],
+   "jev": {
+    "metric": "aov",
+    "window": "last_month_vs_month_before"
+   },
+   "expect": {
+    "stop": [
+     "data_answer"
+    ],
+    "routes": [
+     {
+      "outcome": "go",
+      "mode": "lookup",
+      "metric": "aov",
+      "window": "last_month_vs_month_before"
+     }
+    ],
+    "answers": [
+     {
+      "kind": "metric_total",
+      "window": "01/09–30/09",
+      "screen": "overview.aov",
+      "from": "2026-09-01",
+      "to": "2026-09-30"
+     }
+    ]
+   }
+  }
+ ]
+}

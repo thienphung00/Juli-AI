@@ -7,7 +7,7 @@ from decimal import Decimal as D
 from types import SimpleNamespace
 
 from juli_backend.services.shopee_builder import specs as sp
-from juli_backend.services.shopee_builder.engine_families import adapters
+from juli_backend.services.shopee_builder.engine_families import adapters, common
 from juli_backend.services.shopee_profit.order_profit import OrderLine
 
 
@@ -36,7 +36,8 @@ def test_voucher_facts_count_existing_qualifying_orders():
     assert f.qualifying_share == D("0.5") and f.below_share == D("0.5")
     assert f.aov_now == D(100_000)
     assert f.raise_gap_per_order == D(25_000)
-    assert f.per_use == D(15_000)  # 10 % of 150.000 capped at 15.000
+    # owner #116: the cap per order -- o2 100.000 -> 10.000, o4 200.000 -> 15.000 (capped)
+    assert f.per_use == D(12_500)
     assert f.profit_per_order == D(20_000)
 
 
@@ -117,16 +118,18 @@ def _voucher_spec():
 
 
 def test_takeup_measured_from_the_shops_own_order_lines():
-    # 40 orders over the minimum, 10 carry a shop voucher -> 25 % take-up, not 100 %
+    # 80 orders over the minimum, 20 carry a shop voucher -> 25 % take-up, not 100 %
     from juli_backend.services.shopee_builder.engine_families import families
 
-    lines = _shop(40, 10, 50, voucher_on_high=10)
+    lines = _shop(80, 10, 70, voucher_on_high=20)
     f = adapters.voucher_facts(_voucher_spec(), fake_env(lines))
-    assert f.usage_rate == D("0.25")
+    assert f.usage_rate == D("0.25") and f.takeup_basis == "measured"
     opt = families.voucher_option(_voucher_spec(), f)
-    use_mid = opt.offers[0].use_share.p50
-    assert use_mid > f.qualifying_share * D("0.25") and use_mid < f.qualifying_share
-    assert f.qualifying_share == D("0.4")
+    offer = opt.offers[0]
+    assert offer.use_share.p50 == f.qualifying_share * D("0.25")
+    # the near orders that move up always use it (owner #116): on top, never × u
+    assert offer.upgrade is not None and offer.upgrade.share.p50 == D("0.2") * f.near_share
+    assert f.qualifying_share == D("0.5")
 
 
 def test_cost_scales_with_qualifying_share_not_all_orders():
@@ -138,18 +141,20 @@ def test_cost_scales_with_qualifying_share_not_all_orders():
     many = families.voucher_option(
         _voucher_spec(), adapters.voucher_facts(_voucher_spec(), fake_env(_shop(60, 0, 40)))
     )
-    assert few.offers[0].use_share.p50 == D("0.1")
-    assert many.offers[0].use_share.p50 == D("0.6")
+    # no voucher orders: the labelled take-up prior, never 1 (owner #116)
+    assert few.offers[0].use_share.p50 == D("0.1") * common.TAKEUP_PRIOR
+    assert many.offers[0].use_share.p50 == D("0.6") * common.TAKEUP_PRIOR
 
 
 def test_no_near_threshold_orders_means_no_reach():
     from juli_backend.services.shopee_builder.engine_families import families
 
     f = adapters.voucher_facts(_voucher_spec(), fake_env(_shop(30, 0, 70)))
-    assert f.near_share == D(0) and f.reach.p90 == D(0)
+    assert f.near_share == D(0)
     opt = families.voucher_option(_voucher_spec(), f)
-    # the use share stays at today's qualifying share: no order is moved up
-    assert opt.offers[0].use_share.p90 == f.qualifying_share
+    # the use share stays at today's qualifying orders × take-up: no order is moved up
+    assert opt.offers[0].upgrade is None
+    assert opt.offers[0].use_share.p90 == f.qualifying_share * f.usage_rate
 
 
 def test_usage_limit_caps_the_cost():

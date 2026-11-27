@@ -64,7 +64,9 @@ if TYPE_CHECKING:
 KEY = "result"
 META_RESULTS = "results"
 AT_APPROVAL = "result_at_approval"
-RESULT_SCHEMA = "card-result/1"
+#: bump = every stored result is recomputed by the refresh job (the start-up / daily job), the
+#: cards themselves are not re-issued; until then the stored one keeps showing
+RESULT_SCHEMA = "card-result/2"  # F1 / F2: hiện tại = the last 30 days, forecast/2
 NOT_ESTIMABLE_TEXT = "Chưa ước tính được"
 #: C1: estimable, but the expected change is smaller than the metric's normal swing (F5)
 WITHIN_NOISE_TEXT = "Trong biên dao động"
@@ -78,6 +80,8 @@ NON_TERMINAL = (
     STATUS_APPROVED,
     STATUS_EXECUTED,
 )
+#: Statuses of a card nobody approved yet (Chat reads its stored forecast).
+OPEN = (STATUS_DRAFT, STATUS_SENT, STATUS_CHANGES_REQUESTED)
 #: Statuses whose approval-time result is kept before any recomputation.
 APPROVED_LIKE = (STATUS_APPROVED, STATUS_EXECUTED)
 COLUMNS = (("p10", "low"), ("p50", "likely"), ("p90", "high"))
@@ -129,9 +133,28 @@ def core_of(r: OptionResult) -> dict[str, Any]:
         "likely": _scenario_core(r.likely),
         "high": _scenario_core(r.high),
         "cost_total": _s(r.cost_total),
+        # #78 / #87: the offers the cost is made of (``option_of`` reads them back)
+        "offers": [
+            {
+                "label": o.label,
+                "expected_uses": _s(o.expected_uses),
+                "per_use": _s(o.per_use),
+                "total": _s(o.total),
+                "max_discount": None
+                if o.max_discount is None
+                else {
+                    "cap": _s(o.max_discount.cap),
+                    "binding_orders": o.max_discount.binding_orders,
+                    "qualifying_orders": o.max_discount.qualifying_orders,
+                },
+            }
+            for o in r.offers
+        ],
         "break_even_orders": _s(r.break_even_orders),
         "break_even_aov": _s(r.break_even_aov),
         "notes": list(r.notes),
+        "days_with_data": r.days_with_data,
+        "window_days": r.window_days,
         "margin_basis": None
         if r.margin_basis is None
         else {
@@ -169,9 +192,21 @@ def _scenario_of(raw: Mapping[str, Any] | None) -> Scenario | None:
     )
 
 
+def _max_discount_of(raw: Mapping[str, Any] | None) -> Any:
+    from juli_backend.services.shopee_builder.engine.contract import MaxDiscount
+
+    if not raw or raw.get("cap") is None:
+        return None
+    return MaxDiscount(
+        cap=Decimal(str(raw["cap"])),
+        binding_orders=int(raw.get("binding_orders") or 0),
+        qualifying_orders=int(raw.get("qualifying_orders") or 0),
+    )
+
+
 def option_of(core: Mapping[str, Any]) -> OptionResult:
     """The ``OptionResult`` a stored ``core`` was taken from (scenarios, days, cost, basis)."""
-    from juli_backend.services.shopee_builder.engine.contract import OptionResult
+    from juli_backend.services.shopee_builder.engine.contract import OfferLine, OptionResult
 
     before = _scenario_of(core["before"])
     assert before is not None
@@ -193,6 +228,18 @@ def option_of(core: Mapping[str, Any]) -> OptionResult:
         break_even_aov=_d(core.get("break_even_aov")),
         notes=tuple(core.get("notes") or ()),
         margin_basis=_basis_of(core.get("margin_basis")),
+        days_with_data=int(core.get("days_with_data") or 0),
+        window_days=int(core.get("window_days") or 0),
+        offers=tuple(
+            OfferLine(
+                label=str(o.get("label") or ""),
+                expected_uses=_d(o.get("expected_uses")) or Decimal(0),
+                per_use=_d(o.get("per_use")) or Decimal(0),
+                total=_d(o.get("total")) or Decimal(0),
+                max_discount=_max_discount_of(o.get("max_discount")),
+            )
+            for o in core.get("offers") or ()
+        ),
     )
 
 
@@ -318,6 +365,7 @@ def apply(card: dict[str, Any], meta: Mapping[str, Any] | None) -> dict[str, Any
         card[AT_APPROVAL] = meta[AT_APPROVAL]
     if not stored:
         return card
+    stored = _with_original_forecast(stored, card.get(AT_APPROVAL))
     vlist = card.get("versions")
     if vlist:
         for v in vlist:
@@ -331,6 +379,18 @@ def apply(card: dict[str, Any], meta: Mapping[str, Any] | None) -> dict[str, Any
         _lay_forecast(card, stored["1"])
         align_spend(card, stored["1"])
     return card
+
+
+def _with_original_forecast(
+    stored: Mapping[str, Any], approved: Mapping[str, Any] | None
+) -> Mapping[str, Any]:
+    """F2: an approved card shows the forecast it was approved with (the approved version's
+    ``forecast`` and its data day), whatever a later recomputation says."""
+    n = str((approved or {}).get("version") or 1)
+    if not approved or not approved.get("forecast") or not stored.get(n):
+        return stored
+    keep = {k: approved.get(k) for k in ("forecast", "data_through")}
+    return {**stored, n: {**stored[n], **keep}}
 
 
 def _lay_forecast(row: dict[str, Any], block: Mapping[str, Any]) -> None:

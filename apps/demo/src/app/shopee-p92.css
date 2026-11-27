@@ -1083,6 +1083,11 @@ button.p2-tab {
 .p3-rows { width: 100%; border-collapse: collapse; }
 .p3-rows td { padding: 6px 0; border-top: 1px solid var(--qd-line, #ececf0); font-size: 13px; }
 .p3-rows td:last-child { text-align: right; font-weight: 600; }
+.p3-numbers-btn { margin: 4px 0 8px; padding: 4px 10px; border: 1px solid var(--qd-line, #ececf0); border-radius: 8px; background: transparent; font: inherit; font-size: 12px; cursor: pointer; }
+.p3-numbers { display: grid; gap: 4px; margin: 0 0 12px; font-size: 13px; }
+.p3-numbers__title { font-size: 12px; color: var(--qd-muted, #71717a); }
+.p3-numbers__row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-top: 1px solid var(--qd-line, #ececf0); }
+.p3-numbers__row span:last-child { font-weight: 600; text-align: right; }
 .p4-bars__title { font-size: 12px; color: var(--qd-muted, #71717a); margin-bottom: 8px; }
 .p4-bar { display: grid; grid-template-columns: 200px minmax(0, 1fr) 140px; gap: 12px; align-items: center; margin: 6px 0; }
 .p4-bar__track { position: relative; height: 24px; }

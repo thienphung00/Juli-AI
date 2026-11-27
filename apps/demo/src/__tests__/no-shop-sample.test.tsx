@@ -28,7 +28,7 @@ await seedShopPlatform("shop-1", "tiktok");
 /**
  * P13 (owner, 2026-10-10): a signed-in seller with no TikTok Shop connected
  * sees the sample (the same cosmetics shop on Trang chủ, Phân tích and
- * Quyết định) under "Bạn đang xem dữ liệu mẫu · Kết nối TikTok Shop ›",
+ * Quyết định) under "Bạn đang xem dữ liệu mẫu · Kết nối shop ›",
  * with no request; Home's sample agrees with Phân tích's figure for figure.
  */
 
@@ -50,10 +50,13 @@ function signInWithoutShop() {
   window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({ accessToken: "token-1", tokenType: "bearer" }));
 }
 
+// Owner #104: the account has no shop at all (its GET /v1/shops is empty), so the sample stays.
+const noShops = vi.fn().mockResolvedValue([]);
+
 function renderInShell(page: React.ReactNode, loadAnalysis = vi.fn()) {
   render(
     <DemoStateProvider>
-      <ShopReportProvider loadAnalysis={loadAnalysis}>{page}</ShopReportProvider>
+      <ShopReportProvider loadAnalysis={loadAnalysis} loadShops={noShops}>{page}</ShopReportProvider>
     </DemoStateProvider>,
   );
   return loadAnalysis;
@@ -61,8 +64,8 @@ function renderInShell(page: React.ReactNode, loadAnalysis = vi.fn()) {
 
 async function expectStrip() {
   const strip = await screen.findByTestId("no-shop-sample-strip");
-  expect(strip).toHaveTextContent("Bạn đang xem dữ liệu mẫu · Kết nối TikTok Shop ›");
-  expect(within(strip).getByRole("link", { name: "Kết nối TikTok Shop ›" })).toHaveAttribute("href", CONNECT_SHOP_HREF);
+  expect(strip).toHaveTextContent("Bạn đang xem dữ liệu mẫu · Kết nối shop ›");
+  expect(within(strip).getByRole("link", { name: "Kết nối shop ›" })).toHaveAttribute("href", CONNECT_SHOP_HREF);
   expect(CONNECT_SHOP_HREF).toBe("/auth/connect-shop");
 }
 
@@ -226,7 +229,7 @@ describe("signed in, no TikTok Shop → the header names the sample shop", () =>
     expect(header).toHaveTextContent("Dữ liệu mẫu");
     expect(header).toHaveTextContent(/Dữ liệu mẫu · cập nhật \d{2}:\d{2}/);
     // Still signed in: the menu offers connect + sign out, not the sign-in doors.
-    expect(within(header).getByRole("link", { name: "Kết nối TikTok Shop", hidden: true })).toHaveAttribute("href", CONNECT_SHOP_HREF);
+    expect(within(header).getByRole("link", { name: "Kết nối shop", hidden: true })).toHaveAttribute("href", CONNECT_SHOP_HREF);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

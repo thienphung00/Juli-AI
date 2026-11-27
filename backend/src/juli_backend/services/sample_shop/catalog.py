@@ -113,8 +113,8 @@ PRODUCTS: tuple[Product, ...] = (
         "Túi đựng rác tự hủy sinh học Hiên Nhà cuộn 30 túi",
         "HN-TDR",
         (
-            _v(3, 1, "Size M 45x55cm", 49_000, 0.47, 700, "HN-TDR"),
-            _v(3, 2, "Size L 55x65cm", 59_000, 0.47, 600, "HN-TDR"),
+            _v(3, 1, "Size M 45x55cm", 49_000, 0.40, 700, "HN-TDR"),
+            _v(3, 2, "Size L 55x65cm", 59_000, 0.40, 600, "HN-TDR"),
         ),
         (3, 2),
         (40, 38, 17, 5),

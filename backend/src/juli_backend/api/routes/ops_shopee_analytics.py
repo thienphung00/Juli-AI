@@ -30,11 +30,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.api.capability_gate import require_ops_capability
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, viewer
 from juli_backend.api.routes.shopee_analytics_common import (
+    DEFAULT_PERIOD,
     REFUSALS,
     DateQ,
     MonthQ,
     PeriodQ,
     PlanPeriodQ,
+    ProductPeriodQ,
     export_ke_hoach,
     export_tong_quan,
     refusal,
@@ -57,7 +59,7 @@ ToQ = Annotated[date | None, Query(alias="to")]
 @router.get(f"{BASE}/overview")
 async def ops_shopee_overview(
     shop_id: uuid.UUID,
-    period: PeriodQ = "30d",
+    period: PeriodQ = DEFAULT_PERIOD,
     month: MonthQ = None,
     start: FromQ = None,
     end: ToQ = None,
@@ -78,7 +80,7 @@ async def ops_shopee_overview(
 @router.get(f"{BASE}/matrix")
 async def ops_shopee_matrix(
     shop_id: uuid.UUID,
-    period: PeriodQ = "30d",
+    period: PeriodQ = DEFAULT_PERIOD,
     month: MonthQ = None,
     start: FromQ = None,
     end: ToQ = None,
@@ -106,7 +108,7 @@ async def ops_shopee_matrix(
 @router.get(f"{BASE}/critical")
 async def ops_shopee_critical(
     shop_id: uuid.UUID,
-    period: PeriodQ = "30d",
+    period: PeriodQ = DEFAULT_PERIOD,
     month: MonthQ = None,
     start: FromQ = None,
     end: ToQ = None,
@@ -134,7 +136,7 @@ async def ops_shopee_ranking(
     source: str = "all",
     sub: str | None = None,
     xep_theo: str = "gmv_per_day",
-    period: PeriodQ = "30d",
+    period: PeriodQ = DEFAULT_PERIOD,
     month: MonthQ = None,
     start: FromQ = None,
     end: ToQ = None,
@@ -163,7 +165,7 @@ async def ops_shopee_ranking(
 async def ops_shopee_product(
     shop_id: uuid.UUID,
     item_id: Annotated[str, Path(pattern=r"^[0-9A-Za-z:_\-]{1,64}$")],
-    period: Annotated[str, Query(pattern="^(7d|30d|90d)$")] = "30d",
+    period: ProductPeriodQ = DEFAULT_PERIOD,
     as_of: DateQ = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
@@ -183,7 +185,7 @@ KolSortQ = Annotated[str, Query(pattern="^(net_profit|orders|gmv|roi_incl_sample
 @router.get(f"{BASE}/kols")
 async def ops_shopee_kols(
     shop_id: uuid.UUID,
-    period: PeriodQ = "30d",
+    period: PeriodQ = DEFAULT_PERIOD,
     month: MonthQ = None,
     start: FromQ = None,
     end: ToQ = None,
@@ -222,7 +224,7 @@ KolGroupQ = Annotated[str, Query(pattern="^(channel|campaign_type|kol)$")]
 async def ops_shopee_kols_compare(
     shop_id: uuid.UUID,
     group: KolGroupQ = "channel",
-    period: PeriodQ = "30d",
+    period: PeriodQ = DEFAULT_PERIOD,
     month: MonthQ = None,
     start: FromQ = None,
     end: ToQ = None,
@@ -246,7 +248,7 @@ async def ops_shopee_kols_compare(
 async def ops_shopee_product_kols(
     shop_id: uuid.UUID,
     item_id: Annotated[str, Path(pattern=r"^[0-9A-Za-z:_\-]{1,64}$")],
-    period: PeriodQ = "30d",
+    period: PeriodQ = DEFAULT_PERIOD,
     month: MonthQ = None,
     start: FromQ = None,
     end: ToQ = None,
@@ -269,7 +271,7 @@ async def ops_shopee_product_kols(
 @router.get(f"{BASE}/channel-split")
 async def ops_shopee_channel_split(
     shop_id: uuid.UUID,
-    period: PlanPeriodQ = "30d",
+    period: PlanPeriodQ = DEFAULT_PERIOD,
     month: MonthQ = None,
     start: FromQ = None,
     end: ToQ = None,
@@ -294,7 +296,7 @@ async def ops_shopee_channel_split(
 @router.get(f"{BASE}/channel-split/products")
 async def ops_shopee_channel_split_products(
     shop_id: uuid.UUID,
-    period: PeriodQ = "30d",
+    period: PeriodQ = DEFAULT_PERIOD,
     month: MonthQ = None,
     start: FromQ = None,
     end: ToQ = None,
@@ -319,7 +321,7 @@ MetricQ = Annotated[str, Query(pattern="^(views|ctr|ctor|aov|orders|gmv|margin)$
 async def ops_shopee_metric_view(
     shop_id: uuid.UUID,
     metric: MetricQ = "gmv",
-    period: PeriodQ = "30d",
+    period: PeriodQ = DEFAULT_PERIOD,
     month: MonthQ = None,
     start: FromQ = None,
     end: ToQ = None,
@@ -348,7 +350,7 @@ async def ops_shopee_metric_view(
 @router.get(f"{BASE}/kol-section")
 async def ops_shopee_kol_section(
     shop_id: uuid.UUID,
-    period: PeriodQ = "30d",
+    period: PeriodQ = DEFAULT_PERIOD,
     month: MonthQ = None,
     start: FromQ = None,
     end: ToQ = None,
@@ -372,7 +374,7 @@ EXPORTS = "/shops/{shop_id}/shopee/exports"
 @router.get(f"{EXPORTS}/tong-quan.xlsx")
 async def ops_shopee_export_tong_quan(
     shop_id: uuid.UUID,
-    period: PlanPeriodQ = "30d",
+    period: PlanPeriodQ = DEFAULT_PERIOD,
     month: MonthQ = None,
     start: FromQ = None,
     end: ToQ = None,

@@ -151,3 +151,14 @@ async def test_two_paired_computers_do_not_get_the_same_hole_days(session, monke
     held = {(ds, d) for ds, e in first["datasets"].items() for d in e["missing"]}
     other = {(ds, d) for ds, e in second["datasets"].items() for d in e["missing"]}
     assert held and not held & other
+
+
+async def test_the_unsettled_refs_follow_the_days_a_token_holds():
+    """7b: the second computer gets neither the unsettled days the first holds nor their refs."""
+    answer = _answer()
+    answer["datasets"]["order_income_unsettled"] = {"missing": ["2026-11-10"]}
+    answer["unsettled_orders"] = {"2026-11-10": ["r1", "r2"]}
+    first = await claims.claim_holes(answer, shop_id=SHOP, token_id=A)
+    second = await claims.claim_holes(answer, shop_id=SHOP, token_id=B)
+    assert first["unsettled_orders"] == {"2026-11-10": ["r1", "r2"]}
+    assert "unsettled_orders" not in second

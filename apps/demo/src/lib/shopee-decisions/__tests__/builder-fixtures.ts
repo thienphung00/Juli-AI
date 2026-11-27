@@ -151,7 +151,7 @@ export function evaluation(n: number, over: (i: number) => Partial<BuilderOutcom
   return {
     saved: false,
     best_profit_p50: n - 1,
-    today: { as_of: "2026-11-07", gmv_30d: 26_070_000, orders_30d: 210, aov: 124_143, margin_pct: 13.8, spend_per_day: 200_000, spend_cap: 220_000 },
+    today: { as_of: "2026-11-07", gmv_30d: 26_070_000, orders_30d: 210, aov: 124_143, shop_aov: 124_143, product_aov: 124_143, margin_pct: 13.8, spend_per_day: 200_000, spend_cap: 220_000 },
     table: { rows: [] },
     versions,
   };

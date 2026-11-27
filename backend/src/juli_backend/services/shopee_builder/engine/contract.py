@@ -74,6 +74,10 @@ class SourceFunnel:
     #: P99: the đơn of the days whose profit is known (``profit`` sums those days only), so
     #: profit per order = profit ÷ profit_orders
     profit_orders: Decimal = Decimal(0)
+    #: F1 (2026-11-25): the CTR / CTOR measured on the adaptive 14 / 30 / 60-day window (numerator
+    #: and denominator on the same days); a rate only, the volumes above are the real 30 days
+    ctr_rate: Decimal | None = None
+    ctor_rate: Decimal | None = None
 
     @property
     def ctr(self) -> Decimal | None:
@@ -144,6 +148,8 @@ class FunnelBase:
     daily: tuple[tuple[str, tuple[float | None, ...]], ...] = ()
     #: T1: the dashboard's margin inputs for this scope (None = unknown: the card shows no margin)
     margin_basis: MarginBasis | None = None
+    #: F1: the scope's AOV on its adaptive window (a rate): used only where the 30 days have none
+    aov_rate: Decimal | None = None
 
     @property
     def window_days(self) -> int:
@@ -212,6 +218,41 @@ class DriverEffect:
     lift: Band | None = None
     added: AddedTraffic | None = None
     note: str | None = None  # Vietnamese, shown on the card when set
+    #: owner #116: an AOV driver whose lift is the upgraders of ``offers[upgrade_of]`` (their
+    #: ``Upgrade``): in each scenario the engine takes it from the SAME draw as their uses, so
+    #: ΔGMV = upgraders × their added spend; ``lift`` is that band, for the card only
+    upgrade_of: int | None = None
+
+
+@dataclass(frozen=True)
+class MaxDiscount:
+    """A percent voucher's "Mức giảm tối đa": how many of the qualifying orders (the base orders
+    the offer's uses are drawn on) would get more than ``cap`` and so hit it."""
+
+    cap: Decimal
+    binding_orders: int
+    qualifying_orders: int
+
+
+@dataclass(frozen=True)
+class Upgrade:
+    """Owner #116: the orders below a minimum that move up to it -- and so always use the offer.
+    ``share`` = the share of ALL orders that move up (rho × the near share, P10 / P50 / P90);
+    a drawn share is kept within 0 .. ``cap`` (the near share: never more than the orders within
+    20 % below the minimum); ``added`` = the mean đ each one adds to its basket."""
+
+    share: Band
+    cap: Decimal
+    added: Decimal
+
+
+@dataclass(frozen=True)
+class TakeUp:
+    """Owner #116: the shop's voucher take-up the uses stand on, and where it comes from
+    ("measured" on the orders that used a shop voucher, else the labelled "prior")."""
+
+    rate: Decimal
+    basis: Literal["measured", "prior"]
 
 
 @dataclass(frozen=True)
@@ -227,6 +268,13 @@ class OfferCost:
     #: a discount the buyer gets (voucher, combo, add-on price) lowers doanh thu thực; a
     #: commission does not
     reduces_revenue: bool = True
+    #: a percent voucher with a cap (None otherwise): the card's max-discount row reads it
+    max_discount: MaxDiscount | None = None
+    #: owner #116: the orders that move up to use it, on top of ``use_share`` (then the share of
+    #: the orders that already qualify × the take-up); one draw with the paired AOV driver
+    upgrade: Upgrade | None = None
+    #: owner #116: the take-up ``use_share`` stands on (evidence; None = not a voucher)
+    takeup: TakeUp | None = None
 
 
 @dataclass(frozen=True)
@@ -320,6 +368,33 @@ class BuildUpPart:
     text: str
 
 
+def base_scale(days: int, known_days: int, window_days: int) -> float:
+    """What the base's sums are multiplied by for a card of ``days`` days. Every day of the window
+    known: ``days / window``. Some missing (``known_days`` of ``window_days``): the mean per KNOWN
+    day x ``days`` up to the known days; a longer card inside the window keeps the real sum (the
+    days that never arrived are not made up, F1: said as coverage); beyond the window it grows
+    with the days. A base that does not count its days (0) is taken as complete."""
+    window = max(1, window_days)
+    if not 0 < known_days < window:
+        return days / window
+    if days <= known_days:
+        return days / known_days
+    return max(1.0, days / window)
+
+
+@dataclass(frozen=True)
+class OfferLine:
+    """#78 / #87: one offer's part of ``OptionResult.cost_total`` -- the middle column's expected
+    uses (after its use cap) x its cost per use. The SAME numbers the cost total is the sum of."""
+
+    label: str
+    expected_uses: Decimal
+    per_use: Decimal
+    total: Decimal
+    max_discount: MaxDiscount | None = None
+    takeup: TakeUp | None = None
+
+
 @dataclass(frozen=True)
 class OptionResult:
     """Everything the card and the comparison table show (ADR-122 d.5). ``before`` is the base
@@ -350,6 +425,13 @@ class OptionResult:
     within_noise: tuple[str, ...] = ()
     #: T1: the dashboard's margin inputs (see :class:`MarginBasis`); None = no card margin
     margin_basis: MarginBasis | None = None
+    #: F1 / F2: the base's last day and its "N/30 ngày có dữ liệu" (0 = the base does not say)
+    data_through: date | None = None
+    days_with_data: int = 0
+    window_days: int = 0
+    #: #78 / #87: per offer {label, expected uses, per use, total}; ``cost_total`` = the sum of
+    #: their totals + the option's fixed cost
+    offers: tuple[OfferLine, ...] = ()
 
     def json(self) -> dict[str, object]:
         """The wire shape, mirrored exactly by ``apps/demo/.../option-result.ts``. Implemented in
@@ -382,7 +464,10 @@ WIRE_KEYS = {
     },
     "build_up": "list[{key, amount, text}]  # <= 3",
     "drivers_pct": "list[{metric, label, pct}]  # 'AOV +1,7%'",
-    "cost": "{total, break_even_orders, break_even_aov, text}",
+    "cost": "{total, break_even_orders, break_even_aov, text, offers: list[{label, "
+    "expected_uses, per_use, total, max_discount: {cap, binding_orders, qualifying_orders} "
+    "| None, takeup: {rate, basis: 'measured'|'prior'} | None}], fixed}  # #78/#87: total = "
+    "sum(offers.total) + fixed; owner #116: takeup = the voucher take-up the uses stand on",
     "after": "{days, label: 'Sau 14 ngày' | '30 ngày đầu', gmv_before, gmv_after, "
     "profit_before, profit_after}",
     "per_30d": "{profit, gmv, orders, secondary: True, label}  # P99b: secondary, labelled "
@@ -393,6 +478,7 @@ WIRE_KEYS = {
     "detail": "{before, low, likely, high: "
     "{views, ctr, ctor, orders, aov, gmv, profit, by_source}}",
     "notes": "list[str]",
+    "forecast": "the F2 block (shopee_recommendations.forecast.forecast_of): the one forecast",
     "ads": "{lever, campaign, days, spend_basis, spend_text, spend: {now, after}, orders: {now, "
     "after}, cpa: {now, after}, break_even_cpa, verdict: {now, after}  # 'co_lai' | 'lo' | None, "
     "verdict_text: {now, after}, profit_after_ads: {now, after}, roas_shopee: {now, after}, "

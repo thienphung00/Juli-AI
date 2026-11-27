@@ -206,7 +206,7 @@ export interface ReaderSchedule {
   /** 0.3.29 (F4.3): a data call proved a section while a run was going: re-read its blocked pages when the run ends. */
   rereadAfterRun?: { day: string; section?: string };
   /** 0.3.29 (F4.2, contract C2): the backend's hole list of today (days missing per dataset). */
-  holes?: { day: string; datasets: Record<string, string[]> };
+  holes?: { day: string; datasets: Record<string, string[]>; /** 7b: day -> refs of orders completed with no payment read. */ unsettled?: Record<string, string[]> };
   /** 0.3.29 (F4.4): the items with product views in the last product-table read (most viewed first): item traffic reads these. */
   viewedItems?: { day: string; ids: string[] };
   /** 0.3.29 (F4.9): when a per-order income read last landed (ms): orders completed since then are queued. */

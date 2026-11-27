@@ -138,8 +138,10 @@ describe("board 5 data answers (U4a)", () => {
   });
   it("top list with links", () => {
     pair(F.DATA_TOP);
-    const rows = screen.getAllByRole("listitem");
-    expect(rows).toHaveLength(3);
+    // #110 rule 6: a list is a table, one header row + one row per product, numbers right-aligned
+    const rows = within(screen.getByRole("table")).getAllByRole("row");
+    expect(rows).toHaveLength(4);
+    expect(screen.getByText("1.147.888đ · 9 đơn")).toHaveClass("juli-right");
     expect(screen.getByRole("link", { name: "Sản phẩm mẫu A" })).toHaveAttribute("href", "/san-pham/1001");
   });
   it("daily bars with tap values and a table view", async () => {

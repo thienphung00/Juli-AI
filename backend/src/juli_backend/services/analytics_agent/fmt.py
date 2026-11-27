@@ -10,7 +10,15 @@ from typing import Any
 
 MONEY = {"gmv", "aov", "profit", "ads_spend", "ads_gmv", "net_revenue", "cost", "cost_total"}
 RATE2 = {"ctr", "ctor"}
-NODATA = "chưa có dữ liệu"
+#: one missing number (owner #110 rule 7): a dash, never "0" and never a sentence in a tile
+NODATA = "—"
+#: owner #110 rule 4: a change measured on a thin base reads this, never a % of a near-empty base
+THIN_BASE_VI = "Kỳ trước chưa đủ dữ liệu"
+#: a count before under this is thin (đơn, lượt xem ...)
+THIN_COUNT = 5
+#: an amount that grew more than this many times over its base is measured on a thin base
+THIN_RATIO = 5.0
+COUNT_METRICS = {"orders", "units", "views", "clicks"}
 
 
 def _dot(s: str) -> str:
@@ -46,7 +54,9 @@ POINT_METRICS = {"ctr", "ctor", "margin", "cost_ratio"}
 def delta(metric: str, now: float | None, before: float | None) -> dict[str, str]:
     """`{dir, text_vi}`. A ratio in % (margin, CTR, CTOR, cost / revenue) changes in percentage
     points; an amount or count in % only when the base is positive, else as the amount itself
-    (a % of a negative base reads as nonsense). dir is flat when nothing can be said or changed."""
+    (a % of a negative base reads as nonsense), and never on a thin base (a count under
+    `THIN_COUNT`, an amount that grew over `THIN_RATIO` times): `THIN_BASE_VI`. dir is flat when
+    nothing can be said or changed."""
     if now is None or before is None:
         return {"dir": "flat", "text_vi": "–"}
     diff = now - before
@@ -65,6 +75,8 @@ def delta(metric: str, now: float | None, before: float | None) -> dict[str, str
     arrow = "▲ " if up else "▼ "
     if before < 0:
         return {"dir": "up" if up else "down", "text_vi": arrow + value(metric, abs(diff))}
+    if (metric in COUNT_METRICS and before < THIN_COUNT) or now > THIN_RATIO * before:
+        return {"dir": "flat", "text_vi": THIN_BASE_VI}
     rel = abs(diff) / before
     if rel < 0.0005:
         return {"dir": "flat", "text_vi": "–"}

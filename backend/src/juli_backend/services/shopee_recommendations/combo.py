@@ -45,7 +45,7 @@ from juli_backend.services.shopee_recommendations.evaluate import (
     D,
     _refuse,
     _scope_gmv_per_day,
-    _scope_orders,
+    _scope_orders_per_day,
     _spend_check,
     _unknown_floors,
     voucher_rule_from,
@@ -415,13 +415,13 @@ def eval_combo(
     shop_aov = (
         safe_div(env.shop_gmv_30d, Decimal(env.shop_orders_30d)) if env.shop_orders_30d else None
     )
-    orders_scope = _scope_orders(env, items)
+    orders_day = _scope_orders_per_day(env, items)
     gmv_scope_day = _scope_gmv_per_day(env, items)
-    aov_scope = safe_div(gmv_scope_day * window, Decimal(orders_scope)) if orders_scope else None
+    aov_scope = safe_div(gmv_scope_day, orders_day) if orders_day else None
     profit = ProfitModel(
         effect_days=config.DAYS_PER_MONTH,
         base_gmv_per_day=gmv_scope_day,
-        base_orders_per_day=Decimal(orders_scope) / window,
+        base_orders_per_day=orders_day,
         aov=aov_scope,
         # P96e: the predicted ΔGMV is the scope's sales at today's prices, so it buys
         # ΔGMV ÷ value_now combos, each earning ``contribution`` -- dividing by the combo's own

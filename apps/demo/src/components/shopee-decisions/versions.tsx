@@ -220,7 +220,7 @@ export function TitleBox({ current, value, disabled, onChange, name }: { readonl
       <div className="sa-card__head">
         <h3 className="sa-h2">Nội dung tiêu đề của {name}</h3>
         <span className="sa-hint">
-          Hôm nay: {current} ({cur.n}/100)
+          Hôm nay: {current} ({cur.n}/{MAX_TITLE_CHARS})
         </span>
       </div>
       <label className="sd-field__label" htmlFor="sv-title-box">

@@ -11,10 +11,14 @@ D29.1):
   Lượt xem is never low-data and reads the shortest window. The numbers are the same as
   ``DiagTunables`` defaults on TikTok (windows 14/30/60, 30 events); they are repeated here because
   a Shopee module does not read TikTok's per-shop rules row.
+* **F1 (owner 2026-11-25): the window gives RATES only.** Lượt xem, lượt nhấp, đơn and GMV of the
+  base are :func:`current_30d`, the real last 30 days the picker shows; CTR / CTOR / AOV of the
+  adaptive window ride along as rates (``ctr_rate``, ``ctor_rate``, ``aov_rate``) and the window
+  still gives the noise history (``daily``) and "ít dữ liệu". The rules below about missing and
+  unavailable days therefore govern the rates; a missing day of the 30 is said (``days``), never
+  filled in.
 * **Missing is not zero.** A day after a dataset's last data day (orders, traffic, ads) is missing:
-  every rate divides by the days up to that last day, never by the calendar window. The base is
-  then written as sums over 30 days at those rates, so Lượt xem x CTR x CTOR = đơn and đơn x AOV =
-  GMV hold and the engine's scaling by days / 30 stays right.
+  a rate is taken over the days up to that last day, numerator and denominator on the same days.
 * **Stale.** The newest data older than its expected lag + :data:`STALE_GRACE_DAYS` days: the base
   carries a :class:`StaleMarker` (dataset, data-through day) and the engine gives no numbers.
 
@@ -44,7 +48,6 @@ from juli_backend.services.shopee_analytics.unavailable_days import scope_unavai
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_builder.engine.contract import (
     RESIDUAL,
-    AdShare,
     FunnelBase,
     SourceFunnel,
     StaleMarker,
@@ -175,6 +178,26 @@ def _slice(
     return funnel.FunnelRows(Window(start, end), sources, shop_days, product_days, rows.unavailable)
 
 
+def current_30d(
+    rows: funnel.FunnelRows,
+    shop_id: str,
+    *,
+    item_ids: Sequence[str] = (),
+    contribution_rate: Decimal | None = None,
+    days: int = BASE_DAYS,
+) -> FunnelBase:
+    """F1 (owner 2026-11-25): the one "hiện tại": the plain sums of the last :data:`BASE_DAYS`
+    days up to the window's end, read exactly as the picker reads them (the stored rows through
+    ``funnel.base_from_rows``). ``days`` = the days with order data ("N/30 ngày có dữ liệu");
+    a missing day is not filled in and nothing is scaled up."""
+    end = rows.window.end
+    ads = last_days(rows).ads
+    sl = _slice(rows, end - timedelta(days=days - 1), end, ads)
+    return funnel.base_from_rows(
+        sl, shop_id, item_ids=tuple(item_ids), contribution_rate=contribution_rate, day_totals=True
+    )
+
+
 def _by_source(base: FunnelBase) -> dict[str, SourceFunnel]:
     return {s.source: s for s in base.sources}
 
@@ -195,6 +218,7 @@ def adaptive_base(
     contribution_rate: Decimal | None = None,
     today: date | None = None,
     platform: str = "shopee",
+    days: int = BASE_DAYS,
 ) -> FunnelBase:
     """The F2 base of the shop (``item_ids`` empty) or of those products."""
     items = tuple(item_ids)
@@ -203,7 +227,9 @@ def adaptive_base(
         rows, shop_id, item_ids=items, contribution_rate=contribution_rate
     )
     if last.orders is None:  # no order data at all: nothing to adapt
-        return plain
+        return current_30d(
+            rows, shop_id, item_ids=items, contribution_rate=contribution_rate, days=days
+        )
     end = rows.window.end
     floor = rows.window.start
     ol = min(last.orders, end)
@@ -257,91 +283,51 @@ def adaptive_base(
     if thin_traffic:
         tl = None
     w_ord, ord_low = pick(ol, "order")
-    bv, nv = base_of(tl, w_views, skip_t) if tl is not None else (plain, 0)
     bc, _ = base_of(tl, w_ctr, skip_t) if tl is not None else (plain, 0)
     bt, _ = base_of(both, w_ctor, skip_t)
-    bo, n_o = base_of(ol, w_ord)
-    b_views = _by_source(bv)
+    bo, _ = base_of(ol, w_ord)
     b_ctr = _by_source(bc)
     b_ctor = _by_source(bt)
-    scale = Decimal(BASE_DAYS)
-    ads_days = 0 if al is None else _span(ol - timedelta(days=w_ord - 1), min(al, ol), floor, skip)
+    cur = current_30d(rows, shop_id, item_ids=items, contribution_rate=contribution_rate, days=days)
 
     out: list[SourceFunnel] = []
-    for so in bo.sources:
+    for so in cur.sources:
         key = so.source
-        views_rate = None
         ctr = ctor = None
         if tl is not None and key != RESIDUAL:
-            sv = b_views.get(key)
-            if sv is not None and sv.views is not None and nv > 0:
-                views_rate = sv.views / nv
             sc = b_ctr.get(key)
             if sc is not None and sc.views and sc.clicks is not None:
                 ctr = sc.clicks / sc.views
             st = b_ctor.get(key)
             if st is not None and st.clicks and st.clicks > 0:
                 ctor = st.orders / st.clicks
-        orders_rate = so.orders * scale / max(n_o, 1)
-        views: Decimal | None = None
-        clicks: Decimal | None = None
-        orders = orders_rate
-        if views_rate is not None and ctr is not None:
-            views = views_rate * scale
-            clicks = views * ctr
-            if ctor is not None:
-                orders = clicks * ctor
-        elif views_rate is not None:
-            views, clicks = views_rate * scale, None
-            # a source with no views and no clicks in the window (a shop without Live) has a known
-            # zero of clicks, not an unknown: an unknown would blank the shop's whole CTR / CTOR
-            sc0 = b_ctr.get(key)
-            if sc0 is not None and not sc0.views and sc0.clicks == 0:
-                clicks = Decimal(0)
-        aov = so.gmv / so.orders if so.orders > 0 else None
-        gmv = orders * aov if aov is not None else so.gmv * scale / max(n_o, 1)
-        factor = orders / orders_rate if orders_rate > 0 else Decimal(1)
-        k_prof = scale / max(n_o, 1) * factor
-        ads = so.ads
-        if ads is not None and ads_days > 0:
-            k_ads = scale / ads_days
-
-            def sc_(x: Decimal | None, k: Decimal = k_ads) -> Decimal | None:
-                return None if x is None else x * k
-
-            ads = AdShare(
-                sc_(ads.views), sc_(ads.clicks), sc_(ads.orders), sc_(ads.gmv), sc_(ads.spend)
-            )
-        elif ads is not None:
-            ads = None
+        blank = tl is None and key != RESIDUAL
         out.append(
             replace(
                 so,
-                views=views,
-                clicks=clicks,
-                orders=orders,
-                gmv=gmv,
-                profit=None if so.profit is None else so.profit * k_prof,
-                profit_orders=so.profit_orders * k_prof,
-                ads=ads,
+                views=None if blank else so.views,
+                clicks=None if blank else so.clicks,
+                ctr_rate=ctr,
+                ctor_rate=ctor,
             )
         )
+    no_order = not cur.total("orders")
     low: list[str] = []
     if (ctr_low and tl is not None) or thin_traffic:
         low.append("ctr")
-    if ctor_low or thin_traffic:
+    if ctor_low or thin_traffic or no_order:
         low.append("ctor")
-    if ord_low:
+    if ord_low or no_order:
         low.append("aov")
+    o_rate, g_rate = bo.total("orders"), bo.total("gmv")
     return replace(
-        bo,
-        window_start=end - timedelta(days=BASE_DAYS - 1),
-        window_end=end,
+        cur,
         sources=tuple(out),
         low_data=tuple(low),
         stale=stale,
         windows=(("views", w_views), ("ctr", w_ctr), ("ctor", w_ctor), ("aov", w_ord)),
         daily=_daily(rows, items, ol - timedelta(days=w_ord - 1), ol, floor, skip),
+        aov_rate=g_rate / o_rate if o_rate and g_rate is not None else None,
     )
 
 
@@ -387,6 +373,7 @@ __all__ = [
     "STALE_GRACE_DAYS",
     "WINDOWS",
     "adaptive_base",
+    "current_30d",
     "last_days",
     "stale_marker",
 ]

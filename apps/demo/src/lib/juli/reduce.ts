@@ -7,6 +7,7 @@ import type {
   JuliCardData,
   JuliDataAnswerData,
   JuliLabelData,
+  JuliMetaData,
   JuliNeedsChoiceData,
   JuliNoCardData,
   JuliPathStep,
@@ -16,7 +17,13 @@ import type {
 
 export interface AnswerBlockView {
   readonly title: string | null;
+  /** The block's own period line, only when it differs from the answer's (#110 rule 2). */
+  readonly meta: JuliMetaData | null;
+  /** The block's first sentence, its main number in it (#110 rule 1). */
+  readonly lead: string | null;
   readonly text: string;
+  /** The text as streamed (the shown `text` drops its restated first line). */
+  readonly rawText: string;
   readonly path: readonly JuliPathStep[] | null;
   readonly label: JuliLabelData | null;
   readonly dataAnswers: readonly JuliDataAnswerData[];
@@ -39,13 +46,19 @@ export interface AnswerView {
   readonly errorCode: "busy" | "failed" | null;
   /** The answer's own freshness line when it carries one ("Số liệu đến hết dd/mm"). */
   readonly freshVi: string | null;
+  /** The one period line on top: the backend's `meta`, else (an answer saved before #110) the
+   * first data answer's period, data day and sale days. */
+  readonly meta: JuliMetaData | null;
 }
 
 export const RESTATED_PREFIX = "Đang tìm hiểu: ";
 
 const EMPTY_BLOCK: AnswerBlockView = {
   title: null,
+  meta: null,
+  lead: null,
   text: "",
+  rawText: "",
   path: null,
   label: null,
   dataAnswers: [],
@@ -58,7 +71,9 @@ const EMPTY_BLOCK: AnswerBlockView = {
 function isEmptyBlock(b: AnswerBlockView): boolean {
   return (
     b.title === null &&
-    b.text === "" &&
+    b.meta === null &&
+    b.lead === null &&
+    b.rawText === "" &&
     b.path === null &&
     b.label === null &&
     b.dataAnswers.length === 0 &&
@@ -77,6 +92,7 @@ export function reduceAnswer(events: readonly JuliAgentEvent[]): AnswerView {
   let more: JuliEventMap["more"]["items"] = [];
   let finished = false;
   let errorCode: AnswerView["errorCode"] = null;
+  let meta: JuliMetaData | null = null;
 
   const patchLast = (patch: Partial<AnswerBlockView>) => {
     blocks = [...blocks.slice(0, -1), { ...blocks[blocks.length - 1]!, ...patch }];
@@ -93,11 +109,20 @@ export function reduceAnswer(events: readonly JuliAgentEvent[]): AnswerView {
       case "restated":
         restated = event.data.text_vi.startsWith(RESTATED_PREFIX) ? event.data.text_vi : `${RESTATED_PREFIX}${event.data.text_vi}`;
         break;
-      case "text_delta":
-        patchLast({ text: stripMarkdown(last().text + event.data.text) });
+      case "text_delta": {
+        const raw = last().rawText + event.data.text;
+        patchLast({ rawText: raw, text: stripHeader(stripMarkdown(raw)) });
         break;
+      }
       case "text_replace":
-        patchLast({ text: stripMarkdown(event.data.text) });
+        patchLast({ rawText: event.data.text, text: stripHeader(stripMarkdown(event.data.text)) });
+        break;
+      case "meta":
+        if (meta === null) meta = event.data;
+        else if (!sameMeta(meta, event.data)) patchLast({ meta: event.data });
+        break;
+      case "lead":
+        patchLast({ lead: event.data.text_vi });
         break;
       case "path":
         patchLast({ path: event.data.steps });
@@ -140,8 +165,23 @@ export function reduceAnswer(events: readonly JuliAgentEvent[]): AnswerView {
     }
   }
 
-  const freshVi = blocks.flatMap((b) => b.dataAnswers.map((d) => d.fresh_vi)).at(-1) ?? null;
-  return { restated, status, doneSteps, blocks, more, finished, errorCode, freshVi };
+  const freshVi = meta?.fresh_vi ?? blocks.flatMap((b) => b.dataAnswers.map((d) => d.fresh_vi)).at(-1) ?? null;
+  if (meta === null) {
+    const first = blocks.flatMap((b) => b.dataAnswers)[0];
+    if (first) meta = { window_vi: first.window_vi, fresh_vi: first.fresh_vi, ...(first.sale_vi ? { sale_vi: first.sale_vi } : {}) };
+  }
+  return { restated, status, doneSteps, blocks, more, finished, errorCode, freshVi, meta };
+}
+
+function sameMeta(a: JuliMetaData, b: JuliMetaData): boolean {
+  return a.window_vi === b.window_vi && a.fresh_vi === b.fresh_vi && a.sale_vi === b.sale_vi;
+}
+
+/** #110 rule 1: the answer starts with its answer; a first line restating the question goes. */
+export function stripHeader(text: string): string {
+  if (!text.startsWith(RESTATED_PREFIX.trim()) && !RESTATED_PREFIX.startsWith(text)) return text;
+  const nl = text.indexOf("\n");
+  return nl < 0 ? "" : text.slice(nl + 1).replace(/^\n+/, "");
 }
 
 /** The answer is plain text: drop markdown emphasis markers the writer sometimes emits ("**x**"). */

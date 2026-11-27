@@ -85,7 +85,7 @@ function signInWithShop() {
 function renderInShell(page: React.ReactNode, loadAnalysis = vi.fn().mockResolvedValue(sampleEnvelope())) {
   render(
     <DemoStateProvider>
-      <ShopReportProvider loadAnalysis={loadAnalysis}>{page}</ShopReportProvider>
+      <ShopReportProvider loadAnalysis={loadAnalysis} loadShops={vi.fn().mockResolvedValue([])}>{page}</ShopReportProvider>
     </DemoStateProvider>,
   );
   return loadAnalysis;

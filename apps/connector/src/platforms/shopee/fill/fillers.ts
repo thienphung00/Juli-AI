@@ -26,6 +26,7 @@ import {
   pickStep,
   type PickResult,
   radioOf,
+  radioOptions,
   setDate,
   setRowText,
   setSwitch,
@@ -112,7 +113,8 @@ const DISPLAY_OPTION = { multi: "Hiển thị nhiều nơi", code: "Chia sẻ th
 /** Every spelling of a display option seen on Seller Centre (and on Juli's card: "Chia sẻ qua mã voucher"). */
 const DISPLAY_ALIASES = {
   multi: ["Hiển thị nhiều nơi"],
-  code: ["Chia sẻ thông qua mã Voucher", "Chia sẻ qua mã voucher"],
+  // owner 25/11: on the product-voucher page "Không công khai" is Shopee's wording for sharing by code
+  code: ["Chia sẻ thông qua mã Voucher", "Chia sẻ qua mã voucher", "Không công khai"],
   private: ["Không công khai"],
 } as const;
 export const SMART_MISSING = "Trang không có ô «Mã giảm giá thông minh»; bật tay nếu cần";
@@ -196,10 +198,11 @@ export async function fillVoucher(env: Env, v: VoucherPayload): Promise<FillOutc
     choice(add, setSwitch(k("smart"), L.smart, v.smart), `Mã giảm giá thông minh: ${v.smart ? "bật" : "tắt"}`, `${v.smart ? "Bật" : "Tắt"} «Mã giảm giá thông minh»`, ["smart"]);
   } else if (v.smart) add("Mã giảm giá thông minh: bật", false, { note: SMART_MISSING });
   const kindText = v.discount.type === "amount" ? "Theo số tiền" : "Theo phần trăm";
-  const kind = chooseSelect(k("discount_type"), L.discount, kindText);
+  const kind = chooseSelect(k("discount_type"), L.discount, kindText, 0, undefined, ["Theo số tiền", "Theo phần trăm"]);
   const valueText = v.discount.type === "amount" ? `Giảm ${dong(v.discount.value)}` : `Giảm ${v.discount.value}%`;
   const typed = setRowText(k("discount"), L.discount, String(v.discount.value));
-  if (kind === "todo") {
+  if (kind === "todo" || kind === "missing") {
+    // a type Juli cannot see is the person's own step; the amount is judged on its own
     add(`Chọn «${kindText}»`, false, { keys: ["discount_type"], guide: true });
     add(valueText, typed, { keys: ["discount"] });
   } else add(valueText, kind === "done" && typed, { keys: ["discount_type", "discount"] });
@@ -220,7 +223,14 @@ export async function fillVoucher(env: Env, v: VoucherPayload): Promise<FillOutc
   add(`Đơn tối thiểu ${dong(v.minSpend)}`, setRowText(k("min_spend"), L.minSpend, String(v.minSpend)), { keys: ["min_spend"] });
   add(`Tổng lượt dùng ${v.usageTotal}`, setRowText(k("usage_total"), L.usageTotal, String(v.usageTotal)), { keys: ["usage_total"] });
   add(`Mỗi người mua ${v.perBuyer} lượt`, setRowText(k("per_buyer"), L.perBuyer, String(v.perBuyer)), { keys: ["per_buyer"] });
-  choice(add, chooseRadio(k("display"), L.display, DISPLAY_ALIASES[v.display]), `Hiển thị: ${DISPLAY_OPTION[v.display]}`, `Chọn «${DISPLAY_OPTION[v.display]}» ở «Thiết lập hiển thị»`, ["display"]);
+  const display = chooseRadio(k("display"), L.display, DISPLAY_ALIASES[v.display]);
+  const offered = display === "missing" ? radioOptions(env.doc, L.display) : [];
+  if (offered.length > 0) {
+    // E146: the product-voucher page offers other words ("Hiển thị nhiều nơi" / "Không công khai"); the
+    // captures do not say they mean the card's option, so Juli picks nothing: the person chooses
+    for (const o of offered) highlight(o.holder);
+    add(`Chọn ở «${L.display}»: ${offered.map((o) => `«${o.text}»`).join(" hoặc ")} (thẻ ghi «${DISPLAY_OPTION[v.display]}»)`, false, { keys: ["display"], guide: true });
+  } else choice(add, display, `Hiển thị: ${DISPLAY_OPTION[v.display]}`, `Chọn «${DISPLAY_OPTION[v.display]}» ở «Thiết lập hiển thị»`, ["display"]);
   if (v.productIds.length > 0) picked(add, pickProducts(k("product_ids"), "Thêm sản phẩm", v.productIds, v.productNames), "Thêm sản phẩm", v.productIds, v.productNames);
   return {
     steps,

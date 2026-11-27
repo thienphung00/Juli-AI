@@ -568,6 +568,29 @@ async def test_every_decision_tab_has_a_card_after_the_load_and_a_rerun_adds_non
     assert len((await cards())[0]) == len(listed)
 
 
+async def test_the_open_min_spend_voucher_card_measures_its_take_up_and_pays_for_itself(engine):
+    """#117(b): with one take-up per shop (#116), the open "Voucher đơn tối thiểu" card reads the
+    shop's own take-up (enough past voucher orders, so "measured", not the 40 % prior) and its
+    middle Δ lợi nhuận is above 0 -- the sample's margins pay for the discount."""
+    from juli_backend.database.tenant_context import with_shop_scope
+    from juli_backend.services.shopee_recommendations import service
+
+    factory, report = await _load(engine)
+    async with factory() as session:
+        async with with_shop_scope(session, report.shop_id):
+            listed = (
+                await service.list_cards(
+                    session, report.shop_id, audience="seller", queue="all", now=NOW
+                )
+            )["cards"]
+    (card,) = [
+        c for c in listed if c["status"] == "sent" and c["change_kind"] == "min_spend_voucher"
+    ]
+    (offer,) = card["result"]["option"]["cost"]["offers"]
+    assert offer["takeup"]["basis"] == "measured" and 0 < offer["takeup"]["rate"] < 0.4
+    assert card["result"]["own"]["delta"]["profit"]["p50"] > 0
+
+
 # -- P100 S2-G: the decision seeding lives in the backend (no backend import of scripts/) ---------
 
 
@@ -921,11 +944,15 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
     """2026-11-15 (prod S2): Combo "mua 2 giảm 5 % / mua 3 giảm 8 %" on Nước rửa chén + Túi rác gave
     ΔGMV +4,34 tr on +1,6 đơn (every one-unit order "reached" Mua 2: a 100 % take-up), and a set
     at 110k gave +1,07 tr whatever its price, with no cost for the buyers who switch to it."""
+    from statistics import median
+
     from juli_backend.database.tenant_context import with_shop_scope
     from juli_backend.services.sample_shop.catalog import PRODUCTS
     from juli_backend.services.shopee_builder import service as builder
+    from juli_backend.services.shopee_builder.engine.engine import run as engine_run
     from juli_backend.services.shopee_builder.engine_families import (
         adapters,
+        common,
         integrate,
         option_for,
     )
@@ -978,29 +1005,44 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # rate, before ads and affiliate) instead of the after-ads profit per order, so a
             # different draw is the middle-PROFIT one: 389_340 on 3,17 orders (was 336_249 /
             # 2,74). The combo's reach and take-up are unchanged.
-            # owner #102 (4c): higher combo profit picks another middle draw (307_112 on 1,13
-            # orders, was 389_340 on 3,17); GMV comes from orders and a bounded basket lift; the
-            # single-draw middle is replaced in tag 2 (5a)
-            # owner #119: the generator's combo lines are Connector lines (deal price after the
-            # combo), so the base AOV is the combo price and the draws' profits move again: the
-            # middle draw is 312_363 on 2,69 orders at today's AOV, no basket lift (was 307_112 on
-            # 1,13). The combo's reach and take-up are unchanged.
-            assert cd["gmv"] == pytest.approx(312_363, rel=0.02)
-            assert round(cd["orders"]) == 3
-            # the combo's only lever here is the badge's CTOR prior: the middle draw's ΔGMV is its
-            # Δ orders at today's AOV -- never a GMV with almost no orders (445.900đ on 0,31 đơn)
-            aov = c["detail"]["before"]["aov"]
-            likely = c["detail"]["likely"]
-            before_orders = c["detail"]["before"]["orders"]
-            assert aov <= likely["aov"] <= aov * 1.02
-            # ΔGMV is exactly likely.orders x likely.aov - before.orders x before.aov ...
-            assert cd["gmv"] == pytest.approx(
-                likely["orders"] * likely["aov"] - before_orders * aov, rel=1e-9
+            # F1 (2026-11-25): the base is the real 30 days (208 đơn, 25,1 tr: the picker's figure).
+            # The middle-PROFIT draw is ONE of 4000 whose profits are nearly equal (Δ profit is the
+            # tier's cost, -918k ± 0,3 % over any seed), so its ΔGMV is arbitrary: 254k .. 970k over
+            # 60 seeds. A 1 % change of one source moves it 679k -> 292k. Pinned here: what is
+            # stable (Δ profit, the median over seeds) and that before / after / Δ reconcile.
+            # 5a below: the middle is now a mean, so its ΔGMV is pinned as well.
+            # #117(b): Túi đựng rác's giá vốn is 40 % of its price (was 47 %), so the combo's extra
+            # orders on it earn more: -907k (was -918_479). The tier's cost is unchanged.
+            assert c["detail"]["before"]["orders"] == sum(
+                ctx.env.metrics.split(i).orders for i in (nrc, tdr)
             )
-            # ... and what Δorders x before_aov does not explain is a basket lift of at most 2 %
-            unexplained = cd["gmv"] - cd["orders"] * aov
-            assert -1e-6 <= unexplained <= 0.02 * aov * likely["orders"]  # float rounding at 0
-            assert cd["profit"] < 0
+            before, after = c["detail"]["before"], c["detail"]["likely"]
+            assert after["gmv"] == pytest.approx(after["orders"] * after["aov"], rel=1e-9)
+            assert before["gmv"] == pytest.approx(before["orders"] * before["aov"], rel=1e-9)
+            assert cd["gmv"] == pytest.approx(after["gmv"] - before["gmv"], rel=1e-9)
+            # tag 2 merge (4c #102 + 5a): the combo's tier discount is in the price, so its cost
+            # moved -918_479 -> -903_626; the 5a figures below were re-derived on the merged code.
+            # Tag 1 #119 (combo lines are Connector lines, re-priced before the combo): -882_341;
+            # #117(b) (Túi đựng rác at 40 % giá vốn, was 47 %): -869_868
+            assert cd["profit"] == pytest.approx(-869_868, rel=0.01)
+            option = common.floor_prior_drivers(
+                option_for(combo, ctx, integrate.extras_for(combo_done.base))
+            )
+            seeds = [engine_run(combo_done.base, option, seed=k) for k in range(15)]
+            gmvs = [float(r.likely.gmv - r.before.gmv) for r in seeds if r.likely is not None]
+            # 5a (owner #99): the middle column is the MEAN of the scenarios ranked 45-55 % by Δ
+            # profit, so the shown ΔGMV is stable: 433_551 on 2,65 orders at seed 0, 410k .. 452k
+            # over 15 seeds (was one draw: 254k .. 970k); the seed median 422_914 (was 351_471).
+            # With 4c (#102) merged: 419_334 -> 433_551, median 417_370 -> 422_914; with tag 1 #119:
+            # 411_447 on 2,67 orders, 391k .. 435k over 15 seeds, median 405_236; with #117(b):
+            # 417_359, 395k .. 435k, median 407_120
+            assert cd["gmv"] == pytest.approx(417_359, rel=0.02)
+            assert median(gmvs) == pytest.approx(407_120, rel=0.05)
+            assert max(gmvs) - min(gmvs) <= 0.15 * median(gmvs)
+            # never a GMV with almost no orders (445.900đ on 0,31 đơn): reach is 0 at P50, so over
+            # the seeds the typical gain is its extra orders at today's AOV
+            aovs = [float(r.likely.gmv / r.likely.orders) for r in seeds if r.likely is not None]
+            assert median(aovs) == pytest.approx(before["aov"], rel=0.01)
             ctx = await builder.build_context(session, report.shop_id, [set2], as_of=END, now=NOW)
             base = integrate.base_for(ctx.env, [nrc], "")
             o = option_for(set2, ctx, integrate.extras_for(base))
@@ -1014,7 +1056,9 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # F2: the base is the adaptive window's level (was 791_214 on the fixed 30 days)
             # Track P (#42-#44): the middle-profit draw on the contribution basis (one rate for
             # the extra orders and the AOV effect): 806_567 (was 856_463 on the after-ads basis)
-            assert sd["gmv"] == pytest.approx(806_567, rel=0.02)
+            # F1: on the real 30 days (109 đơn, 14,8 tr): 779_549
+            # tag 1 #119 (the base AOV is the combo price on the combo lines): 755_932
+            assert sd["gmv"] == pytest.approx(755_932, rel=0.02)
             assert s["cost"]["total"] > 0 and sd["profit"] < 0
 
 
@@ -1086,3 +1130,26 @@ def test_the_fee_learner_reads_7_9_percent_on_the_sample_income():
     # 7,71 % not 7,90 %: the 7,9 % is taken on the buyer-paid value (after vouchers) while the
     # learner divides by the product price (before them), so vouchers pull it down by 0,19 pt
     assert rate is not None and abs(rate - Decimal("0.079")) <= Decimal("0.0025")
+
+
+async def test_offers_are_the_vouchers_plus_the_combo_discounts_counted_once(engine, sample):
+    """#119 + #117(b), owner #122 (the loader is run by hand after tag 2 deploys): the generator's
+    combo lines are Connector lines (deal price after the combo, the combo also on
+    ``bundle_discount``), and the tag 2 profit engine reads them so that Ưu đãi on Tổng quan is
+    the shop vouchers plus the combo discounts, the combo counted ONCE (not again as a price cut).
+    Pinned for the 30 days ending END: 218.000 vouchers + 1.330.100 combo = 1.548.100."""
+    from scripts.sample_shop.catalog import PRODUCTS
+
+    rows = [r for p in sample.posts if p.dataset == "order_lines" for r in p.body["rows"]]
+    vouchers = sum(r["shop_voucher_share"] or 0 for r in rows)
+    combo = sum(r["bundle_discount"] or 0 for r in rows)
+    price_cut = sum((r["original_price"] - r["deal_price"]) * r["qty"] for r in rows)
+    assert (vouchers, combo) == (218_000, 1_330_100)
+    assert price_cut == combo  # the deal price already holds the combo: one discount, not two
+    factory, report = await _load(engine)
+    async with factory() as session:
+        body = await queries.overview(session, report.shop_id, period="30d")
+    assert body["five_numbers"]["discount"]["vnd_after"] == vouchers + combo == 1_548_100
+    # #117(b): Túi đựng rác's giá vốn is 40 % of each variation's price (was 47 %)
+    (tdr,) = [p for p in PRODUCTS if p.parent_sku == "HN-TDR"]
+    assert [(v.price, v.cost) for v in tdr.variations] == [(49_000, 19_500), (59_000, 23_500)]

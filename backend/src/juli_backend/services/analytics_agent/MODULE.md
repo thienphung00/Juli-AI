@@ -14,6 +14,7 @@ from Juli's recommendation engine, an explanation, and a stream of events. Publi
 |---|---|
 | `types` | `AskRequest`, `Template` / `TEMPLATES`, ports (`LLMPort`, `JevPort`, `EventSink`, `DataPort`, `CardEnginePort`), `LabelTable`, `AnswerResult` |
 | `routing` | intent parse (strict tool schema, restatement guard, cap 3), Jev routing questions, thresholds, cross-checks, lookup rules, `needs_choice` + resume from `pending`, product resolution |
+| `applies` | owner #115: before routing, a metric the named scope cannot carry or a card kind asked to move a metric it does not move gets ONE line + buttons for what applies (`metrics.capabilities`), stop `not_applicable` |
 | `chains` | orders / CTR / CTOR / GMV / profit+margin / ads / `cost_change`; step 0 freshness + coverage, formula (LMDI, rate/mix), scope, time, bottom-up fallback; `within_noise` decided at the bottom |
 | `lookup` | data answers rendered by code (metric_total, top_products, daily_trend, channel_breakdown) |
 | `advisor`, `levers` | the advise loop (#52/#53): `emit_plan` = lead + actions {lever, card_ref, why}; `levers` is the finding -> lever table as data (enum from `kinds.py` minus the out-set, tool-result tags); code validates schema, refs, card kind == lever and numbers only |

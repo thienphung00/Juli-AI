@@ -16,6 +16,7 @@ CASHBACK_LABEL = "trang hoàn tiền / mã giảm giá"
 #: Ads / affiliate notes (Vietnamese, shown on the card).
 NOTE_ADS_NOT_ESTIMABLE = "chưa ước tính được — cần chạy thử"
 NOTE_NO_GAIN = "Không thêm từ khoá nào so với hiện tại: không dự kiến thêm lượt xem hay đơn."
+NOTE_NOT_MEASURED = NOTE_ADS_NOT_ESTIMABLE  # F5: title / cover, until measured
 NOTE_KOL_NOT_ESTIMABLE = "chưa ước tính được — đo sau lần gửi mẫu đầu"
 NOTE_NO_PACK_EVIDENCE = "chưa có dữ liệu cho quy cách này"
 #: Deal Sốc (Mua kèm / Quà tặng): the attach rate is read off the main product's own order lines, so
@@ -36,12 +37,23 @@ NOTE_PACK_SOLD = "Shop đang bán quy cách này: khách chuyển sang listing m
 #: A visible discount / badge converts a few more clicks: relative CTOR lift at P10 / P50 / P90.
 CTOR_VISIBLE_OFFER = (Decimal("0"), Decimal("0.01"), Decimal("0.03"))
 #: Share of the orders that sit under a minimum / one unit under a tier that move up to it: the
-#: prior (ADR-122 d.13 E2), used only when the scope has too few orders to measure it.
+#: prior (ADR-122 d.13 E2), used only when the scope has too few orders to measure it. Owner
+#: #116: a voucher's rho (share of the near orders that upgrade) at P10 / P50 / P90 -- P50 20 %,
+#: always this prior until calibrated.
 REACH = (Decimal("0"), Decimal("0.2"), Decimal("0.5"))
 #: E2: an order within this share below a voucher minimum / combo tier today reaches it.
 REACH_WINDOW = Decimal("0.2")
 #: E2: fewer orders than this in the scope -> the reach is the tagged prior, not measured.
 MIN_REACH_ORDERS = 30
+#: Owner #116: the shop's voucher take-up (share of qualifying orders that use a shop voucher) is
+#: measured once per shop when at least this many orders in the window carried one: its relative
+#: standard error is about sqrt((1 - u) / k), ~17 % at k = 20 and u = 0,4 -- fewer, and one order
+#: moves it by 5 points. Below it, the labelled prior.
+TAKEUP_MIN_VOUCHER_ORDERS = 20
+#: Owner #116: the take-up prior (basis "prior") until the shop has enough voucher orders; never 1
+#: (not every qualifying buyer collects and applies a code). 40 %: the take-up measured on the one
+#: real shop checked (26/11), until pooled shops calibrate it.
+TAKEUP_PRIOR = Decimal("0.4")
 #: The second driver of a two-driver listing / basket family earns this share of the lead
 #: driver's predicted lift (tagged "prior").
 CO_DRIVER_SHARE = Decimal("0.5")
@@ -101,7 +113,9 @@ def floor_prior_drivers(option: OptionInput) -> OptionInput:
     lead = _DRIVER_OF_TARGET.get(reco_kinds.spec(option.kind).target_metric)
     drivers = []
     for d in option.drivers:
-        if d.metric == lead and d.basis == "prior" and d.lift is not None:
+        # owner #116: an upgrade-driven AOV lift is the upgraders' own spend (one draw with
+        # their uses): never floored, else GMV and the voucher's uses would disagree
+        if d.metric == lead and d.basis == "prior" and d.lift is not None and d.upgrade_of is None:
             lift = Band(
                 *reco_kinds.floor_prior_band(option.kind, d.lift.p10, d.lift.p50, d.lift.p90)
             )

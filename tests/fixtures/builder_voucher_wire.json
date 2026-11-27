@@ -1,0 +1,1005 @@
+{
+ "best_profit_p50": 0,
+ "compare": [
+  0
+ ],
+ "saved": false,
+ "sort_basis": {
+  "detail": "Xếp theo Δ lợi nhuận (khả năng cao) của từng phương án chia cho số ngày của chính nó; phương án chưa ước tính được lợi nhuận xếp cuối.",
+  "key": "delta_profit_per_day",
+  "label": "Δ lợi nhuận mỗi ngày trong các ngày đã đặt"
+ },
+ "table": {
+  "rows": [
+   {
+    "key": "cost",
+    "label": "Chi phí của thay đổi",
+    "unit": "vnd",
+    "values": [
+     84838.56000558939
+    ]
+   },
+   {
+    "key": "delta_gmv",
+    "label": "Δ GMV",
+    "unit": "band",
+    "values": [
+     {
+      "high": 114749.0,
+      "low": -1183.0,
+      "p50": 37735.0
+     }
+    ]
+   },
+   {
+    "key": "delta_orders",
+    "label": "Δ đơn",
+    "unit": "band",
+    "values": [
+     {
+      "high": 2.0,
+      "low": -0.02,
+      "p50": 0.7
+     }
+    ]
+   },
+   {
+    "key": "delta_profit",
+    "label": "Δ lợi nhuận",
+    "unit": "band",
+    "values": [
+     {
+      "high": -39244.0,
+      "low": -84461.0,
+      "p50": -69282.0
+     }
+    ]
+   },
+   {
+    "key": "margin_after",
+    "label": "Biên sau thay đổi",
+    "unit": "pct",
+    "values": [
+     16.2
+    ]
+   },
+   {
+    "key": "driver:ctor",
+    "label": "CTOR",
+    "unit": "driver",
+    "values": [
+     {
+      "after_p50": 7.21416326578141,
+      "before": 7.142857142857142
+     }
+    ]
+   },
+   {
+    "key": "driver:orders",
+    "label": "Số đơn",
+    "unit": "driver",
+    "values": [
+     {
+      "after_p50": 70.69880000465783,
+      "before": 70.0
+     }
+    ]
+   }
+  ]
+ },
+ "today": {
+  "aov": 55000.0,
+  "as_of": "2026-10-07",
+  "coverage": {
+   "days_with_data": 14,
+   "label": "14/30 ngày có dữ liệu",
+   "window_days": 30
+  },
+  "gmv_30d": 3850000.0,
+  "items": [],
+  "margin_pct": null,
+  "mixed_scopes": false,
+  "orders_30d": 70,
+  "product_aov": null,
+  "scope": "shop",
+  "shop_aov": 55000.0,
+  "shop_profit": {
+   "ads_basis": "daily",
+   "ads_charged": 420000,
+   "bridge": {
+    "ads_charged": 420000,
+    "ads_label": "QC đã tính theo ngày: 420.000đ / tổng chi QC 420.000đ; gồm 60.000đ quảng cáo ngày không có đơn",
+    "ads_no_order_days": 60000,
+    "ads_no_order_days_label": "Quảng cáo ngày không có đơn",
+    "ads_total": 420000,
+    "ads_unattributed": 274531,
+    "other_marketing": 0,
+    "product_profit": null,
+    "profit": null
+   },
+   "gmv": 1747000,
+   "gmv_share_pct": 45.2,
+   "label": "trên 22 đơn có chi phí, 45,2 % GMV",
+   "margin_pct": null,
+   "net_revenue": 1737000,
+   "orders": 22,
+   "profit": null
+  },
+  "spend_cap": 500000.0,
+  "spend_per_day": 20566.666666666668,
+  "window": {
+   "days": 30,
+   "from": "2026-09-08",
+   "to": "2026-10-07"
+  }
+ },
+ "versions": [
+  {
+   "base": {
+    "aov": 78304.35,
+    "items": [],
+    "margin_pct": 16.8,
+    "scope": "shop"
+   },
+   "basis": {
+    "detail": "Mức ước tính chung, chưa có đủ lịch sử của shop.",
+    "key": "prior",
+    "label": "ước tính chung",
+    "previous": "prior",
+    "reason_code": null,
+    "reason_text": null,
+    "volume_estimate": true,
+    "weak": true
+   },
+   "before_after": {
+    "days": 30,
+    "note": "Trước = phễu 30 ngày gần nhất của cùng phạm vi, quy về 30 ngày; sau = kết quả dự kiến của cùng phương án. Chỉ số phương án không tác động ghi “không đổi” kèm lý do.",
+    "range": "P10 – P90, giữa là P50 (cả ba là kịch bản trọn vẹn của cùng phễu)",
+    "rows": [
+     {
+      "after": {
+       "high": 3964748.8317976044,
+       "low": 3848816.8928759582,
+       "p50": 3887735.2002515225
+      },
+      "before": 3850000.0,
+      "key": "gmv",
+      "label": "GMV",
+      "reason": null,
+      "unchanged": false,
+      "unit": "vnd"
+     },
+     {
+      "after": {
+       "high": 39.04254191263602,
+       "low": 39.04372371728944,
+       "p50": 39.04331912691792
+      },
+      "before": 41.22552947910704,
+      "key": "margin",
+      "label": "Biên lợi nhuận",
+      "reason": null,
+      "unchanged": false,
+      "unit": "pct"
+     },
+     {
+      "after": {
+       "high": 72.12497836662232,
+       "low": 69.97809060881404,
+       "p50": 70.69880000465783
+      },
+      "before": 70.0,
+      "key": "orders",
+      "label": "Số đơn",
+      "reason": null,
+      "unchanged": false,
+      "unit": "count"
+     },
+     {
+      "after": {
+       "high": 54970.53755280423,
+       "low": 55000.313089296884,
+       "p50": 54990.11581519613
+      },
+      "before": 55000.0,
+      "key": "aov",
+      "label": "AOV",
+      "reason": null,
+      "unchanged": false,
+      "unit": "vnd"
+     },
+     {
+      "after": {
+       "high": 7.3596916700635004,
+       "low": 7.1406214906953105,
+       "p50": 7.21416326578141
+      },
+      "before": 7.142857142857142,
+      "key": "ctor",
+      "label": "CTOR",
+      "reason": null,
+      "unchanged": false,
+      "unit": "pct"
+     },
+     {
+      "after": {
+       "high": 6.363636363636363,
+       "low": 6.363636363636363,
+       "p50": 6.363636363636363
+      },
+      "before": 6.363636363636363,
+      "key": "ctr",
+      "label": "CTR",
+      "reason": "Đòn bẩy này tăng tỉ lệ đặt hàng; mô hình không dự kiến thay đổi CTR (không bịa mức tăng).",
+      "unchanged": true,
+      "unit": "pct"
+     },
+     {
+      "after": {
+       "high": 15400.0,
+       "low": 15400.0,
+       "p50": 15400.0
+      },
+      "before": 15400.0,
+      "key": "views",
+      "label": "Lượt xem",
+      "reason": "Đòn bẩy này tăng tỉ lệ đặt hàng; mô hình không dự kiến thay đổi Lượt xem (không bịa mức tăng).",
+      "unchanged": true,
+      "unit": "count"
+     }
+    ],
+    "scope": "shop",
+    "source": "result"
+   },
+   "breach": false,
+   "break_even": {
+    "aov_needed": 86404.29,
+    "aov_now": 78304.35,
+    "applies": true,
+    "basis": "aov",
+    "extra_orders": null,
+    "period_days": 30,
+    "reason": null,
+    "reason_text": null,
+    "source": "money_layer"
+   },
+   "card_kind": "min_spend_voucher",
+   "change_kind": "min_spend_voucher",
+   "cost": {
+    "amount": 84838.56000558939,
+    "expected_units": 28.27952000186313,
+    "label": "Voucher ở mức dùng dự kiến",
+    "per_unit": 3000.0,
+    "period_days": 30,
+    "reason": null,
+    "reason_text": null,
+    "source": "result"
+   },
+   "cost_known": true,
+   "dates": {
+    "days": 30,
+    "from": null,
+    "label": "30 ngày đầu",
+    "set": false,
+    "to": null
+   },
+   "delta": {
+    "certain_profit": -17250.0,
+    "days": 30,
+    "gmv": {
+     "high": 114749.0,
+     "low": -1183.0,
+     "p50": 37735.0
+    },
+    "orders": {
+     "high": 2.0,
+     "low": -0.02,
+     "p50": 0.7
+    },
+    "orders_note": null,
+    "per": "period",
+    "per_day": {
+     "cost": 2827.952000186313,
+     "gmv": {
+      "high": 3824.9666666666667,
+      "low": -39.43333333333333,
+      "p50": 1257.8333333333333
+     },
+     "orders": {
+      "high": 0.06666666666666667,
+      "low": -0.0006666666666666666,
+      "p50": 0.02333333333333333
+     },
+     "profit": {
+      "high": -1308.1333333333334,
+      "low": -2815.366666666667,
+      "p50": -2309.4
+     }
+    },
+    "per_order": {
+     "basis": "voucher_use",
+     "cost": 3000.0,
+     "orders": 5.75,
+     "profit": {
+      "high": -3000.0,
+      "low": -3000.0,
+      "p50": -3000.0
+     }
+    },
+    "period": {
+     "cost": 84838.56000558939,
+     "days": 30,
+     "gmv": {
+      "high": 114749.0,
+      "low": -1183.0,
+      "p50": 37735.0
+     },
+     "orders": {
+      "high": 2.0,
+      "low": -0.02,
+      "p50": 0.7
+     },
+     "profit": {
+      "high": -39244.0,
+      "low": -84461.0,
+      "p50": -69282.0
+     }
+    },
+    "profit": {
+     "high": -39244.0,
+     "low": -84461.0,
+     "p50": -69282.0
+    }
+   },
+   "details": {
+    "ad_attributed": {
+     "contribution_per_order": null,
+     "margin_pct": null,
+     "orders": 0,
+     "profit_per_order": null
+    },
+    "ad_margin_below_target": null,
+    "break_even_aov": {
+     "aov_needed": 86404.29,
+     "aov_now": 78304.35,
+     "reason": null
+    },
+    "break_even_extra_orders": 1,
+    "break_even_reason": null,
+    "days": 30,
+    "discount_pct_of_qualifying": 3.8,
+    "expected_qualifying_orders": 23,
+    "extra_cost": 17250,
+    "extra_orders_label": "Đơn thêm cần để hoà vốn",
+    "kind": "voucher",
+    "label": "Chắc chắn",
+    "lift_scale": 0.0,
+    "orders_missing_cost": 0,
+    "organic": {
+     "contribution_per_order": 29001.82,
+     "margin_pct": 38.1,
+     "orders": 22,
+     "profit_per_order": 29001.82
+    },
+    "per_user_limit": null,
+    "per_user_limit_status": null,
+    "predicted_net": {
+     "extra_revenue_per_extra_spend_high": 0.0,
+     "extra_revenue_per_extra_spend_low": 0.0,
+     "net_profit_high": -17250,
+     "net_profit_low": -17250,
+     "source": "shopee-reco-v1"
+    },
+    "qualifying_orders": 70,
+    "total_orders": 70,
+    "usage_capped": false,
+    "usage_limit": null,
+    "usage_rate": 0.25,
+    "usage_rate_source": "input",
+    "used_baseline": 0,
+    "used_scenario": 5.75,
+    "voucher_cost_baseline": 0,
+    "voucher_cost_scenario": 17250,
+    "voucher_detail": {
+     "cost_per_used_order": 3000,
+     "days": 30,
+     "max_discount": {
+      "applies": true,
+      "binding_orders": 23,
+      "binding_share": 1.0,
+      "pct_voucher": true,
+      "qualifying_orders": 23,
+      "value": 3000
+     },
+     "min_spend": {
+      "qualifying_orders": 70,
+      "total_orders": 70,
+      "value": 0
+     },
+     "per_user": {
+      "enforced": false,
+      "limit": null,
+      "status": null
+     },
+     "profit_per_order_after": 29001.82,
+     "usage": {
+      "capped": false,
+      "expected_uses": 5.75,
+      "headroom": null,
+      "limit": null,
+      "source": "input",
+      "used": 5.75
+     }
+    },
+    "voucher_scope": "shop",
+    "voucher_spend_check": {
+     "cap": 500000,
+     "over_cap": false,
+     "per_day": 575
+    },
+    "voucher_spend_per_day": 575,
+    "window_days": 30
+   },
+   "discount_given": null,
+   "driver": {
+    "drivers_pct": [
+     {
+      "label": "CTOR",
+      "metric": "ctor",
+      "pct": 0.9982857209397622
+     }
+    ],
+    "metrics": [
+     {
+      "after_p50": 7.21416326578141,
+      "before": 7.142857142857142,
+      "key": "ctor",
+      "label": "CTOR",
+      "unit": "pct"
+     },
+     {
+      "after_p50": 70.69880000465783,
+      "before": 70.0,
+      "key": "orders",
+      "label": "Số đơn",
+      "unit": "count"
+     }
+    ],
+    "relative_lift": {
+     "p10": 0.024,
+     "p25": 0.04105,
+     "p50": 0.06,
+     "p75": 0.07895,
+     "p90": 0.096
+    },
+    "target_metric": "ctor"
+   },
+   "index": 0,
+   "kind": "voucher",
+   "label": "Phương án 1",
+   "margin_after_pct": 16.2,
+   "margin_before_pct": 16.8,
+   "ok": true,
+   "profit_status": "ok",
+   "refusal": null,
+   "result": {
+    "ads": null,
+    "after": {
+     "days": 30,
+     "gmv_after": 3887735.2002515225,
+     "gmv_before": 3850000.0,
+     "label": "30 ngày đầu",
+     "profit_after": 1517900.8610437233,
+     "profit_before": 1587182.884945621
+    },
+    "basis": "prior",
+    "basis_weak": true,
+    "build_up": [
+     {
+      "amount": 15557.0,
+      "key": "extra_orders",
+      "text": "< 1 đơn × 22.262đ"
+     },
+     {
+      "amount": -84839.0,
+      "key": "offer",
+      "text": "− voucher 28 lượt × 3.000đ"
+     }
+    ],
+    "cost": {
+     "break_even_aov": null,
+     "break_even_orders": 4.0,
+     "fixed": 0.0,
+     "offers": [
+      {
+       "expected_uses": 28.27952000186313,
+       "label": "voucher",
+       "max_discount": {
+        "binding_orders": 23,
+        "cap": 3000.0,
+        "qualifying_orders": 23
+       },
+       "per_use": 3000.0,
+       "takeup": {
+        "basis": "prior",
+        "rate": 0.4
+       },
+       "total": 84838.56000558939
+      }
+     ],
+     "text": "Chi phí 84.839đ · hoà vốn khi thêm ≥ 4 đơn",
+     "total": 84838.56000558939
+    },
+    "days": 30,
+    "delta": {
+     "gmv": {
+      "pct": 0.9801350714681143,
+      "value": 37735.0
+     },
+     "orders": {
+      "note": null,
+      "pct": 0.9982857209397501,
+      "value": 0.7
+     },
+     "profit": {
+      "basis": "contribution",
+      "high": -39244.0,
+      "low": -84461.0,
+      "pct": -4.365093938388303,
+      "value": -69282.0
+     }
+    },
+    "detail": {
+     "before": {
+      "aov": 55000.0,
+      "by_source": {
+       "chenh_lech_nguon": {
+        "aov": null,
+        "clicks": null,
+        "ctor": null,
+        "ctr": null,
+        "gmv": 70000.0,
+        "orders": 0.0,
+        "profit": 28857.87063537493,
+        "views": null
+       },
+       "lien_ket": {
+        "aov": 50000.0,
+        "clicks": 168.0,
+        "ctor": 8.333333333333332,
+        "ctr": 20.0,
+        "gmv": 700000.0,
+        "orders": 14.0,
+        "profit": 288578.70635374926,
+        "views": 840.0
+       },
+       "live": {
+        "aov": null,
+        "clicks": 0.0,
+        "ctor": null,
+        "ctr": null,
+        "gmv": 0.0,
+        "orders": 0.0,
+        "profit": 0.0,
+        "views": 0.0
+       },
+       "the_san_pham_khac": {
+        "aov": 85000.0,
+        "clicks": 560.0,
+        "ctor": 5.0,
+        "ctr": 4.444444444444445,
+        "gmv": 2380000.0,
+        "orders": 28.0,
+        "profit": 981167.6016027476,
+        "views": 12600.0
+       },
+       "trang_shop": {
+        "aov": 30000.0,
+        "clicks": 140.0,
+        "ctor": 10.0,
+        "ctr": 10.0,
+        "gmv": 420000.0,
+        "orders": 14.0,
+        "profit": 173147.22381224958,
+        "views": 1400.0
+       },
+       "video": {
+        "aov": 20000.0,
+        "clicks": 112.0,
+        "ctor": 12.5,
+        "ctr": 20.0,
+        "gmv": 280000.0,
+        "orders": 14.0,
+        "profit": 115431.48254149972,
+        "views": 560.0
+       }
+      },
+      "ctor": 7.142857142857142,
+      "ctr": 6.363636363636363,
+      "gmv": 3850000.0,
+      "orders": 70.0,
+      "profit": 1587182.884945621,
+      "views": 15400.0
+     },
+     "high": {
+      "aov": 54970.53755280423,
+      "by_source": {
+       "chenh_lech_nguon": {
+        "aov": null,
+        "clicks": null,
+        "ctor": null,
+        "ctr": null,
+        "gmv": 70000.0,
+        "orders": 0.0,
+        "profit": 28857.87063537493,
+        "views": null
+       },
+       "lien_ket": {
+        "aov": 50000.0,
+        "clicks": 168.0,
+        "ctor": 8.586306948407419,
+        "ctr": 20.0,
+        "gmv": 721249.783666223,
+        "orders": 14.424995673324462,
+        "profit": 280029.0473753252,
+        "views": 840.0
+       },
+       "live": {
+        "aov": null,
+        "clicks": 0.0,
+        "ctor": null,
+        "ctr": null,
+        "gmv": 0.0,
+        "orders": 0.0,
+        "profit": 0.0,
+        "views": 0.0
+       },
+       "the_san_pham_khac": {
+        "aov": 85000.0,
+        "clicks": 560.0,
+        "ctor": 5.151784169044451,
+        "ctr": 4.444444444444445,
+        "gmv": 2452249.2644651583,
+        "orders": 28.849991346648924,
+        "profit": 976332.7538072907,
+        "views": 12600.0
+       },
+       "trang_shop": {
+        "aov": 29999.999999999996,
+        "clicks": 140.0,
+        "ctor": 10.303568338088901,
+        "ctr": 10.0,
+        "gmv": 432749.8701997338,
+        "orders": 14.424995673324462,
+        "profit": 161093.43050199936,
+        "views": 1400.0
+       },
+       "video": {
+        "aov": 20000.0,
+        "clicks": 112.0,
+        "ctor": 12.879460422611128,
+        "ctr": 20.0,
+        "gmv": 288499.91346648923,
+        "orders": 14.424995673324462,
+        "profit": 101625.62206533646,
+        "views": 560.0
+       }
+      },
+      "ctor": 7.3596916700635004,
+      "ctr": 6.363636363636363,
+      "gmv": 3964748.8317976044,
+      "orders": 72.12497836662232,
+      "profit": 1547938.7243853267,
+      "views": 15400.0
+     },
+     "likely": {
+      "aov": 54990.11581519613,
+      "by_source": {
+       "chenh_lech_nguon": {
+        "aov": null,
+        "clicks": null,
+        "ctor": null,
+        "ctr": null,
+        "gmv": 70000.0,
+        "orders": 0.0,
+        "profit": 28857.87063537493,
+        "views": null
+       },
+       "lien_ket": {
+        "aov": 50000.0,
+        "clicks": 168.0,
+        "ctor": 8.416523810078312,
+        "ctr": 20.0,
+        "gmv": 706988.0000465782,
+        "orders": 14.139760000931565,
+        "profit": 274491.8343718335,
+        "views": 840.0
+       },
+       "live": {
+        "aov": null,
+        "clicks": 0.0,
+        "ctor": null,
+        "ctr": null,
+        "gmv": 0.0,
+        "orders": 0.0,
+        "profit": 0.0,
+        "views": 0.0
+       },
+       "the_san_pham_khac": {
+        "aov": 85000.0,
+        "clicks": 560.0,
+        "ctor": 5.049914286046987,
+        "ctr": 4.444444444444445,
+        "gmv": 2403759.200158366,
+        "orders": 28.27952000186313,
+        "profit": 957027.0336657991,
+        "views": 12600.0
+       },
+       "trang_shop": {
+        "aov": 29999.999999999996,
+        "clicks": 140.0,
+        "ctor": 10.099828572093974,
+        "ctr": 10.0,
+        "gmv": 424192.8000279469,
+        "orders": 14.139760000931565,
+        "profit": 157908.01582265296,
+        "views": 1400.0
+       },
+       "video": {
+        "aov": 20000.0,
+        "clicks": 112.0,
+        "ctor": 12.624785715117467,
+        "ctr": 20.0,
+        "gmv": 282795.2000186313,
+        "orders": 14.139760000931565,
+        "profit": 99616.1065480627,
+        "views": 560.0
+       }
+      },
+      "ctor": 7.21416326578141,
+      "ctr": 6.363636363636363,
+      "gmv": 3887735.2002515225,
+      "orders": 70.69880000465783,
+      "profit": 1517900.8610437233,
+      "views": 15400.0
+     },
+     "low": {
+      "aov": 55000.313089296884,
+      "by_source": {
+       "chenh_lech_nguon": {
+        "aov": null,
+        "clicks": null,
+        "ctor": null,
+        "ctr": null,
+        "gmv": 70000.0,
+        "orders": 0.0,
+        "profit": 28857.87063537493,
+        "views": null
+       },
+       "lien_ket": {
+        "aov": 50000.0,
+        "clicks": 168.0,
+        "ctor": 8.330725072477863,
+        "ctr": 20.0,
+        "gmv": 699780.9060881404,
+        "orders": 13.995618121762808,
+        "profit": 271693.6419824133,
+        "views": 840.0
+       },
+       "live": {
+        "aov": null,
+        "clicks": 0.0,
+        "ctor": null,
+        "ctr": null,
+        "gmv": 0.0,
+        "orders": 0.0,
+        "profit": 0.0,
+        "views": 0.0
+       },
+       "the_san_pham_khac": {
+        "aov": 85000.0,
+        "clicks": 560.0,
+        "ctor": 4.998435043486717,
+        "ctr": 4.444444444444445,
+        "gmv": 2379255.0806996776,
+        "orders": 27.991236243525616,
+        "profit": 947271.0211847667,
+        "views": 12600.0
+       },
+       "trang_shop": {
+        "aov": 30000.0,
+        "clicks": 140.0,
+        "ctor": 9.996870086973434,
+        "ctr": 10.0,
+        "gmv": 419868.54365288425,
+        "orders": 13.995618121762808,
+        "profit": 156298.28849100185,
+        "views": 1400.0
+       },
+       "video": {
+        "aov": 19999.999999999996,
+        "clicks": 112.0,
+        "ctor": 12.496087608716792,
+        "ctr": 20.0,
+        "gmv": 279912.36243525613,
+        "orders": 13.995618121762808,
+        "profit": 98600.6117452961,
+        "views": 560.0
+       }
+      },
+      "ctor": 7.1406214906953105,
+      "ctr": 6.363636363636363,
+      "gmv": 3848816.8928759582,
+      "orders": 69.97809060881404,
+      "profit": 1502721.4340388528,
+      "views": 15400.0
+     }
+    },
+    "drivers": [
+     "ctor"
+    ],
+    "drivers_pct": [
+     {
+      "label": "CTOR",
+      "metric": "ctor",
+      "pct": 0.9982857209397622
+     }
+    ],
+    "estimable": true,
+    "forecast": {
+     "basis": "prior",
+     "cost": 84838.56000558939,
+     "coverage": {
+      "days_with_data": 14,
+      "label": "14/30 ngày có dữ liệu",
+      "window_days": 30
+     },
+     "data_through": "2026-10-07",
+     "days": 30,
+     "estimable": true,
+     "evidence": "prior",
+     "metrics": {
+      "aov": {
+       "days": 30,
+       "delta": -9.884184803871904,
+       "delta_pct": -0.017971245097948917,
+       "du_kien": 54990.11581519613,
+       "hien_tai": 55000.0,
+       "high": 55000.313089296884,
+       "low": 54970.53755280423
+      },
+      "gmv": {
+       "days": 30,
+       "delta": 37735.200251522474,
+       "delta_pct": 0.9801350714681162,
+       "du_kien": 3887735.2002515225,
+       "hien_tai": 3850000.0,
+       "high": 3964748.8317976044,
+       "low": 3848816.8928759582
+      },
+      "margin_pct": {
+       "days": 30,
+       "delta": -2.200000000000003,
+       "delta_pct": null,
+       "du_kien": 39.3,
+       "hien_tai": 41.5,
+       "high": 39.3,
+       "low": 39.3
+      },
+      "orders": {
+       "days": 30,
+       "delta": 0.6988000046578264,
+       "delta_pct": 0.998285720939752,
+       "du_kien": 70.69880000465783,
+       "hien_tai": 70.0,
+       "high": 72.12497836662232,
+       "low": 69.97809060881404
+      },
+      "profit": {
+       "days": 30,
+       "delta": -69282.02390189772,
+       "delta_pct": -4.365093938388291,
+       "du_kien": 1517900.8610437233,
+       "hien_tai": 1587182.884945621,
+       "high": 1547938.7243853267,
+       "low": 1502721.4340388528
+      }
+     },
+     "reason_code": null,
+     "reason_text": null,
+     "schema": "forecast/2",
+     "within_noise": []
+    },
+    "horizon": "first_30_days",
+    "kind": "review_voucher",
+    "label": "Voucher",
+    "margin": {
+     "after_pct": 40.1,
+     "before_pct": 41.5,
+     "metric_id": "margin_contribution",
+     "shift_pts": -1.3999999999999986
+    },
+    "notes": [
+     "Nguồn Live chưa có dữ liệu nên không tính vào."
+    ],
+    "per_30d": {
+     "gmv": 37735.2002515224,
+     "label": "Quy đổi 30 ngày (tham khảo)",
+     "orders": 0.7,
+     "profit": -69282.0239018979,
+     "secondary": true
+    },
+    "reason_code": null,
+    "reason_text": null,
+    "roi": {
+     "label": "ΔGMV / chi phí",
+     "metric_id": "card_return",
+     "text": "ΔGMV / chi phí 0,4",
+     "value": 0.4447883161741112
+    },
+    "stale": null,
+    "within_noise": []
+   },
+   "result_refusal": null,
+   "title": "Mã Giảm Giá · Voucher toàn Shop · đơn tối thiểu",
+   "today": {
+    "aov": 55000.0,
+    "as_of": "2026-10-07",
+    "clicks_30d": 980.0,
+    "coverage": {
+     "days_with_data": 14,
+     "label": "14/30 ngày có dữ liệu",
+     "window_days": 30
+    },
+    "ctor": 0.07142857142857142,
+    "ctr": 0.06363636363636363,
+    "gmv_30d": 3850000.0,
+    "items": [],
+    "margin_pct": 16.8,
+    "orders_30d": 70.0,
+    "profit_30d": 1587182.884945621,
+    "scope": "shop",
+    "views_30d": 15400.0,
+    "window": {
+     "days": 30,
+     "from": "2026-09-08",
+     "to": "2026-10-07"
+    }
+   },
+   "voucher": {
+    "cost": 84838.56000558939,
+    "cost_per_used_order": 3000.0,
+    "days": 30,
+    "max_discount": {
+     "applies": true,
+     "binding_orders": 23,
+     "binding_share": 1.0,
+     "pct_voucher": true,
+     "qualifying_orders": 23,
+     "value": 3000
+    },
+    "min_spend": {
+     "qualifying_orders": 70,
+     "total_orders": 70,
+     "value": 0
+    },
+    "per_user": {
+     "enforced": false,
+     "limit": null,
+     "status": null
+    },
+    "profit_per_order_after": 29001.82,
+    "usage": {
+     "capped": false,
+     "expected_uses": 5.75,
+     "headroom": null,
+     "limit": null,
+     "source": "input",
+     "source_cost": "result",
+     "used": 28.27952000186313
+    }
+   },
+   "warnings": []
+  }
+ ]
+}

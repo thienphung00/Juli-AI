@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.agent_chat import TERMINAL_MESSAGE_STATUSES, AgentMessage
 from juli_backend.services.agent_runs.events import format_sse
+from juli_backend.services.juli_agent_api import config
 
 #: Events that end an answer's stream.
 TERMINAL_EVENT_TYPES: frozenset[str] = frozenset({"done", "error"})
@@ -39,6 +40,9 @@ TERMINAL_EVENT_TYPES: frozenset[str] = frozenset({"done", "error"})
 FLUSH_INTERVAL_S = 0.25
 DEFAULT_POLL_INTERVAL_S = 0.5
 DEFAULT_HEARTBEAT_INTERVAL_S = 15.0
+#: A reader follows a running answer at most this long beyond the run's own time limit
+#: (``config.run_timeout_s``): by then the run has ended itself or its process is gone.
+FOLLOW_GRACE_S = 5.0
 
 _PRIVATE_FIELDS: dict[str, tuple[str, ...]] = {"done": ("routing",), "needs_choice": ("pending",)}
 
@@ -206,8 +210,16 @@ async def event_stream(
     session_factory: async_sessionmaker[AsyncSession],
     poll_interval_s: float = DEFAULT_POLL_INTERVAL_S,
     heartbeat_interval_s: float = DEFAULT_HEARTBEAT_INTERVAL_S,
+    max_follow_s: float | None = None,
 ) -> AsyncIterator[str]:
-    """Replay every event after ``after_seq``, then follow the row until the answer ends."""
+    """Replay every event after ``after_seq``, then follow the row until the answer ends.
+
+    A run that never ends (its process died) does not hold the reader: after ``max_follow_s``
+    (default: the run time limit + :data:`FOLLOW_GRACE_S`) the stream closes with an ``error``
+    event ``{"code": "busy"}``, the same one a timed-out run writes.
+    """
+    limit = max_follow_s if max_follow_s is not None else config.run_timeout_s() + FOLLOW_GRACE_S
+    deadline = time.monotonic() + limit
     yield ": connected\n\n"  # first byte at once (#1292)
     last = after_seq
     quiet = 0.0
@@ -223,6 +235,9 @@ async def event_stream(
                 return
         if status in TERMINAL_MESSAGE_STATUSES:
             return
+        if time.monotonic() >= deadline:
+            yield _frame({"seq": last + 1, "type": "error", "payload": {"code": "busy"}})
+            return
         await asyncio.sleep(poll_interval_s)
         quiet += poll_interval_s
         if quiet >= heartbeat_interval_s:
@@ -233,6 +248,7 @@ async def event_stream(
 __all__ = [
     "DEFAULT_HEARTBEAT_INTERVAL_S",
     "DEFAULT_POLL_INTERVAL_S",
+    "FOLLOW_GRACE_S",
     "TERMINAL_EVENT_TYPES",
     "CancelRequested",
     "PersistingSink",

@@ -10,8 +10,11 @@ Nothing here computes a number.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
+
+from juli_backend.services.metrics.capabilities import SECTION8
 
 FAMILIES: tuple[str, ...] = (
     "ads",
@@ -561,21 +564,10 @@ KINDS: dict[str, KindSpec] = {
 
 #: Contract section 8. Keyed by the critical metric (``services/shopee_analytics/critical.py``
 #: ``CHANGE_KINDS``); the generators emit only kinds the metric allows, and the card carries
-#: the key it came from. Section 8 names every kind; the generators emit the ones in
-#: :data:`KINDS` (the listing family -- title, keyword, cover_image, price_display -- is
-#: wired to Lượt xem and CTR).
-WIRING: dict[str, tuple[str, ...]] = {
-    "views": ("title", "keyword", "ads_budget", "affiliate_commission"),
-    "ctr": ("cover_image", "title", "price_display"),
-    "ctor": ("product_discount", "min_spend_voucher", "review_voucher", "price"),
-    "aov": ("bundle_deal", "add_on", "min_spend_voucher", "variation_set"),
-    "bien": ("price", "voucher_cap", "ads_roas_target", "ads_pause"),
-    "roas": ("ads_roas_target", "ads_pause", "ads_purpose"),
-    "lien_ket": ("affiliate_commission", "affiliate_target_campaign"),
-    # not in section 8 (no critical metric of their own): the sale / combo families reach the
-    # shop through the same CTOR / AOV metrics plus the explicit sale calendar
-    "sale": ("flash_sale", "program_registration"),
-}
+#: the key it came from. Section 8 is part of the capability table (owner #115,
+#: ``metrics.capabilities.SECTION8``): every kind wired to a metric moves it there, and a kind or
+#: a metric without a row fails ``tests/unit/test_metric_capabilities.py``.
+WIRING: Mapping[str, tuple[str, ...]] = SECTION8
 
 
 def spec(kind: str) -> KindSpec:

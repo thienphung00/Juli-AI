@@ -26,8 +26,15 @@ export interface ForecastMetric {
 
 export interface ForecastBlock {
   readonly metrics?: Partial<Record<MetricKey | "margin_pct", ForecastMetric>> | null;
-  /** F5 / D4: the metrics whose change is inside the normal swing; their amount is not printed as a certain number. */
-  readonly noise?: readonly MetricKey[];
+  readonly schema?: string;
+  readonly estimable?: boolean;
+  /** F5 / D4: the metrics whose change is inside the normal swing (the server's field); see `isNoisy`. */
+  readonly within_noise?: readonly string[] | null;
+  /** F2 (forecast/2): the cost over the same days and how sure the forecast is. */
+  readonly cost?: N;
+  readonly evidence?: string | null;
+  /** F1: "27/30 ngày có dữ liệu" of hiện tại. */
+  readonly coverage?: { readonly days_with_data: number; readonly window_days: number; readonly label: string } | null;
   readonly data_through?: string | null;
   readonly days?: N;
   readonly reason_code?: string | null;
@@ -136,9 +143,20 @@ export function metricView(key: MetricKey, m: ForecastMetric | null | undefined,
   return { key, label, value, sub: ok(m.hien_tai) ? baselineLine(key, m) : null, loss, why: undefined };
 }
 
-/** The forecast of an option result (Tự tạo step ③/④ and the card's stored result): hiện tại = the before column, dự kiến = the likely one. */
+/** D4: only the profit is tagged (the F5 design keeps GMV / đơn plain), and never a profit that goes down (F2: a loss reads as a loss). */
+export function isNoisy(f: ForecastBlock | null | undefined, key: MetricKey): boolean {
+  const m = f?.metrics?.[key];
+  const loses = (n: unknown): boolean => ok(n) && n < 0;
+  return key === "profit" && Boolean(f?.within_noise?.includes(key)) && !loses(m?.delta) && !loses(m?.du_kien);
+}
+
+/** The forecast of an option result: the server's block (F2). A result stored before forecast/2 carries none: it stays readable from its own columns until the refresh job recomputes it. */
 export function forecastOfResult(r: OptionResult | null | undefined): ForecastBlock | null {
   if (!r) return null;
+  return r.forecast ?? storedBeforeForecast2(r);
+}
+
+function storedBeforeForecast2(r: OptionResult): ForecastBlock {
   const days = r.after?.days || r.days;
   const b = r.detail.before;
   const l = r.estimable ? r.detail.likely : null;
@@ -149,11 +167,9 @@ export function forecastOfResult(r: OptionResult | null | undefined): ForecastBl
     return { hien_tai: hien, du_kien: du, delta, delta_pct: relative && hien > 0 ? ((du - hien) / hien) * 100 : null, days };
   };
   const aov = (g: N, o: N): N => (g !== null && o !== null && o > 0 ? g / o : null);
-  // D4: only the profit is tagged (the F5 design keeps GMV / đơn plain on the result card)
-  const noise = r.estimable ? (r.within_noise ?? []).filter((m) => m === "profit") : [];
   return {
     days,
-    noise,
+    within_noise: r.estimable ? (r.within_noise ?? []) : [],
     reason_code: r.reason_code ?? null,
     reason_text: r.reason_text ?? null,
     metrics: {
@@ -167,9 +183,7 @@ export function forecastOfResult(r: OptionResult | null | undefined): ForecastBl
 
 /** The forecast a screen shows: the server's `forecast`, else the one built from the stored result. */
 export function forecastOf(card: { readonly forecast?: ForecastBlock | null; readonly result?: { readonly option?: OptionResult | null } | null }): ForecastBlock | null {
-  const own = forecastOfResult(card.result?.option ?? null);
-  if (!card.forecast) return own;
-  return own?.noise?.length && !card.forecast.noise ? { ...card.forecast, noise: own.noise } : card.forecast;
+  return card.forecast ?? forecastOfResult(card.result?.option ?? null);
 }
 
 /** "Số liệu đến 18/11" (null without a day). */

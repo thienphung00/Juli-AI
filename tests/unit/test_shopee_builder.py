@@ -637,7 +637,12 @@ async def test_two_vouchers_compare_side_by_side_with_typed_numbers(session, sho
     assert da["total_orders"] > da["qualifying_orders"]
     assert db["voucher_cost_scenario"] == 2 * da["voucher_cost_scenario"]
     # P99: a voucher without dates keeps its OptionResult's 30-day horizon ("30 ngày đầu")
-    assert b["cost"]["amount"] == 2 * a["cost"]["amount"] and a["cost"]["period_days"] == 30
+    # #78 / #87: the cost line is the engine's voucher offer (its middle column's expected uses x
+    # the discount), not the evaluator's usage formula: the two vouchers' middle columns average
+    # slightly different scenarios (each ranked by its own Δ profit), so twice the discount is
+    # about -- not exactly -- twice the cost
+    assert b["cost"]["amount"] == pytest.approx(2 * a["cost"]["amount"], rel=0.05)
+    assert a["cost"]["source"] == "result" and a["cost"]["period_days"] == 30
     assert a["result"]["days"] == 30 and a["result"]["horizon"] == "first_30_days"
     # the shop's stored profit is partial (order lines cover 7 of 30 days): "chưa tính", never a
     # second calculation from the order lines
@@ -660,6 +665,12 @@ async def test_a_voucher_from_zero_a_percent_cap_limits_and_the_four_kinds(sessi
     )
     uncapped = await one(session, shop, kind="voucher", discount_type="pct", value=10, min_spend=0)
     assert capped["details"]["voucher_cost_scenario"] < uncapped["details"]["voucher_cost_scenario"]
+    # the card's max-discount row reads the engine's voucher offer (the same order values its uses
+    # come from): the 3.000đ cap binds on some qualifying orders; no cap / an amount -> None
+    md = capped["result"]["cost"]["offers"][0]["max_discount"]
+    assert md["cap"] == 3000 and 0 < md["binding_orders"] <= md["qualifying_orders"]
+    assert uncapped["result"]["cost"]["offers"][0]["max_discount"] is None
+    assert zero["result"]["cost"]["offers"][0]["max_discount"] is None
     limited = await one(
         session,
         shop,
@@ -863,8 +874,10 @@ async def test_price_and_flash_sale_share_the_economics(session, shop):
         units=5,
         slot_hours=3,
     )
-    assert flash["ok"] and flash["cost"]["period_days"] == 1
-    assert flash["details"]["skus"][0]["price_after"] == 48_000
+    assert flash["ok"], flash.get("refusal")
+    assert flash["cost"]["period_days"] == 1
+    # F4: the discount is taken off the variation's own list price (100.000), as the screen quotes
+    assert flash["details"]["skus"][0]["price_after"] == 80_000
     nope = await one(session, shop, kind="flash_sale", item_id="1002", units=5)
     assert nope["refusal"]["code"] == "variations_required"
 
@@ -934,7 +947,9 @@ async def test_listing_levers_have_a_range_or_say_they_cannot(session, shop):
     )
     assert title["driver"]["target_metric"] == "views"
     assert [m["key"] for m in title["driver"]["metrics"]] == ["views", "ctr", "orders"]
-    assert title["delta"]["gmv"]["high"] > title["delta"]["gmv"]["low"]
+    # F5: a title shows no uplift until measured
+    assert title["result"]["estimable"] is False
+    assert title["delta"]["gmv"]["high"] is None and title["delta"]["gmv"]["low"] is None
     cover = await one(
         session,
         shop,
@@ -951,7 +966,7 @@ async def test_listing_levers_have_a_range_or_say_they_cannot(session, shop):
         cover["driver"]["target_metric"] == "ctr"
         and cover["details"]["overlay"]["layout"] == "banner_bottom"
     )
-    assert cover["ok"] and cover["result"]["estimable"] is True  # kind prior (#27)
+    assert cover["ok"] and cover["result"]["estimable"] is False  # F5: not measured yet
     desc = await one(
         session,
         shop,

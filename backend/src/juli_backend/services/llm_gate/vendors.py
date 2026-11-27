@@ -54,6 +54,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -154,14 +155,61 @@ class GateCallFailed(Exception):
         purpose: str,
         status_code: int | None = None,
         retry_after: str | None = None,
+        error_text: str | None = None,
     ) -> None:
         detail = f" {status_code}" if status_code is not None else ""
-        super().__init__(f"{provider} call failed ({purpose}): {reason}{detail}")
+        said = f": {error_text}" if error_text else ""
+        super().__init__(f"{provider} call failed ({purpose}): {reason}{detail}{said}")
         self.reason = reason
+        #: the provider's own error, short and redacted (:func:`redacted_error_text`)
+        self.error_text = error_text
         self.provider = provider
         self.purpose = purpose
         self.status_code = status_code
         self.retry_after = retry_after
+
+
+#: the longest provider error kept (log line / exception text)
+ERROR_TEXT_MAX = 300
+_QUOTED = re.compile(r"\"[^\"]*\"|'[^']*'")
+_SECRET = re.compile(r"(sk-[\w-]+|bearer\s+\S+|x-api-key\S*)", re.I)
+_DIGITS = re.compile(r"\d{3,}")
+
+
+def redacted_error_text(
+    response: httpx.Response | None, identifiers: tuple[str, ...] = ()
+) -> str | None:
+    """The provider's error body, safe to log (#112): the ``error.type`` / ``message`` of a JSON
+    body (else the raw text), with every quoted value, key-like token, shop identifier and run of
+    3+ digits masked, whitespace collapsed, at most :data:`ERROR_TEXT_MAX` characters. A quoted
+    value may echo the request (shop data), so none is kept; the field paths and the reason stay.
+    """
+    if response is None:
+        return None
+    try:
+        raw = response.text
+    except httpx.ResponseNotRead:
+        return None
+    try:
+        payload = json.loads(raw)
+    except ValueError:
+        payload = None
+    if isinstance(payload, dict):
+        err = payload.get("error", payload)
+        if isinstance(err, dict):
+            bits = [str(err.get(k)) for k in ("type", "message", "detail") if err.get(k)]
+            raw = " ".join(bits) or raw
+        elif isinstance(err, str):
+            raw = err
+    text = raw
+    for ident in identifiers:
+        if ident:
+            text = text.replace(ident, "[shop]")
+    text = _SECRET.sub("[key]", text)
+    text = _QUOTED.sub("…", text)
+    text = _DIGITS.sub("#", text)
+    text = " ".join(text.split())
+    return text[:ERROR_TEXT_MAX] or None
 
 
 @dataclass
@@ -399,12 +447,29 @@ class _Call:
                 request_id=response.headers.get(request_id_header) if response else None,
             )
         )
+        error_text = (
+            redacted_error_text(response, (str(self.gate.shop_id), *self.gate.shop_identifiers))
+            if reason == FAIL_HTTP_STATUS
+            else None
+        )
+        status = response.status_code if response is not None else None
+        logger.warning(
+            "llm_gate_call_failed",
+            extra={
+                "provider": self.provider,
+                "purpose": self.purpose,
+                "reason": reason,
+                "status_code": status,
+                "error_text": error_text,
+            },
+        )
         return GateCallFailed(
             reason,
             provider=self.provider,
             purpose=self.purpose,
-            status_code=response.status_code if response is not None else None,
+            status_code=status,
             retry_after=response.headers.get("retry-after") if response is not None else None,
+            error_text=error_text,
         )
 
 

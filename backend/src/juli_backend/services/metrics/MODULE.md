@@ -14,6 +14,7 @@ decisions §11). Pure: no DB, no I/O, no clock. Step 1 of the migration: nothing
 | `registry` | `MetricDef`, `SourceSpec`, `METRICS` (every §5 id), `PARAMS`, `DERIVATION_VERSION`; formulas as data (`("div", "gmv", "orders")`) |
 | `components` | `COMPONENTS` (§4 ids + the ones a §5 metric needs, `in_doc=False`), the `Components` value type |
 | `compute` | `evaluate(metric_id, components) -> MetricValue`; `change`, `per_day`; `kol_status` |
+| `capabilities` | owner #115: the ONE capability table: scope -> metrics measurable (`SCOPES`, `measurable`), card kind -> metrics moved (`MOVES`, `moves`), section 8 (`SECTION8` = `kinds.WIRING`), and the refusal lines Chat shows. `tests/unit/test_metric_capabilities.py` fails when a registry key or a card kind has no row |
 | `allocation` | `channel_partition` (§6), `shop_lines` (§7 "Cả shop" lines) |
 
 Generated TS contract: `apps/demo/src/lib/metrics/registry.generated.ts`, written by

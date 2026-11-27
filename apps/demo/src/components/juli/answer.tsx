@@ -4,7 +4,7 @@ import type { JuliChoiceOption, JuliTemplate } from "@juli/contracts";
 
 import { reduceAnswer, type AnswerBlockView } from "../../lib/juli/reduce";
 import type { CardState, ChatMessage } from "../../lib/juli/use-juli-chat";
-import { DataAnswer, NeedsChoice, PathRow, StopLabel, Unsupported, type JuliPlatform } from "./answer-parts";
+import { DataAnswer, MetaLine, NeedsChoice, PathRow, StopLabel, Tiles, Unsupported, type JuliPlatform } from "./answer-parts";
 import { CardBlock, NoCardLine } from "./card-block";
 
 export const ERROR_TEXT = "Juli đang gặp sự cố, thử lại sau";
@@ -46,13 +46,19 @@ function Block({
   readonly savedSentCode?: string;
 }) {
   const { platform } = actions;
+  // #110: the lead sentence first, then the text; up to three number tiles in one row; lists as tables
+  const tiles = block.dataAnswers.filter((d) => d.kind === "metric_total");
+  const others = block.dataAnswers.filter((d) => d.kind !== "metric_total" && !d.empty);
   return (
     <div className="juli-block">
       {multi && block.title ? <h3 className="juli-block__title">{block.title}</h3> : null}
+      {block.meta ? <MetaLine meta={block.meta} /> : null}
+      {block.lead ? <p className="juli-p juli-lead">{block.lead}</p> : null}
       {block.label ? <StopLabel label={block.label} /> : null}
       {block.text ? <p className="juli-p juli-p--body">{block.text}</p> : null}
+      {tiles.length > 0 ? <Tiles tiles={tiles} /> : null}
       {block.path && block.path.length > 0 ? <PathRow steps={block.path} platform={platform} /> : null}
-      {block.dataAnswers.map((d, i) => (
+      {others.map((d, i) => (
         <DataAnswer key={`${d.kind}-${i}`} data={d} platform={platform} />
       ))}
       {block.card ? (
@@ -106,13 +112,15 @@ export function MessagePair({
   const interactive = isLast && !running;
   const multi = view.blocks.length > 1;
   const thinking = running && !view.restated;
-
+  // #110 rule 1: no "Đang tìm hiểu" header once the answer has its own first sentence or figures
+  const answered = view.blocks.some((b) => b.lead !== null || b.text !== "" || b.dataAnswers.length > 0 || b.path !== null);
   return (
     <div className="juli-pair" data-status={message.status}>
       <div className="juli-me">{message.question}</div>
       <article className="juli-answer" aria-busy={running} aria-label="Câu trả lời của Juli">
         {saved && message.dataUntilVi ? <span className="juli-label juli-label--saved">{message.dataUntilVi}</span> : null}
-        {view.restated ? <p className="juli-p juli-restated">{view.restated}</p> : null}
+        {view.meta && !running ? <MetaLine meta={view.meta} /> : null}
+        {view.restated && (running || !answered) ? <p className="juli-p juli-restated">{view.restated}</p> : null}
         {thinking ? <p className="juli-p juli-restated">{view.status?.text_vi ?? "Đang tìm hiểu"}</p> : null}
         {running ? (
           <div className="juli-steps">

@@ -6,8 +6,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 
-from juli_backend.services.shopee_builder.engine.contract import Band, Basis, OfferCost
+from juli_backend.services.shopee_builder.engine.contract import Band, Basis, MaxDiscount, OfferCost
+from juli_backend.services.shopee_builder.engine_families import common
 from juli_backend.services.shopee_builder.engine_families.measure import (
     AdCampaignHist,
     AdDay,
@@ -35,13 +37,16 @@ class VoucherFacts:
     qualifying_share: Decimal  # share of ALL orders already at / over the minimum
     raise_gap_per_order: Decimal  # mean over ALL orders of max(0, minimum - order value)
     below_share: Decimal  # share of orders under the minimum
-    usage_rate: Decimal = Decimal(1)  # share of qualifying orders that use the voucher
+    #: owner #116: the shop's ONE take-up -- the share of qualifying orders that use a shop
+    #: voucher (``adapters.shop_voucher_takeup``); never 1 by default: the labelled prior
+    usage_rate: Decimal = common.TAKEUP_PRIOR
     baseline_per_use: Decimal | None = None  # "giảm mức": today's discount per use
-    #: ADR-122 d.13 E2: the share of ALL orders that reach the minimum, measured from the order
-    #: lines (orders within 20 % below it today); None = too few orders -> the tagged prior
-    reach: Band | None = None
-    reach_gap: Decimal = Decimal(0)  # mean (minimum - order value) of those orders
+    #: owner #116: "measured" (the shop's voucher orders) or "prior" (too few of them)
+    takeup_basis: Literal["measured", "prior"] = "prior"
+    reach_gap: Decimal = Decimal(0)  # mean (minimum - order value) of the near orders
     near_share: Decimal = Decimal(0)  # share of ALL orders within 20 % below the minimum
+    #: a percent voucher's cap against the same order values (None: no cap / an amount voucher)
+    max_discount: MaxDiscount | None = None
 
 
 @dataclass(frozen=True)
@@ -134,6 +139,10 @@ class PriceFacts:
     #: orders response and the programme's uses are scaled by this share. ``units_per_order`` /
     #: ``orders_per_day`` are those orders' own.
     coverage: Decimal = Decimal(1)
+    #: owner #98: a Flash Sale's price cut on one order holding a flash-priced variation = Σ over
+    #: its lines (today's price − flash price) x units (``adapters.flash_cut_per_order``); the
+    #: slot's cost is this x the engine's slot orders, capped at the slot's units. None = unknown
+    flash_cut_per_order: Decimal | None = None
 
 
 @dataclass(frozen=True)

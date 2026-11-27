@@ -34,6 +34,8 @@ from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_recommendations import (
     combo,
     config,
+    current,
+    forecast,
     product_queue,
     result_store,
     store,
@@ -341,7 +343,9 @@ def today_of(env: RecoEnv) -> dict[str, Any]:
     gmv, orders = float(env.shop_gmv_30d), env.shop_orders_30d
     fig = shop_profit_of(env.view)
     cap = env.daily_cap
+    now = current.current_30d(env)
     return {
+        "coverage": None if now is None else forecast.coverage(now.days, now.window_days),
         "as_of": env.as_of.isoformat(),
         "window": env.view.window.json(),
         "gmv_30d": gmv,

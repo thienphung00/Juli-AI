@@ -16,10 +16,20 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.repositories import PlatformItemSnapshotsRepo
-from juli_backend.services.shopee_analytics import ads_gate, kol, loaders, service, stored
+from juli_backend.services.capabilities import Route, can
+from juli_backend.services.ingest import read_days
+from juli_backend.services.shopee_analytics import (
+    ads_gate,
+    default_period,
+    kol,
+    loaders,
+    service,
+    stored,
+)
 from juli_backend.services.shopee_analytics import kol_compare as kol_compare_mod
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.critical import build_critical
+from juli_backend.services.shopee_analytics.default_period import DefaultPick
 from juli_backend.services.shopee_analytics.fmt import pct
 from juli_backend.services.shopee_analytics.loaders import ShopContext
 from juli_backend.services.shopee_analytics.matrix import (
@@ -55,6 +65,18 @@ def freshness_json(latest: dict[str, Any], anchor: date) -> dict[str, Any]:
     }
 
 
+async def unsettled_freshness(
+    session: AsyncSession, shop_id: uuid.UUID, platform: str
+) -> dict[str, Any] | None:
+    """7b: ``freshness.unsettled_orders`` -- completed orders still unpaid over 2 days later
+    (``{count, oldest_completed_on}``), Shopee shops only. The one computation behind the
+    overview and the channel split (Tổng quan reads the latter); a platform without the
+    ``unsettled_orders`` capability (TikTok) gets ``None``."""
+    if can(platform, "unsettled_orders").route is Route.none:
+        return None
+    return await read_days.unsettled_status(session, shop_id, platform)
+
+
 class NoShopeeData(LookupError):
     """The shop has no numbers (Shopee or TikTok) to anchor a window on; the route words the
     refusal by the shop's platform."""
@@ -68,6 +90,39 @@ async def default_anchor(session: AsyncSession, shop_id: uuid.UUID) -> date | No
     )
 
 
+async def resolve_screen_window(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    period: str = "30d",
+    month: str | None = None,
+    start: date | None = None,
+    end: date | None = None,
+    as_of: date | None = None,
+) -> tuple[Window | None, DefaultPick | None]:
+    """:func:`resolve_window` plus, for ``period`` ``auto`` (the screen's default, nothing chosen),
+    the :class:`default_period.DefaultPick` whose dates the payload names (``default_period``)."""
+    if period != default_period.AUTO:
+        return await resolve_window(
+            session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
+        ), None
+    newest = await resolve_window(
+        session, shop_id, period=f"{default_period.DEFAULT_DAYS}d", as_of=as_of
+    )
+    if newest is None:
+        return None, None
+    pick = await default_period.default_window(session, shop_id, newest.end)
+    return pick.window, pick
+
+
+def with_default(body: dict[str, Any], pick: DefaultPick | None) -> dict[str, Any]:
+    """Owner #85/#94: a payload opened on the default period names it (``default_period``: its
+    ``from`` / ``to``); a period the seller chose adds nothing."""
+    if pick is not None:
+        body["default_period"] = pick.json()
+    return body
+
+
 async def resolve_window(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -79,7 +134,11 @@ async def resolve_window(
     as_of: date | None = None,
 ) -> Window | None:
     """``service.resolve``, anchored on the newest complete layer-4 day when the raw tables give
-    none. A shop that has a raw anchor (every Shopee shop with data) resolves exactly as before."""
+    none. A shop that has a raw anchor (every Shopee shop with data) resolves exactly as before.
+    ``period`` ``auto``: the default period (:mod:`.default_period`)."""
+    if period == default_period.AUTO:
+        window, _ = await resolve_screen_window(session, shop_id, period=period, as_of=as_of)
+        return window
     window = await service.resolve(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
@@ -107,7 +166,23 @@ async def _views(
     end: date | None,
     as_of: date | None,
 ) -> tuple[ShopContext, PeriodView, PeriodView]:
-    window = await resolve_window(
+    ctx, now, before, _ = await _screen_views(
+        session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
+    )
+    return ctx, now, before
+
+
+async def _screen_views(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    period: str,
+    month: str | None,
+    start: date | None,
+    end: date | None,
+    as_of: date | None,
+) -> tuple[ShopContext, PeriodView, PeriodView, DefaultPick | None]:
+    window, pick = await resolve_screen_window(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     if window is None:
@@ -119,7 +194,7 @@ async def _views(
     before = await service.load_view(
         session, shop_id, ctx, window.previous(), funnel=True, rows="soft"
     )
-    return ctx, now, before
+    return ctx, now, before, pick
 
 
 async def overview(
@@ -133,7 +208,7 @@ async def overview(
     as_of: date | None = None,
     platform: str = "shopee",
 ) -> dict[str, Any]:
-    ctx, now, before = await _views(
+    ctx, now, before, pick = await _screen_views(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     anchor = await service.anchor_for(session, shop_id, as_of)
@@ -142,7 +217,10 @@ async def overview(
     body["freshness"] = freshness_json(
         await loaders.load_freshness(session, shop_id), now.window.end
     )
-    return body
+    unsettled = await unsettled_freshness(session, shop_id, platform)
+    if unsettled is not None:
+        body["freshness"]["unsettled_orders"] = unsettled
+    return with_default(body, pick)
 
 
 async def matrix(
@@ -160,10 +238,12 @@ async def matrix(
 ) -> dict[str, Any]:
     if sort not in SORTS:
         raise ValueError(f"sort must be one of {list(SORTS)}")
-    _, now, before = await _views(
+    _, now, before, pick = await _screen_views(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
-    return build_matrix(now, sort=sort, limit=limit, before=before, platform=platform)
+    return with_default(
+        build_matrix(now, sort=sort, limit=limit, before=before, platform=platform), pick
+    )
 
 
 async def product_price_margin(
@@ -251,11 +331,11 @@ async def critical(
     as_of: date | None = None,
     platform: str = "shopee",
 ) -> dict[str, Any]:
-    ctx, now, before = await _views(
+    ctx, now, before, pick = await _screen_views(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     series = await loaders.load_flow_series(session, shop_id, now.window.end)
-    return build_critical(ctx, now, series, before, platform)
+    return with_default(build_critical(ctx, now, series, before, platform), pick)
 
 
 async def ranking(
@@ -285,11 +365,14 @@ async def ranking(
             "reason": reason,
             "message": "Chưa có chi phí quảng cáo nên chưa xếp hạng được theo lợi nhuận.",
         }
-    _, now, before = await _views(
+    _, now, before, pick = await _screen_views(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
-    return build_ranking(
-        now, before, kind=kind, source=source, sub=sub, xep_theo=xep_theo, platform=platform
+    return with_default(
+        build_ranking(
+            now, before, kind=kind, source=source, sub=sub, xep_theo=xep_theo, platform=platform
+        ),
+        pick,
     )
 
 
@@ -302,8 +385,17 @@ async def product_page(
     as_of: date | None = None,
     platform: str = "shopee",
 ) -> dict[str, Any]:
-    if period not in PRODUCT_PERIODS:
+    if period not in (*PRODUCT_PERIODS, default_period.AUTO):
         raise ValueError(f"period must be one of {list(PRODUCT_PERIODS)}")
+    pick: DefaultPick | None = None
+    if period == default_period.AUTO:
+        # owner #85/#94: the page opens on the default 30 days; its 7 / 90 days share that end
+        window_auto, pick = await resolve_screen_window(
+            session, shop_id, period=period, as_of=as_of
+        )
+        if window_auto is None:
+            raise NoShopeeData(str(shop_id))
+        period, as_of = f"{default_period.DEFAULT_DAYS}d", window_auto.end
     anchor = as_of or await default_anchor(session, shop_id)
     if anchor is None:
         raise NoShopeeData(str(shop_id))
@@ -333,7 +425,7 @@ async def product_page(
     freshness = freshness_json(await loaders.load_freshness(session, shop_id), anchor)
     seeds = await loaders.load_keyword_seeds(session, shop_id, item_id)
     market = await loaders.load_keyword_market(session, [s.keyword for s in seeds])
-    return build_product_page(
+    body = build_product_page(
         ctx,
         item_id,
         views,
@@ -347,6 +439,7 @@ async def product_page(
         freshness=freshness,
         platform=platform,
     )
+    return with_default(body, pick)
 
 
 # ---------------------------------------------------------------------------- KOL (P91 D-9)

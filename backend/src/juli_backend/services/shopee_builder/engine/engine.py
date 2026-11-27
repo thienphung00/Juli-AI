@@ -17,7 +17,10 @@ Method (pure; the only randomness is a ``random.Random(seed)`` -- stdlib, no new
   (change in AOV x orders x contribution rate) - offers - fixed cost. Offers and the fixed cost are
   allocated to the sources by order share, so the sources add up to the total.
 * **Ranking.** All ``n`` scenarios are ranked by delta profit (by delta GMV when profit is unknown);
-  low / likely / high are whole scenarios at P10 / P50 / P90.
+  low / likely / high (5a, owner #99) are each the field-by-field MEAN of the scenarios ranked
+  within +-5 % of n around P10 / P50 / P90 (ranks 5-15 %, 45-55 %, 85-95 %): one drawn scenario
+  made the shown Δ GMV near-random when profit barely varies. Ratios come from the averaged sums
+  (AOV = mean GMV / mean orders). Build-up, cost, break-even and the noise check read these.
 """
 
 from __future__ import annotations
@@ -37,9 +40,12 @@ from juli_backend.services.shopee_builder.engine.contract import (
     Driver,
     DriverEffect,
     FunnelBase,
+    OfferCost,
+    OfferLine,
     OptionInput,
     OptionResult,
     Scenario,
+    base_scale,
 )
 from juli_backend.services.shopee_builder.engine.vn import (
     DRIVER_LABELS,
@@ -51,6 +57,8 @@ from juli_backend.services.shopee_builder.engine.vn import (
 
 Z90 = 1.2815515655446004  # standard normal quantile at 0.90 (config.Z_P90)
 DEFAULT_DAYS = 30
+#: 5a (owner #99): a column is the mean of the scenarios ranked within +-WINDOW of its quantile
+WINDOW = 0.05
 _BASIS_ORDER: tuple[Basis, ...] = (
     "measured",
     "product_history",
@@ -77,6 +85,15 @@ def _clamp01(x: float) -> float:
     return min(1.0, max(0.0, x))
 
 
+def _upgrade_draw(rng: random.Random, offer: OfferCost) -> float:
+    """Owner #116: the share of all orders that move up to use ``offer`` in one scenario, kept
+    within 0 .. its cap (the near share); 0 without upgraders (no draw: the seed's other draws
+    stay as they were)."""
+    if offer.upgrade is None:
+        return 0.0
+    return min(float(offer.upgrade.cap), max(0.0, _draw(rng, offer.upgrade.share)))
+
+
 # -- prepared inputs -----------------------------------------------------------------------------
 
 
@@ -92,6 +109,8 @@ class _Src:
     aov: float | None
     ppo: float | None
     po: float = 0.0  # the orders the profit stands on (P99: the days with costs)
+    ctr: float | None = None  # today's rates the 100 % caps use (F1: the adaptive window's)
+    ctor: float | None = None
 
 
 @dataclass
@@ -106,6 +125,8 @@ class _Eff:
     added_views: float = 0.0
     added_share: float = 0.0
     use_shares: list[float] = field(default_factory=list)
+    #: owner #116: per base source, the đ added per order by an offer's upgraders (one draw)
+    upgrade_gmv: list[float] = field(default_factory=list)
 
 
 @dataclass
@@ -125,7 +146,9 @@ class _Draw:
 
 def _neutral(n_src: int, n_offers: int) -> _Eff:
     one = [1.0] * n_src
-    return _Eff(list(one), list(one), list(one), list(one), None, 0.0, 0.0, [0.0] * n_offers)
+    return _Eff(
+        list(one), list(one), list(one), list(one), None, 0.0, 0.0, [0.0] * n_offers, [0.0] * n_src
+    )
 
 
 def _prepare(base: FunnelBase, scale: float) -> list[_Src]:
@@ -152,9 +175,24 @@ def _prepare(base: FunnelBase, scale: float) -> list[_Src]:
                 g / o if o > 0 else None,
                 p / po if (p is not None and po > 0) else None,
                 po,
+                _rate(s.ctr_rate, k, v),
+                _rate(s.ctor_rate, o, k),
             )
         )
     return out
+
+
+def _rate(measured: Decimal | None, num: float | None, den: float | None) -> float | None:
+    """The measured rate of the adaptive window, else this base's own ratio."""
+    if measured is not None:
+        return float(measured)
+    return None if num is None or not den or den <= 0 else num / den
+
+
+def _cap(m: float, rate: float | None) -> float:
+    """A lift may not push a rate over 100 %; it never turns into a loss when the 30 days' own
+    ratio is already over it (traffic known on fewer days than the orders)."""
+    return m if not rate or rate <= 0 else min(m, max(1.0, 1.0 / rate))
 
 
 def _carriers(srcs: list[_Src], driver: DriverEffect) -> list[int]:
@@ -201,9 +239,9 @@ def _scenario(
         v, k, o = s.v, s.k, s.o
         if s.capable and v is not None and k is not None:
             if mc != 1.0:
-                mc = min(mc, v / k)  # CTR <= 100 %
+                mc = _cap(mc, s.ctr)  # CTR <= 100 %
             if mt != 1.0 and s.o > 0:
-                mt = min(mt, k / s.o)  # CTOR <= 100 %
+                mt = _cap(mt, s.ctor)  # CTOR <= 100 %
             if mv != 1.0:
                 v, k, o = v * mv, k * mv, o * mv
             if mc != 1.0:
@@ -211,6 +249,11 @@ def _scenario(
             if mt != 1.0:
                 o = o * mt
         g = s.g * (o / s.o) if (s.o > 0 and o != s.o) else s.g
+        up = eff.upgrade_gmv[i] if eff.upgrade_gmv else 0.0
+        if up and s.aov:
+            # owner #116: the upgraders' added spend on this source's own AOV, so its ΔGMV =
+            # orders × upgrader share × added spend exactly (the same draw as their uses)
+            ma = ma * (1.0 + up / s.aov)
         p = s.p if s.p is not None else 0.0
         if s.ppo is not None:
             orders_term += (o - s.o) * s.ppo
@@ -275,6 +318,51 @@ def _scenario(
         aov_term,
         aov_orders,
         rev_offer,
+    )
+
+
+def _mean(xs: list[float]) -> float:
+    return sum(xs) / len(xs)
+
+
+def _mean_opt(xs: list[float | None]) -> float | None:
+    return None if any(x is None for x in xs) else _mean([x for x in xs if x is not None])
+
+
+def _mean_draw(window: list[_Draw]) -> _Draw:
+    """5a: one column = the field-by-field mean of ``window``'s scenarios. Every additive field
+    (per source views, clicks, orders, GMV, profit; offer uses and costs; the build-up terms) is
+    averaged; ratios are never averaged -- ``_to_scenario`` derives CTR, CTOR and AOV from the
+    averaged sums (AOV = mean GMV / mean orders), so the funnel and Orders x AOV = GMV still hold
+    exactly and the sources still add up to the total."""
+    if len(window) == 1:
+        return window[0]
+    n_src = len(window[0].rows)
+    rows = []
+    for i in range(n_src):
+        col = [w.rows[i] for w in window]
+        rows.append(
+            (
+                _mean_opt([r[0] for r in col]),
+                _mean_opt([r[1] for r in col]),
+                _mean([r[2] for r in col]),
+                _mean([r[3] for r in col]),
+                _mean_opt([r[4] for r in col]),
+            )
+        )
+    n_off = len(window[0].offer_uses)
+    return _Draw(
+        rows,
+        _mean([w.orders for w in window]),
+        _mean([w.gmv for w in window]),
+        _mean_opt([w.profit for w in window]),
+        _mean([w.offer_cost for w in window]),
+        [_mean([w.offer_uses[j] for w in window]) for j in range(n_off)],
+        _mean([w.orders_term for w in window]),
+        _mean([w.price_term for w in window]),
+        _mean([w.aov_term for w in window]),
+        _mean([w.aov_orders for w in window]),
+        _mean([w.revenue_offer_cost for w in window]),
     )
 
 
@@ -403,6 +491,24 @@ def _build_up(
     return tuple(out)
 
 
+def _offer_lines(draw: _Draw, option: OptionInput) -> tuple[OfferLine, ...]:
+    """#78 / #87: each offer's expected uses (the column's, after its cap) x its cost per use."""
+    out = []
+    for offer, uses in zip(option.offers, draw.offer_uses, strict=True):
+        u = _d(uses)
+        out.append(
+            OfferLine(
+                offer.label, u, offer.per_use, u * offer.per_use, offer.max_discount, offer.takeup
+            )
+        )
+    return tuple(out)
+
+
+def _cost_of(lines: tuple[OfferLine, ...], option: OptionInput) -> Decimal:
+    """The option's cost = its offers' totals + its fixed cost (one computation, #78)."""
+    return sum((x.total for x in lines), Decimal(0)) + option.fixed_cost
+
+
 def _weakest(drivers: tuple[DriverEffect, ...]) -> Basis:
     rank = [_BASIS_ORDER.index(d.basis) for d in drivers]
     return _BASIS_ORDER[max(rank)] if rank else "measured"
@@ -417,7 +523,7 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
     horizon: Literal["duration", "first_30_days"] = (
         "duration" if option.duration_days else "first_30_days"
     )
-    scale = days / max(1, base.window_days)
+    scale = base_scale(days, base.days, base.window_days)
     srcs = _prepare(base, scale)
     keys = [s.key for s in srcs]
     cr = None if base.contribution_rate is None else float(base.contribution_rate)
@@ -483,16 +589,20 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         False,
     )
     before = _to_scenario(before_draw, keys)
-    fixed = float(option.fixed_cost)
     ppo_be = _break_even_ppo(option, added, before_draw, srcs)
 
     if base.stale is not None:  # F2: the newest data is too old: no forecast numbers
         estimable = False
     if not estimable:
         mid = _neutral(len(srcs), len(option.offers))
-        mid.use_shares = [float(o.use_share.p50) for o in option.offers]
+        mid.use_shares = [
+            float(o.use_share.p50) + (0.0 if o.upgrade is None else float(o.upgrade.share.p50))
+            for o in option.offers
+        ]
         cost_draw = _scenario(srcs, mid, option, cr, profit_known, aov_idx, None, True)
-        cost = cost_draw.offer_cost + fixed
+        lines = _offer_lines(cost_draw, option)
+        cost_d = _cost_of(lines, option)
+        cost = float(cost_d)
         return OptionResult(
             kind=option.kind,
             label=option.label,
@@ -506,7 +616,8 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
             likely=None,
             high=None,
             build_up=(),
-            cost_total=_d(cost),
+            cost_total=cost_d,
+            offers=lines,
             break_even_orders=_be_orders(cost, ppo_be),
             break_even_aov=_be_aov(
                 cost, 0.0, 0.0, srcs, aov_idx, before_draw.aov_orders, cr, has_aov
@@ -515,6 +626,9 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
             ads=option.ads,
             stale=base.stale,
             margin_basis=base.margin_basis,
+            data_through=base.window_end,
+            days_with_data=base.days,
+            window_days=base.window_days,
         )
 
     rng = random.Random(seed)
@@ -522,10 +636,17 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
     n = max(1, n)
     for _ in range(n):
         eff = _neutral(len(srcs), len(option.offers))
+        # owner #116: ONE draw of each offer's upgraders, shared by their uses and their GMV
+        ups = [_upgrade_draw(rng, o) for o in option.offers]
         for d, cs in zip(option.drivers, carriers, strict=True):
             if d.basis == "not_estimable":
                 continue
-            if d.added is not None:
+            if d.upgrade_of is not None:
+                o = option.offers[d.upgrade_of]
+                added_gmv = ups[d.upgrade_of] * float(o.upgrade.added if o.upgrade else 0)
+                for i in cs:
+                    eff.upgrade_gmv[i] += added_gmv
+            elif d.added is not None:
                 eff.added_idx = cs[0]
                 drawn = _draw(rng, d.added.views)
                 # a removal (every band end <= 0, P100 B.15) stays a removal; else no negatives
@@ -537,7 +658,9 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
                 arr = {"views": eff.mv, "ctr": eff.mc, "ctor": eff.mt, "aov": eff.ma}[d.metric]
                 for i in cs:
                     arr[i] *= m
-        eff.use_shares = [_clamp01(_draw(rng, o.use_share)) for o in option.offers]
+        eff.use_shares = [
+            _clamp01(_draw(rng, o.use_share) + up) for o, up in zip(option.offers, ups, strict=True)
+        ]
         draws.append(_scenario(srcs, eff, option, cr, profit_known, aov_idx, added, True))
 
     if profit_known and before_draw.profit is not None:
@@ -548,17 +671,25 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
     ranked = sorted(range(n), key=lambda i: keyed[i])
 
     def pick(q: float) -> _Draw:
-        return draws[ranked[int(round(q * (n - 1)))]]
+        # 5a (owner #99): the mean of the scenarios ranked within +-5 % of n around ``q``
+        lo = max(0, int(round((q - WINDOW) * (n - 1))))
+        hi = min(n - 1, int(round((q + WINDOW) * (n - 1))))
+        return _mean_draw([draws[ranked[j]] for j in range(lo, hi + 1)])
 
     d10, d50, d90 = pick(0.10), pick(0.50), pick(0.90)
     likely = d50
-    cost = likely.offer_cost + fixed
+    lines = _offer_lines(likely, option)
+    cost_d = _cost_of(lines, option)
+    cost = float(cost_d)
     d_profit = (
         None
         if likely.profit is None or before_draw.profit is None
         else likely.profit - before_draw.profit
     )
     flagged = _within_noise(base, option, before_draw, d90, days)
+    if (d_profit is not None and d_profit < 0) or (likely.profit is not None and likely.profit < 0):
+        # F2 (E133): a negative mid profit is a loss and reads as one, never as "trong dao động"
+        flagged = tuple(m for m in flagged if m != "profit")
     build_up = (
         ()
         if d_profit is None
@@ -577,7 +708,8 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         likely=_to_scenario(d50, keys),
         high=_to_scenario(d90, keys),
         build_up=build_up,
-        cost_total=_d(cost),
+        cost_total=cost_d,
+        offers=lines,
         break_even_orders=_be_orders(cost, ppo_be),
         break_even_aov=_be_aov(
             cost,
@@ -593,6 +725,9 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         ads=option.ads,
         within_noise=flagged,
         margin_basis=base.margin_basis,
+        data_through=base.window_end,
+        days_with_data=base.days,
+        window_days=base.window_days,
     )
 
 

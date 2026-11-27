@@ -37,8 +37,10 @@ Rules (the owner's, ORY 11/10-09/11 as the sanity shape):
   ``share`` (of the total GMV on the traffic-overview base; ``None`` for ads-report rows).
 - **Quảng cáo children, ads-report base** (never added to the traffic-overview figure): DVHT Sản
   phẩm and DVHT Shop+ = the ad types ``loaders.ad_type_class`` says so (C3; a livestream or
-  unknown type is in neither row). The ads report of a day is the Connector's
-  ``ads_campaign_daily`` wherever it has the day, else the daily file report. P100
+  unknown type is in neither row; owner #99: those have their own Livestream / Khác rows, shown
+  only with spend, and the ad rows' ``spend`` adds up to the shop's ads total). The ads report
+  of a day is the Connector's ``ads_campaign_daily`` wherever it has the day, else the daily file
+  report. P100
   B.4c: Lượt xem = the report's impressions, CTR = clicks ÷ impressions, CTOR = orders ÷ clicks
   (broad orders, the report's own basis); a type whose days lack the counts (a day covered only
   by a period file) leaves them ``None``. At Sản phẩm level there is no Shop+ row
@@ -119,8 +121,12 @@ _ROW_SOURCE = {
     "ads": "ads",
     "ads_product": "ads",
     "ads_shop": "ads",
+    "ads_livestream": "ads",
+    "ads_other": "ads",
     "affiliate": AFFILIATE,
 }
+#: owner #99 (3): the two ad-type rows beside DVHT Sản phẩm / DVHT Shop+, shown only with spend
+AD_ROW_LABELS = {"ads_livestream": "Livestream", "ads_other": "Khác"}
 
 
 # -- pure arithmetic ------------------------------------------------------------------------
@@ -305,8 +311,13 @@ def split_rows(
     ads_fallback: Mapping[str, Decimal] | None = None,
     affiliate_fallback: Mapping[str, Decimal] | None = None,
     platform: str = "shopee",
+    ads_total: Decimal | None = None,
 ) -> list[dict[str, Any]]:
     """The channel table rows for ``base`` (the shop, or one product).
+
+    ``ads_total`` (shop level, owner #99): the shop's ads total (Tổng quan's ``cost_ads``). The
+    Livestream row and the Khác row (unknown types + the spend no type explains) follow DVHT
+    Sản phẩm / DVHT Shop+ only when they spent something, so the ad rows' ``spend`` adds up to it.
 
     ``platform`` "tiktok" (W3, decision #7): Organic = Thẻ sản phẩm + Video + LIVE (no ads to
     take off, Tab cửa hàng shown but outside the sum, its orders / CTOR / AOV "—"), Quảng cáo
@@ -397,6 +408,7 @@ def split_rows(
     if not product_level:
         rows.append(_ad_row("ads_product", product_ads))
         rows.append(_ad_row("ads_shop", shop_ads))
+        rows.extend(_extra_ad_rows(ad_types, ads_total))
     rows.append(
         _row(
             "affiliate",
@@ -584,12 +596,36 @@ def ad_rate_basis(
     return imp, cell.get("rate_clicks"), cell.get("rate_orders")
 
 
+def _extra_ad_rows(ad_types: AdTypes | None, ads_total: Decimal | None) -> list[dict[str, Any]]:
+    """Owner #99 (3): the Livestream and Khác rows, each only when its spend is above 0. Khác =
+    the unknown types plus whatever of ``ads_total`` no type of the report explains."""
+    by = ad_report_by_class(ad_types)
+    live = by.get(loaders.AD_LIVESTREAM)
+    other = dict(by.get(loaders.AD_UNKNOWN) or {})
+    typed = sum(
+        (Decimal(c.get("spend") or 0) for k, c in by.items() if k != loaders.AD_UNKNOWN),
+        Decimal(0),
+    )
+    if ads_total is not None:
+        other["spend"] = ads_total - typed
+        other.setdefault("gmv", Decimal(0))
+        other.setdefault("orders", Decimal(0))
+    out = []
+    for key, cell in (("ads_livestream", live), ("ads_other", other or None)):
+        if cell is None or Decimal(cell.get("spend") or 0) <= 0:
+            continue
+        row = _ad_row(key, cell)
+        row["label"] = AD_ROW_LABELS[key]
+        out.append(row)
+    return out
+
+
 def _ad_row(key: str, cell: Mapping[str, Decimal | None] | None) -> dict[str, Any]:
     """A DVHT row on the ads report's own basis: Lượt xem = impressions, CTR = clicks ÷
     impressions, CTOR = orders ÷ clicks (broad orders, the report's basis). The rates use
     :func:`ad_rate_basis` (days with both counts), so a day without clicks leaves them known."""
     if cell is None:
-        return _row(key, "ads", None, None, None, None, "ads_report")
+        return {**_row(key, "ads", None, None, None, None, "ads_report"), "spend": None}
     row = _row(
         key,
         "ads",
@@ -602,6 +638,7 @@ def _ad_row(key: str, cell: Mapping[str, Decimal | None] | None) -> dict[str, An
     imp, clk, orders = ad_rate_basis(cell)
     row["ctr"] = frac(_div(clk, imp))
     row["ctor"] = frac(_div(orders, clk))
+    row["spend"] = num(cell.get("spend"))
     return row
 
 
@@ -658,10 +695,27 @@ async def _load(
     start: date | None,
     end: date | None,
     as_of: date | None,
-) -> tuple[Any, PeriodView, Window] | None:
-    from juli_backend.services.shopee_analytics.queries import NoShopeeData, resolve_window
+) -> tuple[Any, PeriodView, Window]:
+    ctx, view, window, _ = await _load_pick(
+        session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
+    )
+    return ctx, view, window
 
-    window = await resolve_window(
+
+async def _load_pick(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    period: str,
+    month: str | None,
+    start: date | None,
+    end: date | None,
+    as_of: date | None,
+) -> tuple[Any, PeriodView, Window, Any]:
+    """The window's view; the fourth item is the default period's pick (``period`` ``auto``)."""
+    from juli_backend.services.shopee_analytics.queries import NoShopeeData, resolve_screen_window
+
+    window, pick = await resolve_screen_window(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     if window is None:
@@ -669,7 +723,7 @@ async def _load(
     ctx = await loaders.load_context(session, shop_id)
     ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
     view = await service.load_view(session, shop_id, ctx, window, funnel=True)
-    return ctx, view, window
+    return ctx, view, window, pick
 
 
 def _product_ads(
@@ -1038,7 +1092,9 @@ async def _figures(
     if rows is None:
         rows = await funnel.load_rows(session, shop_id, window)
     ids = (product_id,) if product_id else ()
-    base = funnel.base_from_rows(rows, str(shop_id), item_ids=ids)
+    base = funnel.base_from_rows(
+        rows, str(shop_id), item_ids=ids, day_totals=platform == Platform.shopee
+    )
     shop_card = _by_source(funnel.base_from_rows(rows, str(shop_id))).get(CARD)
     ads_known = shop_card is not None and shop_card.ads is not None
     ad_types = view.data.ads_daily.by_type
@@ -1049,6 +1105,7 @@ async def _figures(
         ads_fallback=_product_ads(view, product_id, ads_known),
         affiliate_fallback=_product_affiliate(view, product_id),
         platform=platform,
+        ads_total=None if product_id else view.profit.total_ad_spend,
     )
     return body, _kpis(view, base, product_id, platform)
 
@@ -1121,11 +1178,10 @@ async def channel_split(
             period, start, end, plan_last = "custom", span[0], min(span[1], anchor), span[1]
         else:
             period = "30d"
-    loaded = await _load(
+    loaded = await _load_pick(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
-    assert loaded is not None
-    ctx, view, window = loaded
+    ctx, view, window, pick = loaded
     body_rows, kpis = await _figures(session, shop_id, view, window, product_id, platform)
     prev_rows: dict[str, dict[str, Any]] = {}
     prev_kpis: dict[str, Any] | None = None
@@ -1147,9 +1203,13 @@ async def channel_split(
         window.end,
         ads_last=ads_last_day(view.data.ads_daily.source_by_day),
     )
-    return {
+    from juli_backend.services.shopee_analytics import queries
+
+    unsettled = await queries.unsettled_freshness(session, shop_id, platform)
+    body: dict[str, Any] = {
         "level": "product" if product_id else "shop",
         "product_id": product_id,
+        **({} if unsettled is None else {"freshness": {"unsettled_orders": unsettled}}),
         "from": window.start.isoformat(),
         "to": window.end.isoformat(),
         "days": window.days,
@@ -1167,6 +1227,9 @@ async def channel_split(
         # QC, AFF and lợi nhuận ròng; None where the platform has no profit (D23)
         "profit_split": _split_of(view, product_id, kpis, platform),
     }
+    if pick is not None:  # owner #85/#94: the screen opened on the default period names it
+        body["default_period"] = pick.json()
+    return body
 
 
 async def channel_split_products(
@@ -1182,11 +1245,10 @@ async def channel_split_products(
 ) -> dict[str, Any]:
     """The product picker: each product with GMV, margin, its GMV by channel and the weakest
     funnel metric (:func:`weakest_metric`), biggest GMV first."""
-    loaded = await _load(
+    loaded = await _load_pick(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
-    assert loaded is not None
-    _ctx, view, window = loaded
+    _ctx, view, window, pick = loaded
     rows = view.data.funnel
     if rows is None:
         rows = await funnel.load_rows(session, shop_id, window)
@@ -1197,7 +1259,11 @@ async def channel_split_products(
     # C4: order lines matching no listing are not a product: no row, no selection (reported below)
     unmatched_ids = sorted(i for i in seen if Catalog.is_unmatched(i))
     item_ids = sorted(seen - set(unmatched_ids))
-    bases = {i: funnel.base_from_rows(rows, str(shop_id), item_ids=(i,)) for i in item_ids}
+    shopee = platform == Platform.shopee
+    bases = {
+        i: funnel.base_from_rows(rows, str(shop_id), item_ids=(i,), day_totals=shopee)
+        for i in item_ids
+    }
     values: dict[str, dict[str, float | None]] = {}
     for item, b in bases.items():
         views, clicks = funnel.known_total(b, "views"), funnel.known_total(b, "clicks")
@@ -1264,7 +1330,7 @@ async def channel_split_products(
         for i in unmatched_ids
         if (t := funnel.base_from_rows(rows, str(shop_id), item_ids=(i,)).total("gmv")) is not None
     ]
-    return {
+    out: dict[str, Any] = {
         "from": window.start.isoformat(),
         "to": window.end.isoformat(),
         "products": products[:MAX_PRODUCTS],
@@ -1275,3 +1341,6 @@ async def channel_split_products(
             "selectable": False,
         },
     }
+    if pick is not None:
+        out["default_period"] = pick.json()
+    return out

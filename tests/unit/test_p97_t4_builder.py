@@ -168,6 +168,10 @@ async def test_a_target_that_cannot_be_priced_is_listed_with_its_reason(session,
     assert out["ok"]
     ids = {r["id"]: r for r in out["targets"]}
     assert ids["1001"]["ok"] and ids["nope"]["ok"] is False and ids["nope"]["refusal"]["message"]
+    # F4 refuses a target without a price inside the per-target evaluation (no_price): it is
+    # carried on the row, never raised out of the evaluation
+    assert ids["nope"]["result"] is None and ids["nope"]["result_refusal"]["code"] == "no_price"
+    assert ids["1001"]["result"] is not None
     only_bad = await one(session, shop, **DISCOUNT, targets=["nope"])
     assert only_bad["ok"] is False
 

@@ -153,10 +153,17 @@ async def list_fill_jobs(
             if fill_queue.enabled()
             else []
         )
+        elsewhere = (
+            await fill_queue.leased_elsewhere_ids(
+                session, principal.shop_id, principal.token_id, now=now
+            )
+            if fill_queue.enabled()
+            else []
+        )
     await session.commit()
     if not fill_queue.enabled():
         return {"enabled": False, "jobs": [], "commands": pending}
-    return {"enabled": True, "jobs": jobs, "commands": pending}
+    return {"enabled": True, "jobs": jobs, "commands": pending, "leased_elsewhere": elsewhere}
 
 
 @jobs_router.post("/{job_id}")

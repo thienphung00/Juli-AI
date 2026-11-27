@@ -196,7 +196,8 @@ No ROI, no margin on these lines.
 `can(platform, capability) → Capability(route, reason)`; capabilities: `read_orders`,
 `read_shop_totals`, `read_ads`, `write_price`, `write_listing`, `write_stock`, `promo_discount`,
 `promo_flash_sale`, `voucher`, `bundle`, `affiliate_commission`, `ads_campaign`,
-`live_schedule`, `shop_tab`. Replaces `_shopee()` in routes and the frontend platform checks;
+`live_schedule`, `shop_tab`, `unsettled_orders` (Shopee settlement rows: the unpaid-order
+signal 7b). Replaces `_shopee()` in routes and the frontend platform checks;
 the Tự tạo builder offers only what `can()` allows (T10). Shopee rows (today): reads =
 connector (shop_overview, order pages, ads pages), listing/price/promotions/voucher/bundle/
 ads, and `affiliate_commission` (write) = connector (fill, seller presses Lưu). Three explicit

@@ -52,6 +52,7 @@ CAPABILITIES: tuple[str, ...] = (
     "ads_campaign",
     "live_schedule",
     "shop_tab",
+    "unsettled_orders",
 )
 
 NOT_DECLARED = Capability(Route.none, "not declared")
@@ -74,6 +75,9 @@ _SHOPEE: Mapping[str, Capability] = MappingProxyType(
         "write_stock": Capability(Route.none, "no Connector form map yet"),
         "live_schedule": Capability(Route.none, "not offered on Shopee VN seller flows in Juli"),
         "shop_tab": Capability(Route.none, "not offered yet"),
+        "unsettled_orders": Capability(
+            Route.connector, "Connector reads the income (settlement) pages"
+        ),
     }
 )
 
@@ -97,6 +101,9 @@ _TIKTOK: Mapping[str, Capability] = MappingProxyType(
         "ads_campaign": Capability(Route.connector, _NO_BUSINESS),
         "live_schedule": Capability(Route.none, "TikTok Shop chưa có API đặt lịch LIVE cho shop."),
         "shop_tab": Capability(Route.connector, "TikTok Shop không có API chỉnh tab Shop."),
+        "unsettled_orders": Capability(
+            Route.none, "no settlement read for TikTok Shop in Juli yet"
+        ),
     }
 )
 

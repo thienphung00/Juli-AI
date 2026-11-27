@@ -41,7 +41,7 @@ describe("Connect-shop route", () => {
     render(<ConnectShopPage />);
 
     expect(
-      await screen.findByRole("heading", { name: "Kết nối TikTok Shop" }),
+      await screen.findByRole("heading", { name: "Kết nối shop" }),
     ).toBeInTheDocument();
 
     // The heading is the loading state. The shop list fetch starts in the

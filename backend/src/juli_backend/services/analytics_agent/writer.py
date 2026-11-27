@@ -215,9 +215,12 @@ def template_text(first_line: str, chain_json: dict[str, Any], labels: LabelTabl
     head = chain_json["findings"][0] if chain_json["findings"] else {}
     prod = chain_json.get("product") or {}
     who = f" · {prod.get('name') or prod['item_id']}" if prod.get("item_id") else ""
+    if chain_json.get("stop_reason") == "data_missing":  # the head is a coverage check, no figure
+        return "\n".join([first_line, "Chưa đủ dữ liệu để so sánh hai kỳ."])
+    # the period is the answer's top line (#110 rule 2): not repeated here
     parts = [
         first_line,
-        f"Kỳ: {chain_json['window']['label_vi']}. {head.get('node_vi', labels.metric(m))}{who}: "
+        f"{head.get('node_vi', labels.metric(m))}{who}: "
         f"{fmt.value(m, head.get('before'))} → {fmt.value(m, head.get('now'))}.",
     ]
     for f in chain_json["findings"][1:4]:

@@ -8,7 +8,7 @@ import { el, NEVER_NOTE, STYLE } from "./panel";
 
 export type JobPanelInput =
   | { outcome: "filled" | "partial"; job: CoreJob; result: FillOutcome; periodOk?: boolean }
-  | { outcome: "saved"; job: CoreJob; result: FillOutcome }
+  | { outcome: "saved"; job: CoreJob; result: FillOutcome; cardDone?: boolean | null }
   | { outcome: "refused"; text: string }
   | { outcome: "halted"; text: string }
   | { outcome: "blocked"; text: string };
@@ -44,6 +44,10 @@ export const BANNER_JOB_NONE = "Juli chưa điền được mục nào. Làm cá
 export const BANNER_NO_PERIOD = "Chưa điền thời gian — đừng bấm Xác nhận";
 /** 0.3.27 (E10): the person's save landed. */
 export const BANNER_SAVED = "Đã lưu — bấm Đã làm trong Juli";
+/** E149: Juli recorded "Đã làm" itself, so the person has nothing to press. */
+export const BANNER_SAVED_DONE = "Đã lưu — Juli đã ghi nhận «Đã làm»";
+/** E149: the save was seen, Juli has not answered yet (it is not yet known whether "Đã làm" is still the person's). */
+export const BANNER_SAVED_WAIT = "Đã lưu — Juli đang ghi nhận";
 
 /** The header of a filled / partial job: truthful about how many items were filled. */
 export function jobHeader(result: FillOutcome, labels: JobLabels): { text: string; ok: boolean } {
@@ -73,7 +77,7 @@ export function showJobPanel(doc: Document, input: JobPanelInput, labels: JobLab
   if (input.outcome === "refused" || input.outcome === "halted" || input.outcome === "blocked") {
     box.append(el(doc, "div", { cls: "banner", text: input.text }));
   } else if (input.outcome === "saved") {
-    box.append(el(doc, "div", { cls: "banner ok", text: BANNER_SAVED }));
+    box.append(el(doc, "div", { cls: "banner ok", text: input.cardDone === undefined ? BANNER_SAVED_WAIT : input.cardDone === true ? BANNER_SAVED_DONE : BANNER_SAVED }));
   } else {
     if (input.periodOk === false) box.append(el(doc, "div", { cls: "banner stop", text: BANNER_NO_PERIOD }));
     const header = jobHeader(input.result, labels);

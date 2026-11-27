@@ -22,8 +22,9 @@ DOC_CAPABILITIES = (
     "ads_campaign",
     "live_schedule",
     "shop_tab",
+    "unsettled_orders",
 )
-SHOPEE_READS = ("read_orders", "read_shop_totals", "read_ads")
+SHOPEE_READS = ("read_orders", "read_shop_totals", "read_ads", "unsettled_orders")
 SHOPEE_FILLS = (
     "write_price",
     "write_listing",
@@ -93,6 +94,7 @@ TIKTOK_OTHER = {
     "ads_campaign": Capability(Route.connector, "Shop chưa cấp quyền TikTok Business API"),
     "live_schedule": Capability(Route.none, "TikTok Shop chưa có API đặt lịch LIVE cho shop."),
     "shop_tab": Capability(Route.connector, "TikTok Shop không có API chỉnh tab Shop."),
+    "unsettled_orders": Capability(Route.none, "no settlement read for TikTok Shop in Juli yet"),
 }
 
 
@@ -119,3 +121,10 @@ def test_unknown_capability_is_an_error() -> None:
     with pytest.raises(KeyError) as unknown:
         can("shopee", "write_everything")
     assert "write_everything" in str(unknown.value)
+
+
+def test_unsettled_orders_is_shopee_only() -> None:
+    """7b: the "N đơn chưa có thanh toán" signal reads Shopee's settlement (income) rows; TikTok
+    has none, so the analytics freshness block is ``None`` there (queries.unsettled_freshness)."""
+    assert can("shopee", "unsettled_orders").route is Route.connector
+    assert can("tiktok", "unsettled_orders").route is Route.none

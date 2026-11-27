@@ -389,13 +389,13 @@ export function versionTable(card: Card, versions: readonly CardVersion[]): Tabl
       rows.push(
         rowFrom(
           "limit",
-          "Giới hạn 100 ký tự",
+          `Giới hạn ${MAX_TITLE_CHARS} ký tự`,
           "mọi tiêu đề",
           null,
           cellOf((p) => {
             const n = titleOf(p.v.inputs).length;
             const over = n > MAX_TITLE_CHARS;
-            return { v: over ? `✕ ${n}/100 ký tự: quá giới hạn` : `✓ ${n}/100 ký tự · không tốn chi phí`, d: "", tone: over ? "down" : "plain", bad: over };
+            return { v: over ? `✕ ${n}/${MAX_TITLE_CHARS} ký tự: quá giới hạn` : `✓ ${n}/${MAX_TITLE_CHARS} ký tự · không tốn chi phí`, d: "", tone: over ? "down" : "plain", bad: over };
           }),
         ),
       );
@@ -489,7 +489,7 @@ export function versionTable(card: Card, versions: readonly CardVersion[]): Tabl
   rows.push(floorRow);
   const cap = capRow(false);
   if (cap) rows.push(cap);
-  if (card.family === "voucher" && per.some((p) => p?.c.certain.voucher_detail)) rows.push(...voucherRows(per, versions));
+  if (card.family === "voucher" && per.some((p) => p?.v.result)) rows.push(...voucherRows(per, versions));
   return rows;
 }
 
@@ -498,24 +498,28 @@ const NOT_COMPUTED = "Không tính được";
 
 type Per = { readonly v: CardVersion; readonly c: Card } | null;
 
-/** Usage vs limit, per-buyer limit, max discount and the one-line reason two versions look alike. */
+/** The voucher's own offer in a version's stored result: the one labelled "voucher" (backend `VOUCHER_OFFER_LABEL`), first match. */
+const VOUCHER_OFFER_LABEL = "voucher";
+function voucherOffer(v: CardVersion) {
+  return v.result?.option?.cost.offers?.find((o) => o.label === VOUCHER_OFFER_LABEL) ?? null;
+}
+
+/** Usage vs limit, per-buyer limit, max discount and the one-line reason two versions look alike: the version's own result offer and inputs, no second formula. */
+const muted = (v: string): TableCell => ({ v, d: "", tone: "muted", bad: false });
 function voucherRows(per: readonly (Per | { readonly v: CardVersion; readonly c: Card; readonly sure: unknown; readonly exp: unknown })[], versions: readonly CardVersion[]): TableRow[] {
-  const cell = (pick: (d: NonNullable<Card["certain"]["voucher_detail"]>, p: NonNullable<Per>) => TableCell): TableCell[] =>
-    per.map((p) => {
-      const d = p?.c.certain.voucher_detail;
-      return p && d ? pick(d, p) : { v: DASH, d: "", tone: "muted" as const, bad: false };
-    });
+  const cells = (f: (v: CardVersion, o: ReturnType<typeof voucherOffer>) => TableCell): TableCell[] => per.map((p) => (p ? f(p.v, voucherOffer(p.v)) : muted(DASH)));
   return [
     rowFrom(
       "usage",
       "Số lượt dùng",
       "dùng / giới hạn",
       null,
-      cellOf2(cell, (d) => {
-        const u = d.usage;
-        const used = num(u.used) ? vnCount(u.used) : DASH;
-        const limit = num(u.limit) ? fmt(u.limit, 0) : "không giới hạn";
-        return { v: `Dùng ${used} / ${limit} lượt`, d: num(u.limit) ? (u.capped ? "chạm giới hạn" : "chưa chạm giới hạn") : "", tone: u.capped ? "down" : "plain", bad: false };
+      cells((v, o) => {
+        if (!o || !num(o.expected_uses)) return muted(DASH);
+        const q = v.inputs?.quantity;
+        const hasLimit = num(q);
+        const capped = hasLimit && o.expected_uses >= q;
+        return { v: `Dùng ${vnCount(o.expected_uses)} / ${hasLimit ? fmt(q, 0) : "không giới hạn"} lượt`, d: hasLimit ? (capped ? "chạm giới hạn" : "chưa chạm giới hạn") : "", tone: capped ? "down" : "plain", bad: false };
       }),
     ),
     rowFrom(
@@ -523,19 +527,26 @@ function voucherRows(per: readonly (Per | { readonly v: CardVersion; readonly c:
       "Giới hạn mỗi người mua",
       "chưa tính vào kết quả",
       null,
-      cellOf2(cell, (d) => ({ v: num(d.per_user.limit) ? `${fmt(d.per_user.limit, 0)} lượt/người` : "Không đặt", d: num(d.per_user.limit) ? "chưa tính vào kết quả: đơn hàng không cho biết người mua" : "", tone: "muted", bad: false })),
+      cells((v) => {
+        const l = v.inputs?.per_user_limit;
+        return { v: num(l) ? `${fmt(l, 0)} lượt/người` : "Không đặt", d: num(l) ? "chưa tính vào kết quả: đơn hàng không cho biết người mua" : "", tone: "muted", bad: false };
+      }),
     ),
     rowFrom(
       "maxd",
       "Mức giảm tối đa",
       "chỉ voucher giảm theo %",
       null,
-      cellOf2(cell, (d) => {
-        const m = d.max_discount;
-        if (!m.applies) return { v: "Không đặt", d: "", tone: "muted", bad: false };
-        if (!m.pct_voucher) return { v: um(m.value), d: "chỉ có tác dụng với voucher %", tone: "muted", bad: false };
-        const binds = m.binding_orders > 0;
-        return { v: um(m.value), d: binds ? `chạm trần ở ${fmt(m.binding_orders, 0)}/${fmt(m.qualifying_orders, 0)} đơn đủ điều kiện` : "chưa đơn nào chạm trần", tone: binds ? "down" : "plain", bad: false };
+      cells((v, o) => {
+        if (!o) return muted(DASH);
+        const m = o.max_discount;
+        if (m) {
+          const binds = m.binding_orders > 0;
+          return { v: um(m.cap), d: binds ? `chạm trần ở ${fmt(m.binding_orders, 0)}/${fmt(m.qualifying_orders, 0)} đơn đủ điều kiện` : "chưa đơn nào chạm trần", tone: binds ? "down" : "plain", bad: false };
+        }
+        const mv = v.inputs?.max_value;
+        if (!num(mv)) return { v: "Không đặt", d: "", tone: "muted", bad: false };
+        return { v: um(mv), d: num(v.inputs?.pct) ? "" : "chỉ có tác dụng với voucher %", tone: "muted", bad: false };
       }),
     ),
     rowFrom(
@@ -546,10 +557,6 @@ function voucherRows(per: readonly (Per | { readonly v: CardVersion; readonly c:
       versions.map((v) => ({ v: v.same_as_default_notes && v.same_as_default_notes.length > 0 ? v.same_as_default_notes.join(" ") : DASH, d: "", tone: "muted" as const, bad: false })),
     ),
   ];
-}
-
-function cellOf2(cell: (pick: (d: NonNullable<Card["certain"]["voucher_detail"]>, p: NonNullable<Per>) => TableCell) => TableCell[], f: (d: NonNullable<Card["certain"]["voucher_detail"]>) => TableCell): TableCell[] {
-  return cell((d) => f(d));
 }
 
 /** Column tag of a version: the engine's pick, a breach, a version that could not be priced. */

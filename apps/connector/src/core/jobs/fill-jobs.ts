@@ -12,6 +12,12 @@ import { gmt7Date } from "../time";
 import { addRequests, type FillJobsState, loadCoreState, requestsLeft, saveState, type Storage } from "../state";
 
 /** What the runner needs of a platform pack: where its pages are and which jobs are well formed. */
+/** What Juli answers to a save report (E149). */
+export interface ReportAnswer {
+  /** Juli recorded the card's "Đã làm" itself. */
+  cardDone: boolean;
+}
+
 export interface JobSource<J extends CoreJob> {
   /** The seller centre origin the job pages open on. */
   origin: string;
@@ -107,9 +113,9 @@ export class FillJobs<J extends CoreJob = CoreJob> {
     await saveState(this.deps.storage, { fill: { ...(await this.fill()), ...patch } });
   }
 
-  private async list(token: string): Promise<{ enabled: boolean; jobs: J[]; malformed: string[] } | "unpaired" | "error"> {
+  private async list(token: string): Promise<{ enabled: boolean; jobs: J[]; malformed: string[]; elsewhere: string[] } | "unpaired" | "error"> {
     try {
-      const raw = (await this.deps.client.fillJobs(token)) as { enabled?: boolean; jobs?: unknown[] } | null;
+      const raw = (await this.deps.client.fillJobs(token)) as { enabled?: boolean; jobs?: unknown[]; leased_elsewhere?: unknown } | null;
       const jobs: J[] = [];
       const malformed: string[] = [];
       for (const served of Array.isArray(raw?.jobs) ? raw.jobs : []) {
@@ -120,7 +126,9 @@ export class FillJobs<J extends CoreJob = CoreJob> {
           if (id) malformed.push(id);
         }
       }
-      return { enabled: raw?.enabled === true, jobs, malformed };
+      // E130: jobs another computer holds (the server withholds them from this list)
+      const elsewhere = Array.isArray(raw?.leased_elsewhere) ? raw.leased_elsewhere.filter((x): x is string => typeof x === "string") : [];
+      return { enabled: raw?.enabled === true, jobs, malformed, elsewhere };
     } catch (error) {
       return error instanceof GatewayError && error.status === 401 ? "unpaired" : "error";
     }
@@ -297,6 +305,7 @@ export class FillJobs<J extends CoreJob = CoreJob> {
       await this.reportMalformed([jobId]);
       return { ok: false, reason: "malformed_job" };
     }
+    if (!job && listed.elsewhere.includes(jobId)) return { ok: false, reason: "leased_elsewhere" };
     if (!job) return { ok: false, reason: "unknown_job" };
     if (!senderMatchesJob(this.deps.pack.origin, tabUrl, job)) return { ok: false, reason: "wrong_page" };
     const fill = state.fill ?? EMPTY;
@@ -314,17 +323,20 @@ export class FillJobs<J extends CoreJob = CoreJob> {
     jobId: string,
     status: "opened" | "filled" | "saved" | "captured" | "failed",
     extra: { capturedRef?: string; error?: string; progress?: { filled: number; total: number }; detail?: ReportDetail } = {},
-  ): Promise<void> {
+  ): Promise<ReportAnswer | void> {
     const token = (await loadCoreState(this.deps.storage)).token;
     if (!token || !fillJobsActive(token.shop_id)) return;
+    let answer: ReportAnswer | undefined;
     try {
-      await this.deps.client.fillJobReport(token.token, jobId, {
+      const raw = await this.deps.client.fillJobReport(token.token, jobId, {
         status,
         ...(extra.capturedRef ? { captured_ref: extra.capturedRef } : {}),
         ...(extra.error ? { error: extra.error.slice(0, 64) } : {}),
         ...(extra.progress ? { progress: extra.progress } : {}),
         ...(extra.detail ? extra.detail : {}),
       });
+      // E149: after a save Juli says whether it recorded "Đã làm" itself
+      if (typeof raw === "object" && raw !== null && typeof (raw as { card_done?: unknown }).card_done === "boolean") answer = { cardDone: (raw as { card_done: boolean }).card_done };
     } catch {
       // Juli unreachable or the job moved on: nothing changes on the page; the checklist catches up.
     }
@@ -338,6 +350,7 @@ export class FillJobs<J extends CoreJob = CoreJob> {
         if ((status === "captured" || status === "failed") && tabId !== undefined && fill.active.closeWhenDone && this.deps.tabs.close) await this.deps.tabs.close(tabId).catch(() => undefined);
       }
     }
+    return answer;
   }
 
   /** The platform asked for the password again on a fill page: stop everything for the shop. */

@@ -13,6 +13,7 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import date, datetime, timedelta
+from decimal import Decimal as D
 from typing import Any
 
 from sqlalchemy import select
@@ -52,7 +53,8 @@ from juli_backend.services.shopee_builder.keywords import keyword_table
 from juli_backend.services.shopee_builder.reference import with_reference_lines
 from juli_backend.services.shopee_builder.translate import (
     Translation,
-    paid_price_and_min_discount,
+    min_discount_pct,
+    paid_today,
     to_variant,
 )
 from juli_backend.services.shopee_builder.variations import (
@@ -62,7 +64,7 @@ from juli_backend.services.shopee_builder.variations import (
     variation_rows,
     with_orders,
 )
-from juli_backend.services.shopee_recommendations import loader, manual
+from juli_backend.services.shopee_recommendations import current, loader, manual
 from juli_backend.services.shopee_recommendations import targets as multi_targets
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.voucher_notes import same_result_notes
@@ -230,10 +232,19 @@ async def variation_rows_for(
     return rows
 
 
-def _paid_fields(env: RecoEnv, row: Mapping[str, Any]) -> dict[str, Any]:
-    """``paid_price`` (what the buyer pays today) and ``min_discount_pct`` of one variation row."""
+def _paid_fields(env: RecoEnv, row: Mapping[str, Any], *, shared: bool = False) -> dict[str, Any]:
+    """``paid_price`` (what the buyer pays today: the variation's own price, and its key's newest
+    order line when the key is its alone) and ``min_discount_pct`` of one variation row."""
     sku = row.get("sku_key")
-    paid, min_pct = paid_price_and_min_discount(env, str(sku)) if sku else (None, None)
+    order = None if shared or not sku else env.current_price(str(sku))
+    paid = paid_today(row.get("selling_price"), order)
+    own_list = row.get("list_price")
+    listed = D(int(own_list)) if own_list else (env.list_price(str(sku)) if sku else None)
+    min_pct = (
+        min_discount_pct(paid, listed)
+        if paid and listed and listed > 0 and listed >= paid
+        else None
+    )
     return {"paid_price": None if paid is None else int(paid), "min_discount_pct": min_pct}
 
 
@@ -247,7 +258,8 @@ async def product_variations(
     known = item_id in env.ctx.catalog.items or env.orders_of(item_id) > 0
     if not known:
         raise LookupError(item_id)
-    rows = [{**r, **_paid_fields(env, r)} for r in rows]
+    keys = [r.get("sku_key") for r in rows if r.get("sku_key")]
+    rows = [{**r, **_paid_fields(env, r, shared=keys.count(r.get("sku_key")) > 1)} for r in rows]
     out = economics(item_id, env.name(item_id), rows, vat=env.view.vat)
     # "So sánh phân loại" shows both margins (ADR-122 d.12)
     out["columns"] = [*out["columns"], "final_margin_pct"]
@@ -716,7 +728,10 @@ async def evaluate_versions(
             if notes:
                 res["same_as_first_notes"] = notes
     return {
-        "today": compare_today(ctx.env, results),
+        "today": {
+            **compare_today(ctx.env, results),
+            **voucher_aovs(ctx.env, specs),
+        },
         "versions": results,
         "table": table_of(results),
         "best_profit_p50": best_index(results),
@@ -725,6 +740,21 @@ async def evaluate_versions(
         "sort_basis": dict(SORT_BASIS),
         "saved": False,
     }
+
+
+def voucher_aovs(env: RecoEnv, specs: Sequence[sp.VersionSpec]) -> dict[str, float | None]:
+    """Owner #87: the two AOVs a voucher suggestion may stand on, both on hiện tại (F1, the real
+    last 30 days), whatever scope was evaluated: the shop's, and that of the evaluated products
+    (``None`` without a product or without an order)."""
+
+    def aov(items: Sequence[str]) -> float | None:
+        base = current.current_30d(env, items)
+        gmv, orders = (None, None) if base is None else (base.total("gmv"), base.total("orders"))
+        return float(gmv / orders) if gmv is not None and orders else None
+
+    items = list(dict.fromkeys(i for spec in specs for i in integrate.scope_items(spec)))
+    shop = aov(()) if current.current_30d(env) is not None else manual.today_of(env)["aov"]
+    return {"shop_aov": shop, "product_aov": aov(items) if items else None}
 
 
 def compare_today(env: RecoEnv, results: Sequence[dict[str, Any]]) -> dict[str, Any]:

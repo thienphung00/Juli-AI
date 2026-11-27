@@ -20,10 +20,12 @@ from zoneinfo import ZoneInfo
 
 from juli_backend.services.analytics_agent import (
     advisor,
+    applies,
     create_card,
     entities,
     lookup,
     present,
+    readable,
     routing,
     summary,
     weekly,
@@ -83,6 +85,8 @@ LABELS_FOR_OFFER = {
     "aov": "AOV",
 }
 NO_TIKTOK_CARD_VI = "Chưa có đề xuất cho TikTok"
+#: the window a template widens to when its fixed 7 days hold no data (owner #113)
+TEMPLATE_WIDER = "last_30d_vs_prev_30d"
 ANALYTICS_PLATFORMS = ("shopee",)  # TikTok joins when P101 W3 opens its analytics routes (U12)
 #: Platforms whose recommendation engine can fill a draft card (Shopee only for now).
 CARD_PLATFORMS = ("shopee",)
@@ -93,10 +97,43 @@ class _Out:
 
     def __init__(self, sink: EventSink, result: AnswerResult) -> None:
         self.sink, self.result = sink, result
+        #: the period line on screen (#110 rule 2: once, on top; repeated only when it changes)
+        self.meta: dict[str, Any] | None = None
 
     async def emit(self, event: dict[str, Any]) -> None:
         self.result.events.append(event)
         await self.sink.emit(event)
+
+
+class _Held(_Out):
+    """One intent's answer: status and text stream through at once; the structured events wait
+    and are shaped by the reading rules (`readable.shape`, #110) when the intent ends."""
+
+    def __init__(self, out: _Out) -> None:
+        super().__init__(out.sink, out.result)
+        self.base = out
+        self.held: list[dict[str, Any]] = []
+
+    async def emit(self, event: dict[str, Any]) -> None:
+        if event.get("type") in readable.HELD:
+            self.held.append(event)
+        else:
+            await self.base.emit(event)
+
+    async def release(self) -> None:
+        shaped, self.base.meta = readable.shape(self.held, self.base.meta)
+        self.held = []
+        for ev in shaped:
+            await self.base.emit(ev)
+
+
+def _strip_header(text: str) -> str:
+    """#110 rule 1: the writer's first line restates the question ("Đang tìm hiểu: …"); the
+    answer starts with its answer, so that line goes."""
+    head, sep, rest = text.partition("\n")
+    if head.strip().startswith(routing.RESTATE_PREFIX.strip()):
+        return rest.lstrip("\n") if sep else ""
+    return text
 
 
 async def _latest(data: DataPort, as_of: date) -> date | None:
@@ -229,7 +266,7 @@ async def _unsupported(
     await out.emit(ev)
     result.stop_reasons.append("unsupported")
     digest = hashlib.sha256((text or "").encode()).hexdigest()[:16]
-    parsed = {k: v for k, v in (intent or {}).items() if k != "raw_text"}
+    parsed = {k: v for k, v in (intent or {}).items() if k not in ("raw_text", "msg_text")}
     result.routing.append(
         {"step": "unmet_request", "text_hash": digest, "restated": restated, "parsed": parsed}
     )
@@ -296,10 +333,23 @@ async def _run(
         intents = parsed["intents"][: max_intents or routing.MAX_INTENTS]
         if len(parsed["intents"]) == 1:  # the seller's own words, for entity / decline words
             intents[0]["raw_text"] = req.text or ""
+        else:  # several intents: the whole message is context only (routing.entity_kind)
+            for i in intents:
+                i["msg_text"] = req.text or ""
         more = parsed["more"] + parsed["intents"][max_intents or routing.MAX_INTENTS :]
+        # owner #115: a pairing the capability table does not have is refused before routing
+        refused = {id(i): r for i in intents if (r := applies.refusal(i, labels)) is not None}
+        asked = [i for i in intents if id(i) not in refused]
         # one Jev routing request per intent, in parallel
-        replies = await asyncio.gather(*(routing.route(jev, i) for i in intents))
-        for intent, (answers, u) in zip(intents, replies, strict=True):
+        replies = iter(await asyncio.gather(*(routing.route(jev, i) for i in asked)))
+        for intent in intents:
+            if (no := refused.get(id(intent))) is not None:
+                result.routing.append(
+                    {"intent": routing.jev_state(intent)["intent"], "outcome": applies.STOP}
+                )
+                blocks.append((intent, {"outcome": applies.STOP, "refusal": no}))
+                continue
+            answers, u = next(replies)
             result.cost_usd += u.cost_usd
             dec = routing.decide(intent, answers)
             result.routing.append(
@@ -326,6 +376,11 @@ async def _run(
                     + (f" · {labels.metric(str(dec['metric']))}" if dec.get("metric") else ""),
                 }
             )
+        if dec["outcome"] == applies.STOP:  # one line + what applies (owner #115)
+            for ev in applies.events(dec["refusal"]):
+                await out.emit(ev)
+            result.stop_reasons.append(applies.STOP)
+            continue
         if dec["outcome"] == "unsupported":
             await _unsupported(
                 out,
@@ -436,15 +491,34 @@ async def _run(
         await out.emit(
             {
                 "type": "more",
-                "items": [
-                    {
-                        "label_vi": i.get("metric_phrase") or "Câu hỏi tiếp",
-                        "text": i.get("metric_phrase") or "",
-                    }
-                    for i in more
-                ],
+                "items": [_more_item(i, labels) for i in more],
             }
         )
+    elif total == 1 and (steps := readable.next_steps(result.events)):
+        await out.emit({"type": "more", "items": steps})  # #110 rule 8: next steps as buttons
+
+
+def _month_not_started(intent: dict[str, Any], dec: dict[str, Any], as_of: date) -> str | None:
+    """ "mm/yyyy" when the seller named a month whose first day is after the newest data day."""
+    if dec.get("window") != "named_month_vs_previous" or not intent.get("named_month"):
+        return None
+    try:
+        y, m = map(int, str(intent["named_month"]).split("-"))
+        first = date(y, m, 1)
+    except ValueError:
+        return None
+    return f"{m}/{y}" if first > as_of else None
+
+
+def _more_item(intent: dict[str, Any], labels: LabelTable) -> dict[str, str]:
+    """One "more" button in Vietnamese: the metric's own label and the period the seller named;
+    the text is what the tap asks (never the parser's English phrase)."""
+    metric = routing.named_metric_of(intent)
+    label = labels.metric(metric) if metric else "Câu hỏi tiếp"
+    period = windows.PERIOD_VI.get(windows.window_from_phrase(intent.get("time_phrase")) or "")
+    period = period.lower() if period else None
+    text = f"{label} {period}" if metric and period else (label if metric else "")
+    return {"label_vi": label, "text": text}
 
 
 async def _answer(
@@ -467,10 +541,14 @@ async def _answer(
     """One intent's answer, then (J-H1) a written summary of its structured events. The chain path
     writes its own explanation; a text stream already present means nothing is added."""
     mark = len(result.events)
-    await _answer_inner(
-        req, out, result, data, engine, llm, jev, labels, as_of, intent, dec, restated, template,
-        carry,
-    )  # fmt: skip
+    held = _Held(out)
+    try:
+        await _answer_inner(
+            req, held, result, data, engine, llm, jev, labels, as_of, intent, dec, restated,
+            template, carry, latest,
+        )  # fmt: skip
+    finally:
+        await held.release()
     new = result.events[mark:]
     if any(e.get("type") in ("text_delta", "text_replace") for e in new):
         return
@@ -502,6 +580,7 @@ async def _answer_inner(
     restated: str,
     template: Template | None,
     carry: dict[str, Any] | None = None,
+    latest: date | None = None,
 ) -> None:
     mode = dec.get("mode", "why")
     if mode == "create":  # J10: a Juli DRAFT card from a free request (never sent)
@@ -608,6 +687,19 @@ async def _answer_inner(
         result.stop_reasons.append("data_answer")
         return
     preset = dec.get("window") or "last_7d_vs_prev_7d"
+    month = _month_not_started(intent, dec, as_of)
+    if month:  # "tháng 11" asked in October: never the month before's figure under its name
+        fresh = f" (số liệu đến hết {latest or as_of:%d/%m})"
+        await out.emit(
+            {
+                "type": "label",
+                "stop_reason": "data_missing",
+                "text_vi": f"Tháng {month} chưa bắt đầu{fresh}.",
+                "detail_vi": None,
+            }
+        )
+        result.stop_reasons.append("data_missing")
+        return
     item_id: str | None = dec.get("item_id")
     if dec.get("scope") == "product" and not item_id and intent.get("product_phrase"):
         prod, u = await routing.resolve_product(data, jev, intent)
@@ -742,7 +834,25 @@ async def _answer_inner(
     chain = await asyncio.wait_for(
         run_chain(data, chain_name, metric, preset, as_of, item_id=item_id, **kw), chain_timeout_s()
     )
+    if template and chain.stop_reason == "data_missing" and preset != TEMPLATE_WIDER:
+        # owner #113: a template keeps its fixed 7 days unless they hold no data; then 30 days
+        wider = await asyncio.wait_for(
+            run_chain(data, chain_name, metric, TEMPLATE_WIDER, as_of, item_id=item_id),
+            chain_timeout_s(),
+        )
+        if wider.stop_reason != "data_missing":
+            chain = wider
+            result.routing.append({"step": "template_window", "kept": TEMPLATE_WIDER})
     await out.emit(present.comparing(chain))
+    line = readable.meta_of(
+        {
+            "window_vi": chain.windows.label(),
+            "fresh_vi": lookup.fresh_line(latest) if latest else None,
+            "sale_vi": windows.sale_days_vi(chain.windows),
+        }
+    )
+    if line:  # #110 rule 2: the period of a why-answer is the same one line on top
+        await out.emit(line)
     await out.emit(present.status("finding_cause"))
     result.stop_reasons.append(chain.stop_reason)
     chain_json = chain.json(labels)
@@ -760,7 +870,7 @@ async def _answer_inner(
             chains=[chain],
             data=data,
             engine=engine,
-            jev=jev,
+            jev=None if template else jev,  # a template answers without the router (#112)
             labels=labels,
             as_of=as_of,
             template=template,
@@ -789,6 +899,10 @@ async def _answer_inner(
         note,
         cardstage.card_figures(outcome.accepted),
     )
+    body = _strip_header(expl)
+    if body != expl:
+        expl = body
+        await out.emit({"type": "text_replace", "text": expl})
     result.cost_usd += meta["cost_usd"]
     result.routing.append(
         {
@@ -810,7 +924,8 @@ async def _answer_inner(
             {
                 "type": "text_replace",
                 "text": (
-                    f"{expl}\n\nKhông có thay đổi lớn; cơ hội lớn nhất là {c['kind_vi'].lower()}"
+                    (f"{expl}\n\n" if expl else "")
+                    + f"Không có thay đổi lớn; cơ hội lớn nhất là {c['kind_vi'].lower()}"
                     + (f" cho {c['item_name']}" if c.get("item_name") else "")
                     + "."
                 ),

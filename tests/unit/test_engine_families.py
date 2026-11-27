@@ -116,12 +116,14 @@ def test_voucher_min_spend_drivers_sources_cost():
     assert o.duration_days == 14
     offer = o.offers[0]
     assert offer.per_use == D(8000) and offer.use_cap == D(50)
-    # existing qualifying orders are included, then the near orders raised over the minimum
-    # (too few orders to measure the reach: the tagged 0 / 20 / 50 % prior on them, E2)
-    assert offer.use_share.p10 == D("0.4") * D("0.5")
-    assert offer.use_share.p90 == (D("0.4") + D("0.5") * D("0.3")) * D("0.5")
+    # existing qualifying orders × the take-up, then (owner #116) the near orders moved over the
+    # minimum (rho 0 / 20 / 50 % prior), who always use it: never × u, never above the near share
+    assert offer.use_share.p10 == offer.use_share.p90 == D("0.4") * D("0.5")
+    up = offer.upgrade
+    assert up.share.p10 == 0 and up.share.p90 == D("0.5") * D("0.3") and up.cap == D("0.3")
     aov = o.drivers[0].lift
     assert aov.p10 == 0 and aov.p90 == D("0.5") * D("0.3") * D(12_000) / D(100_000)
+    assert o.drivers[0].upgrade_of == 0
 
 
 def test_voucher_review_is_ctor_only_and_scopes():

@@ -5,6 +5,7 @@ import type {
   JuliChoiceOption,
   JuliDataAnswerData,
   JuliLabelData,
+  JuliMetaData,
   JuliNeedsChoiceData,
   JuliPathStep,
   JuliTemplate,
@@ -120,39 +121,105 @@ function DailyBars({ data }: { readonly data: JuliDataAnswerData }) {
   );
 }
 
-/** The sale days inside the compared windows ("Ngày sale: 11/11, 15/11"), when the answer carries them. */
-function saleDays(data: JuliDataAnswerData): string | null {
-  const v = (data as unknown as { readonly sale_vi?: unknown }).sale_vi;
-  return typeof v === "string" && v.length > 0 ? v : null;
+/**
+ * #110 rule 2: the answer's period, data day and sale days, once, in one small line on top.
+ * Each part is its own span so the line wraps between parts, never inside a date range.
+ */
+export function MetaLine({ meta }: { readonly meta: JuliMetaData }) {
+  const parts = [meta.window_vi, meta.fresh_vi, meta.sale_vi].filter((p): p is string => typeof p === "string" && p.length > 0);
+  if (parts.length === 0) return null;
+  return (
+    <p className="juli-meta">
+      {parts.map((p, i) => (
+        <span key={p}>
+          {i > 0 ? <span aria-hidden="true"> · </span> : null}
+          <span>{p}</span>
+        </span>
+      ))}
+    </p>
+  );
 }
 
-/** U4a: one data answer. */
+/** #110 rule 5: at most three number tiles (label, value, one comparison line). */
+export function Tiles({ tiles }: { readonly tiles: readonly JuliDataAnswerData[] }) {
+  return (
+    <div className="juli-tiles" role="group" aria-label="Số liệu chính">
+      {tiles.slice(0, 3).map((t, i) => {
+        const compare = t.compare_vi ?? (t.delta && t.delta.text_vi !== "–" ? t.delta.text_vi : null);
+        return (
+          <section key={`${t.title_vi}-${i}`} className="juli-tile" aria-label={t.title_vi}>
+            <span className="juli-tile__label">{t.title_vi}</span>
+            <span className="juli-kpi juli-num">{t.value}</span>
+            {compare ? (
+              t.delta && t.delta.dir !== "flat" ? (
+                <span className="juli-tile__compare">
+                  <Delta delta={{ dir: t.delta.dir, text_vi: compare }} />
+                </span>
+              ) : (
+                <span className="juli-tile__compare">{compare}</span>
+              )
+            ) : null}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+/** #110 rule 6: a list is a table, its numbers right-aligned. */
+function RowsTable({
+  data,
+  platform,
+  first,
+  ranked,
+}: {
+  readonly data: JuliDataAnswerData;
+  readonly platform: JuliPlatform;
+  readonly first: string;
+  readonly ranked: boolean;
+}) {
+  return (
+    <div className="juli-table-scroll">
+      <table className="juli-table">
+        <caption className="juli-table__caption">{data.title_vi}</caption>
+        <thead>
+          <tr>
+            {ranked ? (
+              <th scope="col" className="juli-right">
+                #
+              </th>
+            ) : null}
+            <th scope="col">{first}</th>
+            <th scope="col" className="juli-right">
+              Số liệu
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {(data.rows ?? []).map((row, i) => (
+            <tr key={`${row.label_vi}-${i}`}>
+              {ranked ? <td className="juli-num juli-right">{i + 1}</td> : null}
+              <td>
+                {row.link ? <a href={juliHref(row.link, platform)}>{row.label_vi}</a> : row.label_vi}
+                {row.detail_vi ? <span className="juli-top__detail">{row.detail_vi}</span> : null}
+              </td>
+              <td className="juli-num juli-right">{row.value_vi}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** U4a: one data answer that is not a number tile (a list, a day series, a channel split). */
 export function DataAnswer({ data, platform }: { readonly data: JuliDataAnswerData; readonly platform: JuliPlatform }) {
+  if (data.empty) return null; // #110 rule 7: no box that only says there is nothing
   return (
     <section className={`juli-data juli-data--${data.kind}`} aria-label={data.title_vi}>
-      {data.kind === "metric_total" ? (
-        <>
-          <div className="juli-kpi-row">
-            <span className="juli-kpi juli-num">{data.value}</span>
-            {data.delta ? <Delta delta={data.delta} chip /> : null}
-          </div>
-          <p className="juli-p">{data.window_vi}</p>
-        </>
-      ) : null}
-      {data.kind === "top_products" ? (
-        <ol className="juli-top">
-          {(data.rows ?? []).map((row, i) => (
-            <li key={`${row.label_vi}-${i}`} className="juli-top__row">
-              <span className="juli-rank juli-num">{i + 1}</span>
-              <span className="juli-top__main">
-                {row.link ? <a href={juliHref(row.link, platform)}>{row.label_vi}</a> : <span>{row.label_vi}</span>}
-                {row.detail_vi ? <span className="juli-top__detail">{row.detail_vi}</span> : null}
-              </span>
-              <span className="juli-num">{row.value_vi}</span>
-            </li>
-          ))}
-        </ol>
-      ) : null}
+      {data.kind === "metric_total" ? <Tiles tiles={[data]} /> : null}
+      {data.kind === "top_products" ? <RowsTable data={data} platform={platform} first="Tên" ranked /> : null}
+      {data.kind === "metric_list" ? <RowsTable data={data} platform={platform} first="Chỉ số" ranked={false} /> : null}
       {data.kind === "daily_trend" ? <DailyBars data={data} /> : null}
       {data.kind === "channel_breakdown" ? (
         <div className="juli-table-scroll">
@@ -179,11 +246,12 @@ export function DataAnswer({ data, platform }: { readonly data: JuliDataAnswerDa
           </table>
         </div>
       ) : null}
-      {saleDays(data) ? <div className="juli-fresh">{saleDays(data)}</div> : null}
-      <div className="juli-fresh">{data.fresh_vi}</div>
     </section>
   );
 }
+
+/** The option a choice hands back to the input ("Khoảng khác", backend `windows.OTHER_PERIOD`). */
+export const OTHER_VALUE = "other";
 
 /** U5a: one short question + buttons + "Khác…". */
 export function NeedsChoice({
@@ -224,14 +292,23 @@ export function NeedsChoice({
     <div className="juli-choice">
       <p className="juli-ask">{data.question_vi}</p>
       <div className={`juli-opts${stacked ? " juli-opts--stack" : ""}`} role="group" aria-label={data.question_vi}>
-        {data.options.map((o) => (
-          <button key={o.value} type="button" className="juli-opt" disabled={!interactive} onClick={() => onChoose(data.item, o)}>
-            {o.label_vi}
+        {data.options.map((o) =>
+          o.value === OTHER_VALUE ? (
+            // owner #113: "Khoảng khác" hands the period back to the seller's own words
+            <button key={o.value} type="button" className="juli-opt juli-opt--other" disabled={!interactive} onClick={onOther}>
+              {o.label_vi}
+            </button>
+          ) : (
+            <button key={o.value} type="button" className="juli-opt" disabled={!interactive} onClick={() => onChoose(data.item, o)}>
+              {o.label_vi}
+            </button>
+          ),
+        )}
+        {data.options.some((o) => o.value === OTHER_VALUE) ? null : (
+          <button type="button" className="juli-opt juli-opt--other" disabled={!interactive} onClick={onOther}>
+            Khác…
           </button>
-        ))}
-        <button type="button" className="juli-opt juli-opt--other" disabled={!interactive} onClick={onOther}>
-          Khác…
-        </button>
+        )}
       </div>
     </div>
   );

@@ -790,6 +790,8 @@ export interface ChannelSplit {
   readonly profit_split?: ProfitSplit | null;
   /** P100 B.5: per section, the last complete day of the data it uses (ISO; null = none). */
   readonly data_through?: { readonly kpis: string | null; readonly profit?: string | null; readonly channels: string | null; readonly plan: string | null } | null;
+  /** Owner #101 (Shopee only): orders completed over 2 days ago with no settlement yet, in the last 30 order days. */
+  readonly freshness?: { readonly unsettled_orders?: { readonly count: number; readonly oldest_completed_on: string | null } } | null;
 }
 
 export type WeakestMetric = "views" | "ctr" | "ctor" | "aov" | "orders";

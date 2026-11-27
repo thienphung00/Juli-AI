@@ -51,7 +51,7 @@ export interface JobDeps<J extends CoreJob = CoreJob> {
     progress?: FillProgress,
     detail?: FillDetail,
     ref?: string,
-  ): Promise<void>;
+  ): Promise<{ cardDone?: boolean } | void>;
   /** 0.3.27 (contract D): posts what the page shows the platform holds now (absent: nothing is
    * posted); true when Juli took it. A read-back whose post failed is reported failed. */
   postCurrent?(rows: CurrentRow[]): Promise<boolean>;
@@ -77,6 +77,7 @@ const REFUSAL: Record<string, string> = {
   inactive: "",
   unpaired: "Connector chưa kết nối với Juli. Kết nối lại rồi mở trang từ Juli.",
   unknown_job: "Juli không còn thấy việc này (đã hủy hoặc đã xong).",
+  leased_elsewhere: "Máy khác đang điền việc này.",
   malformed_job: "Việc này thiếu thông tin nên Juli không điền. Juli đã được báo lỗi.",
   wrong_page: "Việc này thuộc trang khác nên Juli không điền vào trang này.",
   budget: "Hôm nay Connector đã dùng hết lượt truy cập Seller Centre. Thử lại vào ngày mai.",
@@ -341,6 +342,9 @@ async function follow<J extends CoreJob>(
         // E46: the steps and fields as last read before the save took the form away, never older
         shown = f.finalOf(shown);
         showJobPanel(deps.doc, { outcome: "saved", job, result: shown }, pack.labels);
+        // E149: the banner says "bấm Đã làm" only while Juli's state says the card is not done yet
+        const told = (answer: { cardDone?: boolean } | void) =>
+          showJobPanel(deps.doc, { outcome: "saved", job, result: shown, cardDone: answer && typeof answer.cardDone === "boolean" ? answer.cardDone : null }, pack.labels);
         // a2 K2: `saved` carries the new object's numeric id (the save answer's, else the list row
         // it landed on). The row may draw a moment later: looked for a few seconds before the
         // report, then `saved` goes without it and is sent again with the id once it shows.
@@ -352,13 +356,13 @@ async function follow<J extends CoreJob>(
           await deps.sleep(1_000);
           ref = refNow();
         }
-        await deps.report(job.id, "saved", undefined, f.progressOf(shown), f.detailOf(shown, false), ref ?? undefined);
+        told(await deps.report(job.id, "saved", undefined, f.progressOf(shown), f.detailOf(shown, false), ref ?? undefined));
         if (ref || !wanted) return;
         for (let wait = SAVED_REF_FIRST_WAIT_S; wait < SAVED_REF_WAIT_S; wait += 1) {
           await deps.sleep(1_000);
           ref = refNow();
           if (ref) {
-            await deps.report(job.id, "saved", undefined, undefined, undefined, ref);
+            told(await deps.report(job.id, "saved", undefined, undefined, undefined, ref));
             return;
           }
         }
