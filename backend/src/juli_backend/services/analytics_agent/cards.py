@@ -550,19 +550,26 @@ async def draft_event(
         "critical": critical_item,
     }
     out.accepted.append(acc)
-    out.events.append(
-        {
-            "type": "card",
-            "draft_ref": ref,
-            "kind": kind,
-            "kind_vi": labels.kind(kind),
-            "item_id": item,
-            "item_name": item_name,
-            "title_vi": card.get("title") or labels.kind(kind),
-            "versions": render_versions(card, rec),
-            "recommendation_vi": f"Juli gợi ý: {rec}."
-            if rec
-            else "Chưa đủ dữ liệu để gợi ý một phương án.",
-        }
-    )
-    return out.events[-1]
+    rendered = render_versions(card, rec)
+    ev: dict[str, Any] = {
+        "type": "card",
+        "draft_ref": ref,
+        "kind": kind,
+        "kind_vi": labels.kind(kind),
+        "item_id": item,
+        "item_name": item_name,
+        "title_vi": card.get("title") or labels.kind(kind),
+        "versions": rendered,
+        "recommendation_vi": f"Juli gợi ý: {rec}."
+        if rec
+        else "Chưa đủ dữ liệu để gợi ý một phương án.",
+    }
+    if not any(v["estimable"] for v in rendered):
+        # create_not_estimable_silent: a card the engine cannot estimate is still the card; its
+        # forecast reads the one NOT_ESTIMABLE text (never a box that only says there is none)
+        from juli_backend.services.shopee_recommendations.result_store import NOT_ESTIMABLE_TEXT
+
+        ev["estimable"] = False
+        ev["recommendation_vi"] = NOT_ESTIMABLE_TEXT
+    out.events.append(ev)
+    return ev
