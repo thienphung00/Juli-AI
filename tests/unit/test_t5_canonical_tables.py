@@ -89,8 +89,10 @@ def test_revision_fits_alembic_follows_135_and_is_the_single_head():
     assert mod.revision == "134_canonical_tables" and len(mod.revision) <= 32
     assert mod.down_revision == "135_connector_multi_computer"
     script = ScriptDirectory.from_config(Config(str(REPO / "alembic.ini")))
-    assert script.get_heads() == ["140_data_layer_facts_opps"]  # 139 -> data layer 140
-    assert "134_canonical_tables" in {r.revision for r in script.walk_revisions()}
+    heads = script.get_heads()
+    assert len(heads) == 1, heads  # no fork; which revision is head is not pinned
+    chain = {r.revision for r in script.walk_revisions(base="base", head=heads[0])}
+    assert {"134_canonical_tables", "136_drop_t5_compat_views"} <= chain
 
 
 def test_the_seven_tables_map_old_to_new_with_unchanged_verbs():
@@ -498,3 +500,90 @@ async def test_units_since_a_read_compare_utc_with_utc(session, late_and_early):
     assert sku.since(last.read_at) == (1, 1)  # only the 00:30 VN order
     assert sb.naive_utc(datetime(2026, 10, 2, 0, 30, tzinfo=VN_TZ)) == datetime(2026, 10, 1, 17, 30)
     assert sb.local_day(read_at) == DAY + timedelta(days=1)
+
+
+# ------------------------------------------------------- migration 136: the compat views go (M-1)
+
+PATH_136 = VERSIONS / "136_drop_t5_compat_views.py"
+
+
+def _module_136():
+    spec = importlib.util.spec_from_file_location("m136", PATH_136)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _part_136(fn: str) -> str:
+    source = PATH_136.read_text("utf-8")
+    if fn == "upgrade":
+        return source.split("def upgrade")[1].split("def downgrade")[0]
+    return source.split("def downgrade")[1]
+
+
+def test_136_fits_alembic_and_follows_140():
+    mod = _module_136()
+    assert mod.revision == "136_drop_t5_compat_views" and len(mod.revision) <= 32
+    assert mod.down_revision == "140_data_layer_facts_opps"
+
+
+def test_136_added_after_134_is_what_140_adds():
+    path = PATH_136.parent / "140_data_layer_facts_opps.py"
+    spec = importlib.util.spec_from_file_location("m140_for_136", path)
+    assert spec and spec.loader
+    m140 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m140)
+    shared = (*m140._COMPONENTS,)
+    more = (*m140._KNOWN_AND_ADS_MONEY, *m140._ADS_COUNTS, "derivation_version")
+    assert _module_136().ADDED_AFTER_134 == {
+        "shop_metrics_daily": (*shared, "other_marketing", *more),
+        "product_metrics_daily": (*shared, "ads_gmv", *more),
+        "source_metrics_daily": ("derivation_version",),
+    }
+
+
+def test_136_sql_is_literal():
+    source = PATH_136.read_text("utf-8")
+    assert 'f"' not in source and "f'" not in source and "format(" not in source
+
+
+def test_136_upgrade_drops_exactly_the_seven_views_and_nothing_else():
+    import re
+
+    up = _part_136("upgrade")
+    statements = [s.strip() for s in re.findall(r'op\.execute\(\s*"([^"]+)"', up)]
+    drops = [s for s in statements if s.startswith("DROP")]
+    assert sorted(drops) == sorted(
+        f"DROP VIEW IF EXISTS public.{old}" for old, _new, _v in _module().TABLES
+    )
+    # RESTRICT (the default), never CASCADE: an unknown dependent stops the drop
+    assert "CASCADE" not in up.upper()
+    assert set(statements) - set(drops) == {"SET LOCAL lock_timeout = '10s'"}
+    assert up.count("op.execute(") == len(statements) == 8
+
+
+def test_136_downgrade_recreates_the_views_exactly_as_134_did():
+    import re
+
+    down = _part_136("downgrade")
+    views = dict(
+        re.findall(
+            r"CREATE VIEW public\.(\w+) WITH \(security_invoker = true\) "
+            r"AS SELECT (?:\*|' \|\| cols \|\| ') FROM public\.(\w+)",
+            down,
+        )
+    )
+    # since 136 sits on 140: the three tables 140 widened select every column but 140's
+    lists = dict(re.findall(r"table_name = '(\w+)'\s+AND column_name NOT IN \(([^)]*)\)", down))
+    added = _module_136().ADDED_AFTER_134
+    assert {t: tuple(re.findall(r"'(\w+)'", v)) for t, v in lists.items()} == added
+    assert down.count("SELECT * FROM public.") == 7 - len(added)
+    grants = {
+        view: verbs
+        for verbs, view in re.findall(r"GRANT ([A-Z, ]+) ON public\.(\w+) TO juli_app", down)
+    }
+    assert views == {old: new for old, new, _v in _module().TABLES}
+    assert grants == {old: verbs for old, _new, verbs in _module().TABLES}
+    assert down.count("IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'juli_app')") == 7
+    assert "SET LOCAL lock_timeout = '10s'" in down

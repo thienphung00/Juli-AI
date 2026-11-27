@@ -149,7 +149,7 @@ def test_a_shop_updates_its_own_row_and_cannot_delete_or_touch_another(owner_eng
         ).rowcount
         assert (mine, theirs) == (1, 0)
         with pytest.raises(DBAPIError):
-            conn.execute(text("DELETE FROM public.shopee_order_income"))
+            conn.execute(text("DELETE FROM public.order_settlements"))
         conn.rollback()
         conn.execute(text("RESET ROLE"))
 

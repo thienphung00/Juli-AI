@@ -42,7 +42,7 @@ changed only through Juli itself (the owner allowed this). Never touch Fujiwa. T
 - [ ] Seller Centre › Phân tích bán hàng is not the only page that syncs: product, ads and orders
       data also land, and Juli's "Số liệu đến" moves forward.
 - [ ] 06:30 GMT+7: the stock read runs by itself. Ops check:
-      `shopee_stock_history` has rows with `read_at` today.
+      `stock_history` has rows with `read_at` today.
 
 ### 6. Stock alert email (07:00 GMT+7, automatic)
 - [ ] Preview stage (status `preview`): one email to lienhe@app-juli.com, subject
