@@ -40,6 +40,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
     Driver,
     DriverEffect,
     FunnelBase,
+    OfferCost,
     OfferLine,
     OptionInput,
     OptionResult,
@@ -84,6 +85,15 @@ def _clamp01(x: float) -> float:
     return min(1.0, max(0.0, x))
 
 
+def _upgrade_draw(rng: random.Random, offer: OfferCost) -> float:
+    """Owner #116: the share of all orders that move up to use ``offer`` in one scenario, kept
+    within 0 .. its cap (the near share); 0 without upgraders (no draw: the seed's other draws
+    stay as they were)."""
+    if offer.upgrade is None:
+        return 0.0
+    return min(float(offer.upgrade.cap), max(0.0, _draw(rng, offer.upgrade.share)))
+
+
 # -- prepared inputs -----------------------------------------------------------------------------
 
 
@@ -115,6 +125,8 @@ class _Eff:
     added_views: float = 0.0
     added_share: float = 0.0
     use_shares: list[float] = field(default_factory=list)
+    #: owner #116: per base source, the đ added per order by an offer's upgraders (one draw)
+    upgrade_gmv: list[float] = field(default_factory=list)
 
 
 @dataclass
@@ -134,7 +146,9 @@ class _Draw:
 
 def _neutral(n_src: int, n_offers: int) -> _Eff:
     one = [1.0] * n_src
-    return _Eff(list(one), list(one), list(one), list(one), None, 0.0, 0.0, [0.0] * n_offers)
+    return _Eff(
+        list(one), list(one), list(one), list(one), None, 0.0, 0.0, [0.0] * n_offers, [0.0] * n_src
+    )
 
 
 def _prepare(base: FunnelBase, scale: float) -> list[_Src]:
@@ -235,6 +249,11 @@ def _scenario(
             if mt != 1.0:
                 o = o * mt
         g = s.g * (o / s.o) if (s.o > 0 and o != s.o) else s.g
+        up = eff.upgrade_gmv[i] if eff.upgrade_gmv else 0.0
+        if up and s.aov:
+            # owner #116: the upgraders' added spend on this source's own AOV, so its ΔGMV =
+            # orders × upgrader share × added spend exactly (the same draw as their uses)
+            ma = ma * (1.0 + up / s.aov)
         p = s.p if s.p is not None else 0.0
         if s.ppo is not None:
             orders_term += (o - s.o) * s.ppo
@@ -477,7 +496,11 @@ def _offer_lines(draw: _Draw, option: OptionInput) -> tuple[OfferLine, ...]:
     out = []
     for offer, uses in zip(option.offers, draw.offer_uses, strict=True):
         u = _d(uses)
-        out.append(OfferLine(offer.label, u, offer.per_use, u * offer.per_use, offer.max_discount))
+        out.append(
+            OfferLine(
+                offer.label, u, offer.per_use, u * offer.per_use, offer.max_discount, offer.takeup
+            )
+        )
     return tuple(out)
 
 
@@ -572,7 +595,10 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         estimable = False
     if not estimable:
         mid = _neutral(len(srcs), len(option.offers))
-        mid.use_shares = [float(o.use_share.p50) for o in option.offers]
+        mid.use_shares = [
+            float(o.use_share.p50) + (0.0 if o.upgrade is None else float(o.upgrade.share.p50))
+            for o in option.offers
+        ]
         cost_draw = _scenario(srcs, mid, option, cr, profit_known, aov_idx, None, True)
         lines = _offer_lines(cost_draw, option)
         cost_d = _cost_of(lines, option)
@@ -610,10 +636,17 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
     n = max(1, n)
     for _ in range(n):
         eff = _neutral(len(srcs), len(option.offers))
+        # owner #116: ONE draw of each offer's upgraders, shared by their uses and their GMV
+        ups = [_upgrade_draw(rng, o) for o in option.offers]
         for d, cs in zip(option.drivers, carriers, strict=True):
             if d.basis == "not_estimable":
                 continue
-            if d.added is not None:
+            if d.upgrade_of is not None:
+                o = option.offers[d.upgrade_of]
+                added_gmv = ups[d.upgrade_of] * float(o.upgrade.added if o.upgrade else 0)
+                for i in cs:
+                    eff.upgrade_gmv[i] += added_gmv
+            elif d.added is not None:
                 eff.added_idx = cs[0]
                 drawn = _draw(rng, d.added.views)
                 # a removal (every band end <= 0, P100 B.15) stays a removal; else no negatives
@@ -625,7 +658,9 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
                 arr = {"views": eff.mv, "ctr": eff.mc, "ctor": eff.mt, "aov": eff.ma}[d.metric]
                 for i in cs:
                     arr[i] *= m
-        eff.use_shares = [_clamp01(_draw(rng, o.use_share)) for o in option.offers]
+        eff.use_shares = [
+            _clamp01(_draw(rng, o.use_share) + up) for o, up in zip(option.offers, ups, strict=True)
+        ]
         draws.append(_scenario(srcs, eff, option, cr, profit_known, aov_idx, added, True))
 
     if profit_known and before_draw.profit is not None:

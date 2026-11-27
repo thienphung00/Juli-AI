@@ -8,7 +8,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.engine.contract import Band, Basis, MaxDiscount, OfferCost
@@ -31,7 +31,7 @@ from juli_backend.services.shopee_recommendations.bundle_tiers import (
     best_tier,
     effective_pct,
 )
-from juli_backend.services.shopee_recommendations.env import RecoEnv, voucher_takeup
+from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.model import Candidate
 from juli_backend.services.shopee_recommendations.prediction import Lift, predict_lift
 
@@ -145,6 +145,50 @@ def max_discount_of(
     return MaxDiscount(Decimal(cap), binding, len(qualifying))
 
 
+def shop_voucher_takeup(env: RecoEnv) -> tuple[Decimal, Literal["measured", "prior"]]:
+    """Owner #116: ONE take-up per shop -- of the shop's orders that qualified for a shop voucher,
+    the share that used one, over all its vouchers. An order qualifies at / over the lowest
+    minimum of the shop's vouchers (``env.vouchers``), else the smallest order that carried one
+    (no order below it could have). Measured with at least ``TAKEUP_MIN_VOUCHER_ORDERS`` voucher
+    orders; else the labelled prior (never 1)."""
+    values = order_values(sales_lines(env, None))
+    used: set[str] = set()
+    for ln in sales_lines(env, None):
+        if ln.shop_voucher_share > 0:
+            used.add(ln.order_id)
+    if len(used) < common.TAKEUP_MIN_VOUCHER_ORDERS:
+        return common.TAKEUP_PRIOR, "prior"
+    minimums = [
+        Decimal(v.min_spend)
+        for v in (getattr(env, "vouchers", None) or ())
+        if getattr(v, "min_spend", None) is not None
+    ]
+    floor = min(minimums) if minimums else min(values[o] for o in used)
+    qualifying = {o for o, v in values.items() if v >= floor}
+    if not qualifying:
+        return common.TAKEUP_PRIOR, "prior"
+    return Decimal(len(used & qualifying)) / len(qualifying), "measured"
+
+
+def voucher_per_use(
+    qualifying: Sequence[Decimal],
+    minimum: Decimal,
+    discount_type: str,
+    value: Decimal,
+    cap: Decimal | None,
+) -> Decimal:
+    """The discount of one order using the voucher. A percent one: the mean over the qualifying
+    orders of min(pct × order value, cap) -- the cap binds per order (owner #116); with no
+    qualifying order, an order at the minimum (where the upgraders land)."""
+    if discount_type == "amount":
+        return value
+    basket = list(qualifying) or [minimum]
+    per = [v * value / 100 for v in basket]
+    if cap is not None:
+        per = [min(x, cap) for x in per]
+    return sum(per, ZERO) / len(per)
+
+
 def voucher_facts(spec: sp.VoucherSpec, env: RecoEnv) -> VoucherFacts:
     lines = sales_lines(env, spec.item_ids or None)
     values = order_values(lines)
@@ -155,16 +199,12 @@ def voucher_facts(spec: sp.VoucherSpec, env: RecoEnv) -> VoucherFacts:
     total = sum(values.values(), ZERO)
     qualifying = [v for v in values.values() if v >= minimum]
     below = [v for v in values.values() if v < minimum]
-    ref = (sum(qualifying, ZERO) / len(qualifying)) if qualifying else total / n
-    if spec.discount_type == "amount":
-        per_use = Decimal(str(spec.value))
-    else:
-        per_use = ref * Decimal(str(spec.value)) / 100
-        if spec.max_value is not None:
-            per_use = min(per_use, Decimal(spec.max_value))
+    cap = None if spec.max_value is None else Decimal(spec.max_value)
+    per_use = voucher_per_use(
+        qualifying, minimum, spec.discount_type, Decimal(str(spec.value)), cap
+    )
     near = [v for v in below if v >= minimum * (ONE - common.REACH_WINDOW)]
-    # the shop's own take-up (its past vouchers, else its order lines), not every order
-    _takeup = voucher_takeup(lines, minimum, env.usage_rate)
+    takeup, takeup_basis = shop_voucher_takeup(env)
     return VoucherFacts(
         aov_now=total / n,
         profit_per_order=profit_per_order(env, set(values)),
@@ -172,16 +212,12 @@ def voucher_facts(spec: sp.VoucherSpec, env: RecoEnv) -> VoucherFacts:
         qualifying_share=Decimal(len(qualifying)) / n,
         raise_gap_per_order=sum((minimum - v for v in below), ZERO) / n,
         below_share=Decimal(len(below)) / n,
-        usage_rate=_takeup if _takeup is not None else ONE,
-        reach=measured_reach(len(near), n, len(below)),
+        usage_rate=takeup,
+        takeup_basis=takeup_basis,
         reach_gap=sum((minimum - v for v in near), ZERO) / len(near) if near else ZERO,
         near_share=Decimal(len(near)) / n,
         max_discount=max_discount_of(
-            values.values(),
-            minimum,
-            spec.discount_type,
-            Decimal(str(spec.value)),
-            None if spec.max_value is None else Decimal(spec.max_value),
+            values.values(), minimum, spec.discount_type, Decimal(str(spec.value)), cap
         ),
     )
 

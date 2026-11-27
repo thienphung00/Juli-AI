@@ -70,30 +70,32 @@ def _voucher_lines(n_near, n_far, n_over):
     return out
 
 
-def test_e2_the_voucher_reach_is_the_share_of_orders_within_20_pct_below_the_minimum():
+def test_e2_the_voucher_upgraders_are_rho_of_the_orders_within_20_pct_below_the_minimum():
+    # owner #116 (was: every near order upgrades, "measured"): a share rho of the near orders
+    # moves up -- the 0 / 20 / 50 % prior until calibrated -- and always uses the voucher
     spec = sp.VoucherSpec(kind="voucher", discount_type="amount", value=5000, min_spend=100_000)
     f = adapters.voucher_facts(spec, fake_env(_voucher_lines(10, 20, 10)))  # 40 orders
-    assert f.reach is not None and f.reach.p50 == D(10) / D(40)  # the near orders, measured
-    assert f.reach.p10 <= f.reach.p50 <= f.reach.p90 <= f.below_share
     assert f.reach_gap == D(10_000) and f.near_share == D(10) / D(40)
     o = voucher_option(spec, f)
     aov = o.drivers[0]
-    assert aov.metric == "aov" and aov.basis == "measured"
-    assert aov.lift is not None and aov.lift.p50 == f.reach.p50 * D(10_000) / f.aov_now
-    # the uses: today's qualifying orders + the near ones that reach the minimum
-    assert o.offers[0].use_share.p50 == f.qualifying_share + f.reach.p50
+    assert aov.metric == "aov" and aov.basis == "prior" and aov.upgrade_of == 0
+    r_lo, r_mid, r_hi = common.REACH
+    assert aov.lift is not None and aov.lift.p50 == r_mid * f.near_share * (D(10_000) / f.aov_now)
+    up = o.offers[0].upgrade
+    assert up is not None and up.share.p50 == r_mid * f.near_share and up.cap == f.near_share
+    # the uses: today's qualifying orders × the shop's take-up, the upgraders on top
+    assert o.offers[0].use_share.p50 == f.qualifying_share * f.usage_rate
     assert o.drivers[1].metric == "ctor" and o.drivers[1].basis == "prior"  # E1
 
 
 def test_e2_too_few_orders_keeps_the_tagged_prior_on_the_near_orders():
     spec = sp.VoucherSpec(kind="voucher", discount_type="amount", value=5000, min_spend=100_000)
     f = adapters.voucher_facts(spec, fake_env(_voucher_lines(2, 3, 2)))  # 7 orders
-    assert f.reach is None
     o = voucher_option(spec, f)
     aov = o.drivers[0]
     assert aov.basis == "prior" and aov.lift is not None
     r_lo, r_mid, r_hi = common.REACH
-    assert aov.lift.p50 == r_mid * f.near_share * f.reach_gap / f.aov_now
+    assert aov.lift.p50 == r_mid * f.near_share * (f.reach_gap / f.aov_now)
     # a far-below basket never counts: the gap is the near orders' only
     assert f.reach_gap == D(10_000)
 

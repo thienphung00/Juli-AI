@@ -218,6 +218,10 @@ class DriverEffect:
     lift: Band | None = None
     added: AddedTraffic | None = None
     note: str | None = None  # Vietnamese, shown on the card when set
+    #: owner #116: an AOV driver whose lift is the upgraders of ``offers[upgrade_of]`` (their
+    #: ``Upgrade``): in each scenario the engine takes it from the SAME draw as their uses, so
+    #: ΔGMV = upgraders × their added spend; ``lift`` is that band, for the card only
+    upgrade_of: int | None = None
 
 
 @dataclass(frozen=True)
@@ -228,6 +232,27 @@ class MaxDiscount:
     cap: Decimal
     binding_orders: int
     qualifying_orders: int
+
+
+@dataclass(frozen=True)
+class Upgrade:
+    """Owner #116: the orders below a minimum that move up to it -- and so always use the offer.
+    ``share`` = the share of ALL orders that move up (rho × the near share, P10 / P50 / P90);
+    a drawn share is kept within 0 .. ``cap`` (the near share: never more than the orders within
+    20 % below the minimum); ``added`` = the mean đ each one adds to its basket."""
+
+    share: Band
+    cap: Decimal
+    added: Decimal
+
+
+@dataclass(frozen=True)
+class TakeUp:
+    """Owner #116: the shop's voucher take-up the uses stand on, and where it comes from
+    ("measured" on the orders that used a shop voucher, else the labelled "prior")."""
+
+    rate: Decimal
+    basis: Literal["measured", "prior"]
 
 
 @dataclass(frozen=True)
@@ -245,6 +270,11 @@ class OfferCost:
     reduces_revenue: bool = True
     #: a percent voucher with a cap (None otherwise): the card's max-discount row reads it
     max_discount: MaxDiscount | None = None
+    #: owner #116: the orders that move up to use it, on top of ``use_share`` (then the share of
+    #: the orders that already qualify × the take-up); one draw with the paired AOV driver
+    upgrade: Upgrade | None = None
+    #: owner #116: the take-up ``use_share`` stands on (evidence; None = not a voucher)
+    takeup: TakeUp | None = None
 
 
 @dataclass(frozen=True)
@@ -362,6 +392,7 @@ class OfferLine:
     per_use: Decimal
     total: Decimal
     max_discount: MaxDiscount | None = None
+    takeup: TakeUp | None = None
 
 
 @dataclass(frozen=True)
@@ -435,7 +466,8 @@ WIRE_KEYS = {
     "drivers_pct": "list[{metric, label, pct}]  # 'AOV +1,7%'",
     "cost": "{total, break_even_orders, break_even_aov, text, offers: list[{label, "
     "expected_uses, per_use, total, max_discount: {cap, binding_orders, qualifying_orders} "
-    "| None}], fixed}  # #78/#87: total = sum(offers.total) + fixed",
+    "| None, takeup: {rate, basis: 'measured'|'prior'} | None}], fixed}  # #78/#87: total = "
+    "sum(offers.total) + fixed; owner #116: takeup = the voucher take-up the uses stand on",
     "after": "{days, label: 'Sau 14 ngày' | '30 ngày đầu', gmv_before, gmv_after, "
     "profit_before, profit_after}",
     "per_30d": "{profit, gmv, orders, secondary: True, label}  # P99b: secondary, labelled "
