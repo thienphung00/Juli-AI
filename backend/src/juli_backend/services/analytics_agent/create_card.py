@@ -64,6 +64,11 @@ SLOT_VI = {
     "quantity": "số lượng",
     "start_hour": "khung giờ",
 }
+#: `CardEnginePort.engine_card` reasons that mean "the engine has no estimate for this", not
+#: "this cannot be created": the draft is still made, reading "Chưa ước tính được"
+NOT_ESTIMABLE_REASONS = frozenset(
+    {"generator_returned_none", "no_generator_for_kind", "engine_refused", "generator_error"}
+)
 FLASH_AHEAD_DAYS = 7
 #: Flash Sale of the shop: the fixed khung giờ (start hour, end hour) captured from Seller Centre.
 #: TODO: Track F owns this constant in `shopee_builder/specs.py`; use theirs at merge.
@@ -420,21 +425,18 @@ async def run_create(
         built = await engine.build_custom(spec, as_of)
     else:
         built = await engine.engine_card(kind, s.item_id, as_of)
-    if not built.get("ok"):
+    custom = s.card_type in ("voucher", "product_discount")  # the seller's own numbers
+    reason = str(built.get("reason") or "").split(":", 1)[0]  # "generator_error:<exc>"
+    if not built.get("ok") and (custom or reason not in NOT_ESTIMABLE_REASONS):
         await emit(
             {"type": "no_card", "reason_vi": "Juli chưa tạo được phương án cho yêu cầu này."}
         )
         return "refused"
-    card = built["card"]
-    custom = s.card_type in ("voucher", "product_discount")  # the seller's own numbers
-    if not custom and not cardstage.estimable(card, kind):
-        await emit(
-            {
-                "type": "no_card",
-                "reason_vi": "Juli chưa ước tính được loại thẻ này nên chưa tạo thẻ nháp.",
-            }
-        )
-        return "refused"
+    # create_not_estimable_silent (owner 26/11): a card the engine cannot estimate -- no option
+    # of its own, or no estimable version -- is still created; the draft reads "Chưa ước tính
+    # được" (`cards.draft_event`). A no_card box here was hidden by #110 rule 7: the seller saw
+    # nothing at all.
+    card = built["card"] if built.get("ok") else {"title": labels.kind(kind), "versions": []}
     for c in await data.open_cards():
         if _same_change(c, kind, s.item_id, card.get("title")) == "same":
             await emit(

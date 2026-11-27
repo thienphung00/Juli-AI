@@ -295,3 +295,94 @@ def test_voucher_labels_match_track_s_strings() -> None:
         create_card.voucher_label(True, False)
         == "Mã Giảm Giá · Voucher sản phẩm · không đơn tối thiểu"
     )
+
+
+# ------------------------------------------------- create_not_estimable_silent (owner, 26/11)
+#: the card types the engine cannot estimate from chat (bank rule `create_not_estimable_silent`)
+NOT_ESTIMABLE_TYPES = (
+    "combo",
+    "add_on",
+    "gift",
+    "variation_set",
+    "title",
+    "cover_image",
+    "description_first_line",
+    "price_display",
+)
+ALL_SLOTS = {
+    "from_date": "2026-11-24",
+    "to_date": "2026-11-25",
+    "start_hour": 12,
+    "amount": 10.0,
+    "amount_unit": "pct",
+    "min_spend": 100_000,
+    "quantity": 20,
+    "name": "SYN thẻ",
+    "item_id": "p1",
+    "item_name": "Sản phẩm A",
+}
+
+
+def _unestimable_card() -> dict[str, Any]:
+    from tests.unit.analytics_agent.fakes import version
+
+    return {
+        "title": "Combo cho sản phẩm A",
+        "versions": [version("Nhẹ", None, None, False), version("Vừa", None, None, False)],
+    }
+
+
+async def _create(card_type: str, eng: FakeCardEngine) -> tuple[Any, Any]:
+    return await _run(
+        AskRequest(shop_id=SHOP, platform="shopee", as_of=YDAY, text=f"Tạo thẻ {card_type}"),
+        _llm(card_type=card_type, **ALL_SLOTS),
+        eng,
+        _data(),
+    )
+
+
+def _assert_not_estimable_card(sink: Any, res: Any, kind_ok: bool = True) -> dict[str, Any]:
+    from juli_backend.services.shopee_recommendations.result_store import NOT_ESTIMABLE_TEXT
+
+    assert not sink.of("no_card"), "an unestimable card must not end in a no_card box"
+    (card,) = sink.of("card")
+    assert card["recommendation_vi"] == NOT_ESTIMABLE_TEXT  # the card, not an empty notice
+    assert card["estimable"] is False
+    assert all(v["estimable"] is False for v in card["versions"])
+    assert [c["draft_ref"] for c in res.cards] == [card["draft_ref"]]
+    return card
+
+
+async def test_an_unestimable_engine_card_is_still_drafted_and_reads_chua_uoc_tinh_duoc() -> None:
+    """Rule 7 (#110) hides a no_card box; a card the engine cannot estimate was one, so the seller
+    got nothing. The draft is shown; its forecast is the NOT_ESTIMABLE text."""
+    for ct in ("combo", "add_on", "gift", "variation_set"):
+        eng = FakeCardEngine(result={"ok": True, "card": _unestimable_card()})
+        sink, res = await _create(ct, eng)
+        card = _assert_not_estimable_card(sink, res)
+        assert card["title_vi"] == "Combo cho sản phẩm A" and len(card["versions"]) == 2
+
+
+async def test_a_kind_the_engine_has_no_option_for_is_still_drafted_without_numbers() -> None:
+    """A title / cover / description / price display card (no measured uplift) or any kind whose
+    generator finds nothing: still a draft card the seller sees, reading "Chưa ước tính được"."""
+    for ct in NOT_ESTIMABLE_TYPES:
+        for reason in (
+            "generator_returned_none",
+            "engine_refused",
+            "no_generator_for_kind",
+            "generator_error:ValueError",
+        ):
+            eng = FakeCardEngine(result={"ok": False, "reason": reason})
+            sink, res = await _create(ct, eng)
+            card = _assert_not_estimable_card(sink, res)
+            assert card["versions"] == [] and card["item_id"] == "p1"
+            assert card["title_vi"] == card["kind_vi"]
+
+
+async def test_no_shopee_data_still_says_so() -> None:
+    """Not an estimate gap: the shop has no Shopee rows at all, which the seller is told."""
+    eng = FakeCardEngine(result={"ok": False, "reason": "no_shopee_data"})
+    sink, _ = await _create("combo", eng)
+    assert not sink.of("card")
+    assert sink.of("no_card") or sink.of("text_delta")
