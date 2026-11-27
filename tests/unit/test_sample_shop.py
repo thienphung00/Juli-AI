@@ -568,6 +568,29 @@ async def test_every_decision_tab_has_a_card_after_the_load_and_a_rerun_adds_non
     assert len((await cards())[0]) == len(listed)
 
 
+async def test_the_open_min_spend_voucher_card_measures_its_take_up_and_pays_for_itself(engine):
+    """#117(b): with one take-up per shop (#116), the open "Voucher đơn tối thiểu" card reads the
+    shop's own take-up (enough past voucher orders, so "measured", not the 40 % prior) and its
+    middle Δ lợi nhuận is above 0 -- the sample's margins pay for the discount."""
+    from juli_backend.database.tenant_context import with_shop_scope
+    from juli_backend.services.shopee_recommendations import service
+
+    factory, report = await _load(engine)
+    async with factory() as session:
+        async with with_shop_scope(session, report.shop_id):
+            listed = (
+                await service.list_cards(
+                    session, report.shop_id, audience="seller", queue="all", now=NOW
+                )
+            )["cards"]
+    (card,) = [
+        c for c in listed if c["status"] == "sent" and c["change_kind"] == "min_spend_voucher"
+    ]
+    (offer,) = card["result"]["option"]["cost"]["offers"]
+    assert offer["takeup"]["basis"] == "measured" and 0 < offer["takeup"]["rate"] < 0.4
+    assert card["result"]["own"]["delta"]["profit"]["p50"] > 0
+
+
 # -- P100 S2-G: the decision seeding lives in the backend (no backend import of scripts/) ---------
 
 
@@ -988,6 +1011,8 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # 60 seeds. A 1 % change of one source moves it 679k -> 292k. Pinned here: what is
             # stable (Δ profit, the median over seeds) and that before / after / Δ reconcile.
             # 5a below: the middle is now a mean, so its ΔGMV is pinned as well.
+            # #117(b): Túi đựng rác's giá vốn is 40 % of its price (was 47 %), so the combo's extra
+            # orders on it earn more: -907k (was -918_479). The tier's cost is unchanged.
             assert c["detail"]["before"]["orders"] == sum(
                 ctx.env.metrics.split(i).orders for i in (nrc, tdr)
             )
@@ -995,7 +1020,7 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             assert after["gmv"] == pytest.approx(after["orders"] * after["aov"], rel=1e-9)
             assert before["gmv"] == pytest.approx(before["orders"] * before["aov"], rel=1e-9)
             assert cd["gmv"] == pytest.approx(after["gmv"] - before["gmv"], rel=1e-9)
-            assert cd["profit"] == pytest.approx(-918_479, rel=0.01)
+            assert cd["profit"] == pytest.approx(-907_271, rel=0.01)
             option = common.floor_prior_drivers(
                 option_for(combo, ctx, integrate.extras_for(combo_done.base))
             )
@@ -1004,7 +1029,9 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # 5a (owner #99): the middle column is the MEAN of the scenarios ranked 45-55 % by Δ
             # profit, so the shown ΔGMV is stable: 419_334 on 2,63 orders at seed 0, 404k .. 449k
             # over 15 seeds (was one draw: 254k .. 970k); the seed median 417_370 (was 351_471)
-            assert cd["gmv"] == pytest.approx(419_334, rel=0.02)
+            # #117(b): Túi đựng rác at 40 % giá vốn (was 47 %) moves which draws rank 45-55 % by Δ
+            # profit: 435_984 on 2,66 orders at seed 0 (was 419_334), seed median 423_924
+            assert cd["gmv"] == pytest.approx(435_984, rel=0.02)
             assert median(gmvs) == pytest.approx(417_370, rel=0.05)
             assert max(gmvs) - min(gmvs) <= 0.15 * median(gmvs)
             # never a GMV with almost no orders (445.900đ on 0,31 đơn): reach is 0 at P50, so over
