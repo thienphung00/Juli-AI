@@ -428,9 +428,9 @@ async def run_create(
     custom = s.card_type in ("voucher", "product_discount")  # the seller's own numbers
     reason = str(built.get("reason") or "").split(":", 1)[0]  # "generator_error:<exc>"
     if not built.get("ok") and (custom or reason not in NOT_ESTIMABLE_REASONS):
-        await emit(
-            {"type": "no_card", "reason_vi": "Juli chưa tạo được phương án cho yêu cầu này."}
-        )
+        # said as text: #110 rule 7 hides a no_card box that only says there is no card, and the
+        # seller must be told (no Shopee data, a refused voucher / discount)
+        await emit({"type": "text_delta", "text": "Juli chưa tạo được phương án cho yêu cầu này."})
         return "refused"
     # create_not_estimable_silent (owner 26/11): a card the engine cannot estimate -- no option
     # of its own, or no estimable version -- is still created; the draft reads "Chưa ước tính
