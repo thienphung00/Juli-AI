@@ -588,8 +588,8 @@
  },
  "full": {
   "combinations": 195143,
-  "passed": 175205,
-  "gap": 19454,
+  "passed": 175228,
+  "gap": 19431,
   "failed": [],
   "rules": {
    "phrase_safety_net": {
@@ -675,10 +675,6 @@
    "product_money_output": {
     "count": 1046,
     "hash": "408eda0b093d03e2"
-   },
-   "create_not_estimable_silent": {
-    "count": 23,
-    "hash": "f69de896b1a3b7d4"
    },
    "create_discount_error": {
     "count": 1,
@@ -1175,6 +1171,6 @@
    "mismatch.scope.voucher_traffic.views.analysis": "correct_refusal",
    "mismatch.scope.voucher_traffic.views.answer": "correct_refusal"
   },
-  "seconds": 1337
+  "seconds": 1067
  }
 }
