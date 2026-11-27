@@ -339,7 +339,7 @@ def _diff(a: Mapping[str, Any], b: Mapping[str, Any]) -> dict[str, Any]:
 
 def today_of(env: RecoEnv) -> dict[str, Any]:
     gmv, orders = float(env.shop_gmv_30d), env.shop_orders_30d
-    sp = env.view.profit
+    fig = shop_profit_of(env.view)
     cap = env.daily_cap
     return {
         "as_of": env.as_of.isoformat(),
@@ -347,9 +347,12 @@ def today_of(env: RecoEnv) -> dict[str, Any]:
         "gmv_30d": gmv,
         "orders_30d": orders,
         "aov": gmv / orders if orders else None,
-        "margin_pct": None if sp.margin_rate is None else float(sp.margin_rate) * 100,
+        # R1: behind the reliability gate (None unless the known-cost share is 70-100 % of GMV)
+        "margin_pct": None
+        if fig.profit is None or env.view.profit.margin_rate is None
+        else float(env.view.profit.margin_rate) * 100,
         # P100 B.5: the one shop profit (Tổng quan / Sản phẩm / Kế hoạch show the same figure)
-        "shop_profit": shop_profit_of(env.view).json(),
+        "shop_profit": fig.json(),
         "spend_per_day": float(env.shop_chi_per_day()),
         "spend_cap": None if cap is None else float(cap),
     }

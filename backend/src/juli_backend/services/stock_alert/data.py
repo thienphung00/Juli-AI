@@ -35,6 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.models.shop_proposals import STATUS_APPROVED, STATUS_EXECUTED
 from juli_backend.models.shopee_profit import ShopeeOrderLine
 from juli_backend.models.stock_alert import ShopeeStockHistory
+from juli_backend.repositories.combo_lines import counted_lines
 from juli_backend.services.shopee_analytics.catalog import Catalog
 from juli_backend.services.stock_alert import stock_basis as sb
 from juli_backend.services.stock_alert.eligibility import SkuFacts
@@ -142,7 +143,7 @@ async def load_skus(
             status = (v.status if v is not None and v.status else None) or status
         if _inactive(status):
             sku.listing_status = "deleted"
-    lines = (
+    stored_lines = (
         (
             await session.execute(
                 select(ShopeeOrderLine).where(
@@ -154,6 +155,8 @@ async def load_skus(
         .scalars()
         .all()
     )
+    # C9 (E150): a combo's collapsed parent beside its own lines counts once
+    lines = await counted_lines(session, shop_id, stored_lines)
     for ln in lines:
         if ln.status == CANCELLED or ln.qty <= 0:
             continue

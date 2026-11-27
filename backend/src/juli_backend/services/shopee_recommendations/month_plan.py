@@ -61,6 +61,7 @@ from juli_backend.services.shopee_analytics.fmt import num
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_analytics.stored import RowsNotMaterialized
 from juli_backend.services.shopee_analytics.windows import Window
+from juli_backend.services.shopee_profit.shop_profit import product_profit_shown
 from juli_backend.services.shopee_recommendations import change_sets, plans, store
 from juli_backend.services.shopee_recommendations.plan_aggregate import HORIZON_DAYS
 
@@ -256,7 +257,8 @@ async def _product_figures(
         rows = await funnel.load_rows(session, shop_id, window)
     base = funnel.base_from_rows(rows, str(shop_id), item_ids=(product_id,))
     pp = view.profit.products.get(product_id)
-    return base.total("gmv"), None if pp is None else pp.profit
+    shown = None if pp is None else product_profit_shown(pp)
+    return base.total("gmv"), shown
 
 
 async def _actual(

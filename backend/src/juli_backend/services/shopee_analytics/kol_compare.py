@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
-from juli_backend.services.shopee_analytics.compute import PeriodView
+from juli_backend.services.shopee_analytics.compute import PeriodView, known_sum
 from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ORDER_BASIS, num, pct_of, ratio
 from juli_backend.services.shopee_analytics.kol import (
     LOW_DATA_LABEL,
@@ -207,7 +207,7 @@ def stream_strip(view: PeriodView, model: KolModel) -> dict[str, Any]:
     ads = view.ads
     daily = view.data.ads_daily
     has_ads = daily.days_covered > 0 or ads.total_spend > 0
-    ads_gmv = daily.gmv if daily.days_covered else sum((c.gmv for c in ads.campaigns), ZERO)
+    ads_gmv = daily.gmv if daily.days_covered else known_sum([c.gmv for c in ads.campaigns])
     advertising = _stream(
         "ads",
         "Quảng cáo (Dịch vụ hiển thị)",
@@ -217,7 +217,7 @@ def stream_strip(view: PeriodView, model: KolModel) -> dict[str, Any]:
         cost=ads.total_spend if has_ads else None,
         cost_basis=BASIS_ADS if has_ads else None,
         cost_pct_gmv=pct_of(safe_div(ads.total_spend, ads_gmv))
-        if has_ads and ads_gmv > 0
+        if has_ads and ads_gmv is not None and ads_gmv > 0
         else None,
         profit=None,
         profit_reason=NO_SOURCE_PROFIT,

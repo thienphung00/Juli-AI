@@ -15,7 +15,7 @@ from typing import Any
 
 from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.catalog import ItemInfo
-from juli_backend.services.shopee_analytics.compute import PeriodView
+from juli_backend.services.shopee_analytics.compute import SOURCE_REPORT, PeriodView
 from juli_backend.services.shopee_analytics.fee_table import fold
 from juli_backend.services.shopee_analytics.fmt import (
     ASSUMED_COST_LABEL,
@@ -39,7 +39,7 @@ from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
 from juli_backend.services.shopee_profit.order_profit import (
     OrderLine,
     ProfitBreakdown,
-    counts_in_sales,
+    counts_in_product_sales,
     profit_lines,
 )
 
@@ -73,7 +73,11 @@ def _rates(view: PeriodView, product_id: str, sku: str | None) -> Rates | None:
     One math with the builder (``shopee_analytics.margins``, ADR-122 d.12)."""
     pairs = list(_lines_of(view, product_id))
     product_rates, by_sku = measured_rates(
-        pairs, view.ads.product_spend.get(product_id, ZERO), affiliate_cost_basis=True
+        pairs,
+        view.ads.product_spend.get(product_id, ZERO),
+        affiliate_cost_basis=True,
+        order_basis=view.pairs,
+        ads_unknown=view.ads.known_spend is None,
     )
     return product_rates if sku is None else by_sku.get(sku)
 
@@ -201,8 +205,8 @@ def sku_waterfall(
     )
     for sku, items in sorted(by_sku.items()):
         carrying = [(ln, pb) for ln, pb in items if pb.excluded_reason is None]
-        units = sum(ln.qty for ln, _ in carrying if counts_in_sales(ln))
-        orders = len({ln.order_id for ln, _ in carrying if counts_in_sales(ln)})
+        units = sum(ln.qty for ln, _ in carrying if counts_in_product_sales(ln))
+        orders = len({ln.order_id for ln, _ in carrying if counts_in_product_sales(ln)})
         list_price = view.costs.list_price.get(sku)
         cost = view.costs.by_key.get(sku)
         real = view.costs.cogs_is_real(sku)
@@ -212,7 +216,9 @@ def sku_waterfall(
         formula = view.fees.schedule(product_id).formula_on(view.window.end)
         paid = sum((pb.revenue for _, pb in carrying), ZERO)
         commission = sum((pb.commission or ZERO for _, pb in carrying), ZERO)  # the floor's input
-        commission_shown = affiliate_cost(carrying) or ZERO  # the waterfall's displayed line
+        commission_shown = (
+            affiliate_cost(carrying, basis=view.pairs) or ZERO
+        )  # the waterfall's displayed line
         unit = Decimal(units) if units else None
 
         def per_unit(total: Decimal | None, unit: Decimal | None = unit) -> int | float | None:
@@ -226,8 +232,10 @@ def sku_waterfall(
         voucher = sum((pb.voucher for _, pb in carrying), ZERO)
         combo = sum((pb.bundle for _, pb in carrying), ZERO)
         contribution = sum((pb.contribution or ZERO for _, pb in carrying), ZERO)
-        ad_cost = (spend * paid / product_paid) if product_paid > 0 else ZERO
-        ad_rate = safe_div(ad_cost, paid) if paid > 0 else None
+        ad_cost: Decimal | None = (spend * paid / product_paid) if product_paid > 0 else ZERO
+        if view.ads.known_spend is None:
+            ad_cost = None  # no ad data for the window: the ad cost and what depends on it is "—"
+        ad_rate = safe_div(ad_cost, paid) if paid > 0 and ad_cost is not None else None
         stated = assumed_costs or real  # False = no giá vốn on this page: "chưa tính"
         floor = None
         cap = ctx.rules.max_discount_pct.get(sku)
@@ -286,9 +294,11 @@ def sku_waterfall(
                     "commission": per_unit(commission_shown),
                     "contribution_before_ads": per_unit(contribution) if stated else None,
                     "ads": per_unit(ad_cost),
-                    "profit": per_unit(contribution - ad_cost) if stated else None,
-                    "margin_pct": pct(pct_points(safe_div(contribution - ad_cost, paid)))
+                    "profit": per_unit(None if ad_cost is None else contribution - ad_cost)
                     if stated
+                    else None,
+                    "margin_pct": pct(pct_points(safe_div(contribution - ad_cost, paid)))
+                    if stated and ad_cost is not None
                     else None,
                     "organic_vs_ads": "unknown (đơn xuất không ghi nguồn quảng cáo)",
                 },
@@ -359,7 +369,11 @@ def kpi_block(
     comparable = before.comparable_as_previous
     if not comparable:  # P100-A (A.3): never a previous figure the period cannot be compared to
         prev = {**prev, "gmv": None, "orders": None}
-    five = five_json(five_for(now, before, None, product_id), comparable=comparable)
+    five = five_json(
+        five_for(now, before, None, product_id),
+        comparable=comparable,
+        ads_known=now.ads.known_spend is not None,
+    )
     return {
         "gmv": {
             "value": gmv,
@@ -609,8 +623,8 @@ def daily_block(view: PeriodView, product_id: str, rows: list[Any], source: str)
         acc: dict[date, list[Decimal]] = defaultdict(lambda: [ZERO, ZERO])
         seen: dict[date, set[str]] = defaultdict(set)
         for ln, _ in _lines_of(view, product_id):
-            if not counts_in_sales(ln):
-                continue  # a returned order is no sale (T5 D2)
+            if not counts_in_product_sales(ln):
+                continue  # a returned order is no sale (T5 D2); a cancelled one is no product's
             acc[ln.order_date][0] += ln.order_value
             if ln.order_id not in seen[ln.order_date]:
                 seen[ln.order_date].add(ln.order_id)
@@ -634,6 +648,13 @@ def daily_block(view: PeriodView, product_id: str, rows: list[Any], source: str)
     }
 
 
+def _part_of(total: Decimal | None, value: Decimal, of: Decimal) -> Decimal | None:
+    """``total`` x ``value`` / ``of``; 0 of a total of 0, ``None`` without a share."""
+    if total is None or total == 0:
+        return total
+    return total * value / of if of > 0 else None
+
+
 def ads_campaigns_block(view: PeriodView, product_id: str) -> dict[str, Any]:
     """The ad campaigns this product is in: its spend (allocated to the window, as the shop
     totals are) and the report's placed-order figures prorated to the same share."""
@@ -643,12 +664,40 @@ def ads_campaigns_block(view: PeriodView, product_id: str) -> dict[str, Any]:
         spend = c.products.get(product_id)
         if spend is None:
             continue
-        mine = [r for r in reports if r.key == c.key and r.item_id == product_id]
+        mine = [r for r in reports if r.key in c.report_keys and r.item_id == product_id]
         report_spend = sum((r.spend for r in mine), ZERO)
         k = safe_div(spend, report_spend) if report_spend > 0 else None
         gmv = sum((r.gmv for r in mine), ZERO)
         direct = sum((r.direct_gmv for r in mine), ZERO)
         orders = sum((r.orders for r in mine), ZERO)
+        if c.source != SOURCE_REPORT:
+            # C2: the product's part of the campaign's own figures (its share of the report's),
+            # never a report's sales carried into days the campaign did not sell
+            part = [r for r in reports if r.key in c.report_keys and r.item_id]
+            own_gmv, own_direct, own_orders = (
+                _part_of(total, value, sum((getattr(r, attr) for r in part), ZERO))
+                for total, value, attr in (
+                    (c.gmv, gmv, "gmv"),
+                    (c.direct_gmv, direct, "direct_gmv"),
+                    (c.orders, orders, "orders"),
+                )
+            )
+            rows.append(
+                {
+                    "campaign_key": c.key,
+                    "name": c.name,
+                    "running": c.running,
+                    "spend": num(spend),
+                    "gmv_placed": num(own_gmv),
+                    "direct_gmv_placed": num(own_direct),
+                    "orders_placed": num(own_orders),
+                    "roas_broad": None if own_gmv is None else ratio(safe_div(own_gmv, spend), 2),
+                    "roas_direct": None
+                    if own_direct is None
+                    else ratio(safe_div(own_direct, spend), 2),
+                }
+            )
+            continue
         rows.append(
             {
                 "campaign_key": c.key,

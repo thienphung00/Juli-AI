@@ -53,6 +53,10 @@ SHOP_ROW_LABEL = "Cả shop"
 #: what the "Cả shop" row holds: the shop's figures minus the products' (ads and costs that no
 #: product owns, order lines without a product)
 SHOP_ROW_NAME = "Cả shop — quảng cáo và chi phí chưa gán sản phẩm"
+#: owner #103 10a: the orders cancelled after Shopee confirmed them: inside the shop total, in no
+#: product, their own row (only when non-zero)
+CANCELLED_ROW_ID = "Đơn hủy"
+CANCELLED_ROW_NAME = "Đơn hủy sau xác nhận"
 #: the labels of the metrics that have a registry entry come from the registry (owner 2026-11-20:
 #: the backend is the source of truth, the Excel follows it)
 ROI_LABEL = METRICS["roi"].label_vi
@@ -462,6 +466,7 @@ def _profit(wb: Workbook, data: TongQuanData, b: ProfitBridge) -> None:
     put(ws, r, 5, f"đã trừ VAT đầu ra {b.vat_output:,.0f}đ".replace(",", "."))
     costs = {key: (label, pct_key, what) for key, label, pct_key, what in PROFIT_COSTS}
     ok = b.profit is not None and b.ads is not None
+    levels_ok = not b.withheld  # R1: gộp, đóng góp and ròng are "—" outside 70-100 %
     subtotal_label = {"gross": GROSS_LABEL, "contribution": CONTRIBUTION_LABEL,
                       "profit": PROFIT_LABEL}  # fmt: skip
     prev_total = base  # the row the next subtotal starts from (revenue, then each subtotal)
@@ -484,7 +489,7 @@ def _profit(wb: Workbook, data: TongQuanData, b: ProfitBridge) -> None:
         r += 1
         # a subtotal = the previous subtotal (or the revenue) + this group's (negative) costs
         formula = f"=B{prev_total}+SUM(B{first}:B{r - 1})" if r - 1 >= first else f"=B{prev_total}"
-        ladder_ok = ok or total_key != "profit"
+        ladder_ok = levels_ok and (ok or total_key != "profit")
         put(ws, r, 1, f"{subtotal_label[total_key]}", bold=True)
         put(ws, r, 2, formula if ladder_ok else DASH, MONEY, bold=True)
         put(ws, r, 3, f'=IFERROR(B{r}/B${base},"{DASH}")' if ladder_ok else DASH, PCT, bold=True)

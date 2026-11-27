@@ -212,7 +212,15 @@ def _apply_rule(
             )
             left -= share
             # a what-if voucher is the seller's own: none of it is platform-funded
-            out.append(replace(ln, shop_voucher_share=share, voucher_funded=ZERO))
+            out.append(
+                replace(
+                    ln,
+                    shop_voucher_share=share,
+                    voucher_funded=ZERO,
+                    voucher_unknown=False,
+                    voucher_proven=None,
+                )
+            )
     return out, qualifying, total
 
 
@@ -556,12 +564,12 @@ def price_change_whatif(
         raise ValueError("price_factor must be positive")
 
     def reprice(ln: OrderLine) -> OrderLine:
+        # owner #119: a Connector combo line is re-priced before its combo, the combo on top
+        before = ln.price_before_combo
         if price_factor is not None:
-            return replace(ln, deal_price=to_dong(ln.deal_price * price_factor))
+            return ln.at_price(to_dong(before * price_factor))
         assert new_deal_price is not None
-        return replace(
-            ln, deal_price=min(ln.deal_price, new_deal_price) if ceiling else new_deal_price
-        )
+        return ln.at_price(min(before, new_deal_price) if ceiling else new_deal_price)
 
     mine = [ln for ln in lines if ln.sku == sku]
     repriced = [reprice(ln) for ln in mine]

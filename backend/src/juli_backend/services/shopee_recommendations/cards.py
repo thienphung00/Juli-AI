@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.shopee_analytics import forecast_base, funnel
+from juli_backend.services.shopee_analytics.compute import campaign_of
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.whatif import PredictedRange
 from juli_backend.services.shopee_recommendations import config, freshness
@@ -64,7 +65,7 @@ def _label(env: RecoEnv, cand: Candidate) -> str:
     if cand.item:
         return f"{head} — {env.name(cand.item)}"
     if cand.campaign_key:
-        alloc = next((c for c in env.view.ads.campaigns if c.key == cand.campaign_key), None)
+        alloc = campaign_of(env.view.ads.campaigns, cand.campaign_key)
         return f"{head} — {alloc.name if alloc else 'chiến dịch'}"
     return head
 

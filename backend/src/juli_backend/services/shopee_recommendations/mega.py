@@ -153,7 +153,15 @@ def _apply_best_voucher(
                 else (to_dong(discount * ln.order_value / subtotal) if discount > 0 else ZERO)
             )
             left -= share
-            out.append(replace(ln, shop_voucher_share=ln.shop_voucher_share + share))
+            out.append(
+                replace(
+                    ln,
+                    shop_voucher_share=ln.shop_voucher_share + share,
+                    voucher_proven=(
+                        None if ln.voucher_proven is None else ln.voucher_proven + share
+                    ),
+                )
+            )
     return out, qual, total
 
 
@@ -186,7 +194,16 @@ def evaluate_mega(
     # like for like (as the voucher what-if recomputes both sides): the vouchers and combos the
     # history happened to carry are taken off both the baseline and the scenario, so the
     # children below are the only vouchers / combos in the window
-    base_lines = [replace(ln, shop_voucher_share=ZERO, bundle_discount=ZERO) for ln in raw_lines]
+    base_lines = [
+        replace(
+            ln,
+            shop_voucher_share=ZERO,
+            bundle_discount=ZERO,
+            voucher_unknown=False,
+            voucher_proven=None,
+        )
+        for ln in raw_lines
+    ]
     # 1) price levers: new deal price per SKU
     price_by_sku: dict[str, Decimal] = {}
     for c in price_children:
@@ -207,13 +224,18 @@ def evaluate_mega(
     free_lines: list[OrderLine] = []
     for ln in base_lines:
         new = price_by_sku.get(ln.sku)
-        cur = replace(ln, deal_price=min(new, ln.deal_price)) if new is not None else ln
+        # owner #119: a Connector combo line is priced before its combo, the combo on top
+        cur = ln.at_price(min(new, ln.price_before_combo)) if new is not None else ln
         t = tiers.get(ln.sku)
         if t:
             eligible = [q for q in t if q <= cur.qty]
             if eligible:
                 off = t[max(eligible)]
-                cur = replace(cur, bundle_discount=to_dong(cur.deal_price * cur.qty * off / 100))
+                cur = replace(
+                    cur,
+                    bundle_discount=to_dong(cur.deal_price * cur.qty * off / 100),
+                    combo_in_price=False,
+                )
         free_lines.append(cur)
     # 2) voucher on top, for the orders that use it
     vou_lines: list[OrderLine] | None = None

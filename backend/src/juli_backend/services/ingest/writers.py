@@ -52,6 +52,7 @@ from juli_backend.models.shopee_profit import (
 )
 from juli_backend.services.ingest.affiliate_commission import seller_commission
 from juli_backend.services.ingest.combo_discount_check import log_combo_discount_mismatches
+from juli_backend.services.ingest.combo_parent import keep_named_combos
 from juli_backend.services.ingest.income import resplit_order_vouchers
 from juli_backend.services.ingest.kol_key import kol_key
 from juli_backend.services.ingest.precedence import count_gap_fills, log_gap_fills
@@ -256,6 +257,9 @@ async def write_order_lines(
     if not rows:
         return
     shop_id, platform = provenance["shop_id"], provenance["platform"]
+    rows = await keep_named_combos(session, rows, provenance)
+    if not rows:
+        return
     skus = {sku for row in rows for sku in (row.sku, row.variation_sku) if sku}
     known = await _resolve_skus(session, shop_id, platform, skus)
     values = []

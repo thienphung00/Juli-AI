@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
+from juli_backend.services.shopee_analytics.compute import campaign_of
 from juli_backend.services.shopee_builder import banner, multi
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
@@ -688,7 +689,14 @@ def _ads_warnings(spec: sp.AdsSpec, ctx: BuilderContext) -> list[dict[str, Any]]
     out: list[dict[str, Any]] = []
     if spec.lever != "roas":
         return out
-    if spec.roas_target is not None and spec.roas_target > sp.ADS_ROAS_HINT:
+    setting = ctx.env.setting_for(spec.campaign_key) if spec.campaign_key else None
+    # a campaign already above the hint is not told to go "≤ 3,5": the caution is for a raise
+    already_above = (
+        setting is not None
+        and setting.roas_target is not None
+        and float(setting.roas_target) > sp.ADS_ROAS_HINT
+    )
+    if spec.roas_target is not None and spec.roas_target > sp.ADS_ROAS_HINT and not already_above:
         out.append(
             {
                 "type": "ads_roas_above_hint",
@@ -698,7 +706,6 @@ def _ads_warnings(spec: sp.AdsSpec, ctx: BuilderContext) -> list[dict[str, Any]]
                 "tiêu càng cao, quảng cáo càng ít được hiển thị.",
             }
         )
-    setting = ctx.env.setting_for(spec.campaign_key) if spec.campaign_key else None
     if setting is not None and setting.roas_changes_7d >= 1:
         out.append(
             {
@@ -751,7 +758,7 @@ def _ads(spec: sp.AdsSpec, ctx: BuilderContext) -> Translation:
         # the Connector opens the campaign page by its id: it travels on the card (candidate extra
         # -> ``change.target.campaign_id``, which ``fill_queue`` reads)
         setting = ctx.env.setting_for(spec.campaign_key)
-        alloc = next((c for c in ctx.env.view.ads.campaigns if c.key == spec.campaign_key), None)
+        alloc = campaign_of(ctx.env.view.ads.campaigns, spec.campaign_key)
         cid = ctx.campaigns.id_of(
             alloc.name if alloc else spec.campaign_key, spec.campaign_key, setting
         )

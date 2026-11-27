@@ -9,8 +9,9 @@ view of the same window, so one product shows one set of numbers on every screen
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 
@@ -28,6 +29,9 @@ from juli_backend.services.shopee_analytics.engine import (
     to_shop_lines,
 )
 from juli_backend.services.shopee_analytics.loaders import (
+    AD_LIVESTREAM,
+    AD_SHOP_PLUS,
+    AD_UNKNOWN,
     AdsDaily,
     AdsReports,
     AdsRow,
@@ -39,8 +43,14 @@ from juli_backend.services.shopee_analytics.loaders import (
     ShopTotals,
     ShopTraffic,
     VouchersLoad,
+    ad_type_class,
 )
-from juli_backend.services.shopee_analytics.product_ads import ProductAdRule, ProductAdsInput
+from juli_backend.services.shopee_analytics.product_ads import (
+    CampaignDayRow,
+    ProductAdRule,
+    ProductAdsInput,
+    ReportRow,
+)
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_profit.ads_sources import AdSpendResult
 from juli_backend.services.shopee_profit.flows import (
@@ -49,7 +59,7 @@ from juli_backend.services.shopee_profit.flows import (
     FlowTables,
     build_flow_tables,
 )
-from juli_backend.services.shopee_profit.money import ZERO
+from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.order_profit import (
     OrderLine,
     ProfitBreakdown,
@@ -100,46 +110,227 @@ class PeriodData:
     data_days: frozenset[Any] | None = None
 
 
+SOURCE_DAILY = "daily"  # every figure is the Connector's own days
+SOURCE_MIXED = "mixed"  # Connector days + the report's share of the days it did not read
+SOURCE_REPORT = "report"  # the period report alone
+_COUNTS = ("gmv", "direct_gmv", "orders", "clicks", "impressions")
+#: the Connector's ``state`` of a campaign that runs
+_ONGOING = "ongoing"
+
+
 @dataclass
 class CampaignAlloc:
     key: str
     name: str
     spend: Decimal
-    gmv: Decimal
-    direct_gmv: Decimal
-    orders: Decimal
-    clicks: Decimal
-    impressions: Decimal
+    #: ``None`` = the campaign's row of some day the Connector read lacks the count (never 0)
+    gmv: Decimal | None
+    direct_gmv: Decimal | None
+    orders: Decimal | None
+    clicks: Decimal | None
+    impressions: Decimal | None
     running: bool | None
     products: dict[str, Decimal]  # item -> spend
+    source: str = SOURCE_REPORT  # daily | mixed | report
+    #: the report segments of this campaign (its key, or title hashes joined to it)
+    report_keys: frozenset[str] = frozenset()
+
+    @property
+    def roas(self) -> Decimal | None:
+        """0 when it spent and sold nothing; ``None`` when it spent nothing or GMV is unknown."""
+        return None if self.gmv is None else safe_div(self.gmv, self.spend)
+
+    @property
+    def roas_direct(self) -> Decimal | None:
+        return None if self.direct_gmv is None else safe_div(self.direct_gmv, self.spend)
 
 
 @dataclass
 class AdsAllocation:
-    """Ad spend of the window, split like the ads report, totalling the daily ads figures."""
+    """Ad spend of the window per campaign, plus the ``remainder`` no listed campaign explains
+    (Shop+, spend the campaigns' own figures do not reach); together the one daily ads total."""
 
     total_spend: Decimal
     product_spend: dict[str, Decimal]
     product_figures: dict[str, AdsFigures]
     campaigns: list[CampaignAlloc]
-    scale: Decimal
-    basis: str  # daily_scaled | report_prorated | daily_only | none
+    scale: Decimal  # always 1 since C2: no figure is stretched
+    #: connector_daily | daily_and_report | report_exact | report_prorated | daily_only | none
+    basis: str
     report_windows: tuple[tuple[date, date], ...]
     exact_window: bool
     daily_total: Decimal | None
     report_total_raw: Decimal
     label: str
+    #: total_spend - the campaigns' spend (negative when their estimated days exceed the total)
+    remainder: Decimal = ZERO
+    remainder_gmv: Decimal | None = None
+
+    @property
+    def known_spend(self) -> Decimal | None:
+        """The window's ad cost; ``None`` when there is no ad-cost data for it (no daily rows, no
+        report): missing is never 0 (owner #99). A read day that spent 0 is 0."""
+        return None if self.basis == "none" else self.total_spend
 
     def ad_campaigns(self) -> list[AdCampaign]:
-        return [AdCampaign(c.key, c.spend, c.gmv, c.name, c.direct_gmv) for c in self.campaigns]
+        out = [AdCampaign(c.key, c.spend, c.gmv, c.name, c.direct_gmv) for c in self.campaigns]
+        if self.remainder != 0:
+            out.append(AdCampaign(REMAINDER_KEY, self.remainder, self.remainder_gmv))
+        return out
 
 
-def _row_factor(window: Window, period: tuple[date, date]) -> Decimal:
-    """Share of a report row that falls in the window (1 when the report is the window)."""
-    if period == (window.start, window.end):
-        return Decimal(1)
-    days = (period[1] - period[0]).days + 1
-    return Decimal(window.overlap_days(*period)) / Decimal(days)
+REMAINDER_KEY = "__remainder__"
+
+
+def campaign_of(campaigns: Iterable[CampaignAlloc], key: str | None) -> CampaignAlloc | None:
+    """The campaign of ``key`` (a saved card may still carry a report's own key)."""
+    if not key:
+        return None
+    rows = list(campaigns)
+    return next((c for c in rows if c.key == key), None) or next(
+        (c for c in rows if key in getattr(c, "report_keys", ())), None
+    )
+
+
+def known_sum(values: list[Decimal | None]) -> Decimal | None:
+    """The sum; ``None`` when one of the values is unknown."""
+    known = [v for v in values if v is not None]
+    return sum(known, ZERO) if len(known) == len(values) else None
+
+
+def _row_factor(window: Window, period: tuple[date, date], covered: frozenset[date]) -> Decimal:
+    """Share of a report row that falls on the window's days the Connector did not read."""
+    span = (period[1] - period[0]).days + 1
+    free = sum(1 for d in _window_days(window) if period[0] <= d <= period[1] and d not in covered)
+    return Decimal(free) / Decimal(span)
+
+
+def _window_days(window: Window) -> list[date]:
+    return [window.start + timedelta(days=i) for i in range(window.days)]
+
+
+@dataclass
+class _ReportPart:
+    """A campaign's report rows over its one best report window."""
+
+    name: str
+    running: bool | None
+    factor: Decimal
+    raw_spend: Decimal
+    figures: dict[str, Decimal]  # spend + _COUNTS, the whole report
+    products: dict[str, Decimal]
+
+
+def _report_part(
+    window: Window, key: str, rows: list[AdsRow], covered: frozenset[date]
+) -> _ReportPart:
+    def rank(period: tuple[date, date]) -> tuple[Decimal, int, int, date]:
+        own = any(r.key == key for r in rows if r.period == period)
+        span = (period[1] - period[0]).days
+        free = _row_factor(window, period, covered) * (span + 1)
+        return free, int(own), -span, period[1]
+
+    period = max({r.period for r in rows}, key=rank)
+    mine = [r for r in rows if r.period == period]
+    if any(r.key == key for r in mine):  # the same report posted by id and by title: count it once
+        mine = [r for r in mine if r.key == key]
+    by_segment: dict[str, list[AdsRow]] = defaultdict(list)
+    for r in mine:
+        by_segment[r.key].append(r)
+    figures = dict.fromkeys(("spend", *_COUNTS), ZERO)
+    products: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    first: AdsRow | None = None
+    for items in by_segment.values():
+        head = next((r for r in items if r.item_id == ""), None)
+        product_rows = [r for r in items if r.item_id]
+        first = first or head or items[0]
+        for attr in figures:
+            for r in [head] if head is not None else product_rows:
+                figures[attr] += getattr(r, attr)
+        for r in product_rows:
+            products[r.item_id] += r.spend
+    assert first is not None
+    factor = _row_factor(window, period, covered)
+    return _ReportPart(
+        first.campaign, first.running, factor, figures["spend"], figures, dict(products)
+    )
+
+
+def _campaign_allocs(
+    window: Window, rows: list[AdsRow], inp: ProductAdsInput
+) -> tuple[list[CampaignAlloc], Decimal]:
+    """The listed campaigns, each from its Connector days (covered days) and its report's share of
+    the other days; and the reports' raw spend."""
+    covered = frozenset(d for d in _window_days(window) if d in inp.covered_days)
+    newest = max(covered, default=None)
+    join = inp.joiner()
+    by_report: dict[str, list[AdsRow]] = defaultdict(list)
+    for r in rows:
+        by_report[join(r.key, r.campaign)].append(r)
+    splits: dict[str, list[ReportRow]] = defaultdict(list)
+    for split in inp.report_rows:
+        splits[split.key].append(split)
+    by_day: dict[str, dict[date, CampaignDayRow]] = defaultdict(dict)
+    for key, day in inp.campaign_days:
+        found = inp.day_row(key, day)
+        if day in covered and found is not None:
+            by_day[key][day] = found
+    raw_total = ZERO
+    out: list[CampaignAlloc] = []
+    for key in [*by_report, *sorted(k for k in by_day if k not in by_report)]:
+        days = by_day.get(key, {})
+        report = _report_part(window, key, by_report[key], covered) if key in by_report else None
+        raw_total += report.raw_spend if report else ZERO
+        latest = days[max(days)] if days else None
+        listed_type = ad_type_class(latest.ad_type) if latest is not None else AD_UNKNOWN
+        if report is None and listed_type in (AD_SHOP_PLUS, AD_LIVESTREAM):
+            continue  # no product campaign: its spend is in the remainder
+        spend = sum((d.spend for d in days.values()), ZERO)
+        counts: dict[str, Decimal | None] = {
+            a: known_sum([getattr(d, a) for d in days.values()]) for a in _COUNTS
+        }
+        share = report.factor if report else ZERO
+        if report is not None:
+            spend += report.figures["spend"] * share
+            for a, have in counts.items():
+                counts[a] = None if have is None else have + report.figures[a] * share
+        today = days.get(newest) if newest is not None else None
+        ran = today is not None and today.state == _ONGOING
+        if spend == 0 and not ran and (days or share == 0):
+            continue  # it spent nothing and does not run (an ended campaign)
+        products: dict[str, Decimal] = {}
+        if days:  # decision #39's split of its Connector days; its other days are the report's
+            own_days = ProductAdsInput(
+                {(key, d): row.spend for d, row in days.items()},
+                frozenset(_window_days(window)),
+                splits.get(key, []),
+            )
+            products = ProductAdRule(own_days).window_spend(window.start, window.end)
+        for item, value in (report.products if report else {}).items():
+            products[item] = products.get(item, ZERO) + value * share
+        source = SOURCE_REPORT
+        if days or (covered and not share):
+            source = SOURCE_MIXED if share else SOURCE_DAILY
+        running = report.running if report else None
+        if latest is not None and latest.state is not None:
+            running = ran
+        out.append(
+            CampaignAlloc(
+                key,
+                (latest.name if latest and latest.name else report.name if report else "") or key,
+                spend,
+                counts["gmv"],
+                counts["direct_gmv"],
+                counts["orders"],
+                counts["clicks"],
+                counts["impressions"],
+                running,
+                products,
+                source,
+                frozenset(r.key for r in by_report.get(key, ())),
+            )
+        )
+    return out, raw_total
 
 
 def allocate_ads(
@@ -157,176 +348,99 @@ def allocate_ads(
         daily_total = daily.spend
     elif resolved is not None and resolved.total > 0:
         daily_total = resolved.total
+    elif daily.days_covered > 0 and daily.days_covered >= daily.window_days:
+        daily_total = ZERO  # the days were read and nothing was spent: 0 is data
     else:
         daily_total = None
-    by_campaign: dict[str, list[AdsRow]] = defaultdict(list)
-    for r in rows:
-        by_campaign[r.key].append(r)
-    raw: list[CampaignAlloc] = []
-    raw_total = ZERO
-    for key, items in by_campaign.items():
-        head = next((r for r in items if r.item_id == ""), None)
-        product_rows = [r for r in items if r.item_id]
-        base = head
-        f = _row_factor(window, items[0].period)
-
-        def pick(attr: str) -> Decimal:
-            if base is not None:
-                return getattr(base, attr)
-            return sum((getattr(r, attr) for r in product_rows), ZERO)
-
-        spend_by_item: dict[str, Decimal] = defaultdict(lambda: ZERO)
-        for r in product_rows:
-            spend_by_item[r.item_id] += r.spend * f
-        raw_total += pick("spend")
-        raw.append(
-            CampaignAlloc(
-                key,
-                (base or items[0]).campaign,
-                pick("spend") * f,
-                pick("gmv") * f,
-                pick("direct_gmv") * f,
-                pick("orders") * f,
-                pick("clicks") * f,
-                pick("impressions") * f,
-                (base or items[0]).running,
-                dict(spend_by_item),
-            )
-        )
-    exact = reports.campaign_choice.basis == "exact"
-    periods = reports.campaign_choice.periods
-    only_products = (
-        ProductAdRule(product_ads).window_spend(window.start, window.end) if product_ads else {}
+    camps, raw_total = _campaign_allocs(window, rows, product_ads or ProductAdsInput())
+    read_days = product_ads.covered_days if product_ads is not None else frozenset()
+    exact = reports.campaign_choice.basis == "exact" and not (
+        read_days.intersection(_window_days(window))
     )
-    only_figures = {i: AdsFigures(v, ZERO, ZERO) for i, v in only_products.items()}
-
-    if not raw:
-        if daily_total is not None and daily_total > 0:
-            only = CampaignAlloc(
-                "daily",
-                "Tổng chi quảng cáo (theo ngày)",
-                daily_total,
-                daily.gmv,
-                ZERO,
-                daily.orders,
-                ZERO,
-                ZERO,
-                None,
-                {},
+    spent = sum((c.spend for c in camps), ZERO)
+    total = spent if daily_total is None else daily_total
+    remainder = total - spent
+    sources = {c.source for c in camps}
+    if not camps and not rows:
+        if daily_total is None:
+            basis, label = "none", "Chưa có dữ liệu quảng cáo cho kỳ này."
+        else:
+            basis = "daily_only"
+            label = (
+                "Chỉ có chi phí quảng cáo theo ngày; chưa có báo cáo theo chiến dịch / sản phẩm."
             )
-            return AdsAllocation(
-                daily_total,
-                only_products,
-                only_figures,
-                [only],
-                Decimal(1),
-                "daily_only",
-                (),
-                False,
-                daily_total,
-                ZERO,
-                "Chỉ có chi phí quảng cáo theo ngày; chưa có báo cáo theo chiến dịch / sản phẩm.",
-            )
-        return AdsAllocation(
-            ZERO,
-            only_products,
-            only_figures,
-            [],
-            Decimal(1),
-            "none",
-            (),
-            False,
-            daily_total,
-            ZERO,
-            "Chưa có dữ liệu quảng cáo cho kỳ này.",
-        )
-
-    prorated_total = sum((c.spend for c in raw), ZERO)
-    if daily_total is not None and prorated_total > 0:
-        k = daily_total / prorated_total
-        basis = "daily_scaled"
-        source = (
-            "một chi phí mỗi ngày (Connector theo ngày, ngày còn lại theo báo cáo CSV)"
-            if daily.days_covered > 0 and daily.spend > 0
-            else "chi phí quảng cáo theo ngày"
-        )
-        label = (
-            f"Báo cáo chiến dịch (đơn đã đặt) đúng kỳ, tổng khớp {source}."
-            if exact
-            else "Báo cáo chiến dịch (đơn đã đặt) chia theo số ngày trùng và tỷ trọng; "
-            f"tổng khớp {source}."
-        )
-    else:
-        k = Decimal(1)
+        exact = False
+    elif sources == {SOURCE_REPORT}:
         basis = "report_exact" if exact else "report_prorated"
         label = (
             "Báo cáo chiến dịch (đơn đã đặt) đúng kỳ."
             if exact
             else "Báo cáo chiến dịch khác kỳ, chia theo số ngày trùng (ước tính)."
         )
-    camps = [
-        CampaignAlloc(
-            c.key,
-            c.name,
-            c.spend * k,
-            c.gmv * k,
-            c.direct_gmv * k,
-            c.orders * k,
-            c.clicks * k,
-            c.impressions * k,
-            c.running,
-            {i: s * k for i, s in c.products.items()},
+    elif sources <= {SOURCE_DAILY}:
+        basis, label = "connector_daily", "Số liệu chiến dịch theo ngày của Connector (đơn đã đặt)."
+    else:
+        basis = "daily_and_report"
+        label = (
+            "Số liệu chiến dịch theo ngày của Connector (đơn đã đặt); ngày Connector chưa đọc "
+            "chia theo báo cáo chiến dịch (ước tính)."
         )
-        for c in raw
-    ]
-    product_spend: dict[str, Decimal] = defaultdict(lambda: ZERO)
-    product_gmv: dict[str, Decimal] = defaultdict(lambda: ZERO)
-    product_direct: dict[str, Decimal] = defaultdict(lambda: ZERO)
-    for r in rows:
-        if r.item_id:
-            f = _row_factor(window, r.period) * k
-            product_spend[r.item_id] += r.spend * f
-            product_gmv[r.item_id] += r.gmv * f
-            product_direct[r.item_id] += r.direct_gmv * f
-    if product_ads is not None:
-        # decision #39: one ad cost per product = the Connector's campaign days x the product's
-        # share in the ads report by product (:mod:`product_ads`); the window is its day sum
-        wanted_by_item = ProductAdRule(product_ads).window_spend(window.start, window.end)
-        for item, wanted in wanted_by_item.items():
-            have = product_spend.get(item, ZERO)
-            ratio = wanted / have if have > 0 else ZERO
-            product_gmv[item] = product_gmv.get(item, ZERO) * ratio
-            product_direct[item] = product_direct.get(item, ZERO) * ratio
-            product_spend[item] = wanted
-        for item in [i for i in product_spend if i not in wanted_by_item]:
-            del product_spend[item]
-    elif resolved is not None and resolved.products:
-        # per-product spend only from the per-product CSV rows (Step 6); the rest is unattributed
-        for item, wanted in resolved.products.items():
-            have = product_spend.get(item, ZERO)
-            ratio = wanted / have if have > 0 else ZERO
-            product_gmv[item] = product_gmv.get(item, ZERO) * ratio
-            product_direct[item] = product_direct.get(item, ZERO) * ratio
-            product_spend[item] = wanted
-        for item in [i for i in product_spend if i not in resolved.products]:
-            del product_spend[item]
-    figures = {
-        i: AdsFigures(product_spend[i], product_gmv[i], product_direct[i]) for i in product_spend
-    }
-    total = sum((c.spend for c in camps), ZERO)
+    product_spend, figures = _product_figures(window, rows, resolved, product_ads)
     return AdsAllocation(
         total,
-        dict(product_spend),
+        product_spend,
         figures,
         camps,
-        k,
+        Decimal(1),
         basis,
-        periods,
+        reports.campaign_choice.periods,
         exact,
         daily_total,
         raw_total,
         label,
+        remainder,
+        daily.gmv if not camps else None,
     )
+
+
+def _product_figures(
+    window: Window,
+    rows: list[AdsRow],
+    resolved: AdSpendResult | None,
+    product_ads: ProductAdsInput | None,
+) -> tuple[dict[str, Decimal], dict[str, AdsFigures]]:
+    """Each product's ad cost (decision #39) and the report's GMV at the same ratio."""
+    product_spend: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    # owner #99: a product's ads GMV (and ROAS) only from a report whose period IS the window;
+    # a report of another period gives no GMV (None, never 0 and never prorated)
+    own = (window.start, window.end)
+    product_gmv: dict[str, Decimal] = {}
+    product_direct: dict[str, Decimal] = {}
+    for r in rows:
+        if r.item_id:
+            f = _row_factor(window, r.period, frozenset())
+            product_spend[r.item_id] += r.spend * f
+            if r.period == own:
+                product_gmv[r.item_id] = product_gmv.get(r.item_id, ZERO) + r.gmv
+                product_direct[r.item_id] = product_direct.get(r.item_id, ZERO) + r.direct_gmv
+    wanted_by_item: dict[str, Decimal] | None = None
+    if product_ads is not None:
+        # decision #39: one ad cost per product = the Connector's campaign days x the product's
+        # share in the ads report by product (:mod:`product_ads`); the window is its day sum
+        wanted_by_item = ProductAdRule(product_ads).window_spend(window.start, window.end)
+    elif resolved is not None and resolved.products and rows:
+        # per-product spend only from the per-product CSV rows (Step 6); the rest is unattributed
+        wanted_by_item = resolved.products
+    if wanted_by_item is not None:
+        for item, wanted in wanted_by_item.items():
+            product_spend[item] = wanted
+        for item in [i for i in product_spend if i not in wanted_by_item]:
+            del product_spend[item]
+    figures = {
+        i: AdsFigures(product_spend[i], product_gmv.get(i), product_direct.get(i))
+        for i in product_spend
+    }
+    return dict(product_spend), figures
 
 
 @dataclass
@@ -453,6 +567,7 @@ def compute_view(ctx: ShopContext, data: PeriodData) -> PeriodView:
         product_ad_spend=ads.product_spend,
         export_gmv=data.totals.gmv if data.totals.complete else None,
         product_ads=ads.product_figures,
+        ads_known=ads.known_spend is not None,
     )
     matrix = build_source_matrix(pairs)
 

@@ -65,21 +65,23 @@ from juli_backend.services.shopee_analytics.metrics import (
     shop_metrics,
 )
 from juli_backend.services.shopee_analytics.period_spread import ShopDay, SpreadDay
-from juli_backend.services.shopee_analytics.shared import order_data_days, shop_profit_of
+from juli_backend.services.shopee_analytics.shared import order_data_days, shop_profit_raw
 from juli_backend.services.shopee_analytics.stored import ORDER_TYPE
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_profit.flows import FLOW_ORDER, RESIDUAL_KEY, FlowTable
 from juli_backend.services.shopee_profit.money import ZERO
-from juli_backend.services.shopee_profit.order_profit import counts_in_sales
+from juli_backend.services.shopee_profit.order_profit import OrderStatus, counts_in_sales
 
 logger = logging.getLogger(__name__)
 
 #: version of the rule the stored rows are built with (``shop row detail.rows_v``). 2 (F7.10): the
 #: stored profit is the unscaled known-cost profit (P100 B.5); 3 (decision #39): a product's
 #: ad cost is the ads report by product (:mod:`product_ads`), ad-only days get a row; 4 (decision
-#: #50): doanh thu thực subtracts only the shop voucher the seller bore (settlement). Bump it to
+#: #50): doanh thu thực subtracts only the shop voucher the seller bore (settlement); 5 (owners
+#: #99 / #103): a product leaves out its cancelled lines, whose share is the shop row's
+#: ``detail.cancelled_gmv`` / ``cancelled_orders``. Bump it to
 #: rebuild every shop's stored days automatically (:func:`rebuild_outdated`).
-ROWS_VERSION = 4
+ROWS_VERSION = 5
 ROWS_VERSION_KEY = "rows_v"
 
 #: ingest datasets that cannot change a day's shop or product numbers
@@ -279,8 +281,11 @@ def _no_order_day_profit(view: PeriodView, day: date) -> Decimal | None:
     order line is charged whole to the shop profit (the window headline subtracts it), so the day
     stores ``-spend`` and the days sum to the headline. A day whose orders all lack costs stays
     None (missing is not zero)."""
-    if any(pb.excluded_reason is None for _, pb in view.pairs):
-        return None
+    if any(
+        pb.excluded_reason is None or getattr(ln, "status", None) is OrderStatus.IN_TRANSIT
+        for ln, pb in view.pairs
+    ):
+        return None  # C1: in-transit orders are orders whose costs are not known yet
     spent = view.data.ads_daily.spend_by_day.get(day, ZERO)
     days = order_data_days(view)
     if spent > 0 and (days is None or day in days):
@@ -328,7 +333,7 @@ def day_rows(
     covered = p.buyer_paid_covered
     # P100 B.5 / F7.10: the stored profit is the known-cost figure of the day, never scaled to
     # the shop totals: the one ``shop_profit_of`` the dashboard headline shows
-    day_profit = shop_profit_of(view).profit
+    day_profit = shop_profit_raw(view).profit  # R1: stored raw, the readers gate
     if day_profit is None:
         day_profit = _no_order_day_profit(view, day)
     net_gmv = sum(
@@ -361,6 +366,11 @@ def day_rows(
             "aov_sc_net_gmv": None if not m.line_orders else str(net_gmv),
             "profit_partial": bool(m.profit_is_partial),
             ROWS_VERSION_KEY: ROWS_VERSION,
+            **(
+                {"cancelled_gmv": str(m.cancelled_gmv), "cancelled_orders": m.cancelled_orders}
+                if m.cancelled_gmv or m.cancelled_orders
+                else {}
+            ),
         },
         "complete": complete,
     }

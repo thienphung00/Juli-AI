@@ -17,6 +17,7 @@ import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,6 +43,8 @@ from juli_backend.services.shopee_analytics import (
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_analytics.windows import Window
+from juli_backend.services.shopee_profit.ladder import offers_cost, unknown_orders
+from juli_backend.services.shopee_profit.shop_profit import stored_day_profit_trusted
 from juli_backend.services.shopee_recommendations import (
     change_sets,
     execution_state,
@@ -89,21 +92,18 @@ async def _view(
     return view, rows
 
 
-def _line_offer(pair: tuple[Any, Any]) -> float:
-    """Ưu đãi of one line (``ProfitBreakdown.offer_cost``, the seller-borne basis): as Tổng quan
-    (``channel_split._offers_cost``): khuyến mãi + voucher + combo, so the days add up to it."""
-    _ln, bd = pair
-    return float(bd.offer_cost)
-
-
-def _offer_cost(view: PeriodView, product: str | None = None, day: date | None = None) -> float:
-    """Chi phí ưu đãi = Chương Trình Của Shop + voucher + combo discount of the lines."""
-    total = 0.0
-    for pair in view.pairs:
-        ln = pair[0]
-        if (product is None or ln.product_id == product) and (day is None or ln.order_date == day):
-            total += _line_offer(pair)
-    return total
+def _offer_cost(
+    view: PeriodView, product: str | None = None, day: date | None = None
+) -> float | None:
+    """Chi phí ưu đãi = Chương Trình Của Shop + voucher + combo discount of the known orders'
+    lines: the one rule of ``channel_split._offers_cost`` (days and products add up to it)."""
+    pairs = [
+        (ln, pb)
+        for ln, pb in view.pairs
+        if (product is None or ln.product_id == product) and (day is None or ln.order_date == day)
+    ]
+    cost = offers_cost(pairs, basis=view.pairs)
+    return None if cost is None else float(cost)
 
 
 def _aff_cost_day(view: PeriodView, day: date, product: str | None = None) -> float | None:
@@ -113,7 +113,8 @@ def _aff_cost_day(view: PeriodView, day: date, product: str | None = None) -> fl
             (ln, pb)
             for ln, pb in view.pairs
             if ln.order_date == day and (product is None or ln.product_id == product)
-        ]
+        ],
+        basis=view.pairs,
     )
     return None if cost is None else float(cost)
 
@@ -146,6 +147,33 @@ def _figures(split: dict[str, Any]) -> tq.Figures:
         rest_cost=rest_cost, rest_profit=None if rest is None else _f(rest["profit"]),
         gross_profit=_f(k.get("gross_profit")), contribution=_f(k.get("contribution")),
     )  # fmt: skip
+
+
+def with_cancelled_row(
+    rest: tq.ProductRow,
+    now: tuple[float, float],
+    prev: tuple[float, float],
+) -> list[tq.ProductRow]:
+    """The "Cả shop" row without the cancelled-after-confirmation share, then (before it) that
+    share as its own row ("Đơn hủy sau xác nhận", owner #103 10a), only when non-zero: the sheet
+    still sums to the shop. ``now`` / ``prev`` = (GMV, đơn)."""
+    if not any((*now, *prev)):
+        return [rest]
+
+    def take(fig: tq.Figures, got: tuple[float, float]) -> tq.Figures:
+        return replace(
+            fig,
+            gmv=None if fig.gmv is None else fig.gmv - got[0],
+            orders=None if fig.orders is None else fig.orders - got[1],
+        )
+
+    def own(got: tuple[float, float]) -> tq.Figures:
+        return tq.Figures(gmv=got[0], orders=got[1])
+
+    return [  # "Cả shop" stays the last row
+        tq.ProductRow(tq.CANCELLED_ROW_ID, tq.CANCELLED_ROW_NAME, own(now), own(prev)),
+        tq.ProductRow(rest.product_id, rest.name, take(rest.now, now), take(rest.prev, prev)),
+    ]
 
 
 def _residual(shop: tq.Figures, parts: list[tq.Figures]) -> tq.Figures:
@@ -187,8 +215,35 @@ def _net_revenue_known(view: PeriodView, product_id: str | None) -> float | None
     paid of the orders whose costs are known, the base of the screen's margin."""
     if product_id is None:
         return _f(shop_profit_of(view).buyer_paid)
-    product = view.profit.products.get(product_id)
-    return None if product is None else _f(product.buyer_paid_covered)
+    unknown = unknown_orders(view.pairs)  # whole known orders, the rule of the shop figure
+    lines = [
+        pb for ln, pb in view.pairs
+        if ln.product_id == product_id and pb.excluded_reason is None
+        and pb.contribution is not None and ln.order_id not in unknown
+    ]  # fmt: skip
+    return (
+        None
+        if product_id not in view.profit.products
+        else _f(sum((pb.revenue for pb in lines), Decimal(0)))
+    )
+
+
+def _stored_day_profit(
+    view: PeriodView, row: Any, day: date, *, product: bool = False
+) -> float | None:
+    """R1: a stored day's profit, or ``None`` ("—") when it cannot be trusted: rows written before
+    the in-transit fix hold ``-ads`` for a day of in-transit orders. Shop days also need the
+    day's known-cost GMV share in 70-100 %; a product day only the in-transit check (its share
+    is a product-level figure)."""
+    if row is None or row.profit is None:
+        return None
+    ok = stored_day_profit_trusted(
+        view.pairs,
+        day,
+        None if product else row.gmv,
+        check_share=not product,
+    )
+    return float(row.profit) if ok else None
 
 
 def _gmv_of(listing: dict[str, Any], product_id: str) -> float:
@@ -362,7 +417,15 @@ async def collect_tong_quan(
             tq.SHOP_ROW_LABEL, tq.SHOP_ROW_NAME, _residual(shop_now, [r.now for r in rows]),
             _residual(shop_prev, [r.prev for r in rows]),
         )  # fmt: skip
-        rows.append(rest)
+        rows.extend(
+            with_cancelled_row(
+                rest,
+                (float(view.metrics.cancelled_gmv), float(view.metrics.cancelled_orders)),
+                (float(pview.metrics.cancelled_gmv), float(pview.metrics.cancelled_orders))
+                if pview is not None
+                else (0.0, 0.0),
+            )
+        )
 
     shop_days = {d.day: d for d in frows.shop_days}
     prod_days = {d.day: d for d in frows.product_days if d.item_id == product_id}
@@ -391,7 +454,7 @@ async def collect_tong_quan(
                 _f(sd.ads_spend) if product_id and sd else None if product_id else _f(spend.get(d)),
                 _aff_cost_day(view, d, product_id),
                 _offer_cost(view, product_id, d),
-                None if sd is None else _f(sd.profit),
+                _stored_day_profit(view, sd, d, product=bool(product_id)),
                 total_gmv=None if sd is None else _f(sd.gmv),
                 total_orders=None if sd is None else _f(sd.orders),
             )  # fmt: skip
@@ -851,7 +914,9 @@ async def collect_ke_hoach_shop(
     ]
     plan = await _plan(session, shop_id, window, view, now, daily=True)
     actual_gmv = {d.day: float(d.gmv) for d in rows.shop_days}
-    actual_profit = {d.day: float(d.profit) for d in rows.shop_days if d.profit is not None}
+    actual_profit = {
+        d.day: p for d in rows.shop_days if (p := _stored_day_profit(view, d, d.day)) is not None
+    }
     goal = kh.GoalRow(
         shop_name, platform, _f(plan.get("baseline_gmv")), _f(plan.get("goal_gmv")),
         sum(actual_gmv.values()) if actual_gmv else None,

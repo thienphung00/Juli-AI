@@ -30,6 +30,7 @@ from decimal import Decimal
 from typing import Any, Literal, cast
 
 from juli_backend.services.shopee_analytics import forecast_base, funnel
+from juli_backend.services.shopee_analytics.compute import campaign_of
 from juli_backend.services.shopee_builder import multi
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext
@@ -73,6 +74,7 @@ from juli_backend.services.shopee_builder.engine_families.measure import (
 from juli_backend.services.shopee_profit import shop_profit
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 from juli_backend.services.shopee_recommendations.env import RecoEnv
+from juli_backend.services.shopee_recommendations.evaluate import campaign_profile
 
 ZERO = Decimal(0)
 #: Ad type of a Dịch vụ Hiển thị Sản phẩm campaign, past or new (``measure.ad_rates``).
@@ -658,8 +660,23 @@ def ads_history(env: RecoEnv) -> tuple[AdCampaignHist, ...]:
     days = env.window_days
     out: list[AdCampaignHist] = []
     for c in env.view.ads.campaigns:
+        # C2: an unknown count is never 0: the campaign is not measured. Its direct
+        # revenue may come from its products, as ``campaign_profile`` reads it for the card
+        direct = c.direct_gmv
+        if direct is None:
+            prof = campaign_profile(env, c.key)
+            if prof is not None and prof["direct_known"]:
+                direct = prof["direct_per_day"] * days
+        if (
+            c.gmv is None
+            or direct is None
+            or c.orders is None
+            or c.clicks is None
+            or c.impressions is None
+        ):
+            continue
         setting = env.setting_for(c.key)
-        direct_orders = c.orders * c.direct_gmv / c.gmv if c.gmv > 0 else ZERO
+        direct_orders = c.orders * direct / c.gmv if c.gmv > 0 else ZERO
         out.append(
             AdCampaignHist(
                 key=c.key,
@@ -669,7 +686,7 @@ def ads_history(env: RecoEnv) -> tuple[AdCampaignHist, ...]:
                 impressions=c.impressions,
                 clicks=c.clicks,
                 direct_orders=direct_orders,
-                direct_gmv=c.direct_gmv,
+                direct_gmv=direct,
                 days=days,
                 daily_budget=None if setting is None else setting.daily_budget,
                 roas_target=None if setting is None else setting.roas_target,
@@ -744,13 +761,14 @@ def profit_per_order_before_ads(base: FunnelBase) -> Decimal | None:
 def product_ad_rows(env: RecoEnv) -> tuple[ProductAdRow, ...]:
     """The per-product lines of the window's ads reports (campaign × product, placed orders)."""
     out: list[ProductAdRow] = []
+    joined = {k: c.key for c in env.view.ads.campaigns for k in c.report_keys}
     for r in env.view.data.ads_reports.campaign_rows:
         if not r.item_id:
             continue
         start, end = r.period
         out.append(
             ProductAdRow(
-                campaign_key=r.key,
+                campaign_key=joined.get(r.key, r.key),
                 item_id=r.item_id,
                 spend=r.spend,
                 impressions=r.impressions,
@@ -773,7 +791,7 @@ def ads_edit_facts(
     key = spec.campaign_key or ""
     setting = env.setting_for(key)
     allocs = env.view.ads.campaigns
-    alloc = next((a for a in allocs if a.key == key), None)
+    alloc = campaign_of(allocs, key)
     if alloc is None and setting is not None:
         alloc = next((a for a in allocs if a.key == setting.key or a.name == setting.name), None)
     campaigns = ads_history(env)

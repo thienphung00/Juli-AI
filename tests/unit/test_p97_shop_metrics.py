@@ -178,7 +178,13 @@ async def test_every_surface_shows_the_same_core_metrics(session, seeded, monkey
         # Sản phẩm: the products add up to the shop (less the stored residual)
         assert mx["sums"]["gmv_shop"] == gmv
         listed = mx["sums"]["gmv_shopee_products"] + mx["excluded"]["gmv"]
-        assert listed + (sm["unattributed_gmv"] or 0) == pytest.approx(gmv, abs=1)
+        # owner #103 10a: the cancelled-after-confirmation share is its own row, not a product's;
+        # the products plus that row (plus the stored residual) are the shop
+        cancelled = sm["cancelled_after_confirm"]
+        assert cancelled is not None and cancelled["gmv"] > 0
+        assert listed + cancelled["gmv"] + (sm["unattributed_gmv"] or 0) == pytest.approx(
+            gmv, abs=1
+        )
         # Phân tích (ranking cell of the "all" source)
         cell = rk["cell"]["now"]
         assert cell == pytest.approx(gmv / 7, abs=0.01)

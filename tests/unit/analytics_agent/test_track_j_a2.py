@@ -194,16 +194,18 @@ async def test_voucher_answer_is_the_uu_dai_voucher_cost_from_income_rows() -> N
     cost = answers[0]
     assert cost["title_vi"].startswith("Chi phí voucher (Ưu đãi)") and cost["value"] == "140đ"
     assert cost["fresh_vi"] == "Số liệu đến hết 22/11"
-    assert answers[1]["value"] == "Juli chưa có số liệu này"  # per voucher code: no source
+    assert len(answers) == 1  # no voucher list stored: no per-voucher card, no "chưa có" card
 
 
-async def test_income_ends_before_the_window_is_said_and_not_counted_as_zero() -> None:
-    first, last = date(2026, 11, 9), date(2026, 11, 19)  # the income export stops 19/11
+async def test_voucher_answer_keeps_the_shared_freshness_line() -> None:
+    """The voucher figures are the tabs' order-line view: the answer carries the same freshness
+    line as every answer, no separate income cut-off (r1-chat, 26/11)."""
+    first, last = date(2026, 11, 9), date(2026, 11, 19)  # voucher orders only up to 19/11
     data = FakeEntityData(_shop(), entity={"voucher": _income(first, last)})
     sink, _ = await _ask(data, _voucher_intent())
     tot = sink.of("data_answer")[0]
     assert tot["value"] == "8"  # 4 days (16-19/11) x 2 orders; 20-22/11 are not 0, just absent
-    assert tot["fresh_vi"] == "Số liệu thu nhập đến hết 19/11"
+    assert tot["fresh_vi"] == "Số liệu đến hết 22/11"
 
 
 async def test_voucher_without_income_rows_is_no_data_not_zero() -> None:

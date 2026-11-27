@@ -186,7 +186,10 @@ def test_only_the_sale_is_in_net_revenue_and_in_the_covered_gmv():
     assert sp.buyer_paid_covered == p.buyer_paid_covered == normal_net
     assert sp.gmv_covered == p.gmv_covered == normal_gmv
     # headline GMV is unchanged: it still counts cancelled and in-transit orders (not refunds)
-    assert sp.gmv == p.gmv == normal_gmv + 2 * D(70_000)
+    assert sp.gmv == normal_gmv + 2 * D(70_000)
+    # owner #99 (26/11): a product's GMV leaves the cancelled order out (in transit stays); the
+    # shop keeps it, shown as its own "Đơn hủy sau xác nhận" row (#103 10a)
+    assert p.gmv == normal_gmv + D(70_000) and sp.gmv - p.gmv == D(70_000)
     b = margin_basis(sp, ())
     assert b is not None and (b.net_revenue, b.gmv) == (normal_net, normal_gmv)
 

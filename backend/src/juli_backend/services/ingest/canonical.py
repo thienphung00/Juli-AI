@@ -179,7 +179,13 @@ class OrderLine:
     @property
     def buyer_paid(self) -> Decimal:
         """``deal_price * qty - shop voucher - combo``: the value an order's amounts split by."""
-        return self.deal_price * self.qty - self.shop_voucher_share - self.bundle_discount
+        combo = ZERO if self.combo_in_price else self.bundle_discount
+        return self.deal_price * self.qty - self.shop_voucher_share - combo
+
+    @property
+    def combo_in_price(self) -> bool:
+        """Owner #102: a Connector combo line's deal price already holds its combo discount."""
+        return self.promo_kind == "bundle" and self.source == "extension"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -412,6 +418,7 @@ def profit_order_lines(
             deal_price=line.deal_price,
             shop_voucher_share=line.shop_voucher_share,
             bundle_discount=line.bundle_discount,
+            combo_in_price=line.combo_in_price,
             promo_kind=_PROMO_KIND.get(line.promo_kind, PromoKind.NONE),
             ad_attributed=bool(line.ad_attributed),
             affiliate=line.affiliate,

@@ -122,7 +122,7 @@ def qualifying_share(env: RecoEnv, minimum: Decimal) -> Decimal:
     not confirmed in Seller Centre yet)."""
     values: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for ln in sales_lines(env, None):
-        values[ln.order_id] += ln.order_value - getattr(ln, "bundle_discount", ZERO)
+        values[ln.order_id] += ln.order_value - getattr(ln, "combo_off", ZERO)
     if not values:
         return ZERO
     return Decimal(sum(1 for v in values.values() if v >= minimum)) / len(values)

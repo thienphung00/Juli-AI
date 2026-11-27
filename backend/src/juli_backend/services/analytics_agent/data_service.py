@@ -14,6 +14,7 @@ import uuid
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from datetime import date, timedelta
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import text
@@ -57,7 +58,9 @@ def merge_campaigns(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
         g["keys"].append(r["key"])
         g["name"] = r["name"]
         g["spend"] += Decimal(str(r["spend"]))
-        g["gmv"] += Decimal(str(r["gmv"]))
+        g["gmv"] = (
+            None if g["gmv"] is None or r["gmv"] is None else g["gmv"] + Decimal(str(r["gmv"]))
+        )
         g["before_ads"] = (
             None
             if g["before_ads"] is None or r["before_ads"] is None
@@ -74,8 +77,10 @@ def merge_campaigns(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "name": g["name"],
                 "spend": g["spend"],
                 "gmv": g["gmv"],
-                "roas": roas_direct(g["gmv"], g["spend"]),
-                "break_even": roas_break_even(g["gmv"], before) if before is not None else None,
+                "roas": None if g["gmv"] is None else roas_direct(g["gmv"], g["spend"]),
+                "break_even": roas_break_even(g["gmv"], before)
+                if before is not None and g["gmv"] is not None
+                else None,
                 "profit_after_ads": None if before is None else before - g["spend"],
                 # the products the campaign spends on, biggest spend first (ads report by product)
                 "items": sorted(g["items"], key=lambda k: -g["items"][k])[:5],
@@ -103,11 +108,103 @@ def _product_break_even(p: Any) -> dict[str, Any]:
     """The product's contribution before ads and ROAS hoà vốn, as the cards show them
     (`ProductProfit.contribution` / `.break_even_roas`)."""
     from juli_backend.services.shopee_analytics.fmt import ratio
+    from juli_backend.services.shopee_profit.shop_profit import (
+        product_break_even_roas_shown,
+        product_contribution_shown,
+    )
 
-    return {
-        "contribution_before_ads": p.contribution,
-        "break_even_roas": ratio(p.break_even_roas, 2),
+    return {  # R1: "—" (None) outside the product's 70-100 % known share
+        "contribution_before_ads": product_contribution_shown(p),
+        "break_even_roas": ratio(product_break_even_roas_shown(p), 2),
     }
+
+
+def voucher_figures_of(view: Any) -> dict[str, Any]:
+    """Chat's voucher figures, read off the same `PeriodView` the tabs read (no second SQL):
+
+    - đơn / GMV: the orders whose sale lines used a shop voucher (buyer side, `counts_in_sales`)
+      and their GMV on the lines' basis (a combo counted once) -- the Phân tích voucher ranking's
+      shop cell (`rankings._cell_other("vouchers")`);
+    - cost: the voucher part of Ưu đãi, the seller-borne voucher C9 decided
+      (`ProfitBreakdown.voucher`) on the known orders -- the ladder's `offer_voucher`
+      (registry `cost_offer_voucher`), so Ưu đãi on Tổng quan holds exactly this voucher part.
+      None when voucher orders exist and none of them is known (missing is never 0);
+    - coverage: the voucher orders with every cost known and their share of the voucher GMV, in
+      Tổng quan's words ("trên N đơn có chi phí, X % GMV");
+    Per voucher there is no GMV / đơn (owner #107): `ServiceData.voucher_figures` adds the
+    Connector's voucher settings (`voucher_settings_in_window`), never a result."""
+    from juli_backend.services.shopee_profit.ladder import components_of
+    from juli_backend.services.shopee_profit.order_profit import counts_in_sales
+    from juli_backend.services.shopee_profit.shop_profit import unknown_orders
+
+    pairs = list(view.pairs)
+    unknown = unknown_orders(pairs)
+    used = [(ln, pb) for ln, pb in pairs if ln.shop_voucher_share > 0 and counts_in_sales(ln)]
+    orders = {ln.order_id for ln, _ in used}
+    gmv = sum((ln.order_value for ln, _ in used), Decimal(0))
+    known = [
+        (ln, pb)
+        for ln, pb in used
+        if ln.order_id not in unknown and pb.excluded_reason is None and pb.contribution is not None
+    ]
+    known_orders = {ln.order_id for ln, _ in known}
+    known_gmv = sum((ln.order_value for ln, _ in known), Decimal(0))
+    cost = components_of(pairs)["offer_voucher"] if (known_orders or not orders) else None
+    share = None if gmv <= 0 else float(known_gmv * 100 / gmv)
+    return {
+        "lines": len(pairs),
+        "orders": len(orders),
+        "gmv": gmv,
+        "cost": cost,
+        "known_orders": len(known_orders),
+        "known_gmv_share_pct": share,
+    }
+
+
+#: how far before the window a voucher's settings snapshot is looked for (the Connector reads the
+#: voucher list daily; a voucher still running in the window has a snapshot near it)
+SETTINGS_LOOKBACK_DAYS = 90
+
+
+def voucher_settings_in_window(rows: list[Any], a: date, b: date) -> list[dict[str, Any]]:
+    """The shop's vouchers that ran in [a, b], from the Connector's voucher-list snapshots
+    (`platform_promotions`, promo type "voucher", order type "none": SETTINGS, not results --
+    their gmv / orders are NULL). One per voucher: its newest snapshot read by `b`, else its
+    first one after. Only what Shopee stated: name, run dates, the discount, the minimum spend,
+    and the live usage count with the day it was read (only for a snapshot read by `b`; a
+    usage count never stands in for a result of the window)."""
+    by_voucher: dict[Any, list[Any]] = {}
+    for r in rows:
+        vid = (r.extra or {}).get("voucher_id") or (r.program_name, r.starts_at)
+        by_voucher.setdefault(vid, []).append(r)
+    out = []
+    for snaps in by_voucher.values():
+        before = [r for r in snaps if r.period_end <= b]
+        r = (
+            max(before, key=lambda r: (r.period_end, r.captured_at))
+            if before
+            else min(snaps, key=lambda r: (r.period_end, r.captured_at))
+        )
+        start = r.starts_at.date()
+        end = r.ends_at.date() if r.ends_at is not None else None
+        if start > b or (end is not None and end < a):
+            continue
+        extra = r.extra or {}
+        usage = extra.get("current_usage") if before else None
+        out.append(
+            {
+                "name": r.program_name,
+                "starts": start,
+                "ends": end,
+                "discount_amount": extra.get("discount_amount"),
+                "discount_percent": extra.get("discount_percent"),
+                "max_value": extra.get("max_value"),
+                "min_spend": extra.get("min_spend"),
+                "usage": usage,
+                "usage_on": r.captured_at.date() if usage is not None else None,
+            }
+        )
+    return sorted(out, key=lambda v: (v["starts"], v["name"]))
 
 
 class ServiceData:
@@ -351,10 +448,14 @@ class ServiceData:
     #: status (`counts_in_sales`); the day is the line's order day. Entity rows use exactly this,
     #: so they are a subset of the shop totals.
     @staticmethod
-    def _sales_basis() -> str:
+    def _sales_basis(product: bool = False) -> str:
         from juli_backend.services.shopee_profit.order_profit import REFUND_STATUSES
 
         refunds = ", ".join(f"'{x.value}'" for x in sorted(REFUND_STATUSES, key=lambda x: x.value))
+        # owner #99: a PRODUCT's sales leave out cancelled lines; the shop-level line basis keeps
+        # them, as the headline does
+        if product:
+            refunds += ", 'cancelled'"
         return f"paid_at is not null and qty > 0 and status not in ({refunds})"
 
     async def entity_totals(
@@ -377,7 +478,7 @@ class ServiceData:
                            coalesce(sum(shop_voucher_share), 0) as voucher_cost
                       from order_lines
                      where shop_id = :s and platform = 'shopee' and day between :a and :b
-                       and {self._sales_basis()} and {cond}
+                       and {self._sales_basis(item is not None)} and {cond}
                        and (cast(:i as text) is null or item_id = cast(:i as text))""",  # nosec B608 — fragments are fixed literals (closed dict, registry enum)
                 a=a,
                 b=b,
@@ -398,60 +499,32 @@ class ServiceData:
             cost = comm[0]["c"]
         return {"orders": row["orders"], "gmv": row["gmv"], "cost": cost}
 
-    async def voucher_income(self, a: date, b: date) -> dict[str, Any]:
-        """Voucher orders and the voucher part of Ưu đãi from the stored per-order income
-        (`order_settlements`, the table the fee / profit loaders read): orders with
-        `seller_voucher_borne > 0`, the sum of `seller_voucher_borne`, and the GMV of those
-        orders from `order_lines`. Only orders that HAVE an income row count (a day without
-        income is not 0); `income_to` is the last order day the income holds in the window."""
-        head = (
-            await self._q(
-                """select count(*) as rows,
-                          count(*) filter (where seller_voucher_borne > 0) as orders,
-                          sum(seller_voucher_borne) as cost,
-                          max(ordered_on) as income_to
-                     from order_settlements
-                    where shop_id = :s and platform = 'shopee' and ordered_on between :a and :b""",
-                a=a,
-                b=b,
-            )
-        )[0]
-        gmv = (
-            await self._q(
-                f"""select coalesce(sum(deal_price * qty), 0) as gmv
-                      from order_lines
-                     where shop_id = :s and platform = 'shopee' and day between :a and :b
-                       and {self._sales_basis()}
-                       and order_ref in (select order_ref from order_settlements
-                                          where shop_id = :s and platform = 'shopee'
-                                            and ordered_on between :a and :b
-                                            and seller_voucher_borne > 0)""",  # nosec B608 — fragments are fixed literals (registry enum)
-                a=a,
-                b=b,
-            )
-        )[0]["gmv"]
-        return {
-            "rows": head["rows"],
-            "orders": head["orders"],
-            "gmv": gmv,
-            "cost": head["cost"],
-            "income_to": head["income_to"],
-        }
+    async def voucher_figures(self, a: date, b: date) -> dict[str, Any] | None:
+        """The window's voucher figures from the screens' own view (`voucher_figures_of`); None
+        when the shop has no Shopee window at all."""
+        async with self._f() as s:
+            try:
+                env = await self._reco_env(s, a, b)
+                if env is None:
+                    return None
+                out = voucher_figures_of(env.view)
+                out["settings"] = await self._voucher_settings(s, a, b)
+                return out
+            finally:
+                await s.rollback()
 
-    async def voucher_rows(self, a: date, b: date) -> list[dict[str, Any]]:
-        """One row per voucher code: orders, GMV, the voucher's cost."""
-        return await self._q(
-            f"""select voucher_code as code, count(distinct order_ref) as orders,
-                       coalesce(sum(deal_price * qty), 0) as gmv,
-                       coalesce(sum(shop_voucher_share), 0) as cost
-                  from order_lines
-                 where shop_id = :s and platform = 'shopee' and day between :a and :b
-                   and {self._sales_basis()} and shop_voucher_share > 0
-                   and voucher_code is not null
-                 group by voucher_code order by sum(deal_price * qty) desc""",  # nosec B608 — fragments are fixed literals (registry enum)
-            a=a,
-            b=b,
+    async def _voucher_settings(self, s: AsyncSession, a: date, b: date) -> list[dict[str, Any]]:
+        from juli_backend.models.ingest import ORDER_TYPE_NONE
+        from juli_backend.repositories.shopee_analytics import PlatformPromotionsRepo
+
+        rows = await PlatformPromotionsRepo(s).overlapping(
+            self.shop,
+            promo_types=["voucher"],
+            start=a - timedelta(days=SETTINGS_LOOKBACK_DAYS),
+            end=b + timedelta(days=SETTINGS_LOOKBACK_DAYS),
+            order_types=[ORDER_TYPE_NONE],
         )
+        return voucher_settings_in_window(rows, a, b)
 
     async def _reco_env(self, s: AsyncSession, a: date, b: date) -> Any:
         from dataclasses import replace
@@ -468,6 +541,11 @@ class ServiceData:
         return RecoEnv(ctx=ctx, view=view, as_of=b)
 
     async def product_profit(self, item: str, a: date, b: date) -> dict[str, Any] | None:
+        from juli_backend.services.shopee_profit.shop_profit import (
+            product_margin_pct_shown,
+            product_profit_shown,
+        )
+
         async with self._f() as s:
             try:
                 env = await self._reco_env(s, a, b)
@@ -475,8 +553,8 @@ class ServiceData:
                 if p is None:
                     return None
                 return {
-                    "profit": p.profit,
-                    "margin_pct": p.margin_pct,
+                    "profit": product_profit_shown(p),
+                    "margin_pct": product_margin_pct_shown(p),
                     "coverage_pct": p.cost_coverage_pct,
                     "gmv": p.gmv,
                     **_product_break_even(p),
@@ -487,6 +565,11 @@ class ServiceData:
     async def product_profit_rows(self, a: date, b: date) -> list[dict[str, Any]]:
         """Every product's profit after ads, contribution before ads and ROAS hoà vốn: the
         shared `ProductProfit` rows the cards and Phân tích read (`RecoEnv.product`)."""
+        from juli_backend.services.shopee_profit.shop_profit import (
+            product_margin_pct_shown,
+            product_profit_shown,
+        )
+
         async with self._f() as s:
             try:
                 env = await self._reco_env(s, a, b)
@@ -496,9 +579,9 @@ class ServiceData:
                     {
                         "item_id": item,
                         "name": env.name(item),
-                        "profit": p.profit,
-                        "ad_spend": p.ad_spend,
-                        "margin_pct": p.margin_pct,
+                        "profit": product_profit_shown(p),
+                        "ad_spend": p.ad_spend if env.view.ads.known_spend is not None else None,
+                        "margin_pct": product_margin_pct_shown(p),
                         "gmv": p.gmv,
                         **_product_break_even(p),
                     }
@@ -533,11 +616,13 @@ class ServiceData:
                             "name": c.name or c.key,
                             "items": dict(c.products or {}),
                             "spend": c.spend,
-                            "gmv": prof["direct_per_day"] * days,
+                            "gmv": prof["direct_per_day"] * days if prof["direct_known"] else None,
                             # NULL is not 0: no rate = unknown, but a segment with no direct GMV
                             # contributes 0 before ads (it only spent)
                             "before_ads": prof["profit_before_ads_per_day"] * days
-                            if prof["rate"] is not None
+                            if prof["rate"] is not None and prof["direct_known"]
+                            else None
+                            if not prof["direct_known"]
                             else (Decimal(0) if prof["direct_per_day"] <= 0 else None),
                         }
                     )

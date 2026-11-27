@@ -101,6 +101,8 @@ class RawLine:
     buyer_shipping_fee: Decimal | None
     bank_promo: Decimal | None
     ad_attributed: bool | None
+    #: the row's ingest source (``extension`` = the Connector); owner #102 reads it for combo lines
+    source: str = ""
     #: P91 D-9: the KOL of an affiliate-marked line (migration 118); all None otherwise.
     kol_key: str | None = None
     kol_handle: str | None = None
@@ -251,6 +253,7 @@ def to_shop_lines(
                     deal_price=r.deal_price,
                     shop_voucher_share=r.shop_voucher_share,
                     bundle_discount=r.bundle_discount,
+                    combo_in_price=r.promo_kind == "bundle" and r.source == "extension",
                     promo_kind=_PROMO_KIND.get(r.promo_kind, PromoKind.NONE),
                     ad_attributed=False,
                     affiliate=r.affiliate,
@@ -295,17 +298,31 @@ def attach_income(lines: list[ShopLine], income: Mapping[str, IncomeOrder]) -> l
             by_order[sl.line.order_id].append(i)
     out = list(lines)
     for order_id, idxs in by_order.items():
-        shares = split_income(income[order_id], [lines[i].line.buyer_paid for i in idxs])
+        shares = split_income(
+            income[order_id],
+            [lines[i].line.buyer_paid for i in idxs],
+            [lines[i].line.order_value for i in idxs],
+        )
         for i, share in zip(idxs, shares, strict=True):
             ln = lines[i].line
+            # C9 (E151): who bore it is unknown (the settlement's arithmetic does not close): the
+            # voucher is not charged and the line leaves the profit basis (``seller_voucher``)
+            unknown = share.seller_voucher_unknown and ln.shop_voucher_share > 0
             # decision #50: the buyer-side shop voucher the seller did NOT bear (the settlement
             # states what the seller bore) is platform-funded: not a cut of doanh thu thực
             funded = (
                 max(ZERO, ln.shop_voucher_share - share.seller_voucher)
                 if share.seller_voucher_known
-                else ZERO
+                else (ln.shop_voucher_share if unknown else ZERO)
             )
-            out[i] = replace(lines[i], line=replace(ln, income=share, voucher_funded=funded))
+            line = replace(
+                ln,
+                income=share,
+                voucher_funded=funded,
+                voucher_unknown=unknown,
+                voucher_proven=share.seller_voucher if share.seller_voucher_known else None,
+            )
+            out[i] = replace(lines[i], line=line)
     return out
 
 

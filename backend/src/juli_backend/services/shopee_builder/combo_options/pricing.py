@@ -101,10 +101,17 @@ def combo_rates(option: ComboOption, eco: Economics) -> Rates | None:
     total = sum((w for _, w in parts), ZERO)
     if total <= 0:
         return None
+    ads_rates = [(r.ads, w) for r, w in parts]
+    # owner #103 (11a): a member whose ads cost is unknown makes the combo's unknown, never 0
+    ads = (
+        None
+        if any(a is None for a, _ in ads_rates)
+        else sum((a * w for a, w in ads_rates if a is not None), ZERO) / total
+    )
     return Rates(
         sum((r.voucher * w for r, w in parts), ZERO) / total,
         sum((r.commission * w for r, w in parts), ZERO) / total,
-        sum((r.ads * w for r, w in parts), ZERO) / total,
+        ads,
     )
 
 

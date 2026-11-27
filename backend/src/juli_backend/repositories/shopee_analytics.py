@@ -37,6 +37,7 @@ from juli_backend.models.shopee_profit import (
     ShopeeOrderLine,
 )
 from juli_backend.repositories._base import SessionRepo, ShopScopedRepo
+from juli_backend.repositories.combo_lines import counted_lines
 
 PLATFORM_SHOPEE = "shopee"
 
@@ -64,7 +65,7 @@ class ShopeeOrderLinesRepo(ShopScopedRepo[ShopeeOrderLine]):
 
     async def in_window(self, shop_id: uuid.UUID, start: date, end: date) -> list[ShopeeOrderLine]:
         """Lines whose order was placed on a day in ``[start, end]`` (platform calendar day)."""
-        return await self._all(
+        rows = await self._all(
             self._scoped(
                 shop_id,
                 ShopeeOrderLine.platform == own_platform(shop_id, ShopeeOrderLine),
@@ -74,6 +75,8 @@ class ShopeeOrderLinesRepo(ShopScopedRepo[ShopeeOrderLine]):
                 ShopeeOrderLine.ordered_at, ShopeeOrderLine.order_ref, ShopeeOrderLine.line_no
             )
         )
+        # C9 (E150): a combo's collapsed parent beside its own lines counts once
+        return await counted_lines(self._session, shop_id, rows)
 
     async def day_bounds(self, shop_id: uuid.UUID) -> tuple[date, date] | None:
         stmt = self._scoped(

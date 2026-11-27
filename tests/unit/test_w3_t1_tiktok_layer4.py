@@ -36,7 +36,7 @@ from juli_backend.models.shopee_profit import ShopeeOrderIncome, ShopeeOrderLine
 from juli_backend.repositories.analytics import AnalyticsPerformanceRepo
 from juli_backend.services.etl.transform import transform_for_channel
 from juli_backend.services.shopee_analytics import loaders, materialize, service, tiktok_days
-from juli_backend.services.shopee_analytics.shared import shop_profit_of
+from juli_backend.services.shopee_analytics.shared import shop_profit_raw
 from juli_backend.services.shopee_analytics.windows import Window
 from tests.support.builders import make_shop, make_user
 from tests.support.tiktok_a34 import a34_row
@@ -329,7 +329,8 @@ async def test_the_sum_check_passes_on_a_day_without_a_breakdown(session, built)
 async def _engine_profit(session, shop_id, day):
     ctx = await loaders.load_context(session, shop_id)
     view = await service.load_view(session, shop_id, ctx, Window(day, day))
-    return shop_profit_of(view).profit, view.profit.covered_margin_profit
+    # the stored before-ads value is the UNGATED engine figure (#103 11a gates only what is shown)
+    return shop_profit_raw(view).profit, view.profit.covered_margin_profit
 
 
 def _before_ads(row, key="profit_before_ads"):

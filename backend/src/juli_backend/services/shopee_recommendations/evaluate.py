@@ -21,6 +21,7 @@ from dataclasses import replace
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+from juli_backend.services.shopee_analytics.compute import SOURCE_REPORT, campaign_of
 from juli_backend.services.shopee_analytics.fmt import num, pct, ratio
 from juli_backend.services.shopee_analytics.shared import five_json
 from juli_backend.services.shopee_profit.five_numbers import (
@@ -567,10 +568,12 @@ def eval_price(
         )
         for ln in lines:
             if ln.sku == sku and ln.product_id == item:
+                # owner #119: before a Connector combo, the combo on top
+                before = ln.price_before_combo
                 if cand.kind == "price":
-                    repriced[id(ln)] = replace(ln, deal_price=to_dong(ln.deal_price * factor))
+                    repriced[id(ln)] = ln.at_price(to_dong(before * factor))
                 else:
-                    repriced[id(ln)] = replace(ln, deal_price=min(ln.deal_price, new))
+                    repriced[id(ln)] = ln.at_price(min(before, new))
     if not results:
         return _refuse("no_price")
     after_lines = [repriced.get(id(ln), ln) for ln in lines]
@@ -770,38 +773,57 @@ def eval_price(
 def campaign_profile(env: RecoEnv, campaign_key: str) -> dict[str, Any] | None:
     """Spend, direct revenue and break-even of one campaign from the ads report (placed
     orders): direct revenue x each product's contribution rate = profit before ads."""
-    alloc = next((c for c in env.view.ads.campaigns if c.key == campaign_key), None)
+    alloc = campaign_of(env.view.ads.campaigns, campaign_key)
     if alloc is None or alloc.spend <= 0:
         return None
     days = Decimal(env.window_days)
     figs = env.view.ads.product_figures
     weighted = ZERO
     weight = ZERO
+    by_spend = ZERO  # the same rates weighted by the campaign's spend split (decision #39)
+    spend_weight = ZERO
     for item, spend in alloc.products.items():
         fig = figs.get(item)
         pp = env.product(item)
-        if fig is None or fig.direct_gmv is None or pp is None:
+        if pp is None:
             continue
-        share = safe_div(spend, env.view.ads.product_spend.get(item, spend)) or ONE
-        rate = (
+        product_rate = (
             safe_div(pp.contribution, pp.buyer_paid_covered) if pp.buyer_paid_covered > 0 else None
         )
+        r = product_rate if product_rate is not None and product_rate > 0 else ZERO
+        spend_weight += spend
+        by_spend += spend * r
+        if fig is None or fig.direct_gmv is None:
+            continue
+        share = safe_div(spend, env.view.ads.product_spend.get(item, spend)) or ONE
         d = fig.direct_gmv * min(share, ONE)
         weight += d
-        weighted += d * (rate if rate is not None and rate > 0 else ZERO)
-    # P100 A.5: the campaign's spend and direct revenue are both scaled to the one daily spend,
-    # so ROAS is read from the campaign itself; the products only weight the contribution rate
-    # (their figures may sit on the report's own scale, which no longer equals the daily one)
-    direct = alloc.direct_gmv if alloc.direct_gmv > 0 else weight
-    before_ads = direct * (weighted / weight) if weight > 0 else ZERO
+        weighted += d * r
+    # C2: ROAS is read from the campaign's own figures and a measured 0 stays 0; the products only
+    # weight the contribution rate. The products' direct revenue stands in when the campaign's is
+    # not known (a Connector day without the count, a report that gives it per product only).
+    direct = alloc.direct_gmv
+    if direct is None or (direct == 0 and alloc.source == SOURCE_REPORT):
+        direct = weight if weight > 0 else direct
+    known = direct is not None
+    direct = direct or ZERO
+    # owner #99 1a: a product's report direct GMV is None off the report's own period, so the
+    # products' spend split (the campaign's Connector days, C2) weights the rate instead
+    if weight > 0:
+        rate: Decimal | None = weighted / weight
+    else:
+        rate = by_spend / spend_weight if spend_weight > 0 else None
+    before_ads = direct * rate if rate is not None else ZERO
     return {
         "alloc": alloc,
         "spend_per_day": alloc.spend / days,
         "direct_per_day": direct / days,
         "profit_before_ads_per_day": before_ads / days,
-        "roas_direct": safe_div(direct, alloc.spend),
-        "break_even_roas": safe_div(direct, before_ads) if before_ads > 0 else None,
-        "rate": safe_div(before_ads, direct) if direct > 0 else None,
+        "direct_known": known,
+        "roas_direct": safe_div(direct, alloc.spend) if known else None,
+        # from the contribution rate alone, so a campaign that sold nothing still has one
+        "break_even_roas": ONE / rate if rate is not None and rate > 0 else None,
+        "rate": rate,
     }
 
 
@@ -993,7 +1015,7 @@ def eval_ads(
         "spend_per_day_now": num(spend_now),
         "spend_per_day_after": num(spend_after),
         "roas_direct": ratio(roas, 2),
-        "roas_broad": ratio(safe_div(alloc.gmv, alloc.spend), 2),
+        "roas_broad": ratio(alloc.roas, 2),
         "break_even_roas": ratio(be, 2),
         "below_break_even": None if be is None or roas is None else roas < be,
         "profit_before_ads_per_day": num(profit_before_ads),
@@ -1059,7 +1081,9 @@ def _bundle_line(line: OrderLine, qty: int, pct_off: Decimal) -> OrderLine:
         line,
         qty=qty,
         bundle_discount=to_dong(gross * pct_off / 100),
+        combo_in_price=False,
         shop_voucher_share=ZERO,
+        voucher_proven=None,
         order_id=f"bundle:{line.sku}:{qty}",
         promo_kind=PromoKind.NONE,
     )
@@ -1174,6 +1198,7 @@ def eval_bundle(
             bundle_discount=to_dong(
                 ln.deal_price * ln.qty * tiers[max(q for q in tiers if q <= ln.qty)] / 100
             ),
+            combo_in_price=False,
         )
         if ln.product_id == item and ln.qty >= min(tiers)
         else ln
@@ -1288,6 +1313,7 @@ def eval_add_on(
             qty=1,
             deal_price=price_after,
             shop_voucher_share=ZERO,
+            voucher_proven=None,
             bundle_discount=ZERO,
             order_id=f"addon:{sku}",
             promo_kind=PromoKind.NONE,
@@ -1498,7 +1524,7 @@ def eval_gift(
         # P100 (B.11): the minimum spend is met on the basket after the programme price
         # (``deal_price``) and the combo discount; Shopee's own rule for a gift is not
         # confirmed in Seller Centre yet (brief J verified the combo, not the gift)
-        after_offers[ln.order_id] += ln.order_value - ln.bundle_discount
+        after_offers[ln.order_id] += ln.order_value - ln.combo_off
     if trigger.get("type") == "buy_item":
         item_orders = {ln.order_id for ln in lines if ln.product_id == main and counts_in_sales(ln)}
         qualifying = [o for o in by_order if o in item_orders]

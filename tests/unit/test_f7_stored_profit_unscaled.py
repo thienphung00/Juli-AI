@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from decimal import Decimal as D
 
+import pytest
 from sqlalchemy import func, select, update
 
 from juli_backend.models.shopee_metrics import ShopeeShopMetricsDaily
@@ -13,6 +14,8 @@ from juli_backend.services.shopee_analytics import loaders, materialize, service
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_analytics.windows import Window
 from tests.support.shopee_analytics import CUR_END, CUR_START, seed_shopee_shop
+
+pytestmark = pytest.mark.usefixtures("ungated_profit")
 
 
 async def _window_sum(session, shop_id) -> D:

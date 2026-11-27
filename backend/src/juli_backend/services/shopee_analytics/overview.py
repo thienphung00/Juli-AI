@@ -14,7 +14,7 @@ from typing import Any
 
 from juli_backend.services.metrics.registry import Platform, metric_reason
 from juli_backend.services.shopee_analytics import funnel
-from juli_backend.services.shopee_analytics.compute import PeriodView
+from juli_backend.services.shopee_analytics.compute import PeriodView, known_sum
 from juli_backend.services.shopee_analytics.fmt import (
     ADS_BASIS,
     ASSUMED_COST_LABEL,
@@ -298,12 +298,12 @@ def _profit_block(view: PeriodView) -> dict[str, Any]:
         "bridge": fig.json()["bridge"],
         "known_cost_orders": fig.orders,
         "known_cost_gmv_share_pct": fig.json()["gmv_share_pct"],
-        "profit_on_covered_vnd": num(p.profit_on_covered),
+        "profit_on_covered_vnd": None if fig.withheld else num(p.profit_on_covered),
         "margin_pct": fig.json()["margin_pct"],
         "margin_basis": "profit ÷ doanh thu thực (sau voucher và combo)",
-        "contribution_before_ads": num(p.contribution),
+        "contribution_before_ads": None if fig.withheld else num(p.contribution),
         # decision #44: Lợi nhuận đóng góp (before ads AND affiliate), the ladder's
-        "contribution": num(p.organic_contribution),
+        "contribution": None if fig.withheld else num(p.organic_contribution),
         "net_revenue": num(p.buyer_paid),
         "orders": p.orders,
         "cost_coverage": cov.json(),
@@ -344,16 +344,21 @@ def _fee_sources(view: PeriodView) -> dict[str, int]:
 def _ads_block(view: PeriodView, platform: str = "shopee") -> dict[str, Any]:
     ads = view.ads
     daily = view.data.ads_daily
-    camp_gmv = sum((c.gmv for c in ads.campaigns), ZERO)
     return {
         "basis": ADS_BASIS,
         "note": ads_basis_note(platform),
         "in_which": "trong đó (overlay, không phải một dòng của tổng)",
-        "spend": num(ads.total_spend),
-        "gmv_placed": num(daily.gmv if daily.days_covered else camp_gmv),
+        "spend": num(ads.known_spend),
+        "gmv_placed": num(
+            daily.gmv if daily.days_covered else known_sum([c.gmv for c in ads.campaigns])
+        ),
         "orders_placed": num(daily.orders if daily.days_covered else None),
         "roas": ratio(safe_div(daily.gmv, daily.spend), 2) if daily.spend else None,
-        "spend_per_day": num(safe_div(ads.total_spend, Decimal(view.window.days))),
+        "spend_per_day": num(
+            None
+            if ads.known_spend is None
+            else safe_div(ads.known_spend, Decimal(view.window.days))
+        ),
         "days_covered": daily.days_covered,  # days with no source are "chưa có dữ liệu", not 0
         "window_days": daily.window_days,
         "day_sources": _day_sources(daily.source_by_day),
@@ -421,7 +426,7 @@ def _affiliate_block(view: PeriodView) -> dict[str, Any]:
         "order_lines": {
             "orders": len({ln.order_id for ln, _ in lines}),
             "gmv": num(sum((ln.order_value for ln, _ in lines), ZERO)),
-            "commission": num(affiliate_cost(lines) or ZERO),
+            "commission": num(affiliate_cost(lines, basis=view.pairs) or ZERO),
         },
     }
 
@@ -511,7 +516,9 @@ def build_overview(
         },
         "flows": _flows_block(now, before, platform),
         "levers": _levers_block(now),
-        "five_numbers": five_json(five, comparable=comparable),
+        "five_numbers": five_json(
+            five, comparable=comparable, ads_known=now.ads.known_spend is not None
+        ),
         "profit": _profit_block(now),
         "ads": _ads_block(now, platform),
         "vouchers": _vouchers_block(now, ctx),

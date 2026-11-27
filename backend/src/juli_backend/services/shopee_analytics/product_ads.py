@@ -20,7 +20,7 @@ to the window by construction. Pure: no I/O.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
@@ -39,6 +39,22 @@ class ReportRow:
     spend: Decimal
 
 
+@dataclass(frozen=True)
+class CampaignDayRow:
+    """One campaign on one finished day, as the Connector read it (``ads_campaign_daily``, placed
+    orders); a count the row lacks is ``None``."""
+
+    spend: Decimal
+    gmv: Decimal | None = None
+    direct_gmv: Decimal | None = None
+    orders: Decimal | None = None
+    clicks: Decimal | None = None
+    impressions: Decimal | None = None
+    name: str = ""
+    ad_type: str | None = None
+    state: str | None = None
+
+
 @dataclass
 class ProductAdsInput:
     """What the rule reads: the Connector's campaign days and the by-product report rows."""
@@ -48,6 +64,28 @@ class ProductAdsInput:
     #: days the Connector read (its shop-level row exists), even when a campaign is absent
     covered_days: frozenset[date] = frozenset()
     report_rows: list[ReportRow] = field(default_factory=list)
+    #: C2: the same (campaign key, day) rows with every figure, not only the spend
+    day_rows: dict[tuple[str, date], CampaignDayRow] = field(default_factory=dict)
+    #: campaign title -> campaign key, for a report that names its campaign only by the title
+    title_keys: dict[str, str] = field(default_factory=dict)
+
+    def day_row(self, key: str, day: date) -> CampaignDayRow | None:
+        row = self.day_rows.get((key, day))
+        if row is None and (key, day) in self.campaign_days:
+            return CampaignDayRow(self.campaign_days[(key, day)])
+        return row
+
+    def joiner(self) -> Callable[[str, str | None], str]:
+        """(segment, title) of a report row -> its campaign: the segment hash (the campaign id); a
+        report that names the campaign only by its title joins by the title the days carry."""
+        known = {k for k, _ in self.campaign_days}
+
+        def join(segment: str, title: str | None) -> str:
+            if segment not in known and title in self.title_keys:
+                return self.title_keys[title]
+            return segment
+
+        return join
 
 
 def _window_of(

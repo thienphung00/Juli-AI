@@ -243,6 +243,18 @@ def _net(r: ShopeeShopMetricsDaily) -> float | None:
     return None if r.buyer_paid_known is None else float(r.buyer_paid_known)
 
 
+def stored_day_profit(r: ShopeeShopMetricsDaily) -> float | None:
+    """R1: a stored day's profit, ``None`` when the day has orders but no costed one: rows written
+    before the in-transit fix hold ``-ads`` there (``stored.known_profit``)."""
+    if r.profit is None or _no_costed_order(r):
+        return None
+    return float(r.profit)
+
+
+def _no_costed_order(r: ShopeeShopMetricsDaily) -> bool:
+    return bool(r.orders and not r.buyer_paid_known)
+
+
 def _net_ratio(r: ShopeeShopMetricsDaily) -> float | None:
     """The shop day's doanh thu thực per đồng of line GMV: a product row carries no doanh thu
     thực of its own, so its line GMV x this ratio stands for it (one basis with the shop)."""
@@ -276,7 +288,7 @@ async def load_days(
     out: dict[date, Day] = {}
     if product_id is None:
         for r in srows:
-            profit = None if r.profit is None else float(r.profit)
+            profit = stored_day_profit(r)
             out[r.day] = Day(float(r.gmv or 0), float(r.orders or 0), profit, _net(r))
         return out, data
     p = ShopeeProductMetricsDaily
@@ -302,8 +314,12 @@ async def load_days(
         # the stored product profit is already after the product's ad cost (decision #39: the one
         # ad cost per product, ``ProductProfit.profit`` = contribution - ad_spend); a day with an
         # ad cost and no sale is a row of -ad cost, a day with no row is no sale and no ad cost
-        profit = None if row.profit is None else float(row.profit)
         shop_row = by_shop.get(d)
+        profit = (
+            None
+            if row.profit is None or (shop_row is not None and _no_costed_order(shop_row))
+            else float(row.profit)
+        )
         ratio = None if shop_row is None else _net_ratio(shop_row)
         net = None if ratio is None else float(row.line_gmv or 0) * ratio
         out[d] = Day(float(row.gmv or 0), float(row.orders or 0), profit, net)

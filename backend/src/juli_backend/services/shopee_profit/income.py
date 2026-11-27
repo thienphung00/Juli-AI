@@ -67,6 +67,12 @@ class IncomeOrder:
     #: voucher's cost, never the buyer-side ``shop_voucher_share`` (a Voucher Xtra order shows the
     #: buyer a shop voucher the seller pays only the Phí Dịch Vụ for)
     seller_voucher_borne: Decimal | None = None
+    #: C9 (E151): the goods total Shopee settled and the fee no code names; both are only terms of
+    #: :func:`decide_seller_voucher`'s arithmetic, never a fee charged here.
+    product_price: Decimal | None = None
+    fee_other: Decimal | None = None
+    #: what the payout was lowered by for withheld VAT + PIT: the same arithmetic only, no cost
+    withheld_from_payout: Decimal = ZERO
 
     def fee(self, code: str) -> Decimal:
         return {
@@ -106,9 +112,12 @@ class LineIncome:
     seller_coin: Decimal
     trade_in: Decimal
     payout: Decimal | None
-    seller_voucher: Decimal = ZERO  # this line's share of ``seller_voucher_borne``
-    #: the settlement STATES the seller-borne voucher (``seller_voucher_borne`` not NULL)
+    seller_voucher: Decimal = ZERO  # this line's share of the voucher the seller bore
+    #: who bore the order's shop voucher is known (the settlement states it ...
+    #: and the settlement's arithmetic confirms it (:func:`decide_seller_voucher`)
     seller_voucher_known: bool = False
+    #: C9: a stated voucher the arithmetic neither confirms nor refutes: the cost is unknown
+    seller_voucher_unknown: bool = False
 
     @property
     def fees_total(self) -> Decimal:
@@ -129,6 +138,59 @@ class LineIncome:
         if self.compensation:
             parts.append((COST_COMPENSATION, -self.compensation))
         return tuple(parts)
+
+
+#: VND the settlement's arithmetic may miss by (whole-đồng rounding).
+SETTLEMENT_TOLERANCE = Decimal(1)
+
+
+def settlement_gap(income: IncomeOrder) -> Decimal | None:
+    """Goods total − payout − every deduction the settlement names: what Shopee took for a shop
+    voucher the seller bore. ``None`` without a goods total or a payout, or with a refund (the
+    refund moves both). ``fee_service`` already holds Phí Hạ Tầng and Voucher Xtra. The withheld
+    tax is not a cost (owner 2026-11-15) but it does lower the payout, so it is a term here."""
+    if income.product_price is None or income.payout is None or income.refund_amount:
+        return None
+    deducted = sum(
+        (
+            amount or ZERO
+            for amount in (
+                income.fee_fixed,
+                income.fee_service,
+                income.fee_payment,
+                income.fee_piship,
+                income.fee_nttd,
+                income.fee_other,
+                income.affiliate_commission,
+                income.net_shipping_cost,
+                income.return_ship_refund,
+                income.return_ship_failed,
+                income.seller_coin_borne,
+                income.trade_in_bonus_seller,
+                income.withheld_from_payout,
+            )
+        ),
+        ZERO,
+    )
+    return income.product_price - income.payout - deducted + (income.lost_compensation or ZERO)
+
+
+def decide_seller_voucher(income: IncomeOrder) -> tuple[Decimal | None, bool]:
+    """C9 (E151): ``(amount the seller bore, unknown)``. The stated ``seller_voucher_borne`` can be
+    the buyer-side voucher, so the settlement's arithmetic decides: it closes with no voucher ->
+    0; with the stated amount -> that amount; neither (or it cannot be done) -> unknown. Nothing
+    stated (NULL) and no closing at 0: ``(None, False)``, the buyer-side rule (E-P5) stays."""
+    stated = income.seller_voucher_borne
+    if stated is not None and stated == 0:
+        return ZERO, False
+    gap = settlement_gap(income)
+    if gap is not None and abs(gap) <= SETTLEMENT_TOLERANCE:
+        return ZERO, False
+    if stated is None:
+        return None, False
+    if gap is not None and abs(gap - stated) <= SETTLEMENT_TOLERANCE:
+        return stated, False
+    return None, True
 
 
 def _cents(value: Decimal) -> int:
@@ -157,8 +219,14 @@ def split_amount(total: Decimal, weights: Sequence[Decimal]) -> list[Decimal]:
     return [Decimal(sign * piece) * CENT for piece in pieces]
 
 
-def split_income(income: IncomeOrder, weights: Sequence[Decimal]) -> list[LineIncome]:
-    """Every line's share of the order's actuals, by ``weights`` (the lines' value)."""
+def split_income(
+    income: IncomeOrder,
+    weights: Sequence[Decimal],
+    voucher_weights: Sequence[Decimal] | None = None,
+) -> list[LineIncome]:
+    """Every line's share of the order's actuals, by ``weights`` (the lines' value). The seller
+    voucher the settlement proves is cut by ``voucher_weights`` (the lines' goods value) when
+    given, else by ``weights``."""
     count = len(weights)
 
     def cut(amount: Decimal | None) -> list[Decimal]:
@@ -173,7 +241,8 @@ def split_income(income: IncomeOrder, weights: Sequence[Decimal]) -> list[LineIn
     tax = cut(income.tax_withheld)
     coin = cut(income.seller_coin_borne)
     trade_in = cut(income.trade_in_bonus_seller)
-    voucher = cut(income.seller_voucher_borne)
+    borne, voucher_unknown = decide_seller_voucher(income)
+    voucher = split_amount(borne or ZERO, voucher_weights or weights) if count else []
     payout = split_amount(income.payout, weights) if income.payout is not None and count else None
     return [
         LineIncome(
@@ -188,7 +257,8 @@ def split_income(income: IncomeOrder, weights: Sequence[Decimal]) -> list[LineIn
             trade_in=trade_in[i],
             payout=payout[i] if payout is not None else None,
             seller_voucher=voucher[i],
-            seller_voucher_known=income.seller_voucher_borne is not None,
+            seller_voucher_known=borne is not None,
+            seller_voucher_unknown=voucher_unknown,
         )
         for i in range(count)
     ]

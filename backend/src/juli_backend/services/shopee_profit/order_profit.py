@@ -48,7 +48,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
@@ -140,6 +140,13 @@ def counts_in_sales(line: object) -> bool:
     return status is None or status not in REFUND_STATUSES
 
 
+def counts_in_product_sales(line: object) -> bool:
+    """``line`` counts in a PRODUCT's đơn / GMV / AOV (owner #99, 26/11): a sale line that is not
+    cancelled. Shopee's shop day rows leave cancelled orders out, so a product built from order
+    lines must too, or the products add up to more than the shop."""
+    return counts_in_sales(line) and getattr(line, "status", None) is not OrderStatus.CANCELLED
+
+
 class PromoKind(StrEnum):
     NONE = "none"
     PROMOTION = "promotion"
@@ -157,6 +164,9 @@ class OrderLine:
     deal_price: Decimal
     shop_voucher_share: Decimal = ZERO
     bundle_discount: Decimal = ZERO
+    #: owner #102: a Connector combo line: ``deal_price`` is already the line's share of the combo
+    #: price, so ``bundle_discount`` is information and is not taken off again
+    combo_in_price: bool = False
     promo_kind: PromoKind = PromoKind.NONE
     ad_attributed: bool = False
     affiliate: bool = False
@@ -169,6 +179,13 @@ class OrderLine:
     #: decision #50: the part of ``shop_voucher_share`` the platform funded, not the seller
     #: (settlement ``seller_voucher_borne`` below the buyer-side share); 0 without a settlement
     voucher_funded: Decimal = ZERO
+    #: decision #100 (7a): the seller voucher the settlement proves, this line's share; it wins
+    #: over ``shop_voucher_share`` / ``voucher_funded``. ``None`` = no proof (the line rule).
+    #: A what-if that rewrites ``shop_voucher_share`` must reset it.
+    voucher_proven: Decimal | None = None
+    #: C9 (E151): the settlement does not show who bore the shop voucher. It is not charged, and
+    #: a sale with it is not costed (missing ``seller_voucher``: a missing cost is never 0)
+    voucher_unknown: bool = False
 
     def __post_init__(self) -> None:
         if self.qty <= 0:
@@ -184,13 +201,51 @@ class OrderLine:
 
     @property
     def seller_voucher(self) -> Decimal:
-        """The shop voucher the seller bore on this line (decision #50)."""
+        """The shop voucher the seller bore on this line. Settlement-proven (decision #100 7a,
+        :func:`decide_seller_voucher`): this line's share of the proven amount, whatever the
+        lines show; otherwise the buyer-side share less what the platform funded (#50)."""
+        if self.voucher_proven is not None:
+            return self.voucher_proven
         return max(ZERO, self.shop_voucher_share - self.voucher_funded)
+
+    @property
+    def combo_off(self) -> Decimal:
+        """The combo discount still to take off ``order_value`` (none for a Connector combo line,
+        whose deal price already holds it, owner #102)."""
+        return ZERO if self.combo_in_price else self.bundle_discount
+
+    @property
+    def price_before_combo(self) -> Decimal:
+        """The unit price before a Connector combo (owner #119: its deal price + its combo
+        discount per unit); any other line's deal price."""
+        if not self.combo_in_price or not self.bundle_discount:
+            return self.deal_price
+        return self.deal_price + self.bundle_discount / self.qty
+
+    def at_price(self, price: Decimal) -> OrderLine:
+        """This line sold at ``price`` a unit before any combo. A Connector combo line keeps its
+        combo rate on top (Shopee takes the combo off the programme price, owner #119), so its
+        deal price stays the combo price share and its discount stays information (#102)."""
+        before = self.price_before_combo
+        if before == self.deal_price or before <= 0:
+            return replace(self, deal_price=price)
+        deal = to_dong(price * self.deal_price / before)
+        return replace(self, deal_price=deal, bundle_discount=(price - deal) * self.qty)
+
+    @property
+    def programme_discount(self) -> Decimal:
+        """List value less the goods total, without the combo already inside the deal price: the
+        Chương Trình Của Shop / Flash Sale part of Ưu đãi."""
+        return (
+            self.list_value
+            - self.order_value
+            - (self.bundle_discount if self.combo_in_price else ZERO)
+        )
 
     @property
     def buyer_paid(self) -> Decimal:
         """Doanh thu thực before VAT: goods total − the seller's voucher − combo (#50)."""
-        return self.order_value - self.seller_voucher - self.bundle_discount
+        return self.order_value - self.seller_voucher - self.combo_off
 
     @property
     def item_after_seller_promo(self) -> Decimal:
@@ -316,7 +371,7 @@ def line_profit(
     if not line.status.carries_profit:
         return ProfitBreakdown(
             list_value=line.list_value,
-            promo_discount=line.list_value - line.order_value,
+            promo_discount=line.programme_discount,
             voucher=line.seller_voucher,
             bundle=line.bundle_discount,
             buyer_paid=line.buyer_paid,
@@ -335,6 +390,8 @@ def line_profit(
             excluded_reason="no_fee_no_profit",
         )
     missing: list[str] = []  # a sale (``delivered``) from here on
+    if line.voucher_unknown:
+        missing.append("seller_voucher")
 
     fees: tuple[tuple[str, Decimal], ...] | None = None
     fees_total: Decimal | None = None
@@ -401,7 +458,7 @@ def line_profit(
 
     return ProfitBreakdown(
         list_value=line.list_value,
-        promo_discount=line.list_value - line.order_value,
+        promo_discount=line.programme_discount,
         voucher=line.seller_voucher,
         bundle=line.bundle_discount,
         buyer_paid=line.buyer_paid,
@@ -444,7 +501,7 @@ def _refund_profit(line: OrderLine, cost: SkuCost | None) -> ProfitBreakdown | N
     contribution = None if packaging is None else -(charged + packaging)
     return ProfitBreakdown(
         list_value=line.list_value,
-        promo_discount=line.list_value - line.order_value,
+        promo_discount=line.programme_discount,
         voucher=line.seller_voucher,
         bundle=line.bundle_discount,
         buyer_paid=line.buyer_paid,

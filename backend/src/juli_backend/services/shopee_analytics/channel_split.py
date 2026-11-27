@@ -20,7 +20,7 @@ Rules (the owner's, ORY 11/10-09/11 as the sanity shape):
   ===========================  ===============================  ==============================
   Quảng cáo views / clicks     overlay (traffic overview)       ads report: impressions /
                                                                 clicks of product ads (every
-                                                                type but Shop+, ``is_shop_plus``)
+                                                                ``ad_type_class`` product)
   Quảng cáo orders / GMV       overlay (confirmed basis)        overlay (confirmed basis)
   Thẻ sản phẩm (organic) views card - overlay views            card - overlay views; card -
                                                                 report impressions when the
@@ -36,8 +36,8 @@ Rules (the owner's, ORY 11/10-09/11 as the sanity shape):
 - Every row carries ``prev`` (the same cells over the previous period of the same length) and
   ``share`` (of the total GMV on the traffic-overview base; ``None`` for ads-report rows).
 - **Quảng cáo children, ads-report base** (never added to the traffic-overview figure): DVHT Sản
-  phẩm = every ad type of the ads report but Shop+; DVHT Shop+ = ``loaders.is_shop_plus`` (the
-  file's ``ads_shop``, the Connector's ``shop_*``). The ads report of a day is the Connector's
+  phẩm and DVHT Shop+ = the ad types ``loaders.ad_type_class`` says so (C3; a livestream or
+  unknown type is in neither row). The ads report of a day is the Connector's
   ``ads_campaign_daily`` wherever it has the day, else the daily file report. P100
   B.4c: Lượt xem = the report's impressions, CTR = clicks ÷ impressions, CTOR = orders ÷ clicks
   (broad orders, the report's own basis); a type whose days lack the counts (a day covered only
@@ -90,8 +90,11 @@ from juli_backend.services.shopee_profit.ladder import (
     affiliate_cost,
     covered,
     ladder_of,
+    offers_cost,
+    unknown_orders,
 )
-from juli_backend.services.shopee_profit.order_profit import counts_in_sales
+from juli_backend.services.shopee_profit.order_profit import counts_in_product_sales
+from juli_backend.services.shopee_profit.shop_profit import product_profit_reliable
 
 LOG = logging.getLogger(__name__)
 SHOP_PLUS_KIND = "ads_shop"
@@ -170,31 +173,31 @@ _COUNTS = ("impressions", "clicks")
 def _ad_report(
     ad_types: AdTypes | None,
 ) -> tuple[dict[str, Decimal | None] | None, dict[str, Decimal | None] | None]:
-    """(DVHT Sản phẩm, DVHT Shop+) of the ads report: ``{"gmv", "orders", "spend",
-    "impressions", "clicks"}`` each. A count one of the summed types lacks is ``None``."""
-    if not ad_types:
-        return None, None
-    product: dict[str, Decimal | None] = {
+    """(DVHT Sản phẩm, DVHT Shop+) of the ads report (:func:`ad_report_by_class`); a livestream or
+    unknown type is in neither."""
+    by = ad_report_by_class(ad_types)
+    return by.get(loaders.AD_PRODUCT), by.get(loaders.AD_SHOP_PLUS)
+
+
+def ad_report_by_class(ad_types: AdTypes | None) -> dict[str, dict[str, Decimal | None]]:
+    """C3: the ads report per ``loaders.ad_type_class`` (only the classes present): ``{"gmv",
+    "orders", "spend", "impressions", "clicks"}`` each; the classes add up to the report. A count
+    one of the summed types lacks is ``None``."""
+    empty: dict[str, Decimal | None] = {
         "gmv": Decimal(0), "orders": Decimal(0), "spend": Decimal(0),
         "impressions": Decimal(0), "clicks": Decimal(0),
         "rate_impressions": Decimal(0), "rate_clicks": Decimal(0), "rate_orders": Decimal(0),
     }  # fmt: skip
-    shop = dict(product)
-    has_product = has_shop = False
-    for kind, cell in ad_types.items():
-        plus = loaders.is_shop_plus(kind)
-        target = shop if plus else product
-        if plus:
-            has_shop = True
-        else:
-            has_product = True
+    out: dict[str, dict[str, Decimal | None]] = {}
+    for kind, cell in (ad_types or {}).items():
+        target = out.setdefault(loaders.ad_type_class(kind), dict(empty))
         for k in target:
             value, have = cell.get(k), target[k]
             if k in _COUNTS:
                 target[k] = None if value is None or have is None else have + Decimal(value)
             else:
                 target[k] = Decimal(have or 0) + Decimal(value or 0)
-    return (product if has_product else None), (shop if has_shop else None)
+    return out
 
 
 def partition_channels(
@@ -688,7 +691,7 @@ def _product_affiliate(view: PeriodView, product_id: str | None) -> dict[str, De
     lines = [
         ln
         for ln, _ in view.pairs
-        if ln.affiliate and ln.product_id == product_id and counts_in_sales(ln)
+        if ln.affiliate and ln.product_id == product_id and counts_in_product_sales(ln)
     ]
     if not lines:
         return None
@@ -705,7 +708,7 @@ def _offers_cost(view: PeriodView, product_id: str | None) -> Decimal | None:
     pairs = [(ln, pb) for ln, pb in view.pairs if product_id is None or ln.product_id == product_id]
     if not pairs:
         return None
-    return sum((pb.offer_cost for _, pb in pairs), Decimal(0))
+    return offers_cost(pairs, basis=view.pairs)
 
 
 ZERO_D = Decimal(0)
@@ -727,24 +730,31 @@ def _zero_row() -> dict[str, Decimal]:
     return dict.fromkeys(SPLIT_COLUMNS, ZERO_D)
 
 
-def _sums(pairs: Sequence[tuple[Any, Any]]) -> dict[str, Decimal]:
+def _sums(
+    pairs: Sequence[tuple[Any, Any]], basis: Sequence[tuple[Any, Any]] | None = None
+) -> dict[str, Decimal]:
     """GMV and đơn of the sale lines; doanh thu thực and Lợi nhuận đóng góp of the covered lines
-    (every cost known); Ưu đãi (the combined seller cost, ``ProfitBreakdown.offer_cost``) of all
-    lines; the affiliate commission of the covered lines."""
-    sale = [ln for ln, _ in pairs if counts_in_sales(ln)]
-    known = [pb for _, pb in pairs if covered(pb)]
+    (every cost known); Ưu đãi (the combined seller cost, ``ProfitBreakdown.offer_cost``) of the
+    known orders; the affiliate commission of the covered lines."""
+    sale = [ln for ln, _ in pairs if counts_in_product_sales(ln)]
+    unknown = unknown_orders(pairs if basis is None else basis)
+    known = [pb for ln, pb in pairs if covered(pb) and ln.order_id not in unknown]
     return {
         "gmv": sum((ln.order_value for ln in sale), ZERO_D),
         "orders": Decimal(len({ln.order_id for ln in sale})),
         "net_revenue": sum((pb.revenue for pb in known), ZERO_D),
-        "cost_offers": sum((pb.offer_cost for _, pb in pairs), ZERO_D),
+        "cost_offers": offers_cost(pairs, basis=basis) or ZERO_D,
         "contribution": sum((pb.organic_contribution or ZERO_D for pb in known), ZERO_D),
-        "cost_affiliate": affiliate_cost(pairs) or ZERO_D,
+        "cost_affiliate": affiliate_cost(pairs, basis=basis) or ZERO_D,
     }
 
 
 def split_scope(
-    pairs: Sequence[tuple[Any, Any]], *, ads_gmv: Decimal | None, ads_spend: Decimal | None
+    pairs: Sequence[tuple[Any, Any]],
+    *,
+    ads_gmv: Decimal | None,
+    ads_spend: Decimal | None,
+    basis: Sequence[tuple[Any, Any]] | None = None,
 ) -> dict[str, dict[str, Decimal]]:
     """One scope (a product, or lines no product owns) split into Organic / Quảng cáo / TTLK
     (owner decision #49):
@@ -756,8 +766,8 @@ def split_scope(
       plus the scope's ads spend; Organic = N − Quảng cáo. No ads report row: s = 0.
     - Lợi nhuận ròng of a channel = its đóng góp − its QC − its AFF.
     Every column adds up to the scope's total exactly."""
-    aff = _sums([(ln, pb) for ln, pb in pairs if ln.affiliate])
-    rest = _sums([(ln, pb) for ln, pb in pairs if not ln.affiliate])
+    aff = _sums([(ln, pb) for ln, pb in pairs if ln.affiliate], basis or pairs)
+    rest = _sums([(ln, pb) for ln, pb in pairs if not ln.affiliate], basis or pairs)
     s = ZERO_D
     if ads_gmv is not None and ads_gmv > 0 and rest["gmv"] > 0:
         s = min(Decimal(1), ads_gmv / rest["gmv"])
@@ -797,7 +807,7 @@ def _reconcile_to_kpi(
     rest (``rows['ads']``, the M rule, as built per product); both capped by
     :func:`partition_channels`; Organic = the KPI total minus them. Profit columns are untouched
     (line based). A KPI total that is ``None`` leaves that column on the lines."""
-    sale = [(ln, pb) for ln, pb in pairs if counts_in_sales(ln)]
+    sale = [(ln, pb) for ln, pb in pairs if counts_in_product_sales(ln)]
     aff = [ln for ln, _ in sale if ln.affiliate]
     rest = [ln for ln, _ in sale if not ln.affiliate]
     aff_gmv = sum((ln.order_value for ln in aff), ZERO_D)
@@ -849,7 +859,7 @@ def profit_split(
         pp = view.profit.products.get(pid)
         spend = None if pp is None else pp.ad_spend
         claimed += spend or ZERO_D
-        for ch, row in split_scope(pairs, ads_gmv=gmv, ads_spend=spend).items():
+        for ch, row in split_scope(pairs, ads_gmv=gmv, ads_spend=spend, basis=view.pairs).items():
             rows[ch] = _add_rows(rows[ch], row)
     if kpi_gmv is not None or kpi_orders is not None:
         scope = [p for p in view.pairs if product_id is None or p[0].product_id == product_id]
@@ -920,34 +930,47 @@ def kpis_of(
     return out
 
 
+#: R1: every profit level of a KPI block that is "—" outside the 70-100 % known share
+WITHHELD_KPIS = (
+    "profit", "gross_profit", "contribution", "margin_gross_pct", "margin_contribution_pct",
+    "margin_pct", "roi",
+)  # fmt: skip
+
+
 def _kpis(
     view: PeriodView, base: FunnelBase, product_id: str | None, platform: str = "shopee"
 ) -> dict[str, Any]:
     base = total_base(base, platform)
+    withheld = False
     if product_id is None:
-        profit = shop_profit_of(view).profit
+        fig = shop_profit_of(view)
+        profit, withheld = fig.profit, fig.withheld
         ads_cost: Decimal | None = view.profit.total_ad_spend
         other: Decimal | None = view.profit.other_marketing_costs
     else:
         pp = view.profit.products.get(product_id)
         profit = None if pp is None else pp.profit
+        withheld = pp is not None and not product_profit_reliable(pp)  # R1: its own known share
         ads_cost = None if pp is None else pp.ad_spend
         other = ZERO_D
     pairs = [(ln, pb) for ln, pb in view.pairs if product_id is None or ln.product_id == product_id]
     ladder = (
-        ladder_of(pairs, ads_spend=ads_cost, other_marketing=other, profit=profit)
+        ladder_of(pairs, ads_spend=ads_cost, other_marketing=other, profit=profit, basis=view.pairs)
         if pairs
         else None
     )
-    return kpis_of(
+    out = kpis_of(
         base.total("gmv"),
         base.total("orders"),
         profit,
         ads_cost,
-        affiliate_cost(pairs),
+        affiliate_cost(pairs, basis=view.pairs),
         _offers_cost(view, product_id),
         ladder,
     )
+    if withheld:  # R1: the ladder would recompute its own net profit, margin and ROI
+        out.update(dict.fromkeys(WITHHELD_KPIS))
+    return out
 
 
 def plan_block_of(r: Mapping[str, Any]) -> dict[str, Any]:
@@ -1055,9 +1078,18 @@ def _split_of(
     def dec(v: Any) -> Decimal | None:
         return None if v is None else Decimal(str(v))
 
-    return profit_split(
+    split = profit_split(
         view, product_id, kpi_gmv=dec(kpis.get("gmv")), kpi_orders=dec(kpis.get("orders"))
     )
+    pp = None if product_id is None else view.profit.products.get(product_id)
+    if (product_id is None and shop_profit_of(view).withheld) or (
+        pp is not None and not product_profit_reliable(pp)
+    ):
+        # R1: the channels' profits add up to the scope's: withheld with it
+        for row in (*split["rows"].values(), split[UNATTRIBUTED], split["total"]):
+            if row is not None:
+                row["profit"] = None
+    return split
 
 
 _CELLS = ("views", "clicks", "ctr", "ctor", "aov", "gmv", "orders")

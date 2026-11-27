@@ -50,6 +50,10 @@ from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_profit.flows import Flow, FlowSource
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.order_profit import counts_in_sales
+from juli_backend.services.shopee_profit.shop_profit import (
+    product_margin_pct_shown,
+    product_profit_shown,
+)
 from juli_backend.services.shopee_profit.sources import CellStats
 
 KINDS = ("products", "campaigns", "kols", "vouchers", "keywords")
@@ -236,11 +240,9 @@ def _product_m(view: PeriodView, pid: str, source: str, sub: str | None) -> M | 
         )
     if source == "ads":
         fig = view.ads.product_figures.get(pid)
-        if fig is None:
-            return None
-        return M(
-            fig.gmv or ZERO, ZERO, None, ZERO, spend=fig.spend, extra={"direct_gmv": fig.direct_gmv}
-        )
+        if fig is None or fig.gmv is None:
+            return None  # owner #99: an unknown ads GMV is left out, never ranked as 0
+        return M(fig.gmv, ZERO, None, ZERO, spend=fig.spend, extra={"direct_gmv": fig.direct_gmv})
     # all
     split = view.metrics.split(pid)  # order lines scaled to the shop totals (D85.2)
     gmv = split.gmv if split else ZERO
@@ -256,7 +258,7 @@ def _product_m(view: PeriodView, pid: str, source: str, sub: str | None) -> M | 
     return M(
         gmv,
         orders,
-        pp.profit if pp and pp.buyer_paid_covered > 0 else None,
+        product_profit_shown(pp) if pp and pp.buyer_paid_covered > 0 else None,
         pp.buyer_paid_covered if pp else ZERO,
         discount,
         sum((pb.list_value for _, pb in pairs), ZERO),
@@ -282,7 +284,7 @@ def _products(view: PeriodView, source: str, sub: str | None) -> Rows:
                 "product_id": pid,
                 **price_block(view, pid),
                 "margin_basis": margin_basis(view, pid, pp),
-                "margin_pct": pct(pp.margin_pct) if pp else None,
+                "margin_pct": pct(product_margin_pct_shown(pp)) if pp else None,
             }
             out[pid] = (view.names.get(pid) or pid, m, extra)
     return out
@@ -345,6 +347,7 @@ def _campaigns(view: PeriodView) -> Rows:
             {"campaign_key": c.key},
         )
         for c in view.ads.campaigns
+        if c.gmv is not None and c.orders is not None  # unknown: in "Các chiến dịch khác", never 0
     }
 
 
@@ -399,8 +402,8 @@ def _cell_other(kind: str, view: PeriodView) -> M:
         if d.complete:
             return M(d.gmv, d.orders, None, ZERO, spend=d.spend)
         return M(
-            sum((c.gmv for c in view.ads.campaigns), ZERO),
-            sum((c.orders for c in view.ads.campaigns), ZERO),
+            sum((c.gmv for c in view.ads.campaigns if c.gmv is not None), ZERO),
+            sum((c.orders for c in view.ads.campaigns if c.orders is not None), ZERO),
             None,
             ZERO,
             spend=view.ads.total_spend,
